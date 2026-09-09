@@ -1,0 +1,33 @@
+{
+  "title": "AI Platform — Operations Overview",
+  "uid":   "ai-platform-overview",
+  "tags":  ["ai-platform"],
+  "time":  { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1, "title": "Active Users (5min)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "aip_active_users_gauge", "legendFormat": "Active Users" }]
+    },
+    {
+      "id": 2, "title": "Active Streams",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "aip_streaming_connections_active", "legendFormat": "Streams" }]
+    },
+    {
+      "id": 3, "title": "Error Rate %",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "rate(aip_http_errors_total[5m]) * 100", "legendFormat": "Error %" }]
+    },
+    {
+      "id": 4, "title": "Request Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "targets": [{ "expr": "rate(aip_http_requests_total[1m])", "legendFormat": "Requests/s" }]
+    }
+  ]
+}

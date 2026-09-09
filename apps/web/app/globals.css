@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* ── Tailwind v4 theme ──────────────────────────────────────────────── */
+@theme {
+  /* Font families → generates font-arabic, font-inter, font-mono utilities */
+  --font-arabic: "IBM Plex Arabic", sans-serif;
+  --font-inter:  "Inter", sans-serif;
+  --font-mono:   "JetBrains Mono", monospace;
+
+  /* Brand colors → generates bg-surface, text-muted, border-accent-blue etc. */
+  --color-bg-base:      #0F172A;
+  --color-bg-surface:   #1E293B;
+  --color-bg-elevated:  #334155;
+  --color-border:       #475569;
+  --color-text-primary: #F8FAFC;
+  --color-text-muted:   #94A3B8;
+  --color-accent-blue:  #2563EB;
+  --color-accent-teal:  #0F766E;
+
+  /* Named animations → generates animate-fade-in, animate-slide-up utilities */
+  --animate-fade-in:  fadeIn  0.2s ease-in-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+}
+
+/* ── CSS custom properties (for direct var() usage) ─────────────────── */
+:root {
+  --bg-base:      #0F172A;
+  --bg-surface:   #1E293B;
+  --bg-elevated:  #334155;
+  --border:       #475569;
+  --text-primary: #F8FAFC;
+  --text-muted:   #94A3B8;
+  --accent-blue:  #2563EB;
+  --accent-teal:  #0F766E;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background-color: var(--bg-base);
+  color:            var(--text-primary);
+  scroll-behavior:  smooth;
+}
+
+body { min-height: 100vh; }
+
+/* Arabic font */
+[lang="ar"] body, [dir="rtl"] body { font-family: "IBM Plex Arabic", sans-serif; }
+[lang="en"] body, [dir="ltr"] body { font-family: "Inter", sans-serif; }
+
+/* Code blocks — ALWAYS LTR regardless of document direction */
+pre, code, kbd, .code-block {
+  direction:    ltr !important;
+  unicode-bidi: isolate;
+  text-align:   left;
+  font-family:  "JetBrains Mono", monospace;
+}
+
+/* Mixed bidirectional content in messages */
+.message-content { unicode-bidi: plaintext; }
+
+/* Smooth scrollbar */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* RTL-aware animations */
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Focus ring */
+:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 4px; }
+
+/* Selection */
+::selection { background: rgba(37,99,235,0.3); }

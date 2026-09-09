@@ -1,0 +1,71 @@
+web:
+  port: 8080
+
+ui:
+  title:       "حالة الخدمة | AI Platform Status"
+  header:      "حالة منصة الذكاء الاصطناعي"
+  description: "Real-time status of all AI Platform services"
+  logo:        ""
+
+storage:
+  type: sqlite
+  path: /data/gatus.db
+
+endpoints:
+  - name: "تطبيق الدردشة | Chat App"
+    group: "core"
+    url: "http://web:3000/api/health"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 3000"
+    alerts:
+      - type: telegram
+        failure-threshold: 2
+        success-threshold: 1
+        description: "Chat app is down"
+
+  - name: "API Middleware"
+    group: "core"
+    url: "http://api:4000/health"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 1000"
+
+  - name: "AI Gateway"
+    group: "core"
+    url: "http://gateway:3000/api/status"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "GPT-4o Channel"
+    group: "ai-providers"
+    url: "http://gateway:3000/api/status"
+    interval: 2m
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "Claude Channel"
+    group: "ai-providers"
+    url: "http://gateway:3000/api/status"
+    interval: 2m
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "Gemini Channel"
+    group: "ai-providers"
+    url: "http://gateway:3000/api/status"
+    interval: 2m
+    conditions:
+      - "[STATUS] == 200"
+
+alerting:
+  telegram:
+    token:   "${TELEGRAM_BOT_TOKEN}"
+    id:      "${TELEGRAM_CHAT_ID}"
+    default-alert:
+      failure-threshold: 2
+      success-threshold: 1
+      send-on-resolved:  true

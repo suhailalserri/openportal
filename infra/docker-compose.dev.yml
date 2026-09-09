@@ -1,0 +1,26 @@
+# Development overrides — use with:
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+name: ai-platform-dev
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"   # Expose locally for DB tools (TablePlus, DBeaver)
+
+  redis:
+    ports:
+      - "6379:6379"   # Expose for redis-cli debugging
+
+  gateway:
+    ports:
+      - "3001:3000"   # Direct gateway access for testing
+
+  api:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ../apps/api/src:/app/apps/api/src  # Hot reload
+
+  web:
+    environment:
+      NODE_ENV: development
