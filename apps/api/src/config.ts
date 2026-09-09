@@ -17,9 +17,9 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
   TURNSTILE_SECRET_KEY:   z.string().optional(),
-  MINIO_ENDPOINT:         z.string().default("minio:9000"),
-  MINIO_ACCESS_KEY:       z.string().min(1),
-  MINIO_SECRET_KEY:       z.string().min(1),
+  MINIO_ENDPOINT:         z.string().optional(),
+  MINIO_ACCESS_KEY:       z.string().optional(),
+  MINIO_SECRET_KEY:       z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
 });
 
