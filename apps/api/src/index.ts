@@ -27,9 +27,11 @@ await app.register(fastifyTRPCPlugin, {
     router:      appRouter,
     createContext,
     onError: ({ error, path }: { error: Error; path?: string }) => {
-      if (config.NODE_ENV !== "production") {
-        console.error(`tRPC error on ${path}:`, error.message);
-      }
+      // Always log server-side — this only affects server logs, never the
+      // client response (tRPC's own error formatter controls that). Previously
+      // this was gated to non-production, which meant real errors in prod
+      // (like the apiKeyHash mismatch below) were completely invisible.
+      app.log.error({ path, err: error.message }, "tRPC error");
     },
   },
 });

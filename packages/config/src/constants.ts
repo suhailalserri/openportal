@@ -13,6 +13,7 @@ export const FRAUD = {
   MAX_USERS_PER_IP_PER_DAY: 3,
   MAX_CREDITS_PER_HOUR:     1000,   // In display credits
   MAX_CONCURRENT_SESSIONS:  3,
+  SENSITIVE_ACTION_PER_HOUR: 10, // changePassword / generateApiKey attempts per user
 } as const;
 
 /** Credit packages for direct payment */

@@ -3,8 +3,20 @@ import { router, protectedProcedure } from "./trpc";
 import { TRPCError }           from "@trpc/server";
 import { db, users, balances } from "@ai-platform/db";
 import { eq }                  from "drizzle-orm";
-import { hashSync }            from "bcryptjs";
+import bcrypt                  from "bcryptjs";
 import { randomBytes, createHash } from "node:crypto";
+import { checkLimit }          from "../middleware/rateLimit.middleware";
+import { FRAUD }               from "@ai-platform/config";
+
+function assertNotRateLimited(userId: string, action: string) {
+  const allowed = checkLimit(`sensitive:${action}:${userId}`, FRAUD.SENSITIVE_ACTION_PER_HOUR, 60 * 60_000);
+  if (!allowed) {
+    throw new TRPCError({
+      code:    "TOO_MANY_REQUESTS",
+      message: "محاولات كثيرة جداً. حاول مرة أخرى لاحقاً.",
+    });
+  }
+}
 
 export const userRouter = router({
 
@@ -31,19 +43,33 @@ export const userRouter = router({
       newPassword:     z.string().min(8),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { compareSync } = await import("bcryptjs");
-      if (!compareSync(input.currentPassword, ctx.user.passwordHash)) {
+      assertNotRateLimited(ctx.user.id, "changePassword");
+
+      const isValid = await bcrypt.compare(input.currentPassword, ctx.user.passwordHash);
+      if (!isValid) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Current password is incorrect" });
       }
+      const newHash = await bcrypt.hash(input.newPassword, 12);
       await db.update(users)
-        .set({ passwordHash: hashSync(input.newPassword, 12), updatedAt: new Date() })
+        .set({ passwordHash: newHash, updatedAt: new Date() })
         .where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
 
+  // NOTE: API keys are hashed with SHA-256, NOT bcrypt. auth.middleware.ts
+  // authenticates Bearer API keys by hashing the presented raw key with
+  // SHA-256 and doing a direct equality lookup against `users.apiKeyHash`
+  // (`eq(users.apiKeyHash, keyHash)`). That only works because SHA-256 is
+  // deterministic. bcrypt is salted/non-deterministic and can never be
+  // looked up this way — using it here silently breaks all API-key auth
+  // (every request 401s, since the stored hash can never match a fresh
+  // lookup hash). bcrypt is correct for passwordHash above (verified via
+  // compare, never looked up by value); it is wrong for apiKeyHash.
   generateApiKey: protectedProcedure.mutation(async ({ ctx }) => {
+    assertNotRateLimited(ctx.user.id, "generateApiKey");
+
     const rawKey   = `sk-aip-${randomBytes(36).toString("hex")}`;
-    const keyHash  = hashSync(rawKey, 12);
+    const keyHash  = createHash("sha256").update(rawKey).digest("hex");
     const prefix   = rawKey.slice(0, 14) + "...";
     await db.update(users)
       .set({ apiKeyHash: keyHash, apiKeyPrefix: prefix, updatedAt: new Date() })

@@ -4,7 +4,7 @@ import { FRAUD } from "@ai-platform/config";
 // Simple in-memory rate limiter (replace with Redis in production)
 const counters = new Map<string, { count: number; resetAt: number }>();
 
-function checkLimit(key: string, max: number, windowMs: number): boolean {
+export function checkLimit(key: string, max: number, windowMs: number): boolean {
   const now    = Date.now();
   const entry  = counters.get(key);
 
