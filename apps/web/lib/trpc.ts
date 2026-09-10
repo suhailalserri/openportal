@@ -10,7 +10,7 @@ export function getTRPCClient() {
       httpBatchLink({
         url: "/api/trpc",
         fetch(url, options) {
-          return fetch(url, { ...options, credentials: "include" });
+          return fetch(url, { ...options, credentials: "include" } as RequestInit);
         },
         headers: () => ({
           "x-trpc-source": "web",
