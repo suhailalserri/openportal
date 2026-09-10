@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./routers": "./src/routers/index.ts",
+    "./services/redeem": "./src/services/redeem.service.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc --noEmit",

@@ -10,11 +10,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-platform/api": "workspace:*",
     "@ai-platform/config": "workspace:*",
     "@ai-platform/db": "workspace:*",
     "@ai-platform/types": "workspace:*",
     "ai": "^4.0.0",
     "better-auth": "^1.0.0",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "idb-keyval": "^6.2.0",
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.0",
+    "@types/bcryptjs": "^2.4.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
