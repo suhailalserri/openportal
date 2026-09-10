@@ -201,6 +201,10 @@ importers:
         version: 5.9.3
 
   packages/config:
+    dependencies:
+      '@ai-platform/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       typescript:
         specifier: ^5.0.0
