@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789044408792,
+      "tag": "0000_wandering_tana_nile",
+      "breakpoints": true
+    }
+  ]
+}
