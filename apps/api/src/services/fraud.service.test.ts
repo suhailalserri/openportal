@@ -99,7 +99,7 @@ describe("FraudService.checkRequestVelocity", () => {
     }
 
     // The 4th and 5th distinct users from this IP should trigger the event.
-    const lastUserEvents = await fraudEventsFor(flaggedUserIds[flaggedUserIds.length - 1]);
+    const lastUserEvents = await fraudEventsFor(flaggedUserIds[flaggedUserIds.length - 1]!);
     expect(lastUserEvents.some((e: any) => e.type === "SHARED_IP_MULTI_ACCOUNT" && e.severity === "high")).toBe(true);
   });
 });

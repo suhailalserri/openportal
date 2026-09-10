@@ -32,7 +32,11 @@ export const userRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await db.update(users)
-        .set({ ...input, updatedAt: new Date() })
+        .set({
+          updatedAt: new Date(),
+          ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+          ...(input.locale      !== undefined ? { locale: input.locale } : {}),
+        })
         .where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
@@ -44,6 +48,13 @@ export const userRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertNotRateLimited(ctx.user.id, "changePassword");
+
+      if (!ctx.user.passwordHash) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "This account signed up via a social provider and has no password to change.",
+        });
+      }
 
       const isValid = await bcrypt.compare(input.currentPassword, ctx.user.passwordHash);
       if (!isValid) {

@@ -26,7 +26,7 @@ await app.register(fastifyTRPCPlugin, {
   trpcOptions: {
     router:      appRouter,
     createContext,
-    onError: ({ error, path }: { error: Error; path?: string }) => {
+    onError: ({ error, path }: { error: Error; path: string | undefined }) => {
       // Always log server-side — this only affects server logs, never the
       // client response (tRPC's own error formatter controls that). Previously
       // this was gated to non-production, which meant real errors in prod
@@ -85,11 +85,11 @@ app.post("/chat", {
 // Parse all Redis URL components including DB number (path segment after /)
 const _redisUrl  = new URL(config.REDIS_URL);
 const redisConn = {
-  host:     _redisUrl.hostname,
-  port:     parseInt(_redisUrl.port || "6379"),
-  password: _redisUrl.password || undefined,
+  host: _redisUrl.hostname,
+  port: parseInt(_redisUrl.port || "6379"),
   // DB number from path: redis://host:port/1 → db=1, default 0
-  db:       parseInt(_redisUrl.pathname.slice(1) || "0"),
+  db:   parseInt(_redisUrl.pathname.slice(1) || "0"),
+  ...(_redisUrl.password ? { password: _redisUrl.password } : {}),
 };
 
 if (config.NODE_ENV === "production") {

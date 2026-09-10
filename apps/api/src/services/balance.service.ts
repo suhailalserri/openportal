@@ -69,10 +69,10 @@ export async function deductCreditsAtomic(
       amount:       -microCredits,
       balanceAfter: newBalance,
       description,
-      requestId:    metadata.requestId,
-      modelId:      metadata.modelId,
-      inputTokens:  metadata.inputTokens,
-      outputTokens: metadata.outputTokens,
+      ...(metadata.requestId    !== undefined ? { requestId: metadata.requestId } : {}),
+      ...(metadata.modelId      !== undefined ? { modelId: metadata.modelId } : {}),
+      ...(metadata.inputTokens  !== undefined ? { inputTokens: metadata.inputTokens } : {}),
+      ...(metadata.outputTokens !== undefined ? { outputTokens: metadata.outputTokens } : {}),
     });
 
     return { success: true, newBalance };
@@ -109,11 +109,11 @@ export async function creditBalance(
       type,
       amount:       microCredits,
       balanceAfter: updated[0]!.credits,
-      description:  metadata.description,
-      redeemCodeId: metadata.redeemCodeId,
-      adminId:      metadata.adminId,
-      adminNote:    metadata.adminNote,
-      paymentId:    metadata.paymentId,
+      ...(metadata.description  !== undefined ? { description: metadata.description } : {}),
+      ...(metadata.redeemCodeId !== undefined ? { redeemCodeId: metadata.redeemCodeId } : {}),
+      ...(metadata.adminId      !== undefined ? { adminId: metadata.adminId } : {}),
+      ...(metadata.adminNote    !== undefined ? { adminNote: metadata.adminNote } : {}),
+      ...(metadata.paymentId    !== undefined ? { paymentId: metadata.paymentId } : {}),
     });
   });
 }

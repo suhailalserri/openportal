@@ -124,7 +124,7 @@ describe("redeemCode", () => {
       where: (t: any, { eq }: any) => eq(t.userId, userId),
     });
     expect(txRows).toHaveLength(1);
-    expect(txRows[0].type).toBe("redeem");
+    expect(txRows[0]!.type).toBe("redeem");
   });
 
   it("rejects an already-used code with ALREADY_USED, without double-crediting", async () => {
@@ -184,7 +184,7 @@ describe("redeemCode", () => {
       const allBalances = await db.query.balances.findMany();
       const creditedUsers = allBalances.filter((b: any) => b.credits > 0);
       expect(creditedUsers).toHaveLength(1);
-      expect(creditedUsers[0].credits).toBe(50_000_000);
+      expect(creditedUsers[0]!.credits).toBe(50_000_000);
 
       const allTxRows = await db.query.transactions.findMany();
       expect(allTxRows).toHaveLength(1);

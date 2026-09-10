@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "dependencies": {
+    "@ai-platform/types": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   }

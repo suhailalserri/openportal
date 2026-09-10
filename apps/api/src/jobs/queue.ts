@@ -1,10 +1,11 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { config } from "../config";
 
+const _queueRedisUrl = new URL(config.REDIS_URL);
 const connection = {
-  host:     new URL(config.REDIS_URL).hostname,
-  port:     parseInt(new URL(config.REDIS_URL).port || "6379"),
-  password: new URL(config.REDIS_URL).password || undefined,
+  host: _queueRedisUrl.hostname,
+  port: parseInt(_queueRedisUrl.port || "6379"),
+  ...(_queueRedisUrl.password ? { password: _queueRedisUrl.password } : {}),
 };
 
 // ── Queues ─────────────────────────────────────────────────────────────

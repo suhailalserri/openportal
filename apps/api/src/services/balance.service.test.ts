@@ -44,9 +44,9 @@ describe("deductCreditsAtomic", () => {
       where: (t: any, { eq }: any) => eq(t.userId, userId),
     });
     expect(txRows).toHaveLength(1);
-    expect(txRows[0].type).toBe("usage_debit");
-    expect(txRows[0].amount).toBe(-25_000_000);
-    expect(txRows[0].balanceAfter).toBe(75_000_000);
+    expect(txRows[0]!.type).toBe("usage_debit");
+    expect(txRows[0]!.amount).toBe(-25_000_000);
+    expect(txRows[0]!.balanceAfter).toBe(75_000_000);
   });
 
   it("fails cleanly (no exception) when balance is insufficient, and never goes negative", async () => {
@@ -128,7 +128,7 @@ describe("deductCreditsAtomic", () => {
     const txRows = await db.query.transactions.findMany({
       where: (t: any, { eq }: any) => eq(t.userId, userId),
     });
-    expect(txRows[0].type).toBe("admin_debit");
+    expect(txRows[0]!.type).toBe("admin_debit");
   });
 });
 
@@ -146,8 +146,8 @@ describe("creditBalance", () => {
       where: (t: any, { eq }: any) => eq(t.userId, userId),
     });
     expect(txRows).toHaveLength(1);
-    expect(txRows[0].type).toBe("redeem");
-    expect(txRows[0].amount).toBe(20_000_000);
+    expect(txRows[0]!.type).toBe("redeem");
+    expect(txRows[0]!.amount).toBe(20_000_000);
   });
 
   it("throws if the user has no balance row (fail loud, not silent)", async () => {
