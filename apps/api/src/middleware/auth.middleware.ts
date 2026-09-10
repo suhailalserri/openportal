@@ -46,9 +46,11 @@ export async function authMiddleware(
   // ── Path 2: Session cookie ──────────────────────────────────────────
   const sessionToken = request.cookies?.["better-auth.session_token"];
   if (sessionToken) {
+    // See trpc.ts createContext — sessions must be looked up by `token`,
+    // the value better-auth actually places in the cookie, not `id`.
     const session = await db.query.sessions.findFirst({
       where: and(
-        eq(sessions.id, sessionToken),
+        eq(sessions.token, sessionToken),
         gt(sessions.expiresAt, new Date())
       ),
     });

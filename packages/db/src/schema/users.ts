@@ -9,7 +9,12 @@ import {
 export const users = pgTable("users", {
   id:               uuid("id").primaryKey().defaultRandom(),
   email:            varchar("email",        { length: 255 }).unique().notNull(),
-  passwordHash:     text("password_hash").notNull(),
+  // Legacy column — better-auth's email/password strategy stores the actual
+  // credential hash in `accounts.password` (providerId "credential"), never
+  // here. Kept nullable so better-auth's own insert (which doesn't know this
+  // column exists) doesn't fail a NOT NULL constraint. NOT the source of
+  // truth for auth — do not compare against this in new code.
+  passwordHash:     text("password_hash"),
   displayName:      varchar("display_name", { length: 100 }),
   role:             userRoleEnum("role").default("user").notNull(),
   status:           userStatusEnum("status").default("pending_verification").notNull(),

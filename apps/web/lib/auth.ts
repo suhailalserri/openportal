@@ -1,12 +1,23 @@
 import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { db }              from "@ai-platform/db";
-import { users, sessions } from "@ai-platform/db";
+import { users, sessions, accounts, verifications } from "@ai-platform/db";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema:   { users, sessions },
+    // Keys must be better-auth's canonical model names (user/session/account/
+    // verification), not your table variable names — this was previously
+    // `{ users, sessions }`, missing account/verification entirely and using
+    // the wrong keys. Without `account`, better-auth has nowhere to write a
+    // password on signup; without `verification`, email-verification tokens
+    // have nowhere to live.
+    schema: {
+      user:         users,
+      session:      sessions,
+      account:      accounts,
+      verification: verifications,
+    },
   }),
 
   emailAndPassword: {
@@ -21,9 +32,14 @@ export const auth = betterAuth({
   },
 
   session: {
-    expiresIn: 60 * 60 * 24 * 7,  // 7 days
-    updateAge:  60 * 60 * 24,      // Refresh after 1 day of use
+    expiresIn:   60 * 60 * 24 * 7,  // 7 days
+    updateAge:   60 * 60 * 24,      // Refresh after 1 day of use
     cookieCache: { enabled: true, maxAge: 60 * 5 },
+    // Your `sessions` table uses `ip` instead of better-auth's canonical
+    // `ipAddress` — map it so better-auth writes to the right column.
+    fields: {
+      ipAddress: "ip",
+    },
   },
 
   rateLimit: { window: 60, max: 5 },
@@ -70,6 +86,13 @@ export const auth = betterAuth({
   },
 
   user: {
+    // Your `users` table uses displayName/avatarUrl instead of better-auth's
+    // canonical name/image. Map them so better-auth reads/writes the right
+    // columns instead of expecting columns that don't exist.
+    fields: {
+      name:  "displayName",
+      image: "avatarUrl",
+    },
     additionalFields: {
       locale:         { type: "string",  defaultValue: "ar"   },
       role:           { type: "string",  defaultValue: "user"  },

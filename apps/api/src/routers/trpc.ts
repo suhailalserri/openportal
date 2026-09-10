@@ -17,9 +17,12 @@ export async function createContext({
                    ?? req.headers["authorization"]?.replace("Bearer ", "");
     if (!cookie) return null;
 
+    // better-auth's session cookie value is the session's `token`, not its
+    // `id` — `id` is an internal row identifier better-auth never puts in
+    // the cookie. Looking this up by `id` (as before) could never match.
     const session = await db.query.sessions.findFirst({
       where: and(
-        eq(sessions.id, cookie),
+        eq(sessions.token, cookie),
         gt(sessions.expiresAt, new Date())
       ),
     });

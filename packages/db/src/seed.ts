@@ -2,8 +2,8 @@
  * Development seed: creates admin + test users and properly checksummed redeem codes.
  * Run with: pnpm tsx src/seed.ts
  */
-import { db, users, balances, redeemCodes } from "./index";
-import { hashSync } from "bcryptjs";
+import { db, users, balances, redeemCodes, accounts } from "./index";
+import { hashPassword } from "better-auth/crypto";
 import { createHmac } from "node:crypto";
 import crypto from "node:crypto";
 
@@ -32,11 +32,14 @@ async function seed() {
   console.log("🌱 Seeding database...");
 
   // ── Superadmin ────────────────────────────────────────────────────────
+  // NOTE: password is stored in `accounts` (providerId: "credential"), not
+  // on `users.passwordHash` — that column is legacy and unused by better-auth.
+  // Hashed with better-auth's own scrypt-based hashPassword so the seeded
+  // account can actually log in through the real auth flow.
   const [admin] = await db
     .insert(users)
     .values({
       email:         "admin@localhost.dev",
-      passwordHash:  hashSync("Admin123!", 12),
       displayName:   "Super Admin",
       role:          "superadmin",
       status:        "active",
@@ -49,6 +52,14 @@ async function seed() {
     .onConflictDoNothing();
 
   if (admin) {
+    await db.insert(accounts).values({
+      id:         crypto.randomUUID(),
+      userId:     admin.id,
+      accountId:  admin.id,
+      providerId: "credential",
+      password:   await hashPassword("Admin123!"),
+    }).onConflictDoNothing();
+
     await db.insert(balances)
       .values({ userId: admin.id, credits: 100_000 * 1_000_000 })
       .onConflictDoNothing();
@@ -60,7 +71,6 @@ async function seed() {
     .insert(users)
     .values({
       email:         "user@localhost.dev",
-      passwordHash:  hashSync("User123!", 12),
       displayName:   "Test User",
       role:          "user",
       status:        "active",
@@ -72,6 +82,14 @@ async function seed() {
     .onConflictDoNothing();
 
   if (testUser) {
+    await db.insert(accounts).values({
+      id:         crypto.randomUUID(),
+      userId:     testUser.id,
+      accountId:  testUser.id,
+      providerId: "credential",
+      password:   await hashPassword("User123!"),
+    }).onConflictDoNothing();
+
     await db.insert(balances)
       .values({ userId: testUser.id, credits: 100 * 1_000_000 })
       .onConflictDoNothing();
