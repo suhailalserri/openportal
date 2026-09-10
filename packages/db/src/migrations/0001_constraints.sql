@@ -45,6 +45,18 @@ CREATE INDEX IF NOT EXISTS idx_provider_prices_current
   ON provider_prices(model_id, provider)
   WHERE effective_to IS NULL;
 
+-- ── TRIGGER FUNCTION ──────────────────────────────────────────────────
+-- Normally created by infra/postgres/init.sql on a local Docker Postgres
+-- (via docker-entrypoint-initdb.d). Managed providers like Render never
+-- run that file, so it's (re)created here too — idempotent either way.
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ── TRIGGERS ───────────────────────────────────────────────────────────
 
 DROP TRIGGER IF EXISTS users_updated_at ON users;
@@ -68,29 +80,41 @@ CREATE TRIGGER models_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ── CRON JOBS (pg_cron) ───────────────────────────────────────────────
+-- pg_cron needs to be preloaded at the Postgres server level
+-- (shared_preload_libraries), which most managed providers — Render's
+-- standard plans included — don't expose to customers. This block is
+-- best-effort: it logs a NOTICE and moves on instead of failing the
+-- whole script if the extension can't be created or scheduled.
+-- (The original version also had an invalid `ON CONFLICT` tacked onto a
+-- `SELECT cron.schedule(...)` call, which isn't valid SQL — cron.schedule
+-- already upserts by job name on its own, so it's just removed below.)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    CREATE EXTENSION pg_cron;
+  END IF;
 
-SELECT cron.schedule(
-  'nightly-data-pruning',
-  '0 3 * * *',
-  $$
-    -- Mark expired unused codes
-    UPDATE redeem_codes
-    SET status = 'expired'
-    WHERE status = 'unused'
-      AND expires_at IS NOT NULL
-      AND expires_at < NOW();
+  PERFORM cron.schedule(
+    'nightly-data-pruning',
+    '0 3 * * *',
+    $sql$
+      UPDATE redeem_codes
+      SET status = 'expired'
+      WHERE status = 'unused'
+        AND expires_at IS NOT NULL
+        AND expires_at < NOW();
 
-    -- Soft-archive old unpinned conversations (free users, 90 days)
-    UPDATE conversations
-    SET deleted_at = NOW()
-    WHERE updated_at < NOW() - INTERVAL '90 days'
-      AND deleted_at IS NULL
-      AND is_pinned = false
-      AND user_id IN (SELECT id FROM users WHERE tier = 'free');
+      UPDATE conversations
+      SET deleted_at = NOW()
+      WHERE updated_at < NOW() - INTERVAL '90 days'
+        AND deleted_at IS NULL
+        AND is_pinned = false
+        AND user_id IN (SELECT id FROM users WHERE tier = 'free');
 
-    -- Delete old audit logs (keep 90 days)
-    DELETE FROM audit_logs
-    WHERE created_at < NOW() - INTERVAL '90 days';
-  $$
-)
-ON CONFLICT (jobname) DO UPDATE SET schedule = EXCLUDED.schedule;
+      DELETE FROM audit_logs
+      WHERE created_at < NOW() - INTERVAL '90 days';
+    $sql$
+  );
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'pg_cron unavailable on this Postgres instance (%) — skipping scheduled cron jobs. Use your host''s own scheduler (e.g. Render Cron Jobs) instead if you need this.', SQLERRM;
+END $$;

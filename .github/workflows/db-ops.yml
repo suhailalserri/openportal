@@ -18,6 +18,8 @@ on:
         required: true
         type: choice
         options:
+          - reset-and-migrate-all
+          - reset
           - migrate
           - constraints
           - seed
@@ -49,22 +51,31 @@ jobs:
       - name: Install psql
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      - name: Reset — drop and recreate the public schema
+        # DESTRUCTIVE: wipes every table. Only use pre-launch / with no
+        # real user data — this exists because a stale `users` table
+        # (from an older schema, created before drizzle migrations ran)
+        # was silently left in place by `CREATE TABLE IF NOT EXISTS`.
+        if: ${{ inputs.task == 'reset' || inputs.task == 'reset-and-migrate-all' }}
+        run: |
+          psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
       - name: Migrate (drizzle-kit) — creates tables
-        if: ${{ inputs.task == 'migrate' || inputs.task == 'all' }}
+        if: ${{ inputs.task == 'migrate' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: pnpm db:migrate
 
       - name: Apply constraints & indexes (raw SQL, not tracked by drizzle-kit)
-        if: ${{ inputs.task == 'constraints' || inputs.task == 'all' }}
+        if: ${{ inputs.task == 'constraints' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: psql "$DATABASE_URL" < src/migrations/0001_constraints.sql
 
       - name: Seed admin + test user + redeem codes
-        if: ${{ inputs.task == 'seed' || inputs.task == 'all' }}
+        if: ${{ inputs.task == 'seed' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: pnpm seed
 
       - name: Sync MODEL_CATALOG into the models table
-        if: ${{ inputs.task == 'seed-models' || inputs.task == 'all' }}
+        if: ${{ inputs.task == 'seed-models' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: pnpm seed:models
