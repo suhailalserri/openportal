@@ -1,0 +1,52 @@
+name: DB Migrate
+
+# Manual only — triggered from GitHub's Actions tab (works fine from the
+# mobile browser/app: repo → Actions → "DB Migrate" → Run workflow).
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Which drizzle-kit command to run"
+        required: true
+        default: "migrate"
+        type: choice
+        options:
+          - generate
+          - migrate
+
+jobs:
+  db-migrate:
+    name: Run drizzle-kit
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run drizzle-kit ${{ inputs.command }}
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm exec drizzle-kit ${{ inputs.command }}
+
+      # `generate` writes new migration SQL files to the repo — this commits
+      # them back so `migrate` (run next, or on your next deploy) has them.
+      - name: Commit generated migration files
+        if: inputs.command == 'generate'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/db/src/migrations
+          git diff --staged --quiet || git commit -m "chore: generate db migration [skip ci]"
+          git push
