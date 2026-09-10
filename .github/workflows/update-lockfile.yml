@@ -1,0 +1,36 @@
+name: Update Lockfile
+
+# Manual only. Run this whenever a package.json dependency changes and CI
+# starts failing with ERR_PNPM_OUTDATED_LOCKFILE.
+on:
+  workflow_dispatch:
+
+jobs:
+  update-lockfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      # NOTE: deliberately NOT using setup-node's built-in pnpm cache here.
+      # That cache is what caused the esbuild postinstall failure ("Expected
+      # 0.28.2 but got 0.19.12") — a stale cached binary from a previous
+      # run's store getting reused for a different esbuild version. A fresh,
+      # uncached install avoids the whole class of bug for this one-off task.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install without cache (regenerates lockfile)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Commit updated lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git diff --staged --quiet || git commit -m "chore: update pnpm-lock.yaml [skip ci]"
+          git push
