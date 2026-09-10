@@ -14,10 +14,13 @@ export function BalanceWidget({ locale }: BalanceWidgetProps) {
   useEffect(() => {
     async function fetchBalance() {
       try {
-        const res  = await fetch("/api/balance");
+        const res = await fetch("/api/balance");
+        if (!res.ok) { setCredits(0); return; } // e.g. 401 when logged out
         const data = await res.json() as { credits: number };
-        setCredits(data.credits);
-      } catch { /* ignore */ }
+        setCredits(typeof data.credits === "number" ? data.credits : 0);
+      } catch {
+        setCredits(0);
+      }
     }
     fetchBalance();
     const id = setInterval(fetchBalance, 30_000);

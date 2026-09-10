@@ -21,10 +21,13 @@ export function useBalance(pollIntervalMs = 30_000): BalanceState & { refresh: (
 
   const fetch_ = useCallback(async () => {
     try {
-      const res  = await fetch("/api/balance");
-      if (!res.ok) return;
+      const res = await fetch("/api/balance");
+      if (!res.ok) {
+        setState(s => ({ ...s, loading: false }));
+        return;
+      }
       const data = await res.json() as { credits: number };
-      const mc   = data.credits;
+      const mc   = typeof data.credits === "number" ? data.credits : 0;
       setState({
         microCredits:   mc,
         displayCredits: mc / MICRO_CREDIT,

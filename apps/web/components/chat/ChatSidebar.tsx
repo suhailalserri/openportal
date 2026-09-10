@@ -3,11 +3,13 @@ import { useTranslations }   from "next-intl";
 import Link                  from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { BalanceWidget }     from "../shared/BalanceWidget";
+import { AccountMenu }       from "../shared/AccountMenu";
 import { LanguageSwitcher }  from "../shared/LanguageSwitcher";
 import { useConversations }  from "@/hooks/useConversations";
 import { Skeleton }          from "../ui/skeleton";
 import { formatRelativeDate } from "@/lib/utils";
 import { MODEL_CATALOG }     from "@ai-platform/config";
+import { useSession }        from "@/lib/auth-client";
 
 interface Props { locale: string; isOpen: boolean; onClose: () => void }
 
@@ -40,6 +42,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
   const router    = useRouter();
   const pathname  = usePathname();
   const { grouped, loading } = useConversations();
+  const { data: session }    = useSession();
 
   const groups: Array<{ key: keyof typeof grouped; labelKey: string }> = [
     { key: "pinned",    labelKey: "chat.pinned"    },
@@ -119,7 +122,8 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
 
         {/* Footer */}
         <div className="p-3 border-t border-slate-700 space-y-2 flex-shrink-0">
-          <BalanceWidget locale={locale} />
+          <AccountMenu locale={locale} />
+          {session && <BalanceWidget locale={locale} />}
           <div className="flex items-center justify-between gap-2">
             <LanguageSwitcher />
             <Link href={`/${locale}/settings`}
