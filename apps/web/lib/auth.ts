@@ -119,13 +119,24 @@ export const auth = betterAuth({
   // Any request from an origin not listed here gets rejected with a 403
   // "Invalid origin" before auth logic even runs.
   //
-  // VERCEL_URL is auto-injected by Vercel with the current deployment's own
-  // domain (no protocol), so it covers whichever deployment is live right
-  // now. The wildcard covers every other preview URL for this project.
-  trustedOrigins: [
-    process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-    "https://openportal-web.vercel.app",
-    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-    "https://*.vercel.app",
-  ],
+  // NOTE: a static "https://*.vercel.app" wildcard entry was here before,
+  // but it did not reliably match preview-deployment origins on the
+  // pinned better-auth version (confirmed in prod logs: real preview
+  // requests were rejected with "Invalid origin" despite the wildcard
+  // being present). A dynamic function is honored on every better-auth
+  // 1.x release, so it's used instead of relying on wildcard-string
+  // matching. `request` is undefined during init / direct auth.api calls,
+  // so a safe static fallback list is returned in that case.
+  trustedOrigins: async (request?: Request) => {
+    const fallback = [
+      process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+      "https://openportal-web.vercel.app",
+      ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    ];
+    if (!request) return fallback;
+
+    const origin = request.headers.get("origin") ?? "";
+    if (origin.endsWith(".vercel.app")) return [origin, ...fallback];
+    return fallback;
+  },
 });

@@ -1,0 +1,68 @@
+name: DB Operations
+
+# Manual, one-off database admin tasks (migrate / constraints / seed) that
+# would otherwise require pnpm + psql on a local machine. Run from the
+# GitHub Actions tab -> "DB Operations" -> "Run workflow".
+#
+# Setup (one time):
+#   Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+#   Name: DATABASE_URL
+#   Value: the EXTERNAL connection string from Render's Postgres dashboard,
+#          including ?sslmode=require
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What to run"
+        required: true
+        type: choice
+        options:
+          - migrate
+          - constraints
+          - seed
+          - seed-models
+          - all
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Migrate (drizzle-kit) — creates tables
+        if: ${{ inputs.task == 'migrate' || inputs.task == 'all' }}
+        working-directory: packages/db
+        run: pnpm db:migrate
+
+      - name: Apply constraints & indexes (raw SQL, not tracked by drizzle-kit)
+        if: ${{ inputs.task == 'constraints' || inputs.task == 'all' }}
+        working-directory: packages/db
+        run: psql "$DATABASE_URL" < src/migrations/0001_constraints.sql
+
+      - name: Seed admin + test user + redeem codes
+        if: ${{ inputs.task == 'seed' || inputs.task == 'all' }}
+        working-directory: packages/db
+        run: pnpm seed
+
+      - name: Sync MODEL_CATALOG into the models table
+        if: ${{ inputs.task == 'seed-models' || inputs.task == 'all' }}
+        working-directory: packages/db
+        run: pnpm seed:models
