@@ -36,7 +36,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(newPath, request.url));
   }
 
-  return NextResponse.next();
+  // This app uses a custom middleware instead of next-intl's own createMiddleware,
+  // so next-intl never receives the locale automatically. next-intl's server APIs
+  // (including requestLocale in i18n/request.ts) read the active locale from the
+  // `x-next-intl-locale` request header, which its own middleware would normally
+  // set — since we're not using that middleware, we set it here ourselves.
+  const segment  = pathname.split("/")[1];
+  const response = NextResponse.next();
+  response.headers.set("x-next-intl-locale", segment);
+  return response;
 }
 
 export const config = {
