@@ -5,15 +5,29 @@ import { db, users, sessions } from "@ai-platform/db";
 import { eq, and, gt } from "drizzle-orm";
 
 // ── Context ───────────────────────────────────────────────────────────
+
+// Deliberately does NOT rely on `req.cookies` (only present because
+// @fastify/cookie's plugin registration in index.ts augments FastifyRequest
+// — a file outside this router's import graph, see rate-limiter.ts's
+// comment for the same class of issue). Parsing the raw header directly
+// keeps this file's typing correct regardless of which program compiles it.
+function parseCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return undefined;
+}
+
 export async function createContext({
   req,
-  res,
 }: {
   req: FastifyRequest;
   res: FastifyReply;
 }) {
   async function getUser() {
-    const cookie    = req.cookies?.["better-auth.session_token"]
+    const cookie    = parseCookie(req.headers.cookie, "better-auth.session_token")
                    ?? req.headers["authorization"]?.replace("Bearer ", "");
     if (!cookie) return null;
 
@@ -31,7 +45,19 @@ export async function createContext({
     return db.query.users.findFirst({ where: eq(users.id, session.userId) });
   }
 
-  return { req, res, db, user: await getUser() };
+  // A plain string, not the raw Fastify request — this is what makes
+  // Context safe to satisfy from apps/web's Next.js context too (see
+  // apps/web/server/context.ts). Putting FastifyRequest itself in Context
+  // meant apps/web's `createContext` could never structurally match it
+  // (Next.js has no FastifyRequest), and meant this whole file's types had
+  // to be resolved by Next.js's build in the first place — the root cause
+  // of the build failures this file's git history is fixing.
+  const ip = (req.headers["cf-connecting-ip"] as string)
+          ?? (req.headers["x-forwarded-for"] as string)
+          ?? req.ip
+          ?? "unknown";
+
+  return { db, user: await getUser(), ip };
 }
 
 export type Context = inferAsyncReturnType<typeof createContext>;

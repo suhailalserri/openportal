@@ -35,10 +35,7 @@ export const billingRouter = router({
   redeemCode: protectedProcedure
     .input(z.object({ code: z.string().min(1).max(32) }))
     .mutation(async ({ ctx, input }) => {
-      const ip = ctx.req.headers["cf-connecting-ip"] as string
-              ?? ctx.req.headers["x-forwarded-for"] as string
-              ?? ctx.req.ip
-              ?? "unknown";
+      const ip = ctx.ip;
 
       // Fraud check before attempting redeem
       // const fraud = new FraudService(redis);

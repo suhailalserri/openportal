@@ -5,7 +5,7 @@ import { db, users, balances } from "@ai-platform/db";
 import { eq }                  from "drizzle-orm";
 import bcrypt                  from "bcryptjs";
 import { randomBytes, createHash } from "node:crypto";
-import { checkLimit }          from "../middleware/rateLimit.middleware";
+import { checkLimit }          from "../utils/rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
 
 function assertNotRateLimited(userId: string, action: string) {

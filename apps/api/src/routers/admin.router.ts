@@ -85,7 +85,7 @@ export const adminRouter = router({
         targetType: "user",
         targetId:   input.userId,
         after:      { status: input.status, reason: input.reason },
-        ip:         ctx.req.ip,
+        ip:         ctx.ip,
       });
 
       return { success: true };
@@ -133,7 +133,7 @@ export const adminRouter = router({
         targetType: "user",
         targetId:   input.userId,
         after:      { amount: input.amount, type: input.type, reason: input.reason },
-        ip:         ctx.req.ip,
+        ip:         ctx.ip,
       });
 
       return { success: true };
@@ -168,7 +168,7 @@ export const adminRouter = router({
         action:     "codes.generate",
         targetType: "batch",
         after:      { count: input.count, value: input.creditValue, label: input.label, batchId },
-        ip:         ctx.req.ip,
+        ip:         ctx.ip,
       });
 
       return { batchId, codes: codes.map(c => c.code), count: codes.length };
@@ -201,7 +201,7 @@ export const adminRouter = router({
         adminId: ctx.user.id,
         action:  "codes.revoke",
         after:   { code: input.code },
-        ip:      ctx.req.ip,
+        ip:      ctx.ip,
       });
 
       return { success: true };
@@ -239,7 +239,7 @@ export const adminRouter = router({
 
       await db.insert(auditLogs).values({
         adminId: ctx.user.id, action: "user.clearFraudFlag",
-        targetType: "user", targetId: input.userId, ip: ctx.req.ip,
+        targetType: "user", targetId: input.userId, ip: ctx.ip,
       });
 
       return { success: true };

@@ -1,30 +1,10 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { FRAUD } from "@ai-platform/config";
+import { FRAUD }        from "@ai-platform/config";
+import { checkLimit }   from "../utils/rate-limiter";
 
-// Simple in-memory rate limiter (replace with Redis in production)
-const counters = new Map<string, { count: number; resetAt: number }>();
-
-export function checkLimit(key: string, max: number, windowMs: number): boolean {
-  const now    = Date.now();
-  const entry  = counters.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    counters.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-
-  entry.count++;
-  if (entry.count > max) return false;
-  return true;
-}
-
-// Clean up old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of counters) {
-    if (now > entry.resetAt) counters.delete(key);
-  }
-}, 5 * 60 * 1000);
+// Re-exported for any existing importers — prefer importing directly from
+// ../utils/rate-limiter in new code (see that file for why this split exists).
+export { checkLimit };
 
 export async function rateLimitMiddleware(
   request: FastifyRequest,
