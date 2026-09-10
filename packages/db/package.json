@@ -16,6 +16,7 @@
     "seed:models": "tsx src/seed-models.ts"
   },
   "dependencies": {
+    "@ai-platform/config": "workspace:*",
     "better-auth": "^1.0.0",
     "drizzle-orm": "^0.31.0",
     "postgres": "^3.4.0"
