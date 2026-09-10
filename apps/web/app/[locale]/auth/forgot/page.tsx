@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { forgetPassword } from "@/lib/auth-client";
+import { requestPasswordReset } from "@/lib/auth-client";
 import { toast } from "sonner";
 
 export default function ForgotPage() {
@@ -17,7 +17,7 @@ export default function ForgotPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await forgetPassword({ email, redirectTo: `/${locale}/auth/reset` });
+      await requestPasswordReset({ email, redirectTo: `/${locale}/auth/reset` });
       setSent(true);
     } catch {
       toast.error(t("errors.generic"));
