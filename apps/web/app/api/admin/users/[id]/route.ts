@@ -38,6 +38,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed  = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid" }, { status: 400 });
 
-  await db.update(users).set({ ...parsed.data, updatedAt: new Date() }).where(eq(users.id, id));
+  const updateData: { updatedAt: Date; status?: "active" | "suspended" } = {
+    updatedAt: new Date(),
+  };
+  if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
+
+  await db.update(users).set(updateData).where(eq(users.id, id));
   return NextResponse.json({ success: true });
 }

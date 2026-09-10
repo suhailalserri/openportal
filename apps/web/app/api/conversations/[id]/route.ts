@@ -31,8 +31,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id }  = await params;
   const body    = await req.json() as { title?: string; isPinned?: boolean };
 
+  const updateData: { updatedAt: Date; title?: string; isPinned?: boolean } = {
+    updatedAt: new Date(),
+  };
+  if (body.title !== undefined) updateData.title = body.title;
+  if (body.isPinned !== undefined) updateData.isPinned = body.isPinned;
+
   await db.update(conversations)
-    .set({ ...body, updatedAt: new Date() })
+    .set(updateData)
     .where(and(eq(conversations.id, id), eq(conversations.userId, session.user.id)));
 
   return NextResponse.json({ success: true });
