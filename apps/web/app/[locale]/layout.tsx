@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Toaster } from "sonner";
+import { Providers } from "@/components/providers";
 import "../globals.css";
 
 const SUPPORTED_LOCALES = ["ar", "en"] as const;
@@ -45,7 +46,9 @@ export default async function LocaleLayout({ children, params }: Props) {
       </head>
       <body className={isRTL ? "font-arabic" : "font-inter"}>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          {children}
+          <Providers>
+            {children}
+          </Providers>
           <Toaster
             position={isRTL ? "bottom-left" : "bottom-right"}
             dir={direction}

@@ -8,8 +8,10 @@ export function getTRPCClient() {
   return trpc.createClient({
     links: [
       httpBatchLink({
-        url:         "/api/trpc",
-        credentials: "include",
+        url: "/api/trpc",
+        fetch(url, options) {
+          return fetch(url, { ...options, credentials: "include" });
+        },
         headers: () => ({
           "x-trpc-source": "web",
         }),
