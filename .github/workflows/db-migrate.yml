@@ -19,6 +19,8 @@ jobs:
     name: Run drizzle-kit
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
