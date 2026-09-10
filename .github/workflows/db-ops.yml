@@ -56,9 +56,16 @@ jobs:
         # real user data — this exists because a stale `users` table
         # (from an older schema, created before drizzle migrations ran)
         # was silently left in place by `CREATE TABLE IF NOT EXISTS`.
+        #
+        # Also drops the `drizzle` schema, which is where drizzle-kit
+        # keeps its own migration-tracking table (__drizzle_migrations) —
+        # separate from `public`. Without dropping it too, drizzle-kit
+        # sees migration 0000 already marked "applied" from the previous
+        # run and skips re-creating all the tables, leaving `public`
+        # empty while it reports success.
         if: ${{ inputs.task == 'reset' || inputs.task == 'reset-and-migrate-all' }}
         run: |
-          psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+          psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
       - name: Migrate (drizzle-kit) — creates tables
         if: ${{ inputs.task == 'migrate' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
