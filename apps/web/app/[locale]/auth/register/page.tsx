@@ -31,6 +31,7 @@ export default function RegisterPage() {
         name:     form.name,
       });
       if (result.error) {
+        console.error("Sign-up failed:", result.error);
         const msg = result.error.message?.includes("already")
           ? t("auth.errors.emailTaken")
           : t("auth.errors.generic");

@@ -56,32 +56,44 @@ export const auth = betterAuth({
     }) => {
       // Import Resend directly here — avoids pulling in apps/api/src/config.ts
       // which runs process.exit(1) if API-specific env vars are absent.
-      const { Resend } = await import("resend");
-      const resend = new Resend(process.env.RESEND_API_KEY!);
-      const name   = user.name ?? "";
-      await resend.emails.send({
-        from:    `${process.env.RESEND_FROM_NAME ?? "AI Platform"} <${process.env.RESEND_FROM_EMAIL ?? "noreply@yourplatform.com"}>`,
-        to:      user.email,
-        subject: "تأكيد البريد الإلكتروني | Verify Your Email",
-        html: `
-          <div dir="rtl" style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-            <h2 style="margin-bottom:16px;">مرحباً ${name} 👋</h2>
-            <p style="margin-bottom:24px;">
-              انقر على الزر أدناه لتأكيد بريدك الإلكتروني والبدء في استخدام المنصة.
-            </p>
-            <a href="${url}" style="
-              display:inline-block;padding:12px 28px;
-              background:#2563EB;color:#fff;border-radius:8px;
-              text-decoration:none;font-weight:600;
-            ">
-              تأكيد البريد الإلكتروني
-            </a>
-            <p style="margin-top:24px;color:#94A3B8;font-size:13px;">
-              إذا لم تنشئ حساباً، تجاهل هذه الرسالة.
-            </p>
-          </div>
-        `,
-      });
+      //
+      // Wrapped in try/catch: this fires mid-signup, so a Resend failure
+      // (missing/invalid RESEND_API_KEY, network issue) must not throw —
+      // otherwise better-auth surfaces it as a generic sign-up failure and
+      // the account never gets created, even though email/password were fine.
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY!);
+        const name   = user.name ?? "";
+        await resend.emails.send({
+          from:    `${process.env.RESEND_FROM_NAME ?? "AI Platform"} <${process.env.RESEND_FROM_EMAIL ?? "noreply@yourplatform.com"}>`,
+          to:      user.email,
+          subject: "تأكيد البريد الإلكتروني | Verify Your Email",
+          html: `
+            <div dir="rtl" style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+              <h2 style="margin-bottom:16px;">مرحباً ${name} 👋</h2>
+              <p style="margin-bottom:24px;">
+                انقر على الزر أدناه لتأكيد بريدك الإلكتروني والبدء في استخدام المنصة.
+              </p>
+              <a href="${url}" style="
+                display:inline-block;padding:12px 28px;
+                background:#2563EB;color:#fff;border-radius:8px;
+                text-decoration:none;font-weight:600;
+              ">
+                تأكيد البريد الإلكتروني
+              </a>
+              <p style="margin-top:24px;color:#94A3B8;font-size:13px;">
+                إذا لم تنشئ حساباً، تجاهل هذه الرسالة.
+              </p>
+            </div>
+          `,
+        });
+      } catch (err) {
+        // Account still gets created; the user can request a fresh
+        // verification email later via sendVerificationEmail once
+        // RESEND_API_KEY / RESEND_FROM_EMAIL are confirmed correct.
+        console.error("Failed to send verification email:", err);
+      }
     },
   },
 
@@ -101,7 +113,19 @@ export const auth = betterAuth({
     },
   },
 
+  // Vercel gives every deployment (prod AND every preview) its own unique
+  // domain — e.g. openportal-bl7vz4lue-abu0alis-projects.vercel.app — so a
+  // single hardcoded BETTER_AUTH_URL will only ever match one of them.
+  // Any request from an origin not listed here gets rejected with a 403
+  // "Invalid origin" before auth logic even runs.
+  //
+  // VERCEL_URL is auto-injected by Vercel with the current deployment's own
+  // domain (no protocol), so it covers whichever deployment is live right
+  // now. The wildcard covers every other preview URL for this project.
   trustedOrigins: [
     process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    "https://openportal-web.vercel.app",
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    "https://*.vercel.app",
   ],
 });
