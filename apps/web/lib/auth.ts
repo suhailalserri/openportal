@@ -1,8 +1,15 @@
 import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { db }              from "@ai-platform/db";
-import { users, sessions, accounts, verifications } from "@ai-platform/db";
+import { users, sessions, accounts, verifications, balances } from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
+
+// Credits new users start with, in micro-credits (1 credit = 1,000,000
+// micro-credits — see packages/config/src/constants.ts MICRO_CREDIT).
+// Set to 0 if you don't want a free trial balance, but the row still
+// needs to exist — creditBalance() does a plain UPDATE and throws
+// "Balance row not found" if there's nothing to update.
+const SIGNUP_BONUS_MICRO_CREDITS = 0;
 
 export const auth = betterAuth({
   // better-auth uses this to build every outgoing link it generates itself
@@ -63,6 +70,25 @@ export const auth = betterAuth({
   advanced: {
     database: {
       generateId: () => crypto.randomUUID(),
+    },
+  },
+
+  // `createBalanceForUser` in apps/api/src/services/balance.service.ts exists
+  // but nothing ever called it — new signups got no `balances` row at all,
+  // so getBalance() fell back to { credits: 0 } (chat: 402 INSUFFICIENT_BALANCE)
+  // and creditBalance() (redeem/admin grant/payment webhook) threw "Balance
+  // row not found for user" since it does a plain UPDATE, not an upsert.
+  // Create the row the moment the user account exists so credits can always
+  // land on it later, regardless of verification status.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user: { id: string }) => {
+          await db.insert(balances)
+            .values({ userId: user.id, credits: SIGNUP_BONUS_MICRO_CREDITS })
+            .onConflictDoNothing();
+        },
+      },
     },
   },
 
