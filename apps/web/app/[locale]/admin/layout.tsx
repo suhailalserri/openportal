@@ -1,11 +1,21 @@
 import { redirect } from "next/navigation";
+import { auth }     from "@/lib/auth";
+import { headers }  from "next/headers";
 
 interface Props { children: React.ReactNode; params: Promise<{ locale: string }> }
 
-// TODO: Add real auth check using Better Auth session
+// Mirrors the role check every /api/admin/* route already enforces
+// server-side — this was previously a hardcoded `return true`, so the
+// admin UI shell rendered for anyone who loaded the URL. The underlying
+// data endpoints were never actually exposed (they check the session
+// themselves), but there's no reason to let unauthenticated visitors see
+// the admin nav/pages at all, and a stub like that is one careless edit
+// away from becoming a real hole.
 async function checkAdminAuth(): Promise<boolean> {
-  // Replace with actual session check
-  return true;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return false;
+  const role = (session.user as { role?: string }).role;
+  return role === "admin" || role === "superadmin";
 }
 
 export default async function AdminLayout({ children, params }: Props) {

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./routers": "./src/routers/index.ts",
-    "./services/redeem": "./src/services/redeem.service.ts"
+    "./services/redeem": "./src/services/redeem.service.ts",
+    "./utils/rate-limiter": "./src/utils/rate-limiter.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

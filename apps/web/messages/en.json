@@ -79,6 +79,7 @@
       "REVOKED": "This code has been revoked. Contact support.",
       "TOO_MANY_ATTEMPTS": "Too many attempts. Try again in an hour.",
       "DAILY_LIMIT_REACHED": "Daily limit reached. Try tomorrow.",
+      "CAPTCHA_FAILED": "Verification failed. Please try again.",
       "GENERIC": "An error occurred. Try again or contact support."
     }
   },
@@ -113,6 +114,8 @@
       "passwordMismatch": "Passwords do not match.",
       "weakPassword": "Password too weak. Add uppercase letters and numbers.",
       "tooManyAttempts": "Too many attempts. Try again in a minute.",
+      "captchaRequired": "Please complete the verification challenge.",
+      "captchaFailed": "Verification failed. Please try again.",
       "generic": "Authentication error. Please try again."
     }
   },

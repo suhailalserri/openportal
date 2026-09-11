@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 export default function RegisterPage() {
   const t      = useTranslations();
@@ -13,6 +14,11 @@ export default function RegisterPage() {
 
   const [form, setForm] = useState({ email: "", password: "", confirm: "", name: "" });
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Bumped after every failed/consumed attempt to force the widget to
+  // remount and issue a fresh token — Turnstile tokens are single-use.
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const captchaConfigured = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
@@ -23,23 +29,42 @@ export default function RegisterPage() {
     if (form.password !== form.confirm) {
       toast.error(t("auth.errors.passwordMismatch")); return;
     }
+    if (captchaConfigured && !turnstileToken) {
+      toast.error(t("auth.errors.captchaRequired")); return;
+    }
     setLoading(true);
     try {
-      const result = await signUp.email({
-        email:    form.email,
-        password: form.password,
-        name:     form.name,
-      });
+      const result = await signUp.email(
+        {
+          email:    form.email,
+          password: form.password,
+          name:     form.name,
+        },
+        {
+          headers: turnstileToken ? { "x-turnstile-token": turnstileToken } : undefined,
+        }
+      );
       if (result.error) {
         console.error("Sign-up failed:", result.error);
-        const msg = result.error.message?.includes("already")
-          ? t("auth.errors.emailTaken")
-          : t("auth.errors.generic");
-        toast.error(msg); return;
+        const code = (result.error as { code?: string }).code;
+        const msg =
+          code === "CAPTCHA_FAILED"
+            ? t("auth.errors.captchaFailed")
+            : result.error.message?.includes("already")
+              ? t("auth.errors.emailTaken")
+              : t("auth.errors.generic");
+        toast.error(msg);
+        // The consumed/rejected token can't be reused — force a fresh
+        // challenge before the next attempt.
+        setTurnstileToken(null);
+        setTurnstileResetKey((k) => k + 1);
+        return;
       }
       router.push(`/${locale}/auth/verify?email=${encodeURIComponent(form.email)}`);
     } catch {
       toast.error(t("errors.generic"));
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
     } finally {
       setLoading(false);
     }
@@ -118,7 +143,14 @@ export default function RegisterPage() {
               )}
             </div>
 
-            <button type="submit" disabled={loading}
+            <TurnstileWidget
+              locale={locale}
+              resetKey={turnstileResetKey}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+            />
+
+            <button type="submit" disabled={loading || (captchaConfigured && !turnstileToken)}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
                          text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm">
               {loading ? t("common.loading") : t("auth.registerButton")}

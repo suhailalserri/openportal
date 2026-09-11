@@ -1,8 +1,10 @@
 import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
+import { createAuthMiddleware, APIError } from "better-auth/api";
 import { db }              from "@ai-platform/db";
 import { users, sessions, accounts, verifications, balances } from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
+import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
 
 // Credits new users start with, in micro-credits (1 credit = 1,000,000
 // micro-credits — see packages/config/src/constants.ts MICRO_CREDIT).
@@ -171,6 +173,35 @@ export const auth = betterAuth({
       tier:           { type: "string",  defaultValue: "free"  },
       isFraudFlagged: { type: "boolean", defaultValue: false   },
     },
+  },
+
+  // Gate registration behind Turnstile to close off scripted/bulk account
+  // creation before it reaches the DB. This runs as a better-auth `before`
+  // hook (rather than in the frontend only) so it can't be bypassed by
+  // calling the API directly. The token travels as a request header
+  // (`x-turnstile-token`) instead of a body field because better-auth's
+  // sign-up schema doesn't accept arbitrary extra fields — see the client
+  // call in auth/register/page.tsx for the matching side of this.
+  //
+  // verifyTurnstileToken() no-ops (returns success) when
+  // TURNSTILE_SECRET_KEY isn't set, so this is inert until that env var is
+  // configured — see apps/web/lib/turnstile-server.ts.
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+
+      const headers = ctx.headers ?? ctx.request?.headers;
+      const token   = headers?.get("x-turnstile-token");
+      const ip      = headers ? getClientIp(headers) : undefined;
+
+      const result = await verifyTurnstileToken(token, ip);
+      if (!result.success) {
+        throw new APIError("BAD_REQUEST", {
+          message: "captcha_failed",
+          code:    "CAPTCHA_FAILED",
+        });
+      }
+    }),
   },
 
   // Vercel gives every deployment (prod AND every preview) its own unique

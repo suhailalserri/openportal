@@ -9,6 +9,7 @@ import { Badge }    from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCredits, formatDate } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 interface Transaction {
   id: string; type: string; amount: number; balanceAfter: number;
@@ -24,6 +25,9 @@ export default function BillingPage() {
   const [loading, setLoading]    = useState(false);
   const [txns,    setTxns]       = useState<Transaction[]>([]);
   const [txLoading, setTxLoading] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const captchaConfigured = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
     fetchBalance();
@@ -50,12 +54,16 @@ export default function BillingPage() {
   async function handleRedeem(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim()) return;
+    if (captchaConfigured && !turnstileToken) {
+      toast.error(t("auth.errors.captchaRequired"));
+      return;
+    }
     setLoading(true);
     try {
       const res  = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim() }),
+        body: JSON.stringify({ code: code.trim(), turnstileToken }),
       });
       const data = await res.json() as { success: boolean; message: string; error?: string };
       if (data.success) {
@@ -70,6 +78,10 @@ export default function BillingPage() {
     } catch {
       toast.error(t("errors.generic"));
     } finally {
+      // Token is single-use whether the attempt succeeded or failed —
+      // always force a fresh challenge for the next submission.
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
       setLoading(false);
     }
   }
@@ -110,20 +122,28 @@ export default function BillingPage() {
             <p className="text-sm text-slate-400">{t("redeem.description")}</p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleRedeem} className="flex gap-3">
-              <input
-                value={code}
-                onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder={t("redeem.placeholder")}
-                dir="ltr"
-                maxLength={32}
-                className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
-                           text-sm font-mono tracking-wider"
+            <form onSubmit={handleRedeem} className="space-y-3">
+              <div className="flex gap-3">
+                <input
+                  value={code}
+                  onChange={e => setCode(e.target.value.toUpperCase())}
+                  placeholder={t("redeem.placeholder")}
+                  dir="ltr"
+                  maxLength={32}
+                  className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
+                             text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
+                             text-sm font-mono tracking-wider"
+                />
+                <Button type="submit" loading={loading} disabled={!code.trim() || (captchaConfigured && !turnstileToken)}>
+                  {t("redeem.button")}
+                </Button>
+              </div>
+              <TurnstileWidget
+                locale={locale}
+                resetKey={turnstileResetKey}
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken(null)}
               />
-              <Button type="submit" loading={loading} disabled={!code.trim()}>
-                {t("redeem.button")}
-              </Button>
             </form>
           </CardContent>
         </Card>
