@@ -89,7 +89,7 @@ export const modelsRouter = router({
           supportsVision:          input.supportsVision,
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),
-          rateLimitPerUserDaily:   input.rateLimitPerUserDaily,
+          rateLimitPerUserDaily:   input.rateLimitPerUserDaily ?? null,
           status:                  "published",
           isAvailable:             true,
           updatedAt:               new Date(),
