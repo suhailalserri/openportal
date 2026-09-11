@@ -19,6 +19,11 @@ export default function ChatPage() {
 
   const { messages, input, handleSubmit, isLoading, stop, setInput, error } = useChat({
     api: "/api/chat",
+    // The backend streams plain text deltas (no SSE framing, no JSON
+    // envelope) — this must match, or useChat's default "data" protocol
+    // parser throws on every chunk and every request looks like a
+    // dropped connection even when the server completed cleanly.
+    streamProtocol: "text",
     body: { model: modelId, conversationId },
     onError: (err) => {
       if (err.message.includes("INSUFFICIENT_BALANCE")) {

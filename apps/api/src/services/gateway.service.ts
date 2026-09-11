@@ -37,7 +37,10 @@ export interface StreamChatOptions {
   model:          string;
   messages:       Array<{ role: string; content: string }>;
   conversationId: string;
-  reply:          { raw: { setHeader: Function; write: Function; end: Function } };
+  reply: {
+    raw:    { setHeader: Function; write: Function; end: Function };
+    status: (code: number) => { send: (body: unknown) => void };
+  };
 }
 
 export async function streamChat(opts: StreamChatOptions): Promise<void> {
@@ -52,8 +55,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     where: and(eq(models.id, modelId), eq(models.status, "published"), eq(models.isAvailable, true)),
   });
   if (!model) {
-    reply.raw.write(`data: ${JSON.stringify({ error: "MODEL_NOT_FOUND" })}\n\n`);
-    reply.raw.end();
+    reply.status(404).send({ error: "MODEL_NOT_FOUND", message: "النموذج غير موجود." });
     return;
   }
 
@@ -91,18 +93,12 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   const maxContext  = model.contextWindow * 0.95;
 
   if (estTokens > maxContext) {
-    reply.raw.write(`data: ${JSON.stringify({
+    reply.status(400).send({
       error:   "CONTEXT_TOO_LONG",
       message: "رسالتك أطول من الحد المسموح. قلّل الرسالة أو اختر نموذجاً بسياق أوسع.",
-    })}\n\n`);
-    reply.raw.end();
+    });
     return;
   }
-
-  // Set streaming headers
-  reply.raw.setHeader("Content-Type",    "text/event-stream");
-  reply.raw.setHeader("Cache-Control",   "no-cache");
-  reply.raw.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
 
   const requestId = crypto.randomUUID();
   let upstream: Response;
@@ -126,24 +122,41 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     });
   } catch (err: unknown) {
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
-    reply.raw.write(`data: ${JSON.stringify({
+    reply.status(isTimeout ? 504 : 502).send({
       error:   isTimeout ? "TIMEOUT" : "GATEWAY_ERROR",
       message: isTimeout ? "انتهت مهلة الطلب. حاول مجدداً." : "خطأ في الاتصال بالخادم.",
-    })}\n\n`);
-    reply.raw.end();
+    });
     return;
   }
 
   if (!upstream.ok) {
-    const errBody = await upstream.json().catch(() => ({}));
-    reply.raw.write(`data: ${JSON.stringify({
-      error:   (errBody as Record<string, unknown>)?.error ?? "UPSTREAM_ERROR",
+    const errBody   = await upstream.json().catch(() => ({}));
+    // 503 from the gateway means the specific model is down — surface it
+    // as MODEL_UNAVAILABLE so the frontend's existing check (which never
+    // actually matched anything before) has something real to catch.
+    const errorCode = upstream.status === 503
+      ? "MODEL_UNAVAILABLE"
+      : ((errBody as Record<string, unknown>)?.error ?? "UPSTREAM_ERROR");
+    reply.status(upstream.status).send({
+      error:   errorCode,
       message: ERROR_MESSAGES[upstream.status] ?? "حدث خطأ غير متوقع.",
       status:  upstream.status,
-    })}\n\n`);
-    reply.raw.end();
+    });
     return;
   }
+
+  // Only now do we know we're actually about to stream real content, so
+  // only now do we commit to raw/streaming mode. `useChat` is configured
+  // with `streamProtocol: "text"` on the client, which just appends
+  // whatever bytes arrive as message content — no SSE framing, no JSON
+  // envelope. Forwarding the upstream's raw OpenAI-format SSE chunks (as
+  // this used to do) doesn't match ANY protocol `useChat` understands by
+  // default, so the client-side parser threw on every single response —
+  // including fully successful ones — which is what was showing up as
+  // "Connection interrupted" regardless of what the server logs said.
+  reply.raw.setHeader("Content-Type",      "text/plain; charset=utf-8");
+  reply.raw.setHeader("Cache-Control",     "no-cache");
+  reply.raw.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
 
   // Stream response back
   const reader          = upstream.body!.getReader();
@@ -159,11 +172,13 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
       if (done) { isPartial = false; break; }
 
       const chunk = decoder.decode(value, { stream: true });
-      reply.raw.write(chunk);
 
-      // Extract content from SSE delta chunks
+      // Extract content deltas from the upstream SSE chunk and forward
+      // ONLY the plain text — not the surrounding OpenAI JSON/SSE framing.
       for (const match of chunk.matchAll(/"content":"((?:[^"\\]|\\.)*)"/g)) {
-        streamedContent += (match[1] ?? "").replace(/\\n/g, "\n").replace(/\\"/g, '"');
+        const delta = (match[1] ?? "").replace(/\\n/g, "\n").replace(/\\"/g, '"');
+        streamedContent += delta;
+        reply.raw.write(delta);
       }
 
       // Extract usage stats from final chunk

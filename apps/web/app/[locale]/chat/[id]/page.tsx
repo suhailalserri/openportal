@@ -22,6 +22,7 @@ export default function ConversationPage() {
   const { messages, isLoading, stop, setInput, handleSubmit, error } = useChat({
     api:  "/api/chat",
     id:   conversationId,
+    streamProtocol: "text",
     body: { model: modelId, conversationId },
     onError: (err) => {
       if (err.message.includes("INSUFFICIENT_BALANCE")) toast.error(t("errors.insufficientBalance"));

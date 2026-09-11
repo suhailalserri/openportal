@@ -65,6 +65,7 @@ function makeSseStream(chunks: string[]): ReadableStream<Uint8Array> {
 
 function makeReply() {
   const writes: string[] = [];
+  const sends: Array<{ code: number; body: unknown }> = [];
   return {
     reply: {
       raw: {
@@ -72,8 +73,12 @@ function makeReply() {
         write: vi.fn((chunk: string) => { writes.push(chunk); }),
         end: vi.fn(),
       },
+      status: vi.fn((code: number) => ({
+        send: vi.fn((body: unknown) => { sends.push({ code, body }); }),
+      })),
     },
     writes,
+    sends,
   };
 }
 
@@ -96,30 +101,33 @@ describe("streamChat", () => {
   it("rejects an unknown model before ever calling fetch or billing", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    const { reply, writes } = makeReply();
+    const { reply, sends } = makeReply();
 
     await streamChat({ ...baseOpts, model: "not-a-real-model", reply });
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
-    expect(writes.join("")).toContain("MODEL_NOT_FOUND");
-    expect(reply.raw.end).toHaveBeenCalledOnce();
+    // Errors discovered before any streaming has begun are sent as a plain
+    // non-2xx JSON response (not raw SSE-framed text) so useChat's own
+    // ok-check surfaces the real reason instead of failing to parse it.
+    expect(sends).toEqual([{ code: 404, body: expect.objectContaining({ error: "MODEL_NOT_FOUND" }) }]);
+    expect(reply.raw.end).not.toHaveBeenCalled();
   });
 
   it("rejects an oversized request before calling fetch (saves wasted provider spend)", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
-    const { reply, writes } = makeReply();
+    const { reply, sends } = makeReply();
 
     const hugeMessage = { role: "user", content: "x".repeat(300_000) }; // deepseek-r2 context is 64k tokens
     await streamChat({ ...baseOpts, messages: [hugeMessage], reply });
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
-    expect(writes.join("")).toContain("CONTEXT_TOO_LONG");
+    expect(sends).toEqual([{ code: 400, body: expect.objectContaining({ error: "CONTEXT_TOO_LONG" }) }]);
   });
 
-  it("passes SSE chunks through unbuffered, in order, and bills exactly once on completion", async () => {
+  it("forwards only the plain-text content of each delta, in order, and bills exactly once on completion", async () => {
     const sseChunks = [
       `data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n`,
       `data: {"choices":[{"delta":{"content":"lo "}}]}\n\n`,
@@ -137,10 +145,12 @@ describe("streamChat", () => {
     const { reply, writes } = makeReply();
     await streamChat({ ...baseOpts, reply });
 
-    // Unbuffered passthrough: each upstream chunk arrived as its own write()
-    // call, not glued into one — and in the original order.
-    expect(writes.length).toBe(sseChunks.length);
-    expect(writes).toEqual(sseChunks);
+    // Only the extracted text content is forwarded — no SSE framing, no
+    // JSON envelope — because useChat's `streamProtocol: "text"` expects
+    // a plain, unframed text stream, not the upstream's raw OpenAI format.
+    // The usage/[DONE] chunks carry no "content" field, so they produce
+    // no write at all.
+    expect(writes).toEqual(["Hel", "lo ", "world"]);
 
     // Billing fired exactly once, with the token counts parsed from the
     // upstream's usage chunk and the correct model.
@@ -180,11 +190,11 @@ describe("streamChat", () => {
       ok: false, status: 429, json: async () => ({ error: { code: "rate_limited" } }),
     }));
 
-    const { reply, writes } = makeReply();
+    const { reply, sends } = makeReply();
     await streamChat({ ...baseOpts, reply });
 
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
-    expect(writes.join("")).toContain("429");
-    expect(reply.raw.end).toHaveBeenCalledOnce();
+    expect(sends).toEqual([{ code: 429, body: expect.objectContaining({ status: 429 }) }]);
+    expect(reply.raw.end).not.toHaveBeenCalled();
   });
 });
