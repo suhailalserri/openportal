@@ -8,8 +8,63 @@ import {
 import { eq, desc, count, sum, and, gte, sql } from "drizzle-orm";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
+import { config }          from "../config";
 
 export const adminRouter = router({
+
+  // ── Gateway channels (New API) ──────────────────────────────────────
+  // The admin Channels page used to render hardcoded mock rows. This
+  // calls New API's own channel-list admin endpoint with GATEWAY_MASTER_KEY.
+  // Different New API deployments expect that token as a plain admin
+  // access token for `/api/*` vs. only as the OpenAI-style key for
+  // `/v1/*` — if yours is the latter, this will come back unauthorized;
+  // see the error message for what to check.
+  gatewayChannels: adminProcedure.query(async () => {
+    let res: Response;
+    try {
+      res = await fetch(`${config.GATEWAY_URL}/api/channel/?p=0&page_size=100`, {
+        headers: { Authorization: `Bearer ${config.GATEWAY_MASTER_KEY}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (err) {
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: `Could not reach gateway: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+
+    if (!res.ok) {
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message:
+          `Gateway channel list returned ${res.status}. GATEWAY_MASTER_KEY may need to be a ` +
+          `New API admin/system access token (Settings → API Access Token on the gateway), ` +
+          `not just a chat-completions key, for this admin endpoint to work.`,
+      });
+    }
+
+    const body = (await res.json().catch(() => null)) as
+      | { data?: { items?: unknown[] } | unknown[] }
+      | null;
+
+    const rawItems: unknown[] = Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray((body?.data as { items?: unknown[] } | undefined)?.items)
+      ? (body!.data as { items: unknown[] }).items
+      : [];
+
+    return rawItems.map((raw) => {
+      const r = raw as Record<string, unknown>;
+      return {
+        id:           Number(r.id ?? 0),
+        name:         String(r.name ?? "unnamed"),
+        type:         String(r.type ?? r.type_name ?? "unknown"),
+        status:       Number(r.status ?? 0),
+        responseTime: Number(r.response_time ?? r.test_time ?? 0),
+        models:       typeof r.models === "string" ? (r.models as string).split(",").filter(Boolean) : [],
+      };
+    });
+  }),
 
   // ── Dashboard stats ─────────────────────────────────────────────────
   getDashboardStats: adminProcedure.query(async () => {

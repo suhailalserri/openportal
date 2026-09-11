@@ -1,17 +1,28 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { MODEL_CATALOG } from "@ai-platform/config";
-import type { ModelConfig } from "@ai-platform/types";
+import { trpc } from "@/lib/trpc";
 
 interface Props { value: string; onChange: (modelId: string) => void }
 
+// Models come from trpc.models.list, which reads the `models` DB table
+// (status="published" AND isAvailable=true only) — the same table the
+// admin "Pending Models" queue publishes into after a gateway sync. No
+// more static MODEL_CATALOG here.
 export function ModelSelector({ value, onChange }: Props) {
-  const t           = useTranslations();
-  const [open, setOpen] = useState(false);
-  const ref         = useRef<HTMLDivElement>(null);
-  const selected    = MODEL_CATALOG.find(m => m.id === value) ?? MODEL_CATALOG[0]!;
-  const available   = MODEL_CATALOG.filter(m => m.isAvailable);
+  const t                = useTranslations();
+  const [open, setOpen]  = useState(false);
+  const ref              = useRef<HTMLDivElement>(null);
+  const { data: available = [], isLoading } = trpc.models.list.useQuery();
+  const selected          = available.find(m => m.id === value) ?? available[0];
+
+  // If the previously-selected model got hidden/disabled, fall back to
+  // whatever's first in the live list so the picker never shows a ghost model.
+  useEffect(() => {
+    if (!isLoading && available.length > 0 && !available.some(m => m.id === value)) {
+      onChange(available[0]!.id);
+    }
+  }, [isLoading, available, value, onChange]);
 
   // Close on outside click
   useEffect(() => {
@@ -27,6 +38,22 @@ export function ModelSelector({ value, onChange }: Props) {
     standard: "text-blue-400",
     free:     "text-emerald-400",
   };
+
+  if (isLoading) {
+    return (
+      <div className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm text-slate-500">
+        …
+      </div>
+    );
+  }
+
+  if (available.length === 0 || !selected) {
+    return (
+      <div className="px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400">
+        {t("models.noneAvailable")}
+      </div>
+    );
+  }
 
   return (
     <div className="relative" ref={ref}>
@@ -53,7 +80,7 @@ export function ModelSelector({ value, onChange }: Props) {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white truncate">{model.displayNameAr}</span>
                     <span className={`text-xs font-medium ${tierColors[model.tier] ?? "text-slate-400"}`}>
-                      {t(`models.${model.tier}`)}
+                      {t(`models.${model.tier}` as Parameters<typeof t>[0])}
                     </span>
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">

@@ -8,7 +8,7 @@ import { LanguageSwitcher }  from "../shared/LanguageSwitcher";
 import { useConversations }  from "@/hooks/useConversations";
 import { Skeleton }          from "../ui/skeleton";
 import { formatRelativeDate } from "@/lib/utils";
-import { MODEL_CATALOG }     from "@ai-platform/config";
+import { trpc }               from "@/lib/trpc";
 import { useSession }        from "@/lib/auth-client";
 
 interface Props { locale: string; isOpen: boolean; onClose: () => void }
@@ -18,7 +18,10 @@ function ConversationItem({ conv, locale, isActive }: {
   locale:   string;
   isActive: boolean;
 }) {
-  const model = MODEL_CATALOG.find(m => m.id === conv.modelId);
+  // trpc.models.list is a small, cached query — cheap to call once per
+  // sidebar render just to look up a conversation's badge.
+  const { data: modelList = [] } = trpc.models.list.useQuery();
+  const model = modelList.find(m => m.id === conv.modelId);
   return (
     <Link href={`/${locale}/chat/${conv.id}`}
       className={`block px-3 py-2 rounded-xl text-sm transition-colors group

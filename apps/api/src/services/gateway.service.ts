@@ -1,9 +1,28 @@
 import { config } from "../config";
-import { calculateCreditCost, estimateTokenCount, MODEL_CATALOG } from "@ai-platform/config";
+import { CREDIT_VALUE_USD, estimateTokenCount } from "@ai-platform/config";
 import { deductCreditsAtomic } from "./balance.service";
-import { db, messages, conversations } from "@ai-platform/db";
-import { eq } from "drizzle-orm";
+import { db, messages, conversations, models } from "@ai-platform/db";
+import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
+
+/**
+ * Cost is computed from the `models` table now, not the static
+ * WHOLESALE_COSTS/MODEL_CATALOG map — those only ever covered a fixed
+ * hand-picked list and threw on anything synced in from the gateway
+ * (e.g. free OpenRouter models added via a New API channel).
+ */
+function calcCreditCost(model: typeof models.$inferSelect, inputTokens: number, outputTokens: number): number {
+  const wholesaleIn  = Number(model.wholesaleCostInputPerM);
+  const wholesaleOut = Number(model.wholesaleCostOutputPerM);
+  const markup       = Number(model.markupMultiplier);
+
+  const inputCost  = (inputTokens  / 1_000_000) * wholesaleIn  * markup;
+  const outputCost = (outputTokens / 1_000_000) * wholesaleOut * markup;
+  const totalUsd    = inputCost + outputCost;
+
+  // Always round UP (protects margins), minimum 1 micro-credit
+  return Math.max(Math.ceil((totalUsd / CREDIT_VALUE_USD) * 1_000_000), 1);
+}
 
 const ERROR_MESSAGES: Record<number, string> = {
   429: "تجاوزت حد الطلبات. انتظر لحظة وحاول مجدداً.",
@@ -24,7 +43,14 @@ export interface StreamChatOptions {
 export async function streamChat(opts: StreamChatOptions): Promise<void> {
   const { userId, model: modelId, reply } = opts;
 
-  const model = MODEL_CATALOG.find((m) => m.id === modelId);
+  // Only status="published" AND isAvailable=true is chattable — this is
+  // the same gate models.router.ts's `list` uses, so if a model shows up
+  // in the picker it will always resolve here too (and vice versa: a
+  // pending/disabled/hidden model id can never be used to route a chat
+  // request even if someone replays an old request with it).
+  const model = await db.query.models.findFirst({
+    where: and(eq(models.id, modelId), eq(models.status, "published"), eq(models.isAvailable, true)),
+  });
   if (!model) {
     reply.raw.write(`data: ${JSON.stringify({ error: "MODEL_NOT_FOUND" })}\n\n`);
     reply.raw.end();
@@ -127,7 +153,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
 
   // Post-stream: deduct credits and save message (async, non-blocking)
   if (outputTokens > 0 || (isPartial && streamedContent.length > 0)) {
-    const cost = calculateCreditCost(modelId, inputTokens, outputTokens);
+    const cost = calcCreditCost(model, inputTokens, outputTokens);
 
     deductCreditsAtomic(userId, cost, "Chat usage", {
       modelId, inputTokens, outputTokens, requestId,

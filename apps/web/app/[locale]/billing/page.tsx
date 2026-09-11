@@ -8,7 +8,7 @@ import { Button }   from "@/components/ui/button";
 import { Badge }    from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCredits, formatDate } from "@/lib/utils";
-import { MODEL_CATALOG } from "@ai-platform/config";
+import { trpc } from "@/lib/trpc";
 
 interface Transaction {
   id: string; type: string; amount: number; balanceAfter: number;
@@ -16,6 +16,7 @@ interface Transaction {
 }
 
 export default function BillingPage() {
+  const { data: models = [] } = trpc.models.list.useQuery();
   const t = useTranslations();
   const { locale } = useParams<{ locale: string }>();
   const [credits, setCredits]    = useState<number | null>(null);
@@ -143,7 +144,7 @@ export default function BillingPage() {
                 </tr>
               </thead>
               <tbody>
-                {MODEL_CATALOG.filter(m => m.isAvailable).map(m => (
+                {models.map(m => (
                   <tr key={m.id} className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-3 font-medium text-white">
                       <span className="me-2">{m.badge}</span>{m.displayNameAr}
@@ -186,7 +187,7 @@ export default function BillingPage() {
                       </Badge>
                       {tx.modelId && (
                         <span className="text-xs text-slate-500">
-                          {MODEL_CATALOG.find(m => m.id === tx.modelId)?.displayNameAr ?? tx.modelId}
+                          {models.find(m => m.id === tx.modelId)?.displayNameAr ?? tx.modelId}
                         </span>
                       )}
                     </div>

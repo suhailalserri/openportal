@@ -2,7 +2,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { estimateTokens } from "@/lib/utils";
-import { MODEL_CATALOG } from "@ai-platform/config";
+import { trpc } from "@/lib/trpc";
 
 interface InputBarProps {
   onSubmit:  (text: string) => void;
@@ -17,7 +17,8 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
   const t             = useTranslations();
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
-  const model         = MODEL_CATALOG.find(m => m.id === modelId);
+  const { data: modelList = [] } = trpc.models.list.useQuery();
+  const model         = modelList.find(m => m.id === modelId);
   const estTokens     = estimateTokens(text);
   const isOverLimit   = !!model && estTokens > model.contextWindow * 0.9;
   const isRTL         = locale === "ar";
