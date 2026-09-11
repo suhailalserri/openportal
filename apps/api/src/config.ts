@@ -6,7 +6,14 @@ const envSchema = z.object({
   DATABASE_URL:           z.string().url(),
   REDIS_URL:              z.string().url(),
   GATEWAY_URL:            z.string().url(),
+  // Regular chat-completions-style API key — used for OpenAI-compatible
+  // routes only (/v1/chat/completions, /v1/models).
   GATEWAY_MASTER_KEY:     z.string().min(10),
+  // New API's admin/system access token — a *different* credential from
+  // GATEWAY_MASTER_KEY, used only for New API's own admin routes
+  // (/api/channel/, etc). The two are not interchangeable: a chat key
+  // gets 401'd on /api/*, and a system token gets 401'd on /v1/*.
+  GATEWAY_ROOT_TOKEN:     z.string().min(10),
   BETTER_AUTH_SECRET:     z.string().min(32),
   // Shared secret between web (Next.js) and api (Fastify) for internal calls
   INTERNAL_SERVICE_TOKEN: z.string().min(32),

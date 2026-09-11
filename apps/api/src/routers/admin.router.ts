@@ -14,7 +14,7 @@ export const adminRouter = router({
 
   // ── Gateway channels (New API) ──────────────────────────────────────
   // The admin Channels page used to render hardcoded mock rows. This
-  // calls New API's own channel-list admin endpoint with GATEWAY_MASTER_KEY.
+  // calls New API's own channel-list admin endpoint with GATEWAY_ROOT_TOKEN.
   // Different New API deployments expect that token as a plain admin
   // access token for `/api/*` vs. only as the OpenAI-style key for
   // `/v1/*` — if yours is the latter, this will come back unauthorized;
@@ -23,7 +23,9 @@ export const adminRouter = router({
     let res: Response;
     try {
       res = await fetch(`${config.GATEWAY_URL}/api/channel/?p=0&page_size=100`, {
-        headers: { Authorization: `Bearer ${config.GATEWAY_MASTER_KEY}` },
+        // Admin routes need the system access token, not the chat-completions
+        // key — see the note on GATEWAY_ROOT_TOKEN in config.ts.
+        headers: { Authorization: `Bearer ${config.GATEWAY_ROOT_TOKEN}` },
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
@@ -37,9 +39,9 @@ export const adminRouter = router({
       throw new TRPCError({
         code: "BAD_GATEWAY",
         message:
-          `Gateway channel list returned ${res.status}. GATEWAY_MASTER_KEY may need to be a ` +
-          `New API admin/system access token (Settings → API Access Token on the gateway), ` +
-          `not just a chat-completions key, for this admin endpoint to work.`,
+          `Gateway channel list returned ${res.status}. GATEWAY_ROOT_TOKEN must be a ` +
+          `New API admin/system access token (Settings → Security & Access → Access Token ` +
+          `on the gateway) — a regular chat-completions API key won't work here.`,
       });
     }
 
