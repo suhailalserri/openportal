@@ -57,6 +57,34 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     return;
   }
 
+  // Make sure the conversation row exists before anything gets inserted
+  // against it. The web app is expected to create this via POST
+  // /api/conversations before it ever calls /chat, but we don't want a
+  // stale/forged/missing conversationId to blow up message inserts with
+  // a foreign-key violation (see: every "hi" from a fresh chat used to
+  // fail here because no row existed for the id it generated).
+  await db.insert(conversations)
+    .values({
+      id:      opts.conversationId,
+      userId,
+      title:   opts.messages.at(-1)?.content?.slice(0, 80) ?? null,
+      modelId,
+    })
+    .onConflictDoNothing();
+
+  // Persist the user's turn. Only the assistant reply was ever saved
+  // before (fire-and-forget, after the stream), so conversation history
+  // was silently empty on reload even when the FK error didn't fire.
+  const lastUserMessage = opts.messages.at(-1);
+  if (lastUserMessage?.role === "user") {
+    db.insert(messages).values({
+      conversationId: opts.conversationId,
+      role:           "user",
+      content:        lastUserMessage.content,
+      modelId,
+    }).catch(console.error);
+  }
+
   // Estimate token count to pre-validate
   const allText     = opts.messages.map((m) => m.content).join(" ");
   const estTokens   = estimateTokenCount(allText);

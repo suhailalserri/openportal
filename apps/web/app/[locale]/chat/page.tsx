@@ -14,11 +14,12 @@ export default function ChatPage() {
   const { locale } = useParams<{ locale: string }>();
   const [modelId, setModelId] = useState("claude-sonnet-4-6");
   const [balance, setBalance] = useState<number>(1); // optimistic
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef         = useRef<HTMLDivElement>(null);
 
   const { messages, input, handleSubmit, isLoading, stop, setInput, error } = useChat({
     api: "/api/chat",
-    body: { model: modelId },
+    body: { model: modelId, conversationId },
     onError: (err) => {
       if (err.message.includes("INSUFFICIENT_BALANCE")) {
         toast.error(t("errors.insufficientBalance"));
@@ -38,10 +39,35 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function handleSend(text: string) {
+  async function handleSend(text: string) {
     if (balance <= 0) { toast.error(t("errors.insufficientBalance")); return; }
+
+    // A brand-new chat has no conversation row yet. Create one up front
+    // (same endpoint the sidebar's "New chat" already relies on existing)
+    // instead of letting the backend invent a fresh, never-inserted UUID
+    // on every message — that's what was causing the foreign-key error.
+    let id = conversationId;
+    if (!id) {
+      try {
+        const res = await fetch("/api/conversations", { method: "POST" });
+        if (!res.ok) throw new Error("failed to create conversation");
+        const conv = await res.json() as { id: string };
+        id = conv.id;
+        setConversationId(id);
+        // Swap the URL in place so refresh/share links land on /chat/[id]
+        // without remounting this component (which would drop the
+        // in-flight message + streaming state).
+        window.history.replaceState(null, "", `/${locale}/chat/${id}`);
+      } catch {
+        toast.error(t("errors.streamInterrupted"));
+        return;
+      }
+    }
+
     setInput(text);
-    handleSubmit(new Event("submit") as unknown as React.FormEvent);
+    handleSubmit(new Event("submit") as unknown as React.FormEvent, {
+      body: { model: modelId, conversationId: id },
+    });
   }
 
   return (
