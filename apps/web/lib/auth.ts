@@ -4,6 +4,16 @@ import { db }              from "@ai-platform/db";
 import { users, sessions, accounts, verifications } from "@ai-platform/db";
 
 export const auth = betterAuth({
+  // better-auth uses this to build every outgoing link it generates itself
+  // (email verification, password reset, etc). It reads BETTER_AUTH_URL
+  // internally if you don't set this, but that's opt-in and silent — if the
+  // env var is ever missing on a deployment, links quietly fall back to
+  // http://localhost:3000 instead of failing loudly. Setting it explicitly,
+  // with the same VERCEL_URL fallback used below in trustedOrigins, means a
+  // missing env var degrades to *this* deployment's real URL instead.
+  baseURL: process.env.BETTER_AUTH_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
+
   database: drizzleAdapter(db, {
     provider: "pg",
     // Keys must be better-auth's canonical model names (user/session/account/
