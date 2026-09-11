@@ -15,20 +15,26 @@ type PendingModel = { id: string; provider: string };
  * guesses from the raw gateway id — the admin should still check pricing
  * (free OpenRouter models start at $0/$0, i.e. isAvailable at zero cost).
  */
-function publishDefaults(m: PendingModel) {
+function publishDefaults(m: PendingModel): {
+  displayName: string; displayNameAr: string; badge: string;
+  tier: "standard" | "premium"; markupMultiplier: number;
+  contextWindow: number; maxOutputTokens: number; supportsVision: boolean;
+  wholesaleCostInputPerM: number; wholesaleCostOutputPerM: number;
+  rateLimitPerUserDaily: number | undefined;
+} {
   const isFree = m.id.endsWith(":free");
   return {
     displayName:             m.id,
     displayNameAr:           m.id,
     badge:                   isFree ? "🆓" : "🤖",
-    tier:                    "standard" as const,
+    tier:                    "standard",
     markupMultiplier:        isFree ? 1 : 2,
     contextWindow:           8192,
     maxOutputTokens:         2048,
     supportsVision:          false,
     wholesaleCostInputPerM:  0,
     wholesaleCostOutputPerM: 0,
-    rateLimitPerUserDaily:   isFree ? 20 : undefined as number | undefined,
+    rateLimitPerUserDaily:   isFree ? 20 : undefined,
   };
 }
 
