@@ -42,6 +42,19 @@ export const auth = betterAuth({
     },
   },
 
+  // better-auth's default ID generator produces a nanoid-style string, not a
+  // real UUID. `users.id` is a Postgres `uuid` column (defaultRandom()), so
+  // that default generator fails on signup with:
+  //   invalid input syntax for type uuid: "jDNtQQ13iBDvK4pPOhlxYagU5abHmEXY"
+  // Forcing every model's generated id to a real UUID fixes the `users`
+  // insert; it's still a valid value for the `text` id columns on
+  // accounts/sessions/verification, so nothing else needs to change.
+  advanced: {
+    database: {
+      generateId: () => crypto.randomUUID(),
+    },
+  },
+
   rateLimit: { window: 60, max: 5 },
 
   emailVerification: {
