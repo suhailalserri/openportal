@@ -40,9 +40,7 @@ export default function RegisterPage() {
           password: form.password,
           name:     form.name,
         },
-        {
-          headers: turnstileToken ? { "x-turnstile-token": turnstileToken } : undefined,
-        }
+        turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : {}
       );
       if (result.error) {
         console.error("Sign-up failed:", result.error);
