@@ -24,10 +24,27 @@ const envSchema = z.object({
 });
 
 const parsed = envSchema.safeParse(process.env);
+
 if (!parsed.success) {
-  console.error("❌ Invalid environment variables:");
-  console.error(parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  const fieldErrors = parsed.error.flatten().fieldErrors;
+  const details = Object.entries(fieldErrors)
+    .map(([key, msgs]) => `  - ${key}: ${(msgs ?? []).join(", ")}`)
+    .join("\n");
+
+  // IMPORTANT: this module is imported both by the standalone Fastify
+  // server (apps/api) AND in-process by the Next.js app (apps/web's
+  // tRPC handler re-exports the same router). `process.exit(1)` here
+  // used to kill the *entire* Node process on any request that touched
+  // this module — including the whole Vercel serverless function, which
+  // Vercel then reports as a bare 502 to every concurrent request, with
+  // no indication of which env var was the problem.
+  //
+  // Throwing instead lets each runtime handle it appropriately:
+  //  - the Fastify server (index.ts) still crashes on boot, as intended
+  //  - Next.js/tRPC turns it into a normal 500 with this message instead
+  //    of nuking the whole function instance.
+  console.error("❌ Invalid environment variables:\n" + details);
+  throw new Error(`Invalid environment variables:\n${details}`);
 }
 
 export const config = parsed.data;
