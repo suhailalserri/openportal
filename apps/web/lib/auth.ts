@@ -2,6 +2,7 @@ import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { db }              from "@ai-platform/db";
 import { users, sessions, accounts, verifications } from "@ai-platform/db";
+import { eq }               from "drizzle-orm";
 
 export const auth = betterAuth({
   // better-auth uses this to build every outgoing link it generates itself
@@ -70,6 +71,16 @@ export const auth = betterAuth({
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
+    // Better Auth's `emailVerified` flag is separate from your own
+    // `users.status` enum — the API's auth middleware gates chat access on
+    // `status === "active"`, not on `emailVerified`. Without this, every
+    // signup verifies successfully but stays "pending_verification"
+    // forever, and every chat request gets a 403 "Account suspended".
+    afterEmailVerification: async (user: { id: string }) => {
+      await db.update(users)
+        .set({ status: "active" })
+        .where(eq(users.id, user.id));
+    },
     sendVerificationEmail: async ({
       user,
       url,
