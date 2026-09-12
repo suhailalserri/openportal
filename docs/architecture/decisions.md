@@ -47,3 +47,20 @@
   Valkey = Apache 2.0, API-compatible drop-in replacement.
 - **Trade-off:** Newer project, less ecosystem tooling.
 - **Mitigation:** 100% API compatible. Can switch back to Redis if needed.
+
+## ADR-007: Payment methods and packages as relational data (not static config)
+- **Date:** Payment phase, pivot to Yemen market
+- **Decision:** Moyasar/SAR disabled (not removed). Active payment
+  methods are Jaib (pre-uploaded voucher codes via tabweeb.com.ye, no
+  API) and manual wallet transfer, both YER-priced. Packages and
+  payment methods move to DB tables instead of static config; a code
+  batch is tagged with both. See `docs/PAYMENT_METHODS_PLAN.md` for the
+  full plan — full detail lives there, not here.
+- **Reasoning:** No major Yemeni wallet publishes a public checkout API.
+  The redeem-code system already built is channel-agnostic and reusable
+  as-is; only tracking needed a relational shape.
+- **Trade-off:** More schema than a static config, but packages become
+  editable from the admin UI without a deploy.
+- **Mitigation:** `redeemCode()`/`generateCode()` security and
+  redemption logic (ADR-004) is completely unchanged by this — only
+  generation-time tagging is new.
