@@ -6,10 +6,16 @@ import {
   redeemCodes, fraudEvents, auditLogs,
   creditPackages, paymentMethods, pendingManualPayments,
 } from "@ai-platform/db";
-import { eq, desc, count, sum, and, gte, sql } from "drizzle-orm";
+import { eq, desc, count, and, sql } from "drizzle-orm";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
 import { approveManualPayment, rejectManualPayment } from "../services/manual-payment.service";
+import {
+  getDashboardStats as computeDashboardStats,
+  getRevenueTimeseries,
+  getModelUsageBreakdown,
+  getRecentTransactions,
+} from "../services/dashboard.service";
 import { config }          from "../config";
 import { stripUndefined }  from "../utils/strip-undefined";
 
@@ -72,19 +78,22 @@ export const adminRouter = router({
   }),
 
   // ── Dashboard stats ─────────────────────────────────────────────────
-  getDashboardStats: adminProcedure.query(async () => {
-    const [totalUsers]   = await db.select({ count: count() }).from(users);
-    const [totalCredits] = await db.select({ total: sum(transactions.amount) })
-      .from(transactions).where(eq(transactions.type, "redeem"));
-    const [totalSpent]   = await db.select({ total: sum(transactions.amount) })
-      .from(transactions).where(eq(transactions.type, "usage_debit"));
+  // Real numbers (revenue/cost/margin/active users), replacing the
+  // hardcoded-zero admin dashboard. See dashboard.service.ts for the
+  // revenue-recognition and USD/YER methodology notes.
+  getDashboardStats: adminProcedure.query(() => computeDashboardStats()),
 
-    return {
-      totalUsers:   totalUsers?.count     ?? 0,
-      totalRedeemed: Math.abs(Number(totalCredits?.total ?? 0)) / 1_000_000,
-      totalSpent:    Math.abs(Number(totalSpent?.total   ?? 0)) / 1_000_000,
-    };
-  }),
+  getRevenueTimeseries: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(14) }))
+    .query(({ input }) => getRevenueTimeseries(input.days)),
+
+  getModelUsageBreakdown: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
+    .query(({ input }) => getModelUsageBreakdown(input.days)),
+
+  getRecentTransactions: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
+    .query(({ input }) => getRecentTransactions(input.limit)),
 
   // ── User management ─────────────────────────────────────────────────
   listUsers: adminProcedure
