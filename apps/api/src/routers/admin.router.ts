@@ -432,15 +432,15 @@ export const adminRouter = router({
       sortOrder:          z.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...rest } = input;
+      const { id, priceUsdEquivalent, credits, ...rest } = input;
       const [before] = await db.select().from(creditPackages).where(eq(creditPackages.id, id));
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
 
       const [updated] = await db.update(creditPackages)
         .set(stripUndefined({
           ...rest,
-          ...(rest.priceUsdEquivalent !== undefined ? { priceUsdEquivalent: String(rest.priceUsdEquivalent) } : {}),
-          ...(rest.credits !== undefined ? { credits: rest.credits * 1_000_000 } : {}),
+          priceUsdEquivalent: priceUsdEquivalent !== undefined ? String(priceUsdEquivalent) : undefined,
+          credits:            credits !== undefined ? credits * 1_000_000 : undefined,
           updatedAt: new Date(),
         }))
         .where(eq(creditPackages.id, id))
