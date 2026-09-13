@@ -11,6 +11,7 @@ import { creditBalance, deductCreditsAtomic } from "../services/balance.service"
 import { generateCode }    from "../services/redeem.service";
 import { approveManualPayment, rejectManualPayment } from "../services/manual-payment.service";
 import { config }          from "../config";
+import { stripUndefined }  from "../utils/strip-undefined";
 
 export const adminRouter = router({
 
@@ -404,11 +405,11 @@ export const adminRouter = router({
       sortOrder:          z.number().int().default(0),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [row] = await db.insert(creditPackages).values({
+      const [row] = await db.insert(creditPackages).values(stripUndefined({
         ...input,
         priceUsdEquivalent: String(input.priceUsdEquivalent),
         credits:            input.credits * 1_000_000,
-      }).returning();
+      })).returning();
 
       await db.insert(auditLogs).values({
         adminId: ctx.user.id, action: "package.create",
@@ -436,12 +437,12 @@ export const adminRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
 
       const [updated] = await db.update(creditPackages)
-        .set({
+        .set(stripUndefined({
           ...rest,
           ...(rest.priceUsdEquivalent !== undefined ? { priceUsdEquivalent: String(rest.priceUsdEquivalent) } : {}),
           ...(rest.credits !== undefined ? { credits: rest.credits * 1_000_000 } : {}),
           updatedAt: new Date(),
-        })
+        }))
         .where(eq(creditPackages.id, id))
         .returning();
 
@@ -469,7 +470,7 @@ export const adminRouter = router({
       sortOrder:      z.number().int().default(0),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [row] = await db.insert(paymentMethods).values(input).returning();
+      const [row] = await db.insert(paymentMethods).values(stripUndefined(input)).returning();
       await db.insert(auditLogs).values({
         adminId: ctx.user.id, action: "paymentMethod.create",
         targetType: "paymentMethod", targetId: row!.id, after: input, ip: ctx.ip,
@@ -495,7 +496,7 @@ export const adminRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
 
       const [updated] = await db.update(paymentMethods)
-        .set({ ...rest, updatedAt: new Date() })
+        .set(stripUndefined({ ...rest, updatedAt: new Date() }))
         .where(eq(paymentMethods.id, id))
         .returning();
 

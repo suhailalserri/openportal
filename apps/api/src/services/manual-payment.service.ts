@@ -4,6 +4,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { creditBalance } from "./balance.service";
+import { stripUndefined } from "../utils/strip-undefined";
 import type { ManualPaymentSubmitResult, ManualPaymentReviewResult } from "@ai-platform/types";
 
 /**
@@ -65,7 +66,7 @@ export async function submitManualPayment(
     referenceCode = generateReferenceCode();
   }
 
-  const [row] = await db.insert(pendingManualPayments).values({
+  const [row] = await db.insert(pendingManualPayments).values(stripUndefined({
     userId,
     packageId:       pkg.id,
     paymentMethodId: method.id,
@@ -75,7 +76,7 @@ export async function submitManualPayment(
     senderName:      input.senderName,
     screenshotUrl:   input.screenshotUrl,
     notes:           input.notes,
-  }).returning();
+  })).returning();
 
   return {
     success:       true,

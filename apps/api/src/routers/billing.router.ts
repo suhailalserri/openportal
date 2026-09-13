@@ -8,6 +8,7 @@ import { eq, desc }            from "drizzle-orm";
 import { redeemCode }          from "../services/redeem.service";
 import { submitManualPayment } from "../services/manual-payment.service";
 import { FraudService }        from "../services/fraud.service";
+import { stripUndefined }      from "../utils/strip-undefined";
 
 export const billingRouter = router({
 
@@ -40,7 +41,7 @@ export const billingRouter = router({
       notes:           z.string().max(1000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const result = await submitManualPayment(ctx.user.id, input);
+      const result = await submitManualPayment(ctx.user.id, stripUndefined(input));
       if (!result.success) {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
       }
