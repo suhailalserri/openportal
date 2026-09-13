@@ -164,19 +164,39 @@ can add/edit packages later without touching code.
       optional)
 
 ### Known gaps to close before this is launch-ready
-- Not run/verified: no `node_modules` or network access were available
-  while building this, so none of the above has been through
-  `pnpm install`, `tsc`, or `vitest` yet. Run all three before trusting it.
-- `apps/web/messages/en.json` is missing most `admin.*` keys used by the
-  admin pages (pre-existing gap — Arabic is the primary locale per
-  Prompt.md — not introduced by this phase, but the English admin routes
-  were already broken and still are).
+- Not run/verified through `pnpm install`/`tsc`/`vitest` in this sandbox
+  (no network/`node_modules` available while building/fixing this) — was
+  instead validated the hard way, against a real deploy, across several
+  rounds of Vercel build errors + production 500s. Still worth a clean
+  `pnpm install && pnpm type-check && pnpm test` run locally.
+- `apps/web/messages/en.json` was missing most `admin.*` keys — **fixed**
+  (all 29 `admin.*` + 4 `status.*` keys added, cross-checked against
+  every `t(...)` call in the codebase).
 - `screenshotUrl` on a manual-transfer claim has no upload UI yet — the
   buyer would need to paste a URL to an already-hosted image. A real
   upload flow (MinIO, per the original master plan) isn't wired up.
-- No rate limiting / fraud check on `submitManualPayment` yet, unlike
-  `redeemCode()` (§8.2's `checkRedeemAttempt`). A buyer could currently
-  spam claims. Should reuse `FraudService` before this goes live.
+- ~~No rate limiting / fraud check on `submitManualPayment`~~ — **fixed**.
+  `billing.router.ts`'s `submitManualPayment` now enforces per-user
+  hourly/daily caps and a per-IP hourly cap (`FRAUD.MANUAL_PAYMENT_*` in
+  `packages/config/src/constants.ts`) via the same `checkLimit()`
+  in-memory limiter already proven on the redeem route
+  (`apps/web/app/api/redeem/route.ts`), and logs a `fraud_events` row
+  (type `SUSPICIOUS_PATTERN`) on every trip so spikes are visible in
+  `/admin/fraud`. Deliberately did NOT wire up `FraudService`
+  (`apps/api/src/services/fraud.service.ts`) for this — that class is
+  Redis-backed and nothing in this deploy instantiates a real Redis
+  client for it (only a fake one exists, under `apps/api/src/test/`);
+  it's already dead code on the `redeemCode()` path too (see the comment
+  left in `billing.router.ts`'s `redeemCode` mutation). Wiring a real
+  Redis client (e.g. Upstash, given this runs on Vercel) is a separate,
+  larger piece of work if/when Redis-backed checks (multi-IP-per-user,
+  spend velocity) are wanted — `checkLimit()`'s in-memory counters are a
+  real but weaker guarantee (per-instance, resets on cold start), same
+  trade-off the redeem route already accepted.
+  Caveat: the manual-transfer claim form still has no CAPTCHA, unlike the
+  redeem box (Turnstile). Worth adding if claim spam shows up despite the
+  rate limits — the redeem route's Turnstile wiring is a direct template
+  for it.
 
 ## 8. Explicitly out of scope for this phase
 

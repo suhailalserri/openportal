@@ -2,13 +2,14 @@ import { z }                   from "zod";
 import { router, protectedProcedure, publicProcedure } from "./trpc";
 import { TRPCError }           from "@trpc/server";
 import {
-  db, balances, transactions, creditPackages, paymentMethods, pendingManualPayments,
+  db, balances, transactions, creditPackages, paymentMethods, pendingManualPayments, fraudEvents,
 } from "@ai-platform/db";
 import { eq, desc }            from "drizzle-orm";
 import { redeemCode }          from "../services/redeem.service";
 import { submitManualPayment } from "../services/manual-payment.service";
-import { FraudService }        from "../services/fraud.service";
 import { stripUndefined }      from "../utils/strip-undefined";
+import { checkLimit }          from "../utils/rate-limiter";
+import { FRAUD }               from "@ai-platform/config";
 
 export const billingRouter = router({
 
@@ -41,6 +42,38 @@ export const billingRouter = router({
       notes:           z.string().max(1000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Abuse protection (PAYMENT_METHODS_PLAN.md §7.10 "known gaps" — this
+      // endpoint had none, unlike redeemCode()/checkLimit's use in
+      // apps/web/app/api/redeem/route.ts, which this mirrors). A claim
+      // isn't self-verifying the way a code is — every submission creates
+      // work in the admin approval queue — so this blocks before even
+      // reaching submitManualPayment(), and logs a fraud_events row so a
+      // spike is visible in /admin/fraud rather than only in the queue.
+      const userKey = `manualPayment:${ctx.user.id}`;
+      if (!checkLimit(`${userKey}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_HOUR, 60 * 60 * 1000)) {
+        await logManualPaymentAbuse(ctx.user.id, ctx.ip, "medium", "HOURLY_LIMIT");
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS",
+          message: "تجاوزت عدد المحاولات المسموحة. حاول بعد ساعة." });
+      }
+      if (!checkLimit(`${userKey}:day`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_DAY, 24 * 60 * 60 * 1000)) {
+        await logManualPaymentAbuse(ctx.user.id, ctx.ip, "high", "DAILY_LIMIT");
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS",
+          message: "وصلت إلى الحد اليومي لطلبات التحويل. حاول غداً أو تواصل مع الدعم." });
+      }
+      // Per-IP, across accounts — same signal as SHARED_IP_MULTI_ACCOUNT
+      // in fraud.service.ts, applied here since that class is Redis-backed
+      // and nothing in this deploy instantiates a real Redis client for it
+      // (see apps/api/src/services/fraud.service.ts's constructor — it's
+      // unused/uncallable in production right now). checkLimit's in-memory
+      // counter is what's actually wired up and running (redeem route),
+      // so this stays consistent with that rather than adding a second,
+      // half-working abuse-protection mechanism.
+      if (!checkLimit(`manualPayment:ip:${ctx.ip}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_IP_PER_HOUR, 60 * 60 * 1000)) {
+        await logManualPaymentAbuse(ctx.user.id, ctx.ip, "high", "IP_LIMIT");
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS",
+          message: "عدد كبير من الطلبات من هذا الاتصال. حاول لاحقاً." });
+      }
+
       const result = await submitManualPayment(ctx.user.id, stripUndefined(input));
       if (!result.success) {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
@@ -85,13 +118,12 @@ export const billingRouter = router({
   redeemCode: protectedProcedure
     .input(z.object({ code: z.string().min(1).max(32) }))
     .mutation(async ({ ctx, input }) => {
-      const ip = ctx.ip;
-
-      // Fraud check before attempting redeem
-      // const fraud = new FraudService(redis);
-      // const check = await fraud.checkRedeemAttempt(ctx.user.id, ip);
-      // if (!check.allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: check.reason });
-
+      // NOTE: not the live redeem path — the billing page posts to
+      // apps/web/app/api/redeem/route.ts instead, which already has
+      // checkLimit() + Turnstile in front of the same redeemCode() call.
+      // Kept here for API-key/dev consumers of the tRPC router directly;
+      // add the same checkLimit() guard as that route before relying on
+      // this path for untrusted traffic.
       const result = await redeemCode(ctx.user.id, input.code);
       if (!result.success) {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
@@ -99,3 +131,23 @@ export const billingRouter = router({
       return result;
     }),
 });
+
+/**
+ * Logs a `fraud_events` row when a manual-payment rate limit trips, so
+ * spikes show up in /admin/fraud instead of only being visible as a wall
+ * of pending claims in /admin/manual-payments. Reuses the generic
+ * "SUSPICIOUS_PATTERN" fraud type (enums.ts) rather than adding a new
+ * enum value + migration for this.
+ */
+async function logManualPaymentAbuse(
+  userId: string,
+  ip: string,
+  severity: "low" | "medium" | "high" | "critical",
+  reason: "HOURLY_LIMIT" | "DAILY_LIMIT" | "IP_LIMIT"
+): Promise<void> {
+  await db.insert(fraudEvents).values({
+    userId, type: "SUSPICIOUS_PATTERN", severity,
+    details: { source: "submitManualPayment", reason },
+    ip,
+  }).catch(() => { /* best-effort logging — never block/break the request over this */ });
+}

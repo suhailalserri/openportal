@@ -14,6 +14,16 @@ export const FRAUD = {
   MAX_CREDITS_PER_HOUR:     1000,   // In display credits
   MAX_CONCURRENT_SESSIONS:  3,
   SENSITIVE_ACTION_PER_HOUR: 10, // changePassword / generateApiKey attempts per user
+  // Manual-transfer claims (PAYMENT_METHODS_PLAN.md §7.10 "known gaps" —
+  // submitManualPayment had zero abuse protection, unlike redeemCode()).
+  // Deliberately tighter than redeem: a claim isn't self-verifying like a
+  // code, it creates work in the admin approval queue, so the bar for
+  // "too many attempts" is lower.
+  MANUAL_PAYMENT_ATTEMPTS_PER_HOUR: 3,
+  MANUAL_PAYMENT_ATTEMPTS_PER_DAY:  10,
+  // Per-IP, across accounts — catches one person opening several accounts
+  // to route around the per-user caps above.
+  MANUAL_PAYMENT_ATTEMPTS_PER_IP_PER_HOUR: 6,
 } as const;
 
 /**
