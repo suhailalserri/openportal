@@ -2,9 +2,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
-  error?: string;
-  hint?:  string;
+  label?: string | undefined;
+  error?: string | undefined;
+  hint?:  string | undefined;
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
