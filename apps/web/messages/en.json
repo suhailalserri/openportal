@@ -195,5 +195,48 @@
     "all": "All",
     "none": "None",
     "optional": "optional"
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "models": "Models",
+    "channels": "Channels",
+    "codes": "Redeem Codes",
+    "logs": "Logs",
+    "fraud": "Fraud Prevention",
+    "settings": "Settings",
+    "revenue": "Revenue",
+    "costs": "API Costs",
+    "margin": "Gross Margin",
+    "activeUsers": "Active Users",
+    "newUsers": "New Users",
+    "totalUsers": "Total Users",
+    "suspend": "Suspend Account",
+    "reactivate": "Reactivate",
+    "addCredits": "Add Credits",
+    "deductCredits": "Deduct Credits",
+    "generateCodes": "Generate Codes",
+    "batchLabel": "Batch Label",
+    "codeCount": "Code Count",
+    "creditValue": "Credit Value",
+    "expiryDate": "Expiry Date",
+    "noExpiry": "No expiry",
+    "downloadCsv": "Download CSV",
+    "revokeCode": "Revoke Code",
+    "revokeBatch": "Revoke Batch",
+    "resolveAlert": "Mark Resolved",
+    "fraudTypes": {
+      "HIGH_REQUEST_VELOCITY": "High request velocity",
+      "MULTIPLE_IPS": "Multiple IP addresses",
+      "SHARED_IP_MULTI_ACCOUNT": "Multiple accounts from one IP",
+      "REDEEM_BRUTE_FORCE": "Redeem code brute-force attempts",
+      "HIGH_SPEND_VELOCITY": "Suspiciously high spend velocity"
+    }
+  },
+  "status": {
+    "allGood": "All systems operational ✅",
+    "degraded": "Some services are experiencing slowdowns",
+    "outage": "{service} is currently unavailable",
+    "viewDetails": "View details"
   }
 }
