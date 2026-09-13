@@ -8,12 +8,19 @@ import { ChatLayout }    from "@/components/chat/ChatLayout";
 import { ModelSelector } from "@/components/chat/ModelSelector";
 import { InputBar }      from "@/components/chat/InputBar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { useBalance }    from "@/hooks/useBalance";
 
 export default function ChatPage() {
   const t = useTranslations();
   const { locale } = useParams<{ locale: string }>();
   const [modelId, setModelId] = useState("claude-sonnet-4-6");
-  const [balance, setBalance] = useState<number>(1); // optimistic
+  // Was: local `useState<number>(1)` that only ever got set to 0 on an
+  // error response — it never reflected the user's real balance, so the
+  // send button could stay enabled well past zero credits (and never
+  // re-enable itself after a top-up without a full page reload). This is
+  // the actual balance from /api/balance, polled + refreshed on demand.
+  const balanceState = useBalance();
+  const balance       = balanceState.microCredits;
   const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef         = useRef<HTMLDivElement>(null);
 
@@ -25,10 +32,15 @@ export default function ChatPage() {
     // dropped connection even when the server completed cleanly.
     streamProtocol: "text",
     body: { model: modelId, conversationId },
+    // Credits are deducted server-side only *after* the stream finishes
+    // (gateway.service.ts), so the balance shown mid-stream is stale by
+    // design — refresh right when we know a debit likely just happened,
+    // instead of waiting up to 30s for the next poll.
+    onFinish: () => { balanceState.refresh(); },
     onError: (err) => {
       if (err.message.includes("INSUFFICIENT_BALANCE")) {
         toast.error(t("errors.insufficientBalance"));
-        setBalance(0);
+        balanceState.refresh();
       } else if (err.message.includes("CONTEXT_TOO_LONG")) {
         toast.error(t("chat.contextExceeded"));
       } else if (err.message.includes("MODEL_UNAVAILABLE")) {

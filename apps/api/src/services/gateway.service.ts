@@ -159,8 +159,25 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   reply.raw.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
 
   // Stream response back
+  //
+  // IMPORTANT: this used to regex-match against each raw network chunk
+  // independently (`chunk.match(...)`). That silently broke billing
+  // whenever a chunk boundary landed inside the JSON — most commonly the
+  // final `usage` object, which regularly arrives split across two
+  // `reader.read()` calls. When "prompt_tokens" and "completion_tokens"
+  // ended up in different chunks, NEITHER regex matched, both stayed 0,
+  // and the billing gate below (`outputTokens > 0`) skipped billing AND
+  // message-saving entirely — a fully-answered chat that cost the user
+  // nothing and never appeared in logs/dashboard. The same per-chunk
+  // regex could also drop/corrupt streamed content if a chunk split
+  // landed inside a "content" string's escape sequence.
+  //
+  // Fix: buffer bytes until we have a *complete* line, then JSON.parse
+  // it like any other SSE consumer would. This makes chunk boundaries
+  // irrelevant — a line is only ever processed once it's whole.
   const reader          = upstream.body!.getReader();
   const decoder         = new TextDecoder();
+  let sseBuffer         = "";
   let inputTokens       = 0;
   let outputTokens      = 0;
   let streamedContent   = "";
@@ -171,27 +188,57 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
       const { done, value } = await reader.read();
       if (done) { isPartial = false; break; }
 
-      const chunk = decoder.decode(value, { stream: true });
+      sseBuffer += decoder.decode(value, { stream: true });
 
-      // Extract content deltas from the upstream SSE chunk and forward
-      // ONLY the plain text — not the surrounding OpenAI JSON/SSE framing.
-      for (const match of chunk.matchAll(/"content":"((?:[^"\\]|\\.)*)"/g)) {
-        const delta = (match[1] ?? "").replace(/\\n/g, "\n").replace(/\\"/g, '"');
-        streamedContent += delta;
-        reply.raw.write(delta);
-      }
+      const lines = sseBuffer.split("\n");
+      // The last element may be a partial line cut mid-chunk — hold it
+      // back and prepend it to the next read instead of parsing it now.
+      sseBuffer = lines.pop() ?? "";
 
-      // Extract usage stats from final chunk
-      const usageMatch = chunk.match(/"prompt_tokens":(\d+)[^}]*"completion_tokens":(\d+)/);
-      if (usageMatch) {
-        inputTokens  = parseInt(usageMatch[1] ?? "0");
-        outputTokens = parseInt(usageMatch[2] ?? "0");
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line.startsWith("data:")) continue;
+
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]" || payload === "") continue;
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(payload);
+        } catch {
+          // Genuinely malformed line (not just a boundary split, since we
+          // only parse complete lines here) — skip it, don't crash the stream.
+          continue;
+        }
+
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (typeof delta === "string" && delta.length > 0) {
+          streamedContent += delta;
+          reply.raw.write(delta);
+        }
+
+        if (parsed?.usage) {
+          if (typeof parsed.usage.prompt_tokens === "number")     inputTokens  = parsed.usage.prompt_tokens;
+          if (typeof parsed.usage.completion_tokens === "number") outputTokens = parsed.usage.completion_tokens;
+        }
       }
     }
   } catch {
     // Stream interrupted — isPartial stays true
   } finally {
     reply.raw.end();
+  }
+
+  // Some gateway/provider combinations omit `usage` entirely even on a
+  // clean finish (stream_options.include_usage isn't universally honored
+  // downstream). Never let a missing usage object mean "bill nothing" —
+  // fall back to the same char/4 estimate used for the pre-send estimate
+  // shown in the UI. This is the last line of defense against a $0 chat.
+  if (streamedContent.length > 0 && outputTokens === 0) {
+    outputTokens = estimateTokenCount(streamedContent);
+  }
+  if (inputTokens === 0) {
+    inputTokens = estimateTokenCount(opts.messages.map((m) => m.content).join(" "));
   }
 
   // Post-stream: deduct credits and save message (async, non-blocking)

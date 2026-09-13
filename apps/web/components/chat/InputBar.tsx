@@ -23,6 +23,19 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
   const isOverLimit   = !!model && estTokens > model.contextWindow * 0.9;
   const isRTL         = locale === "ar";
 
+  // Pre-send cost estimate. The input side is a real number (we know the
+  // text); the reply side can't be known until the model actually answers,
+  // so we assume a typical reply length as a rough midpoint — this is
+  // clearly labeled "estimated" in the UI, not presented as an exact price.
+  // Uses the same creditsPerKInput/Output the model picker already fetches
+  // (models.router.ts's `list`), so no extra request is needed.
+  const TYPICAL_REPLY_TOKENS = 400;
+  const estInputCredits = model ? Math.ceil((estTokens / 1000) * model.creditsPerKInput) : 0;
+  const estReplyCredits = model
+    ? Math.ceil((Math.min(TYPICAL_REPLY_TOKENS, model.maxOutputTokens) / 1000) * model.creditsPerKOutput)
+    : 0;
+  const estTotalCredits = model ? Math.max(estInputCredits + estReplyCredits, 1) : 0;
+
   // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
@@ -71,11 +84,23 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
                      disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
-        {/* Token counter */}
+        {/* Token counter + estimated credit cost */}
         {text && (
-          <span className={`text-xs self-center ${isOverLimit ? "text-red-400" : "text-slate-500"}`}>
-            {estTokens.toLocaleString()} {t("models.tokens")}
-          </span>
+          <div className="flex flex-col items-end gap-0.5 self-center leading-tight">
+            <span className={`text-xs ${isOverLimit ? "text-red-400" : "text-slate-500"}`}>
+              {estTokens.toLocaleString()} {t("models.tokens")}
+            </span>
+            {model && (
+              <span
+                className="text-[11px] text-slate-500"
+                title={isRTL
+                  ? "تقدير تقريبي: تكلفة الإدخال مؤكدة، تكلفة الرد تُحسب على طول رد افتراضي متوسط وقد تختلف فعلياً."
+                  : "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ."}
+              >
+                {isRTL ? `≈ ${estTotalCredits} رصيد تقريباً` : `≈ ${estTotalCredits} credits (est.)`}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Send / Stop button */}
