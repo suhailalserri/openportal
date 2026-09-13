@@ -101,7 +101,8 @@ export async function resetTestDb(): Promise<void> {
     await sql.unsafe(`
       TRUNCATE TABLE
         audit_logs, provider_prices, fraud_events, models, messages,
-        conversations, redeem_codes, transactions, balances, sessions, users
+        conversations, pending_manual_payments, redeem_codes, packages,
+        payment_methods, transactions, balances, sessions, users
       RESTART IDENTITY CASCADE;
     `);
   } finally {

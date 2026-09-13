@@ -37,3 +37,23 @@ export interface CreditPackage {
   microCredits: number;
   bonusPercent: number;  // bonus on top
 }
+
+// ── Payment methods phase (Yemen market) ───────────────────────────────
+// See docs/PAYMENT_METHODS_PLAN.md. Runtime DB row shapes are the source
+// of truth (packages/db's `creditPackages` / `paymentMethods` / etc. —
+// import their $inferSelect types directly where the full row is needed).
+// The types below are API-shape helpers for results that aren't just a
+// DB row.
+
+export interface ManualPaymentSubmitResult {
+  success:       boolean;
+  referenceCode?: string;
+  claimId?:       string;
+  message:        string;
+  error?:         "PACKAGE_NOT_FOUND" | "PAYMENT_METHOD_NOT_FOUND" | "PAYMENT_METHOD_INACTIVE" | "GENERIC";
+}
+
+export interface ManualPaymentReviewResult {
+  success: boolean;
+  message: string;
+}

@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac }  from "node:crypto";
 import { db, balances, transactions } from "@ai-platform/db";
 import { eq, sql }     from "drizzle-orm";
-import { CREDIT_PACKAGES } from "@ai-platform/config";
+import { CREDIT_PACKAGES, FEATURE_FLAGS } from "@ai-platform/config";
 
 export async function POST(req: NextRequest) {
+  // Disabled (not deleted) — ADR-007. Active payment is Jaib + manual
+  // transfer, handled entirely via the redeem-code flow and
+  // billing.router.ts's submitManualPayment, neither of which hit this
+  // route. Flip FEATURE_FLAGS.MOYASAR_ENABLED back on when Saudi/Moyasar
+  // relaunches — everything below is otherwise untouched.
+  if (!FEATURE_FLAGS.MOYASAR_ENABLED) {
+    return NextResponse.json({ error: "Moyasar payments are currently disabled" }, { status: 410 });
+  }
+
   const body      = await req.text();
   const signature = req.headers.get("moyasar-signature") ?? "";
   const secret    = process.env.MOYASAR_WEBHOOK_SECRET ?? "";

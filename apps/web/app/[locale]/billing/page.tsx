@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCredits, formatDate } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { PurchaseFlow } from "@/components/billing/PurchaseFlow";
 
 interface Transaction {
   id: string; type: string; amount: number; balanceAfter: number;
@@ -115,8 +116,11 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
+        {/* Buy credits — package + payment method picker (§7.8/7.9/7.10) */}
+        <PurchaseFlow locale={locale} onCreditsGranted={fetchBalance} />
+
         {/* Redeem code */}
-        <Card>
+        <Card id="redeem-box">
           <CardHeader>
             <h2 className="font-semibold text-white">{t("redeem.title")}</h2>
             <p className="text-sm text-slate-400">{t("redeem.description")}</p>

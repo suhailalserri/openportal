@@ -64,3 +64,28 @@
 - **Mitigation:** `redeemCode()`/`generateCode()` security and
   redemption logic (ADR-004) is completely unchanged by this — only
   generation-time tagging is new.
+
+## ADR-008: Manual-transfer claims credit directly, not via a redeem code
+- **Date:** Payment phase, Yemen market
+- **Decision:** When an admin approves a `pending_manual_payments` claim,
+  `manual-payment.service.ts` calls `creditBalance()` directly (type
+  `"payment"`, `paymentId` = the claim's id). It does **not** claim a
+  pre-generated `redeem_codes` row the way Jaib fulfillment does.
+- **Reasoning:** `PAYMENT_METHODS_PLAN.md` §3 frames both payment methods
+  as funneling into "the redeem-code system," which is true for Jaib
+  (tabweeb hands the buyer an actual code) but manual transfer never
+  issues the buyer a code at all — §7.10 describes a claim-submission +
+  admin-approval queue instead. Requiring admins to keep a manual-transfer
+  code batch pre-generated and in stock just so approval could "redeem"
+  one adds an out-of-stock failure mode to a channel whose entire point is
+  human verification, for no benefit — the claim row itself, plus the
+  admin's identity and timestamp on `reviewed_by_admin_id`/`reviewed_at`,
+  is already a complete audit trail.
+- **Trade-off:** Two slightly different mechanisms for "payment method"
+  instead of one uniform one.
+- **Mitigation:** Both still terminate in the exact same atomic ledger
+  function (`creditBalance()`) and produce a `transactions` row — Prompt.md
+  rule 4 ("every credit movement is a transactions row") holds for both.
+  `redeemCode()`/`generateCode()` (ADR-004) remain completely untouched by
+  the manual-transfer path, which was the actual guarantee ADR-007 cared
+  about preserving.

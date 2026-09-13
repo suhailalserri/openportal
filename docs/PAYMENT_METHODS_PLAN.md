@@ -134,29 +134,49 @@ can add/edit packages later without touching code.
 
 ## 7. Remaining work — in order
 
-- [ ] **7.1** Disable (don't delete) Moyasar: feature-flag the webhook
+- [x] **7.1** Disable (don't delete) Moyasar: feature-flag the webhook
       route and exclude SAR entries from the active package list shown
       anywhere in the UI
-- [ ] **7.2** Schema migration: `payment_methods`, `packages` tables;
+- [x] **7.2** Schema migration: `payment_methods`, `packages` tables;
       add `packageId`/`paymentMethodId` FKs to `redeem_codes`
-- [ ] **7.3** Admin: **Packages** section — create/edit/deactivate
+- [x] **7.3** Admin: **Packages** section — create/edit/deactivate
       (name, YER price, USD equivalent, credits, description)
-- [ ] **7.4** Admin: **Payment Methods** section — create/edit (name,
+- [x] **7.4** Admin: **Payment Methods** section — create/edit (name,
       logo, account code, type)
-- [ ] **7.5** Admin: **Generate Codes** — pick payment method → pick
+- [x] **7.5** Admin: **Generate Codes** — pick payment method → pick
       package → count → generate (produces a tagged batch)
-- [ ] **7.6** Admin: **Tracking dashboard** — table by payment method ×
+- [x] **7.6** Admin: **Tracking dashboard** — table by payment method ×
       package: generated / redeemed / remaining, low-stock flag
-- [ ] **7.7** Export: extend existing CSV, add PDF, both per-batch
-- [ ] **7.8** Billing page (buyer-facing): package picker showing YER
+- [~] **7.7** Export: CSV done (per-batch, via `admin.getBatchCodes`).
+      "PDF" is currently a print-formatted browser view (`window.print()`
+      → Save as PDF), not a literal server-generated .pdf — no PDF
+      library is in `apps/web`'s dependencies yet. Swap in a real one
+      (e.g. reuse the approach from `/mnt/skills/public/pdf`) if a
+      downloadable .pdf file becomes a hard requirement.
+- [x] **7.8** Billing page (buyer-facing): package picker showing YER
       prices only; payment method selector (Jaib / manual transfer)
-- [ ] **7.9** Jaib instructional panel: account/network code + numbered
+- [x] **7.9** Jaib instructional panel: account/network code + numbered
       steps + link that scrolls to the existing redeem box
-- [ ] **7.10** Manual-transfer flow: wallet number(s) + generated
+- [x] **7.10** Manual-transfer flow: wallet number(s) + generated
       reference code + claim submission form + admin approval queue
       (schema: a `pending_manual_payments` table — user id, package id,
       reference code, submitted transaction id, status, screenshot url
       optional)
+
+### Known gaps to close before this is launch-ready
+- Not run/verified: no `node_modules` or network access were available
+  while building this, so none of the above has been through
+  `pnpm install`, `tsc`, or `vitest` yet. Run all three before trusting it.
+- `apps/web/messages/en.json` is missing most `admin.*` keys used by the
+  admin pages (pre-existing gap — Arabic is the primary locale per
+  Prompt.md — not introduced by this phase, but the English admin routes
+  were already broken and still are).
+- `screenshotUrl` on a manual-transfer claim has no upload UI yet — the
+  buyer would need to paste a URL to an already-hosted image. A real
+  upload flow (MinIO, per the original master plan) isn't wired up.
+- No rate limiting / fraud check on `submitManualPayment` yet, unlike
+  `redeemCode()` (§8.2's `checkRedeemAttempt`). A buyer could currently
+  spam claims. Should reuse `FraudService` before this goes live.
 
 ## 8. Explicitly out of scope for this phase
 

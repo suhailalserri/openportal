@@ -16,7 +16,22 @@ export const FRAUD = {
   SENSITIVE_ACTION_PER_HOUR: 10, // changePassword / generateApiKey attempts per user
 } as const;
 
-/** Credit packages for direct payment */
+/**
+ * Payment feature flags (decisions.md ADR-007 — pivot to Yemen market).
+ * Moyasar/SAR is disabled, not deleted: the code, config, and webhook
+ * route below all stay in the repo, gated behind this flag, so re-enabling
+ * for a future Saudi launch doesn't mean rebuilding from scratch.
+ */
+export const FEATURE_FLAGS = {
+  MOYASAR_ENABLED: false,
+} as const;
+
+/** Credit packages for direct payment — DISABLED, see FEATURE_FLAGS above.
+ *  Active packages now live in the `packages` DB table (YER-priced) —
+ *  see @ai-platform/db's `creditPackages` and admin.router.ts's
+ *  `packages.*` procedures. This static map is kept only so the Moyasar
+ *  webhook route still type-checks if MOYASAR_ENABLED is ever flipped
+ *  back on; it is not read by any active buyer-facing code path. */
 export const CREDIT_PACKAGES = {
   "pkg_10sar":  { id: "pkg_10sar",  label: "10 SAR",  labelAr: "10 ريال",  price: 10,  currency: "SAR", microCredits: 500  * 1_000_000, bonusPercent: 0  },
   "pkg_25sar":  { id: "pkg_25sar",  label: "25 SAR",  labelAr: "25 ريال",  price: 25,  currency: "SAR", microCredits: 1350 * 1_000_000, bonusPercent: 8  },
