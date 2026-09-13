@@ -81,19 +81,67 @@ export const adminRouter = router({
   // Real numbers (revenue/cost/margin/active users), replacing the
   // hardcoded-zero admin dashboard. See dashboard.service.ts for the
   // revenue-recognition and USD/YER methodology notes.
-  getDashboardStats: adminProcedure.query(() => computeDashboardStats()),
+  //
+  // Each of these wraps its service call in try/catch and rethrows as a
+  // TRPCError carrying the *original* error message. Without this, a
+  // thrown Postgres/driver error becomes an opaque 500 with no detail in
+  // the browser's network tab — and (until the sibling fix in
+  // apps/web/app/api/trpc/[trpc]/route.ts) wasn't even reaching the
+  // server logs. This makes the real cause visible from the client side
+  // alone, no log access required.
+  getDashboardStats: adminProcedure.query(async () => {
+    try {
+      return await computeDashboardStats();
+    } catch (err) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `getDashboardStats failed: ${err instanceof Error ? err.message : String(err)}`,
+        cause: err,
+      });
+    }
+  }),
 
   getRevenueTimeseries: adminProcedure
     .input(z.object({ days: z.number().int().min(1).max(90).default(14) }))
-    .query(({ input }) => getRevenueTimeseries(input.days)),
+    .query(async ({ input }) => {
+      try {
+        return await getRevenueTimeseries(input.days);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `getRevenueTimeseries failed: ${err instanceof Error ? err.message : String(err)}`,
+          cause: err,
+        });
+      }
+    }),
 
   getModelUsageBreakdown: adminProcedure
     .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
-    .query(({ input }) => getModelUsageBreakdown(input.days)),
+    .query(async ({ input }) => {
+      try {
+        return await getModelUsageBreakdown(input.days);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `getModelUsageBreakdown failed: ${err instanceof Error ? err.message : String(err)}`,
+          cause: err,
+        });
+      }
+    }),
 
   getRecentTransactions: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
-    .query(({ input }) => getRecentTransactions(input.limit)),
+    .query(async ({ input }) => {
+      try {
+        return await getRecentTransactions(input.limit);
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `getRecentTransactions failed: ${err instanceof Error ? err.message : String(err)}`,
+          cause: err,
+        });
+      }
+    }),
 
   // ── User management ─────────────────────────────────────────────────
   listUsers: adminProcedure
