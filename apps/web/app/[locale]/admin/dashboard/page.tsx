@@ -7,7 +7,7 @@ import { RevenueChart } from "@/components/admin/RevenueChart";
 import { trpc } from "@/lib/trpc";
 import { formatRelativeDate } from "@/lib/utils";
 
-interface StatCardProps { title: string; value: string; sub?: string; icon: string; color?: string; loading?: boolean }
+interface StatCardProps { title: string; value: string; sub?: string | undefined; icon: string; color?: string; loading?: boolean }
 
 function StatCard({ title, value, sub, icon, color = "text-blue-400", loading }: StatCardProps) {
   return (
