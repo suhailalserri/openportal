@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "@/lib/auth-client";
+import { signIn, twoFactor } from "@/lib/auth-client";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -15,6 +15,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading,  setLoading]  = useState(false);
 
+  // Set once sign-in reports `twoFactorRedirect: true` — the account has
+  // 2FA enabled and needs a second step before better-auth issues a real
+  // session. Handled as a second inline form rather than a route redirect
+  // so the flow doesn't lose the just-submitted credentials or the
+  // locale-aware `router` this page already has.
+  const [needs2fa,   setNeeds2fa]   = useState(false);
+  const [code,       setCode]       = useState("");
+  const [useBackup,  setUseBackup]  = useState(false);
+  const [verifying,  setVerifying]  = useState(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -24,11 +34,38 @@ export default function LoginPage() {
         toast.error(t("auth.errors.invalidCredentials"));
         return;
       }
+      if (result.data?.twoFactorRedirect) {
+        setNeeds2fa(true);
+        return;
+      }
       router.push(`/${locale}/chat`);
     } catch {
       toast.error(t("errors.generic"));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleVerify2fa(e: React.FormEvent) {
+    e.preventDefault();
+    setVerifying(true);
+    try {
+      const { error } = useBackup
+        ? await twoFactor.verifyBackupCode({ code })
+        : await twoFactor.verifyTotp({ code, trustDevice: true });
+      if (error) {
+        toast.error(
+          locale === "ar"
+            ? "رمز غير صحيح. حاول مرة أخرى."
+            : "Invalid code. Please try again."
+        );
+        return;
+      }
+      router.push(`/${locale}/chat`);
+    } catch {
+      toast.error(t("errors.generic"));
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -51,6 +88,49 @@ export default function LoginPage() {
             {t("auth.login")}
           </h2>
 
+          {needs2fa ? (
+            <form onSubmit={handleVerify2fa} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  {useBackup
+                    ? (locale === "ar" ? "رمز احتياطي" : "Backup code")
+                    : (locale === "ar" ? "رمز التحقق (تطبيق المصادقة)" : "Authenticator code")}
+                </label>
+                <input
+                  type="text"
+                  inputMode={useBackup ? "text" : "numeric"}
+                  autoFocus
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
+                  required
+                  dir="ltr"
+                  className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
+                             text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
+                             transition-colors text-sm tracking-widest text-center"
+                  placeholder={useBackup ? "xxxxx-xxxxx" : "123456"}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={verifying}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
+                           text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm"
+              >
+                {verifying ? t("common.loading") : (locale === "ar" ? "تحقق" : "Verify")}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setUseBackup(v => !v); setCode(""); }}
+                className="w-full text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {useBackup
+                  ? (locale === "ar" ? "استخدم تطبيق المصادقة بدلاً من ذلك" : "Use authenticator app instead")
+                  : (locale === "ar" ? "استخدم رمزاً احتياطياً بدلاً من ذلك" : "Use a backup code instead")}
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
@@ -104,7 +184,9 @@ export default function LoginPage() {
               {loading ? t("common.loading") : t("auth.loginButton")}
             </button>
           </form>
+          )}
 
+          {!needs2fa && (
           <p className="mt-6 text-center text-sm text-slate-400">
             {t("auth.noAccount")}{" "}
             <Link
@@ -114,6 +196,7 @@ export default function LoginPage() {
               {t("auth.registerButton")}
             </Link>
           </p>
+          )}
         </div>
       </div>
     </div>

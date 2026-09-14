@@ -30,6 +30,12 @@ function num(v: unknown): number {
  *  effective at the time each request was actually billed (not today's
  *  rate) — matches Phase 5's provider_prices history design. */
 async function costUsdSince(since: Date): Promise<number> {
+  // NOTE: drizzle's raw `sql` tag runs through postgres-js's `client.unsafe()`
+  // under the hood, which — unlike postgres.js's own tagged-template `sql`
+  // calls — does NOT auto-serialize non-primitive JS values. A bare `Date`
+  // interpolated here reaches the wire writer as-is and blows up with
+  // "Received an instance of Date". Always pass an ISO string instead.
+  const sinceIso = since.toISOString();
   const result = await db.execute(sql`
     select coalesce(sum(
       (t.input_tokens::numeric  / 1000) * coalesce(pp.input_price_usd, 0) +
@@ -46,7 +52,7 @@ async function costUsdSince(since: Date): Promise<number> {
       limit 1
     ) pp on true
     where t.type = 'usage_debit'
-      and t.created_at >= ${since}
+      and t.created_at >= ${sinceIso}
       and t.model_id is not null
   `);
   const rows = result as unknown as Row[];
@@ -57,6 +63,7 @@ async function costUsdSince(since: Date): Promise<number> {
  *  matching USD-equivalent (margin tracking), from both funnels —
  *  approved manual transfers and redeemed package-linked codes. */
 async function revenueSince(since: Date): Promise<{ yer: number; usd: number }> {
+  const sinceIso = since.toISOString();
   const result = await db.execute(sql`
     select
       coalesce(sum(p.price_yer), 0)              as yer,
@@ -65,14 +72,14 @@ async function revenueSince(since: Date): Promise<{ yer: number; usd: number }> 
       select pkg.price_yer, pkg.price_usd_equivalent
       from pending_manual_payments pm
       join packages pkg on pkg.id = pm.package_id
-      where pm.status = 'approved' and pm.reviewed_at >= ${since}
+      where pm.status = 'approved' and pm.reviewed_at >= ${sinceIso}
 
       union all
 
       select pkg.price_yer, pkg.price_usd_equivalent
       from redeem_codes rc
       join packages pkg on pkg.id = rc.package_id
-      where rc.status = 'used' and rc.used_at >= ${since}
+      where rc.status = 'used' and rc.used_at >= ${sinceIso}
     ) p
   `);
   const rows = result as unknown as Row[];
@@ -90,6 +97,8 @@ export async function getDashboardStats() {
   const sevenDaysAgo  = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const fiveMinAgo    = new Date(now.getTime() - 5  * 60 * 1000);
+  const startOfDayIso = startOfDay.toISOString();
+  const fiveMinAgoIso = fiveMinAgo.toISOString();
 
   const [
     revToday, rev7d, rev30d,
@@ -105,12 +114,12 @@ export async function getDashboardStats() {
     db.execute(sql`
       select
         (select count(*) from users)                                        as total_users,
-        (select count(*) from users where created_at >= ${startOfDay})      as new_users_today,
-        (select count(*) from users where last_seen_at >= ${fiveMinAgo})    as active_users,
+        (select count(*) from users where created_at >= ${startOfDayIso})   as new_users_today,
+        (select count(*) from users where last_seen_at >= ${fiveMinAgoIso}) as active_users,
         (select count(*) from redeem_codes where status = 'used'
-           and used_at >= ${startOfDay})                                    as codes_redeemed_today,
+           and used_at >= ${startOfDayIso})                                 as codes_redeemed_today,
         (select count(*) from transactions where type = 'usage_debit'
-           and created_at >= ${startOfDay})                                 as requests_today
+           and created_at >= ${startOfDayIso})                              as requests_today
     `),
   ]);
 

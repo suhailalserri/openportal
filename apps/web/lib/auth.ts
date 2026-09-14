@@ -1,8 +1,12 @@
 import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, APIError } from "better-auth/api";
+import { twoFactor }       from "better-auth/plugins";
 import { db }              from "@ai-platform/db";
-import { users, sessions, accounts, verifications, balances } from "@ai-platform/db";
+import {
+  users, sessions, accounts, verifications, balances,
+  twoFactor as twoFactorTable,
+} from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
 import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
 
@@ -14,6 +18,10 @@ import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
 const SIGNUP_BONUS_MICRO_CREDITS = 0;
 
 export const auth = betterAuth({
+  // Used as the default TOTP issuer name shown in authenticator apps
+  // (Google Authenticator, Authy, etc.) for the twoFactor plugin below.
+  appName: "AI Platform",
+
   // better-auth uses this to build every outgoing link it generates itself
   // (email verification, password reset, etc). It reads BETTER_AUTH_URL
   // internally if you don't set this, but that's opt-in and silent — if the
@@ -37,6 +45,10 @@ export const auth = betterAuth({
       session:      sessions,
       account:      accounts,
       verification: verifications,
+      // Model name is the twoFactor plugin's own canonical name — must
+      // match exactly, same rule as user/session/account/verification
+      // above. See packages/db/src/schema/two-factor.ts for the table.
+      twoFactor:    twoFactorTable,
     },
   }),
 
@@ -186,6 +198,15 @@ export const auth = betterAuth({
   // verifyTurnstileToken() no-ops (returns success) when
   // TURNSTILE_SECRET_KEY isn't set, so this is inert until that env var is
   // configured — see apps/web/lib/turnstile-server.ts.
+  // Settings → Security's 2FA section (enable/verify/disable, backup
+  // codes) and the login page's post-password challenge both talk to this
+  // plugin through authClient.twoFactor.* — see apps/web/lib/auth-client.ts.
+  // `users.twoFactorEnabled` is the exact field name the plugin expects,
+  // so no `user.fields` remapping is needed for it (unlike displayName/
+  // avatarUrl below); the secret/backup codes live in the separate
+  // `twoFactor` table mapped above.
+  plugins: [twoFactor()],
+
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email") return;

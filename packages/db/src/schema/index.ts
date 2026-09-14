@@ -15,3 +15,4 @@ export * from "./models";
 export * from "./fraud-events";
 export * from "./provider-prices";
 export * from "./audit-logs";
+export * from "./two-factor";

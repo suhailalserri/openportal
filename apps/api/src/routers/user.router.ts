@@ -3,7 +3,6 @@ import { router, protectedProcedure } from "./trpc";
 import { TRPCError }           from "@trpc/server";
 import { db, users, balances } from "@ai-platform/db";
 import { eq }                  from "drizzle-orm";
-import bcrypt                  from "bcryptjs";
 import { randomBytes, createHash } from "node:crypto";
 import { checkLimit }          from "../utils/rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
@@ -41,31 +40,21 @@ export const userRouter = router({
       return { success: true };
     }),
 
-  changePassword: protectedProcedure
-    .input(z.object({
-      currentPassword: z.string().min(1),
-      newPassword:     z.string().min(8),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      assertNotRateLimited(ctx.user.id, "changePassword");
-
-      if (!ctx.user.passwordHash) {
-        throw new TRPCError({
-          code:    "BAD_REQUEST",
-          message: "This account signed up via a social provider and has no password to change.",
-        });
-      }
-
-      const isValid = await bcrypt.compare(input.currentPassword, ctx.user.passwordHash);
-      if (!isValid) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Current password is incorrect" });
-      }
-      const newHash = await bcrypt.hash(input.newPassword, 12);
-      await db.update(users)
-        .set({ passwordHash: newHash, updatedAt: new Date() })
-        .where(eq(users.id, ctx.user.id));
-      return { success: true };
-    }),
+  // Password changes are NOT handled here. This tRPC service (apps/api)
+  // authenticates requests by reading the `sessions` table directly — it
+  // has no access to the better-auth server instance, which lives in
+  // apps/web (apps/web/lib/auth.ts) and is the only thing that knows how
+  // to correctly verify/rewrite a credential. A previous version of this
+  // mutation compared against `ctx.user.passwordHash`, but better-auth's
+  // email/password strategy never writes there — it stores the hash on
+  // `accounts.password` (providerId "credential"); see the comment on
+  // `users.passwordHash` in packages/db/src/schema/users.ts. That made
+  // this endpoint fail for every real password-auth user (`passwordHash`
+  // is always null), or worse, silently check against a stale value if a
+  // row somehow had one. The Settings page now calls
+  // `authClient.changePassword()` directly, which hits better-auth's own
+  // `/api/auth/change-password` route in apps/web and updates the correct
+  // column with the correct hasher.
 
   // NOTE: API keys are hashed with SHA-256, NOT bcrypt. auth.middleware.ts
   // authenticates Bearer API keys by hashing the presented raw key with
