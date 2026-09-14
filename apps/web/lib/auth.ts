@@ -112,7 +112,7 @@ export const auth = betterAuth({
       create: {
         after: async (
           user: { id: string },
-          ctx?: { request?: Request; headers?: Headers } | null
+          ctx?: { request?: Request | undefined; headers?: Headers | undefined } | null
         ) => {
           await db.insert(balances)
             .values({ userId: user.id, credits: SIGNUP_BONUS_MICRO_CREDITS })
