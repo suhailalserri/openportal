@@ -183,8 +183,8 @@ export function recordFraudEvent(type: string, severity: string): void {
  * applied to Fastify-typed code living in a file the web build reaches.
  */
 export function recordHttpRequest(
-  req:   { method: string; url?: string; routeOptions?: { url?: string } },
-  reply: { statusCode: number; elapsedTime?: number }
+  req:   { method: string; url?: string | undefined; routeOptions?: { url?: string | undefined } | undefined },
+  reply: { statusCode: number; elapsedTime?: number | undefined }
 ): void {
   // routeOptions.url is the *pattern* (e.g. "/chat"), not the raw path —
   // avoids a cardinality explosion from unique IDs in path segments.
