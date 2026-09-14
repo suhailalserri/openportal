@@ -9,13 +9,13 @@ import { Button } from "@/components/ui/button";
 import { formatRelativeDate } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import {
-  changePassword, listSessions, revokeOtherSessions,
-  twoFactor, signOut, useSession,
+  changePassword, twoFactor, signOut,
 } from "@/lib/auth-client";
 
 type SessionRow = {
-  id: string; token: string; ipAddress?: string | null;
+  id: string; ip?: string | null;
   userAgent?: string | null; createdAt: string | Date; updatedAt: string | Date;
+  expiresAt: string | Date; current: boolean;
 };
 
 export default function SettingsPage() {
@@ -228,32 +228,44 @@ function SecuritySection({
   }
 
   // -- active sessions --
-  // NOTE: better-auth's listSessions() intentionally returns an EMPTY
-  // `token` for every session except the caller's current one (a security
-  // measure — see better-auth/better-auth#6940). That means there is no
-  // reliable per-row "revoke this one" action to build here: calling
-  // revokeSession({ token: "" }) for another device silently no-ops
-  // rather than erroring, which would show a false-success toast. The
-  // list below is informational (device/IP/last-active) plus the one
-  // action that IS reliable without a token: revokeOtherSessions().
+  // Fetched from our own /api/user/sessions routes (direct db reads/writes),
+  // not authClient.listSessions()/revokeSession() — see those routes' file
+  // comments for why: better-auth's client masks the token field needed
+  // for per-device revoke on every session but the current one.
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const [currentToken, setCurrentToken] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokingOthers, setRevokingOthers] = useState(false);
-  const { data: sessionData } = useSession();
 
   async function loadSessions() {
-    const { data } = await listSessions();
-    setSessions((data as SessionRow[] | undefined) ?? []);
+    try {
+      const res = await fetch("/api/user/sessions");
+      const data = await res.json();
+      setSessions(data.sessions ?? []);
+    } catch {
+      setSessions([]);
+    }
   }
-  useEffect(() => {
-    loadSessions();
-    setCurrentToken((sessionData as { session?: { token?: string } } | null)?.session?.token ?? null);
-  }, [sessionData]);
+  useEffect(() => { loadSessions(); }, []);
+
+  async function handleRevoke(id: string) {
+    setRevokingId(id);
+    try {
+      const res = await fetch(`/api/user/sessions/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        toast.error(ar ? "تعذّر إنهاء الجلسة" : "Couldn't revoke that session");
+        return;
+      }
+      toast.success(ar ? "تم إنهاء الجلسة" : "Session revoked");
+      loadSessions();
+    } finally {
+      setRevokingId(null);
+    }
+  }
 
   async function handleRevokeOthers() {
     setRevokingOthers(true);
     try {
-      await revokeOtherSessions();
+      await fetch("/api/user/sessions", { method: "DELETE" });
       toast.success(ar ? "تم تسجيل الخروج من الأجهزة الأخرى" : "Signed out of other devices");
       loadSessions();
     } finally {
@@ -410,14 +422,20 @@ function SecuritySection({
                     {s.userAgent
                       ? s.userAgent.slice(0, 60)
                       : (ar ? "جهاز غير معروف" : "Unknown device")}
-                    {s.token === currentToken && (
+                    {s.current && (
                       <span className="ms-2 text-xs text-blue-400">{ar ? "(هذا الجهاز)" : "(this device)"}</span>
                     )}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {s.ipAddress ?? ""} · {formatRelativeDate(s.updatedAt, locale)}
+                    {s.ip ?? ""} · {formatRelativeDate(s.updatedAt, locale)}
                   </p>
                 </div>
+                {!s.current && (
+                  <button onClick={() => handleRevoke(s.id)} disabled={revokingId === s.id}
+                    className="text-xs text-red-400 hover:text-red-300 shrink-0 ms-3 disabled:opacity-50">
+                    {ar ? "إنهاء" : "Revoke"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
