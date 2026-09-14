@@ -6,7 +6,7 @@ import { count, sum, eq }  from "drizzle-orm";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || !["admin","superadmin"].includes((session.user as {role:string}).role))
+  if (!session || !["admin","superadmin"].includes((session.user as unknown as {role:string}).role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const [totalUsers]   = await db.select({ count: count() }).from(users);

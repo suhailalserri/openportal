@@ -9,7 +9,7 @@ interface Params { params: Promise<{ id: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || !["admin","superadmin"].includes((session.user as {role:string}).role))
+  if (!session || !["admin","superadmin"].includes((session.user as unknown as {role:string}).role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id }  = await params;
