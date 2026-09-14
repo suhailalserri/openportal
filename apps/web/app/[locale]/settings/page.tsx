@@ -180,6 +180,17 @@ function SecuritySection({
         toast.error(ar ? "كلمة المرور غير صحيحة" : "Incorrect password");
         return;
       }
+      // enable()'s return type is a discriminated union over `method`
+      // ({method:"otp"} vs {method:"totp", totpURI, backupCodes}) because
+      // the plugin generically supports email/SMS OTP as a 2FA method too
+      // — we never configured otpOptions on the server, so in practice
+      // this will always come back "totp", but the type doesn't know
+      // that, and accessing totpURI/backupCodes without narrowing first
+      // is a compile error against the "otp" branch of the union.
+      if (data.method !== "totp") {
+        toast.error(ar ? "حدث خطأ ما" : "Something went wrong");
+        return;
+      }
       setEnrollData({ totpURI: data.totpURI, backupCodes: data.backupCodes });
       setEnrollPw("");
     } catch {
