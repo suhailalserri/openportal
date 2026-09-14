@@ -16,11 +16,20 @@ export const twoFactor = pgTable("two_factor", {
   // JSON-stringified array of hashed/encrypted backup codes — better-auth
   // manages the encoding, this is just opaque storage from our side.
   backupCodes: text("backup_codes").notNull(),
-  // Present on newer better-auth versions (1.4+); harmless if the resolved
-  // version doesn't use them. `verified` distinguishes "secret generated,
-  // pending first TOTP confirmation" from "actually protecting sign-in".
+  // Full official column set per better-auth's twoFactor plugin docs
+  // (id, userId, secret, backupCodes, verified, failedVerificationCount,
+  // lockedUntil) — the last three back the account-lockout feature
+  // (locks after repeated failed verifications), added in a 1.x minor
+  // version. The deploy log's own "Drizzle schema mismatch: Missing
+  // columns twoFactor.lockedUntil" is what caught this being incomplete
+  // the first time around.
   verified:                boolean("verified").default(false).notNull(),
   failedVerificationCount: integer("failed_verification_count").default(0).notNull(),
+  // Nullable: null means "not currently locked". Set by better-auth's
+  // account-lockout feature after too many consecutive failed 2FA
+  // verifications; cleared again once the cooldown passes or a
+  // verification succeeds.
+  lockedUntil:             timestamp("locked_until"),
   createdAt:               timestamp("created_at").defaultNow().notNull(),
   updatedAt:               timestamp("updated_at").defaultNow().notNull(),
 });
