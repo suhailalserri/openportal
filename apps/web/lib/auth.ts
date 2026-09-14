@@ -69,11 +69,11 @@ export const auth = betterAuth({
     enabled:                  true,
     requireEmailVerification: true,
     minPasswordLength:        8,
-    validatePassword: (password: string) => {
-      if (!/[A-Z]/.test(password)) return "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل";
-      if (!/[0-9]/.test(password)) return "يجب أن تحتوي كلمة المرور على رقم واحد على الأقل";
-      return true;
-    },
+    // No `validatePassword` option exists on this pinned better-auth
+    // version's emailAndPassword config (confirmed by the build's own
+    // reported type) — the uppercase/digit strength rules are enforced
+    // in the `hooks.before` middleware below instead, in the same place
+    // that already gates sign-up behind Turnstile.
   },
 
   session: {
@@ -272,6 +272,25 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email") return;
+
+      // Password strength rules (moved here — see the emailAndPassword
+      // comment above for why). Runs before the Turnstile check so a
+      // weak password is rejected without spending a captcha verification.
+      const password = (ctx.body as { password?: string } | undefined)?.password;
+      if (password) {
+        if (!/[A-Z]/.test(password)) {
+          throw new APIError("BAD_REQUEST", {
+            message: "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+            code:    "WEAK_PASSWORD",
+          });
+        }
+        if (!/[0-9]/.test(password)) {
+          throw new APIError("BAD_REQUEST", {
+            message: "يجب أن تحتوي كلمة المرور على رقم واحد على الأقل",
+            code:    "WEAK_PASSWORD",
+          });
+        }
+      }
 
       const headers = ctx.headers ?? ctx.request?.headers;
       const token   = headers?.get("x-turnstile-token");
