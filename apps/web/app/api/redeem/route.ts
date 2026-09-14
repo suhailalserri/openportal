@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
   // but it's no longer the only line of defense, and unlike this per-process
   // counter, the Redis-backed check also catches brute-force spread across
   // multiple web/api container replicas.
-  const result = await redeemCode(session.user.id, parsed.data.code, ip);
+  const result = await redeemCode(session.user.id, parsed.data.code, ip ?? "unknown");
   return NextResponse.json(result);
 }
