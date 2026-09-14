@@ -34,7 +34,16 @@ export default function LoginPage() {
         toast.error(t("auth.errors.invalidCredentials"));
         return;
       }
-      if (result.data?.twoFactorRedirect) {
+      // better-auth's twoFactorClient plugin adds `twoFactorRedirect` to the
+      // ACTUAL response at runtime when the account has 2FA enabled, but
+      // doesn't extend signIn.email()'s declared return type to include it
+      // (their own docs work around this the same way — checking the field
+      // inside a differently-typed onSuccess callback instead of the direct
+      // return value). Asserting it here rather than switching to that
+      // callback pattern, since there's no guarantee that context type is
+      // any more precise — this documents the real gap instead of masking it.
+      const data = result.data as typeof result.data & { twoFactorRedirect?: boolean };
+      if (data?.twoFactorRedirect) {
         setNeeds2fa(true);
         return;
       }
