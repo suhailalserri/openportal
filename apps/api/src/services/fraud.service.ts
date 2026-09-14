@@ -2,6 +2,13 @@ import { db, fraudEvents, users } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
 import { FRAUD } from "@ai-platform/config";
 import type { FraudCheckResult, FraudEventInput } from "@ai-platform/types";
+import { recordFraudEvent } from "../metrics";
+import Redis from "ioredis";
+
+// See metrics.ts for why this reads process.env directly rather than
+// importing the full Zod-validated `./config` — same cross-boundary
+// reach (tests, apps/web), same reasoning.
+const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 export class FraudService {
   constructor(private redis: { incr: Function; expire: Function; sadd: Function; scard: Function; incrby: Function }) {}
@@ -91,6 +98,7 @@ export class FraudService {
 
   private async logEvent(event: FraudEventInput): Promise<void> {
     await db.insert(fraudEvents).values({ ...event, createdAt: new Date() });
+    recordFraudEvent(event.type, event.severity);
 
     // Auto-suspend on critical events
     if (event.severity === "critical") {
@@ -112,3 +120,36 @@ export class FraudService {
     }).catch(console.error);
   }
 }
+
+// ── Shared singleton ─────────────────────────────────────────────────
+// This class existed since the original build but was never constructed
+// anywhere outside tests (which supply their own FakeRedis) — every real
+// request path either called nothing or fell back to the in-memory
+// checkLimit() counter in utils/rate-limiter.ts (see rateLimit.middleware.ts
+// and billing.router.ts's comments). checkLimit is fine as a cheap
+// first-pass throttle but can't see the cross-account/cross-IP patterns
+// FraudService is built for, and — since it's in-process memory — doesn't
+// even share counts across the web and api containers or across multiple
+// api replicas (Phase 25 Stage 3).
+//
+// A single Redis-backed instance fixes both problems at once: it's safe
+// to import this same singleton from apps/api's own request handlers AND
+// from apps/web (which already runs apps/api's redeem.service.ts in-process
+// via the @ai-platform/api/services/redeem workspace export) — both
+// processes point at the same Redis and share counters through Redis keys,
+// not process memory, so it's correct regardless of which container the
+// request landed in.
+//
+// lazyConnect defers the actual TCP connection until the first command
+// (incr/sadd/etc), so importing this module has no side effect for any
+// code path that never calls a fraud check — e.g. apps/web code that
+// imports @ai-platform/api/services/redeem for reasons unrelated to fraud.
+const fraudRedis = new Redis(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 2 });
+fraudRedis.on("error", (err) => {
+  // Logged here for visibility; each call site below wraps its
+  // fraudService call in try/catch and fails OPEN (allowed: true) on
+  // error — a fraud-check outage must never block chat/redeem traffic.
+  console.error("[fraud] redis error:", err.message);
+});
+
+export const fraudService = new FraudService(fraudRedis);

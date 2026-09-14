@@ -31,6 +31,16 @@ export default defineConfig({
     env: {
       DATABASE_URL: "postgres://placeholder:placeholder@localhost:1/unused",
       CODE_SALT: "test-salt-do-not-use-in-production",
+      // fraud.service.ts / metrics.ts read process.env.REDIS_URL directly
+      // (not through the Zod-validated ./config — see metrics.ts for why),
+      // defaulting to redis://localhost:6379 if unset. Setting it explicitly
+      // to an unreachable port here isn't required to avoid a crash anymore,
+      // but keeps test behavior deterministic regardless of whether the
+      // machine running tests happens to have a real Redis on 6379 — every
+      // fraud/metrics call site fails OPEN on a connection error, so this
+      // guarantees "check skipped" rather than "check silently succeeds
+      // against a Redis instance the test never provisioned."
+      REDIS_URL: "redis://localhost:1/0",
     },
   },
 });

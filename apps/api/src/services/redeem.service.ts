@@ -2,6 +2,7 @@ import { db, redeemCodes } from "@ai-platform/db";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { creditBalance } from "./balance.service";
+import { fraudService } from "./fraud.service";
 import type { RedeemResult } from "@ai-platform/types";
 
 /** Generate a checksum-protected code: XXXX-XXXX-XXXX-CHCK */
@@ -44,7 +45,8 @@ export function validateCodeFormat(code: string): boolean {
 /** Atomically redeem a code — race-safe via DB-level single-use constraint */
 export async function redeemCode(
   userId: string,
-  rawCode: string
+  rawCode: string,
+  ip: string = "unknown"
 ): Promise<RedeemResult> {
   const code = rawCode.toUpperCase().trim();
 
@@ -54,6 +56,29 @@ export async function redeemCode(
       error:   "INVALID_FORMAT",
       message: "صيغة الكود غير صحيحة. تحقق من الكود وأعد المحاولة.",
     };
+  }
+
+  // Redis-backed velocity/brute-force check — this is the piece that was
+  // missing: apps/web/app/api/redeem/route.ts and billing.router.ts's
+  // redeemCode mutation both call this function, so wiring the check in
+  // here (rather than duplicating it in each caller) covers both paths
+  // in one place, including any future caller. Fails OPEN (treats a
+  // Redis/fraud-service error as "allowed") — a monitoring dependency
+  // going down must never block a legitimate redeem.
+  try {
+    const fraudCheck = await fraudService.checkRedeemAttempt(userId, ip);
+    if (!fraudCheck.allowed) {
+      const isDaily = fraudCheck.reason === "DAILY_LIMIT_REACHED";
+      return {
+        success: false,
+        error:   isDaily ? "DAILY_LIMIT_REACHED" : "TOO_MANY_ATTEMPTS",
+        message: isDaily
+          ? "وصلت إلى الحد اليومي للمحاولات. حاول غداً."
+          : "تجاوزت عدد المحاولات المسموحة. حاول بعد ساعة.",
+      };
+    }
+  } catch (err) {
+    console.error("[redeem] fraud check failed, allowing request:", err);
   }
 
   return await db.transaction(async (tx) => {

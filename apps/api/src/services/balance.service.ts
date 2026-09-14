@@ -1,6 +1,8 @@
 import { db, balances, transactions } from "@ai-platform/db";
 import { and, eq, gte, sql } from "drizzle-orm";
 import type { DeductResult } from "@ai-platform/types";
+import { balanceDeductionFailuresTotal, recordCreditsRedeemed } from "../metrics";
+import { fraudService } from "./fraud.service";
 
 /**
  * Any executor that can run queries: either the top-level `db` or a `tx`
@@ -41,7 +43,7 @@ export async function deductCreditsAtomic(
     throw new Error(`deductCreditsAtomic: microCredits must be positive, got ${microCredits}`);
   }
 
-  return await executor.transaction(async (tx) => {
+  const result = await executor.transaction(async (tx) => {
     const updated = await tx
       .update(balances)
       .set({
@@ -58,6 +60,12 @@ export async function deductCreditsAtomic(
       .returning({ credits: balances.credits });
 
     if (updated.length === 0) {
+      // Not every "insufficient balance" is a billing bug — this is the
+      // expected outcome any time the pre-flight check and the atomic
+      // deduct race against a second concurrent request. Still worth
+      // counting: a sustained rise here means something upstream (the
+      // pre-flight getBalance check) is stale or being bypassed.
+      balanceDeductionFailuresTotal.inc();
       return { success: false, newBalance: 0, reason: "INSUFFICIENT_BALANCE" };
     }
 
@@ -77,6 +85,17 @@ export async function deductCreditsAtomic(
 
     return { success: true, newBalance };
   });
+
+  // Outside the transaction on purpose — checkSpendVelocity does Redis I/O
+  // (and potentially a Telegram alert + a DB write on trip) that has no
+  // business holding a Postgres transaction open. Only meaningful for
+  // actual usage, not admin-granted debits an operator triggered on purpose.
+  if (result.success && txType === "usage_debit") {
+    fraudService.checkSpendVelocity(userId, microCredits)
+      .catch((err) => console.error("[balance] spend-velocity check failed:", err));
+  }
+
+  return result;
 }
 
 /**
@@ -116,6 +135,8 @@ export async function creditBalance(
       ...(metadata.paymentId    !== undefined ? { paymentId: metadata.paymentId } : {}),
     });
   });
+
+  recordCreditsRedeemed(type, microCredits);
 }
 
 /** Create a fresh balance row for a new user */

@@ -160,7 +160,51 @@ services:
       - "--storage.tsdb.path=/prometheus"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
+    networks: [internal]
+    depends_on: [postgres-exporter, redis-exporter, node-exporter]
+    logging: { driver: "json-file", options: { max-size: "5m", max-file: "2" } }
+
+  # ─── EXPORTERS ──────────────────────────────────────────────────────
+  # prometheus.yml already scrapes these three job names — until now
+  # nothing existed at those targets, so those three scrape jobs were
+  # silently failing (visible as `up == 0` in Prometheus, easy to miss
+  # without an alert on it — see the `ExporterDown` rule in alerts.yml).
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+    networks: [internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging: { driver: "json-file", options: { max-size: "5m", max-file: "2" } }
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR:     "redis://redis:6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+    networks: [internal]
+    depends_on:
+      redis: { condition: service_healthy }
+    logging: { driver: "json-file", options: { max-size: "5m", max-file: "2" } }
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host/root"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/host/root:ro,rslave"
+    pid: host
     networks: [internal]
     logging: { driver: "json-file", options: { max-size: "5m", max-file: "2" } }
 

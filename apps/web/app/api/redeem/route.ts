@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
   // (packages/config/src/constants.ts) and the redeem error copy already
   // anticipated them (TOO_MANY_ATTEMPTS / DAILY_LIMIT_REACHED in
   // messages/*.json), but nothing enforced them until now.
+  const ip = getClientIp(reqHeaders);
   const userKey = `redeem:${session.user.id}`;
   if (!checkLimit(`${userKey}:hour`, FRAUD.REDEEM_ATTEMPTS_PER_HOUR, 60 * 60 * 1000)) {
     return NextResponse.json({
@@ -39,7 +40,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const ip = getClientIp(reqHeaders);
   const captcha = await verifyTurnstileToken(parsed.data.turnstileToken, ip);
   if (!captcha.success) {
     return NextResponse.json({
@@ -48,6 +48,12 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const result = await redeemCode(session.user.id, parsed.data.code);
+  // redeemCode() itself now runs the Redis-backed FraudService.checkRedeemAttempt
+  // check (see redeem.service.ts) — this in-memory checkLimit above stays as a
+  // cheap, zero-latency first pass (and still works if Redis is briefly down),
+  // but it's no longer the only line of defense, and unlike this per-process
+  // counter, the Redis-backed check also catches brute-force spread across
+  // multiple web/api container replicas.
+  const result = await redeemCode(session.user.id, parsed.data.code, ip);
   return NextResponse.json(result);
 }

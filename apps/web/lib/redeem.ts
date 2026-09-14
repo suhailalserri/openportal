@@ -4,11 +4,12 @@
  */
 export async function redeemCode(
   userId: string,
-  code:   string
+  code:   string,
+  ip:     string
 ): Promise<{ success: boolean; message: string; error?: string; creditsAdded?: number }> {
   // This runs server-side in the API route — import the actual service
   const { redeemCode: serviceRedeem } = await import(
     "@ai-platform/api/services/redeem"
   );
-  return serviceRedeem(userId, code);
+  return serviceRedeem(userId, code, ip);
 }

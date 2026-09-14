@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title:       "AI Platform | منصة الذكاء",
+  title:       "OpenPortal | البوابة المفتوحة",
   description: "Advanced AI models at accessible prices",
 };
 

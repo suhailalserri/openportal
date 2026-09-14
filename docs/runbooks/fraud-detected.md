@@ -14,6 +14,16 @@ Check the fraud event:
 - **User:** Who is it?
 - **Details:** IPs, request counts, spend amounts
 
+**Before trusting the numbers:** check whether a `RedisMemoryHigh` or
+`ExporterDown` alert fired around the same time. Every fraud check
+(`checkRequestVelocity`, `checkRedeemAttempt`, `checkSpendVelocity` in
+`fraud.service.ts`) fails OPEN on a Redis error — it skips the check
+rather than blocking the request. So a Redis blip doesn't just degrade
+the app; it also means fraud checks were silently off for that window.
+If the two alerts overlap, treat this event's counts as a floor, not a
+complete picture — some abuse in that window may not have been caught
+or logged at all.
+
 ## Step 2 — Classify
 
 **Likely legitimate user (false positive):**

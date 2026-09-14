@@ -1765,6 +1765,686 @@ Dashboard 5: Infrastructure
 
 ```yaml
 name: ai-platform
-
 services:
   caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    restart: unless-stopped
+    env_file: .env
+    depends_on: [api]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    restart: unless-stopped
+    env_file: .env
+    depends_on: [postgres, valkey]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  gateway:
+    image: newapi/new-api:latest        # "New API" — Go provider gateway
+    restart: unless-stopped
+    env_file: .env
+    volumes: ["gateway_data:/data"]
+    depends_on: [postgres, valkey]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infra/scripts/backup.sh:/backup.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: valkey-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes: ["valkey_data:/data"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes: ["minio_data:/data"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    volumes: ["loki_data:/loki"]
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on: [prometheus, loki]
+
+  gatus:
+    image: twin/gatus:latest
+    restart: unless-stopped
+    volumes: ["./infra/gatus.yml:/config/config.yaml:ro"]
+
+volumes:
+  pg_data:
+  valkey_data:
+  minio_data:
+  gateway_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  caddy_data:
+  caddy_config:
+```
+
+### 19.2 GitHub Actions — Test, Build, Deploy
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm lint
+      - run: pnpm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/ai-platform
+            git pull origin main
+            docker compose build --pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+      - name: Post-deploy health check
+        run: |
+          sleep 15
+          curl -f "https://chat.${{ secrets.DOMAIN }}/api/health" || exit 1
+          curl -f "https://api.${{ secrets.DOMAIN }}/health" || exit 1
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=🚨 Deploy FAILED — check GitHub Actions"
+```
+
+### 19.3 Zero-Downtime Rollout Strategy
+
+```
+BUILD-FIRST, SWAP-AFTER (single-VPS friendly — no orchestrator needed):
+
+1. `docker compose build` runs BEFORE `up -d` — new images are ready
+   before any container is touched.
+2. `docker compose up -d` recreates only containers whose image/config
+   changed. Postgres/Valkey/MinIO stay untouched and running.
+3. Fastify's healthcheck must pass before Caddy routes traffic to it —
+   Docker's `depends_on: condition: service_healthy` (add this once you
+   have >1 replica) prevents a half-booted container taking requests.
+4. DATABASE MIGRATIONS RUN SEPARATELY, BEFORE THE SWAP:
+     pnpm --filter @ai-platform/db db:migrate
+   Never run migrations inside the app's boot sequence — a crashed
+   migration should never block container start, and you want to see
+   its output distinctly from app logs.
+5. BACKWARD-COMPATIBLE MIGRATIONS ONLY:
+     Adding a column: safe, nullable or defaulted.
+     Renaming a column: NEVER in one deploy — add new, dual-write,
+     backfill, drop old column in a LATER deploy.
+     Dropping a column: only after the code that reads it has been
+     gone for at least one full deploy cycle.
+6. ROLLBACK: `git revert`, push, let the pipeline redeploy the previous
+   image. Keep the last 3 image tags on the VPS (`docker image prune`
+   with a keep-count, not `-a`) so a rollback doesn't require a rebuild.
+```
+
+---
+
+## Phase 20 — Incident Runbooks & Operational Playbooks
+
+### 20.1 Provider Outage (`docs/runbooks/provider-outage.md`)
+
+```
+SYMPTOM: aip_upstream_error_rate{provider} > 50%, Grafana alert fired.
+
+1. Check the provider's public status page (fastest signal).
+2. In /admin/channels, confirm failover triggered — traffic should already
+   be routing to the backup channel. If it did, this is a P2, not a P1:
+   users are unaffected, monitor and wait for the primary to recover.
+3. If ALL channels for a model are down:
+   a. Disable that model in /admin/models (prevents new chats from
+      selecting it — existing conversations get a graceful error instead
+      of hanging).
+   b. Post a status update on the status page: "نموذج [X] غير متاح مؤقتاً"
+   c. If it's your only/primary model, this is P1 — notify users via
+      banner (StatusBanner.tsx) that the platform is degraded.
+4. Once the provider recovers, re-enable in /admin/models, monitor error
+   rate for 10 minutes before declaring resolved.
+5. Post-incident: log start/end time, root cause, user-facing impact in
+   the incident log for the weekly report.
+```
+
+### 20.2 Database Full (`docs/runbooks/database-full.md`)
+
+```
+SYMPTOM: Disk space alert, free < 15%.
+
+1. SSH in, check what's actually large:
+     du -sh /var/lib/docker/volumes/*/  | sort -rh | head -10
+2. Usual suspects, in order of likelihood:
+   a. Postgres WAL bloat from a stuck replication slot or long transaction
+        → docker compose exec postgres psql -U $POSTGRES_USER -c \
+            "SELECT * FROM pg_stat_replication;"
+   b. Docker log files (should be capped by daemon.json, verify it applied)
+        → docker compose logs --no-log-prefix api | wc -l
+   c. Loki retention not pruning
+        → check loki config retention_period is actually set
+   d. audit_logs / old conversations not being pruned
+        → pg_cron job silently failing, check cron.job_run_details
+3. IMMEDIATE relief if critical (<5% free):
+     docker system prune -af --volumes=false   (never touch named volumes blindly)
+     Manually run the retention SQL from Phase 5.3 if pg_cron missed a run.
+4. Once stable, fix root cause — don't just free space and move on.
+```
+
+### 20.3 High Error Rate (`docs/runbooks/high-error-rate.md`)
+
+```
+SYMPTOM: Application error rate > 5% for 5 minutes.
+
+1. Grafana → Operations Overview → "Recent errors" panel — read the
+   actual error, don't guess.
+2. Common causes ranked by frequency:
+   a. A provider degraded but failover misconfigured → check Phase 20.1
+   b. A bad deploy went out → check deploy timestamp vs error spike onset.
+      If they line up: ROLLBACK FIRST, investigate after. Don't debug in
+      prod while users are affected.
+   c. DB connection pool exhausted → check aip DB connections metric,
+      restart api container to release stuck connections as a stopgap.
+   d. Redis down/unreachable → rate limiting and sessions both fail;
+      check `docker compose ps valkey`.
+3. If rollback doesn't fix it, it's not the last deploy — check
+   infrastructure (disk, DB, provider) before touching code further.
+```
+
+### 20.4 Fraud Detected (`docs/runbooks/fraud-detected.md`)
+
+```
+SYMPTOM: fraud_events_total{severity="critical"} fired, Telegram alert.
+
+1. /admin/fraud → find the event, read `details` JSONB for context.
+2. If auto-suspended (critical severity does this automatically):
+   user is already blocked from spending further — no urgency to act
+   within minutes, but review within the hour.
+3. Check /admin/users/[id] for that user:
+   - Transaction history: does the spend pattern look automated
+     (identical amounts, sub-second intervals)?
+   - IP history: single IP, VPN range, or shared with other flagged users?
+4. Decision tree:
+   - Clearly automated abuse → keep suspended, ban the API key, consider
+     IP-range block if pattern repeats across accounts.
+   - Legitimate power user tripped a threshold → clear the flag, consider
+     raising their rate limit tier, apologize via support if they contacted you.
+   - Ambiguous → keep suspended, email user asking them to verify account
+     activity before reinstating.
+5. If it's a coordinated multi-account pattern (SHARED_IP_MULTI_ACCOUNT
+   firing across several users at once): treat as P1, this scales fast.
+   Suspend the whole IP's accounts, investigate the redeem-code batch
+   they used (leaked codes are the most common vector).
+```
+
+### 20.5 Deploy Rollback (`docs/runbooks/deploy-rollback.md`)
+
+```
+1. Identify the last known-good commit SHA (check GitHub Actions history
+   for the last green deploy).
+2. git revert <bad-commit> --no-edit  (or git reset if it's the tip and
+   unpushed elsewhere — prefer revert on shared branches)
+3. git push origin main → pipeline redeploys automatically.
+4. If the bad deploy included a migration that's already been applied
+   and is NOT backward compatible: this is why 19.3's rule about
+   backward-compatible migrations only exists. You cannot cleanly roll
+   back a destructive migration by reverting code — you need a
+   forward-fix migration instead. Write it, don't try to un-migrate.
+5. Verify with the same health checks from 19.2's post-deploy step
+   before considering it resolved.
+```
+
+---
+
+## Phase 21 — Status Page & User Communication
+
+```
+GATUS CONFIG (infra/gatus.yml):
+
+endpoints:
+  - name: "واجهة الدردشة"
+    url: "https://chat.domain.com/api/health"
+    interval: 30s
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 2000"]
+
+  - name: "بوابة API"
+    url: "https://api.domain.com/health"
+    interval: 30s
+    conditions: ["[STATUS] == 200"]
+
+  - name: "OpenAI"
+    url: "https://status.openai.com/api/v2/status.json"
+    interval: 60s
+    conditions: ["[STATUS] == 200"]
+
+  - name: "Anthropic"
+    url: "https://status.anthropic.com/api/v2/status.json"
+    interval: 60s
+    conditions: ["[STATUS] == 200"]
+
+INCIDENT COMMUNICATION TEMPLATES (bilingual, prewritten so you're not
+composing under pressure):
+
+  Investigating:
+    AR: "نحن نحقق في مشكلة تؤثر على [الخدمة]. سنقوم بتحديثكم قريباً."
+    EN: "We're investigating an issue affecting [service]. Updates soon."
+
+  Identified:
+    AR: "تم تحديد سبب المشكلة في [الخدمة]. نعمل على الإصلاح الآن."
+    EN: "We've identified the cause affecting [service] and are working on a fix."
+
+  Resolved:
+    AR: "تم حل المشكلة بالكامل. نعتذر عن الإزعاج."
+    EN: "The issue has been fully resolved. We apologize for the inconvenience."
+
+IN-APP BANNER (StatusBanner.tsx):
+  Shown when Gatus reports any endpoint down for > 2 minutes.
+  Dismissible per-session, reappears on next page load until resolved.
+  Links to the public status page for details.
+```
+
+---
+
+## Phase 22 — Business Logic & Pricing Engine
+
+### 22.1 Markup Strategy
+
+```
+DEFAULT MARKUP: 2x wholesale cost (covers infra, payment fees, margin)
+
+PER-MODEL OVERRIDE (models.config.ts):
+  Budget models (DeepSeek, GPT-4o-mini): 1.8x — compete on price
+  Flagship models (Claude Opus, GPT-4o): 2.2x — users pay for quality
+  New/promotional models: 1.5x temporarily to drive trial
+
+TIER-BASED ADJUSTMENTS:
+  free:     Access to budget models only, hard monthly cap
+  standard: Full catalog, standard markup
+  premium:  Full catalog, priority queue on rate limits, 10% markup discount
+
+MARGIN HEALTH CHECK (infra/scripts/price-audit.ts):
+  Run weekly (cron) — refetches each provider's published pricing page,
+  diffs against provider_prices table. Providers change prices with
+  little notice; a stale price = silent margin erosion or a config that
+  suddenly undercharges. Alert admin on any diff > 5%.
+```
+
+### 22.2 Pricing Calculation
+
+```typescript
+// packages/config/src/models.config.ts (excerpt)
+export function calculateCreditCost(
+  modelId: string, inputTokens: number, outputTokens: number
+): number {
+  const price = getCurrentPrice(modelId);      // from provider_prices, effectiveTo IS NULL
+  const model = MODEL_CATALOG.find(m => m.id === modelId)!;
+
+  const wholesaleUsd =
+    (inputTokens  / 1000) * price.inputPriceUsd +
+    (outputTokens / 1000) * price.outputPriceUsd;
+
+  const markedUpUsd = wholesaleUsd * model.markupMultiplier;
+  const microCredits = Math.ceil((markedUpUsd / MICRO_CREDIT.USD_PER_CREDIT) * 1_000_000);
+
+  return microCredits;
+}
+```
+
+### 22.3 Free Tier Limits
+
+```
+FREE TIER CAPS (prevents subsidizing abuse indefinitely):
+  Welcome bonus: configurable in /admin/settings, default 50 credits
+  Monthly free-tier top-up: 0 by default (credits-only, no recurring free)
+  Model access: budget tier only (DeepSeek, GPT-4o-mini)
+  Rate limit: same as paid (fraud protection, not a paid feature)
+
+CONVERSION NUDGES:
+  Balance < 10 credits → BalanceWidget turns amber, subtle CTA
+  Balance = 0 → hard block on send, redirect to /billing with context
+    ("رصيدك انتهى — اشحن الآن للمتابعة")
+  First redeem → welcome-back email 3 days later if they haven't returned
+```
+
+---
+
+## Phase 23 — Local Payment Gateway Integration
+
+### 23.1 Provider Comparison (GCC-focused)
+
+```
+Moyasar (Saudi Arabia)
+  Supports: Mada, Visa/Mastercard, Apple Pay, STC Pay
+  Fees: ~2.5% + local Mada support (critical for KSA — most cards are Mada)
+  Best for: Saudi-first launch
+
+PayTabs (Pan-MENA)
+  Supports: Mada, cards, Apple Pay, multiple currencies
+  Fees: ~2.75%, broader MENA coverage than Moyasar
+  Best for: Multi-country GCC expansion
+
+Tap Payments (Bahrain/Kuwait/GCC)
+  Supports: KNET (Kuwait), Benefit (Bahrain), cards, Apple Pay
+  Best for: Gulf countries beyond Saudi
+
+RECOMMENDATION: Start with Moyasar (Saudi-first, Mada is non-negotiable
+for local trust), add Tap Payments if expanding to Kuwait/Bahrain.
+```
+
+### 23.2 Payment Flow
+
+```typescript
+// apps/web/app/api/webhooks/payment/route.ts
+
+export async function POST(req: Request) {
+  const signature = req.headers.get("x-moyasar-signature");
+  const body = await req.text();
+
+  if (!verifyMoyasarSignature(body, signature, process.env.MOYASAR_WEBHOOK_SECRET!)) {
+    return new Response("Invalid signature", { status: 401 });
+  }
+
+  const event = JSON.parse(body);
+  if (event.type !== "payment.paid") return new Response("OK", { status: 200 });
+
+  const { id: paymentId, amount, metadata } = event.data;
+
+  // IDEMPOTENCY: webhooks can and will be delivered more than once
+  const existing = await db.query.transactions.findFirst({
+    where: eq(transactions.description, `moyasar:${paymentId}`),
+  });
+  if (existing) return new Response("Already processed", { status: 200 });
+
+  const credits = sarToCredits(amount / 100); // Moyasar amounts are in halalas
+  await creditBalance(metadata.userId, credits, "payment", {
+    description: `moyasar:${paymentId}`,
+  });
+
+  await emailQueue.add("paymentReceipt", { userId: metadata.userId, amount, credits });
+  return new Response("OK", { status: 200 });
+}
+```
+
+### 23.3 Payment Package Tiers
+
+```
+"شحن الرصيد" packages (displayed with visible per-credit value):
+
+  25 SAR  →  1,335 رصيد            (no bonus — entry tier)
+  50 SAR  →  2,780 رصيد   (+4%)    (small loyalty nudge)
+  100 SAR →  5,830 رصيد  (+10%)    (best-value badge)
+  250 SAR → 15,010 رصيد  (+12%)    (power-user tier)
+
+  Redeem codes remain available for gift cards / resellers / promos —
+  this is the direct self-serve top-up path.
+```
+
+---
+
+## Phase 24 — Growth Features
+
+```
+REFERRAL PROGRAM:
+  Each user gets a referral code (users.referralCode, already in schema)
+  Referrer gets 20 credits when referee makes their first redeem/payment
+  Referee gets a 10% bonus on their first top-up
+  Fraud guard: referrer and referee IP must differ (same-IP self-referral
+  is the #1 way this gets abused)
+
+USAGE-BASED RE-ENGAGEMENT:
+  Inactive 14 days + balance > 0 → "نفتقدك! 🙌" email with a quick-start prompt
+  Inactive 30 days + balance = 0 → small "welcome back" bonus (configurable,
+  default 10 credits) to reduce churn cost of re-acquisition
+
+MODEL DISCOVERY:
+  "جديد 🆕" badge on models added in the last 14 days
+  Model comparison view: side-by-side cost/speed/quality for common tasks
+  Weekly digest email: "أفضل النماذج هذا الأسبوع" based on aggregate usage
+
+API DEVELOPER GROWTH:
+  Public API docs (OpenAI-compatible — near-zero migration cost for devs
+  already building against OpenAI's SDK)
+  Rate-limit-friendly free tier for API access specifically, separate cap
+  from chat UI usage, to encourage integration experimentation
+```
+
+---
+
+## Phase 25 — Scalability Roadmap
+
+```
+STAGE 1 — LAUNCH (0–200 users): current architecture
+  Single VPS, all services in docker-compose, Hetzner CX22
+
+STAGE 2 — GROWTH (200–2,000 users)
+  Trigger: sustained CPU > 60% or DB connections > 70% of pool
+  Move: Postgres → managed (Neon/Supabase) — removes backup/failover
+        burden, adds read replicas when needed
+  Move: Valkey → Upstash (serverless) — removes memory-sizing guesswork
+  VPS becomes stateless: web + api + gateway only
+
+STAGE 3 — SCALE (2,000–20,000 users)
+  Trigger: single VPS CPU-bound even after stage 2 offload
+  Horizontal: multiple api/web containers behind Caddy load balancing,
+              health-check-gated (Phase 19.3's condition: service_healthy)
+  Split: dedicated queue worker process, separate from the request-serving
+         api process (background jobs stop competing with request latency)
+  Add: CDN in front of MinIO/R2 for avatar/export delivery
+
+STAGE 4 — MULTI-REGION (20,000+ users)
+  Trigger: latency complaints from users outside your primary region
+  Read replicas in-region, writes still centralized (billing needs
+  strong consistency — do not shard balances across regions)
+  Consider Cloudflare Workers/edge for static + auth-check fast paths
+
+AT EVERY STAGE: the credit ledger (transactions table) and atomic balance
+operations (Phase 9.2) do not change. That correctness guarantee is what
+lets everything else around it scale independently.
+```
+
+---
+
+## Security Hardening Master Checklist
+
+```
+SECRETS
+[ ] All secrets in .env, never committed (verify with git log --all -- .env)
+[ ] Different secrets per environment (dev/staging/prod never share keys)
+[ ] BETTER_AUTH_SECRET, GATEWAY_MASTER_KEY, CODE_SALT: 32+ random bytes
+[ ] Rotate provider API keys if any were ever pasted into chat/Slack/email
+
+AUTH
+[ ] Password hashing via Better Auth's own scrypt (never roll your own)
+[ ] Session cookies: httpOnly, secure, sameSite=lax at minimum
+[ ] Rate limiting on login/register/password-reset (Phase 8.1)
+[ ] API keys hashed with SHA-256 for lookup (NOT bcrypt — bcrypt is
+    salted/non-deterministic and cannot be queried by value; bcrypt is
+    correct for passwords which are verified, not looked up)
+
+DATABASE
+[ ] credits >= 0 CHECK constraint (Phase 5.2) — last line of defense
+    against a billing bug ever creating free money
+[ ] Parameterized queries only (Drizzle handles this — never raw string
+    interpolation into SQL)
+[ ] Least-privilege DB user for the app (not the postgres superuser)
+[ ] Automated encrypted backups, tested restore at least once before launch
+
+NETWORK
+[ ] Firewall: only 22/80/443 open (Phase 4.2)
+[ ] fail2ban on SSH
+[ ] Non-root SSH user, key-only auth, root login disabled
+[ ] Internal services (postgres, valkey, minio) NOT exposed to the
+    internet — only reachable within the Docker network
+
+APPLICATION
+[ ] CORS locked to your actual frontend origin, not "*"
+[ ] Helmet/CSP headers on all HTTP responses
+[ ] Input validation via Zod on every mutation, not just the obvious ones
+[ ] Error messages to users never leak stack traces or internal paths
+    (log full detail server-side, return generic message client-side)
+[ ] Redeem codes: checksummed format (Phase 8.3) + rate limited + audit logged
+
+COMPLIANCE
+[ ] Terms of Service, Privacy Policy, Acceptable Use Policy live and linked
+[ ] Data deletion actually deletes (test it — soft-delete flags that
+    never get purged are a GDPR liability, not just a UX detail)
+```
+
+---
+
+## Complete Build Order — Day by Day
+
+```
+WEEK 1 — FOUNDATION
+  Day 1-2:  Phase 0 (legal docs drafted, entity registration started)
+  Day 3:    Phase 1-3 (stack finalized, repo scaffolded, monorepo wired)
+  Day 4-5:  Phase 4 (VPS provisioned, hardened, Docker installed)
+
+WEEK 2 — DATA & AUTH
+  Day 6-7:  Phase 5 (schema written, migrated, constraints/indexes in place)
+  Day 8-9:  Phase 6 (Better Auth wired — INCLUDING account/verification
+            tables and field-name mapping to your actual column names;
+            do not assume the adapter "just works" with default config
+            if your schema uses non-default field names — verify signup
+            end-to-end before moving on)
+  Day 10:   Auth end-to-end test: signup → verify email → login → session
+            reaches a protected route. Do not proceed until this works.
+
+WEEK 3 — CORE BACKEND
+  Day 11-13: Phase 7 (gateway integration, streaming proxy, error mapping)
+  Day 14-15: Phase 9 (billing engine, atomic deduction, redeem system)
+  Day 16-17: Phase 8 (fraud rules wired into the request path, not bolted
+             on after — retrofitting fraud checks is much harder)
+  Day 18-19: Phase 10-11 (job queue, email templates)
+
+WEEK 4 — FRONTEND
+  Day 20-22: Phase 12-13 (design system, RTL, i18n scaffolding)
+  Day 23-25: Phase 14 (chat interface — this is the product; give it time)
+  Day 26-27: Phase 15, 17 (billing UI, settings/API access page)
+
+WEEK 5 — ADMIN & OPS
+  Day 28-30: Phase 16 (admin dashboard — you'll live in this daily)
+  Day 31-32: Phase 18 (monitoring wired up BEFORE launch, not after)
+  Day 33-34: Phase 19 (CI/CD, deploy pipeline tested with a real deploy)
+  Day 35:    Phase 20-21 (runbooks written, status page live)
+
+WEEK 6 — BUSINESS & LAUNCH PREP
+  Day 36-37: Phase 22-23 (pricing finalized, payment gateway integrated
+             and tested with real small-value transactions)
+  Day 38:    Phase 24 (referral program, if launching with it)
+  Day 39-40: Full security checklist pass, load test with realistic
+             concurrent-user simulation, fix whatever breaks
+  Day 41-42: Soft launch to a small closed group, watch dashboards closely,
+             fix what real usage reveals before public launch
+```
+
+---
+
+## Launch Checklist
+
+```
+[ ] Legal documents live and linked in footer (ToS, Privacy, AUP)
+[ ] Business entity registered, business bank account active
+[ ] All AI provider accounts funded with 30-day buffer, spend alerts set
+[ ] .env fully populated in production — no placeholder values, no
+    Docker-Compose-internal hostnames leaking into a non-Compose deploy
+[ ] Database migrated, seeded with real admin account, seed script's
+    test credentials removed/rotated before going public
+[ ] Auth flow tested end-to-end by an actual human on an actual phone:
+    signup, verify, login, logout, password reset, session persistence
+[ ] Payment flow tested with a real (small) transaction, webhook
+    idempotency verified by triggering the same webhook twice
+[ ] Redeem code batch generated and spot-tested
+[ ] Fraud thresholds reviewed — defaults are guesses; adjust after
+    watching real usage patterns for a week
+[ ] Monitoring dashboards showing live data, alert channels (Telegram/
+    email) tested with a deliberately-triggered test alert
+[ ] Status page live and accurate
+[ ] Backup taken, restore tested on a scratch environment
+[ ] Rate limits verified against a real client (not just reading the code)
+[ ] Mobile responsiveness checked — most users will be on phones
+[ ] Arabic RTL checked on a real device, not just browser dev tools
+[ ] Support contact channel live (even if just a monitored email/WhatsApp)
+[ ] Rollback procedure rehearsed at least once before it's needed for real
+```

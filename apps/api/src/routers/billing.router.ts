@@ -119,12 +119,13 @@ export const billingRouter = router({
     .input(z.object({ code: z.string().min(1).max(32) }))
     .mutation(async ({ ctx, input }) => {
       // NOTE: not the live redeem path — the billing page posts to
-      // apps/web/app/api/redeem/route.ts instead, which already has
-      // checkLimit() + Turnstile in front of the same redeemCode() call.
-      // Kept here for API-key/dev consumers of the tRPC router directly;
-      // add the same checkLimit() guard as that route before relying on
-      // this path for untrusted traffic.
-      const result = await redeemCode(ctx.user.id, input.code);
+      // apps/web/app/api/redeem/route.ts instead. That route also has
+      // Turnstile + an in-memory checkLimit() in front. This path (API-key/
+      // dev consumers of the tRPC router directly) previously had neither —
+      // now it gets the same protection either way, since redeemCode()
+      // itself runs FraudService.checkRedeemAttempt (Redis-backed, so it
+      // applies here regardless of which entry point was used).
+      const result = await redeemCode(ctx.user.id, input.code, ctx.ip);
       if (!result.success) {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
       }

@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { db, users, sessions } from "@ai-platform/db";
 import { eq, and, gt }         from "drizzle-orm";
 import { createHash }          from "node:crypto";
+import { touchActiveUser }     from "../metrics";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -39,6 +40,7 @@ export async function authMiddleware(
       }
       request.user           = user;
       request.isInternalAuth = true;
+      void touchActiveUser(user.id);
       return;
     }
   }
@@ -58,7 +60,7 @@ export async function authMiddleware(
       const user = await db.query.users.findFirst({
         where: eq(users.id, session.userId),
       });
-      if (user) { request.user = user; return; }
+      if (user) { request.user = user; void touchActiveUser(user.id); return; }
     }
   }
 
@@ -80,6 +82,7 @@ export async function authMiddleware(
       }
       request.user         = user;
       request.isApiKeyAuth = true;
+      void touchActiveUser(user.id);
       return;
     }
   }

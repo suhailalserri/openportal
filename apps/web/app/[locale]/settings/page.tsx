@@ -85,7 +85,7 @@ export default function SettingsPage() {
                       ${locale === l
                         ? "bg-blue-600 border-blue-600 text-white"
                         : "border-slate-600 text-slate-400 hover:border-slate-500"}`}>
-                    {l === "ar" ? "🇸🇦 العربية" : "🇬🇧 English"}
+                    {l === "ar" ? "🇾🇪 العربية" : "🇬🇧 English"}
                   </a>
                 ))}
               </div>

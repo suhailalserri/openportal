@@ -100,7 +100,7 @@ export default function AdminPaymentMethodsPage() {
               hint={form.id ? (isAr ? "لا يمكن تغيير النوع بعد الإنشاء" : "Type can't change after creation") : undefined}
               value={form.type}
               onChange={e => setForm(f => ({ ...f, type: e.target.value as typeof form.type }))}>
-              <option value="jaib_voucher">Jaib (voucher / tabweeb)</option>
+              <option value="jaib_voucher">Jaib (voucher)</option>
               <option value="manual_transfer">{isAr ? "تحويل يدوي" : "Manual transfer"}</option>
             </Select>
             <Input label={isAr ? "رقم المحفظة / الكود" : "Wallet number / network code"} dir="ltr"

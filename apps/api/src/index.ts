@@ -8,6 +8,7 @@ import { appRouter }     from "./routers/index";
 import { createContext } from "./routers/trpc";
 import { startEmailWorker } from "./jobs/email.worker";
 import { startAlertWorker } from "./jobs/alert.worker";
+import { metricsHandler, recordHttpRequest, instrumentWorker } from "./metrics";
 
 const app = Fastify({
   logger: config.NODE_ENV === "development"
@@ -42,6 +43,19 @@ app.get("/health", async () => ({
   timestamp: new Date().toISOString(),
   version:   process.env.npm_package_version ?? "1.0.0",
 }));
+
+// ── Metrics ────────────────────────────────────────────────────────────
+// Matches prometheus.yml's "api-middleware" scrape job (api:4000/metrics).
+// Not IP-restricted at the app level — internal Docker network already
+// keeps this unreachable from the internet (see Phase 4.2 / security
+// checklist: internal services never exposed publicly).
+app.get("/metrics", metricsHandler);
+app.addHook("onResponse", async (req, reply) => {
+  // Skip the /metrics route itself — instrumenting the metrics endpoint's
+  // own latency in the same histogram it serves is noise, not signal.
+  if (req.routeOptions?.url === "/metrics") return;
+  recordHttpRequest(req, reply);
+});
 
 // ── Chat streaming endpoint ────────────────────────────────────────────
 app.post("/chat", {
@@ -93,8 +107,8 @@ const redisConn = {
 };
 
 if (config.NODE_ENV === "production") {
-  startEmailWorker(redisConn);
-  startAlertWorker(redisConn);
+  instrumentWorker(startEmailWorker(redisConn), "email");
+  instrumentWorker(startAlertWorker(redisConn), "alerts");
   console.log("✓ Background workers started");
 }
 

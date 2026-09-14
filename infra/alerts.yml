@@ -1,0 +1,117 @@
+# Referenced by prometheus.yml's `rule_files: [alerts.yml]` — that line has
+# pointed at this file since Phase 18.3 of the master plan, but the file
+# never existed, so Prometheus was evaluating zero rules the whole time.
+#
+# Metric names below come from apps/api/src/metrics.ts (the aip_* business
+# and technical metrics) and the three exporters added alongside this file
+# (postgres-exporter, redis-exporter, node-exporter default metric names).
+#
+# Wiring these into Alertmanager → Telegram is a separate step (Phase
+# 11.2's Telegram alerts currently only fire from app-level code, e.g.
+# fraud.service.ts's alertAdmin()). These rules will show as firing in
+# Prometheus's own UI (:9090/alerts) even before Alertmanager is wired up
+# — that alone is worth having before this goes further.
+
+groups:
+  - name: critical
+    rules:
+      - alert: ProviderAllChannelsFailed
+        expr: |
+          (sum by (provider) (rate(aip_upstream_errors_total[2m])))
+            /
+          clamp_min(sum by (provider) (rate(aip_upstream_requests_total[2m])), 1)
+          > 0.5
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "All channels for provider {{ $labels.provider }} are failing"
+          description: "Upstream error rate > 50% for 2m. See docs/runbooks/provider-outage.md"
+
+      - alert: BalanceDeductionFailing
+        expr: increase(aip_balance_deduction_failures_total[1m]) > 5
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Credit deductions failing repeatedly"
+          description: >
+            More than 5 failed deductCreditsAtomic calls in 1 minute. A few
+            are normal (pre-flight/atomic-deduct races) — a sustained run
+            means the balance check upstream of billing is stale or bypassed.
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.10
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Server disk < 10% free"
+          description: "See docs/runbooks/disk-full.md"
+
+      - alert: PostgresConnectionsExhausted
+        expr: sum(pg_stat_database_numbackends) > 90
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "PostgreSQL connection count > 90"
+          description: "Check pool config and for connection leaks. See docs/runbooks/high-error-rate.md"
+
+      - alert: ExporterDown
+        expr: up{job=~"postgres-exporter|redis-exporter|node-exporter|api-middleware"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Exporter or service {{ $labels.job }} unreachable by Prometheus"
+          description: "Monitoring blind spot — fix before anything else, you're flying without this signal."
+
+  - name: warning
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(aip_http_request_duration_seconds_count{status=~"5.."}[5m]))
+            /
+          sum(rate(aip_http_request_duration_seconds_count[5m]))
+          > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Application error rate > 5%"
+          description: "See docs/runbooks/high-error-rate.md"
+
+      - alert: ProviderHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le, provider) (rate(aip_upstream_duration_seconds_bucket[5m]))) > 30
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Provider {{ $labels.provider }} P95 latency > 30s"
+
+      - alert: DiskSpaceWarning
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.25
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Server disk < 25% free"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Valkey/Redis memory usage > 85% of maxmemory"
+
+      - alert: FraudCriticalEventSpike
+        expr: increase(aip_fraud_events_total{severity="critical"}[10m]) > 3
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 3 critical fraud events in 10 minutes"
+          description: "Possible coordinated abuse. See docs/runbooks/fraud-detected.md"
+
+      - alert: ActiveUsersDroppedToZero
+        expr: aip_active_users_gauge == 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "No active users for 15 minutes"
+          description: "Could be legitimately quiet hours, or the app is unreachable. Cross-check with HighErrorRate."

@@ -4,6 +4,7 @@ import { deductCreditsAtomic } from "./balance.service";
 import { db, messages, conversations, models } from "@ai-platform/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
+import { recordUpstreamCall, recordCreditsSpent, streamingConnectionsActive } from "../metrics";
 
 /**
  * Cost is computed from the `models` table now, not the static
@@ -102,6 +103,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
 
   const requestId = crypto.randomUUID();
   let upstream: Response;
+  const upstreamStartedAt = Date.now();
 
   try {
     upstream = await fetch(`${config.GATEWAY_URL}/v1/chat/completions`, {
@@ -121,6 +123,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
       signal: AbortSignal.timeout(120_000), // 2 minute max
     });
   } catch (err: unknown) {
+    recordUpstreamCall(model.provider, modelId, (Date.now() - upstreamStartedAt) / 1000, false);
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
     reply.status(isTimeout ? 504 : 502).send({
       error:   isTimeout ? "TIMEOUT" : "GATEWAY_ERROR",
@@ -130,6 +133,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   }
 
   if (!upstream.ok) {
+    recordUpstreamCall(model.provider, modelId, (Date.now() - upstreamStartedAt) / 1000, false, upstream.status);
     const errBody   = await upstream.json().catch(() => ({}));
     // 503 from the gateway means the specific model is down — surface it
     // as MODEL_UNAVAILABLE so the frontend's existing check (which never
@@ -144,6 +148,11 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     });
     return;
   }
+
+  // Headers arrived and status is OK — record success now. The rest of the
+  // stream (Step below) can still fail/interrupt, but that's a delivery
+  // problem, not an upstream-provider problem, so it isn't counted here.
+  recordUpstreamCall(model.provider, modelId, (Date.now() - upstreamStartedAt) / 1000, true);
 
   // Only now do we know we're actually about to stream real content, so
   // only now do we commit to raw/streaming mode. `useChat` is configured
@@ -183,6 +192,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   let streamedContent   = "";
   let isPartial         = true;
 
+  streamingConnectionsActive.inc();
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -226,6 +236,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   } catch {
     // Stream interrupted — isPartial stays true
   } finally {
+    streamingConnectionsActive.dec();
     reply.raw.end();
   }
 
@@ -248,6 +259,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     deductCreditsAtomic(userId, cost, "Chat usage", {
       modelId, inputTokens, outputTokens, requestId,
     }).catch(console.error);
+    recordCreditsSpent(modelId, cost);
 
     // Save assistant message
     db.insert(messages).values({
