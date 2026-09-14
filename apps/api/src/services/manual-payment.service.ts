@@ -4,6 +4,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { creditBalance } from "./balance.service";
+import { maybeAwardReferralBonus } from "./referral.service";
 import { stripUndefined } from "../utils/strip-undefined";
 import type { ManualPaymentSubmitResult, ManualPaymentReviewResult } from "@ai-platform/types";
 
@@ -130,6 +131,9 @@ export async function approveManualPayment(
       { description: `تحويل يدوي معتمد — ${pkg.nameAr} (مرجع ${claim.referenceCode})`, paymentId: claim.id },
       tx
     );
+
+    // First real payment from this buyer → award their referrer, if any.
+    await maybeAwardReferralBonus(claim.userId, tx);
 
     // Link the ledger row back onto the claim for a direct audit trail.
     const [txRow] = await tx

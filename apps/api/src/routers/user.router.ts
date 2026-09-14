@@ -6,6 +6,7 @@ import { eq }                  from "drizzle-orm";
 import { randomBytes, createHash } from "node:crypto";
 import { checkLimit }          from "../utils/rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
+import { getReferralStats }    from "../services/referral.service";
 
 function assertNotRateLimited(userId: string, action: string) {
   const allowed = checkLimit(`sensitive:${action}:${userId}`, FRAUD.SENSITIVE_ACTION_PER_HOUR, 60 * 60_000);
@@ -87,4 +88,8 @@ export const userRouter = router({
   getApiKeyInfo: protectedProcedure.query(async ({ ctx }) => {
     return { prefix: ctx.user.apiKeyPrefix ?? null, hasKey: !!ctx.user.apiKeyHash };
   }),
+
+  // Referral program (decisions.md ADR-009). Code is generated at signup
+  // (apps/web/lib/auth.ts); this just surfaces it + how it's performed.
+  getReferralStats: protectedProcedure.query(({ ctx }) => getReferralStats(ctx.user.id)),
 });

@@ -17,6 +17,19 @@ import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
 // "Balance row not found" if there's nothing to update.
 const SIGNUP_BONUS_MICRO_CREDITS = 0;
 
+/**
+ * Every user's own shareable code (decisions.md ADR-009). Short and
+ * human-typeable, same charset as the redeem-code / manual-transfer
+ * reference-code generators in apps/api (no ambiguous 0/O/1/I/L) — this
+ * is an identifier, not a bearer credential, so no checksum is needed.
+ */
+function generateReferralCode(): string {
+  const CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => CHARS[b % CHARS.length]).join("");
+}
+
 export const auth = betterAuth({
   // Used as the default TOTP issuer name shown in authenticator apps
   // (Google Authenticator, Authy, etc.) for the twoFactor plugin below.
@@ -97,10 +110,59 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        after: async (user: { id: string }) => {
+        after: async (
+          user: { id: string },
+          ctx?: { request?: Request; headers?: Headers }
+        ) => {
           await db.insert(balances)
             .values({ userId: user.id, credits: SIGNUP_BONUS_MICRO_CREDITS })
             .onConflictDoNothing();
+
+          // Referral capture (decisions.md ADR-009). Deliberately placed
+          // here rather than in `create.before`'s `{ data }` return: this
+          // codebase already proves `create.after` reliably sees the
+          // committed row for email/password signup (see the balances
+          // insert immediately above) — the known databaseHooks timing
+          // issue (better-auth#7260) is specific to social-login/OAuth,
+          // which this app doesn't use. The `x-referral-code` header
+          // travels the same way `x-turnstile-token` does below: better-
+          // auth's sign-up schema doesn't accept arbitrary extra body
+          // fields, so it can't just be a normal field.
+          //
+          // Never throws: a bad/missing header or a lookup hiccup must
+          // never fail a real signup over referral attribution, which is
+          // a nice-to-have, not a requirement.
+          try {
+            const headers = ctx?.headers ?? ctx?.request?.headers;
+            const refCode = headers?.get("x-referral-code")?.trim().toUpperCase();
+
+            let referredByUserId: string | undefined;
+            if (refCode) {
+              const referrer = await db.query.users.findFirst({
+                where:   eq(users.referralCode, refCode),
+                columns: { id: true },
+              });
+              if (referrer) referredByUserId = referrer.id;
+            }
+
+            // Retry-on-collision — column is UNIQUE, collision odds on a
+            // 32-char alphabet ^ 8 space are astronomically low.
+            let referralCode = generateReferralCode();
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const clash = await db.query.users.findFirst({
+                where:   eq(users.referralCode, referralCode),
+                columns: { id: true },
+              });
+              if (!clash) break;
+              referralCode = generateReferralCode();
+            }
+
+            await db.update(users)
+              .set({ referralCode, ...(referredByUserId ? { referredByUserId } : {}) })
+              .where(eq(users.id, user.id));
+          } catch (err) {
+            console.error("Referral capture failed (signup still succeeded):", err);
+          }
         },
       },
     },

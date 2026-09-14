@@ -52,6 +52,15 @@ export const CREDIT_PACKAGES = {
 /** Low balance warning threshold (in display credits) */
 export const LOW_BALANCE_THRESHOLD = 10 * MICRO_CREDIT;
 
+/**
+ * Referral program (decisions.md ADR-009). Awarded to the REFERRER, once,
+ * when the user they referred completes their first real payment
+ * (redeem code OR approved manual transfer) — never at signup, which
+ * would make the program free to farm with throwaway accounts. Set to 0
+ * to disable awarding without removing the tracking columns.
+ */
+export const REFERRAL_BONUS_MICRO_CREDITS = 100 * MICRO_CREDIT;
+
 /** Supported locales */
 export const SUPPORTED_LOCALES = ["ar", "en"] as const;
 export const DEFAULT_LOCALE    = "ar" as const;

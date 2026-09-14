@@ -8,6 +8,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatRelativeDate } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { ReferralCard } from "@/components/settings/ReferralCard";
 import {
   changePassword, twoFactor, signOut,
 } from "@/lib/auth-client";
@@ -92,6 +93,8 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <ReferralCard locale={locale} />
 
         <SecuritySection
           locale={locale}

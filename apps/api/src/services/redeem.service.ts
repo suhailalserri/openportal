@@ -3,6 +3,7 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { creditBalance } from "./balance.service";
 import { fraudService } from "./fraud.service";
+import { maybeAwardReferralBonus } from "./referral.service";
 import type { RedeemResult } from "@ai-platform/types";
 
 /** Generate a checksum-protected code: XXXX-XXXX-XXXX-CHCK */
@@ -128,6 +129,11 @@ export async function redeemCode(
       { description: `استبدال كود: ${code}`, redeemCodeId: codeId },
       tx
     );
+
+    // First real payment from this user → award their referrer, if any
+    // and if not already awarded. No-op for most redemptions (repeat
+    // buyers, no referrer) — see referral.service.ts.
+    await maybeAwardReferralBonus(userId, tx);
 
     return {
       success:       true,

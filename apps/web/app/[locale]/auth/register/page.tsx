@@ -6,6 +6,7 @@ import Link from "next/link";
 import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { getStoredReferralCode } from "@/components/referral/ReferralCapture";
 
 export default function RegisterPage() {
   const t      = useTranslations();
@@ -34,13 +35,18 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
+      const headers: Record<string, string> = {};
+      if (turnstileToken) headers["x-turnstile-token"] = turnstileToken;
+      const referralCode = getStoredReferralCode();
+      if (referralCode) headers["x-referral-code"] = referralCode;
+
       const result = await signUp.email(
         {
           email:    form.email,
           password: form.password,
           name:     form.name,
         },
-        turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : {}
+        Object.keys(headers).length > 0 ? { headers } : {}
       );
       if (result.error) {
         console.error("Sign-up failed:", result.error);

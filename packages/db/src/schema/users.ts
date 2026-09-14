@@ -34,6 +34,13 @@ export const users = pgTable("users", {
   // Referral system
   referralCode:     varchar("referral_code", { length: 12 }).unique(),
   referredByUserId: uuid("referred_by_user_id"),
+  // Set once, atomically, the moment this user's referrer earns their
+  // bonus (see apps/api/src/services/referral.service.ts). Deliberately
+  // on the REFERRED user's row, not the referrer's — the referrer can be
+  // referenced by many rows, but each referred user can only ever trigger
+  // one award, so the idempotency guard belongs on the row that's unique
+  // per event.
+  referralBonusAwardedAt: timestamp("referral_bonus_awarded_at"),
   // Timestamps
   createdAt:        timestamp("created_at").defaultNow().notNull(),
   updatedAt:        timestamp("updated_at").defaultNow().notNull(),

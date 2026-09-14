@@ -89,3 +89,50 @@
   `redeemCode()`/`generateCode()` (ADR-004) remain completely untouched by
   the manual-transfer path, which was the actual guarantee ADR-007 cared
   about preserving.
+
+## ADR-009: Referral bonus fires on first payment, not signup; capture lives in `create.after`, not `create.before`
+- **Date:** Referral program phase
+- **Decision:** `referral.service.ts`'s `maybeAwardReferralBonus()` is
+  called from inside `redeemCode()`'s and `approveManualPayment()`'s
+  transactions — i.e. the moment a referred user's first real credit
+  grant lands — never from the signup hook itself. A new
+  `users.referral_bonus_awarded_at` column (nullable, set once) is the
+  atomic idempotency guard: `UPDATE users SET referral_bonus_awarded_at
+  = now() WHERE id = $referred AND referred_by_user_id IS NOT NULL AND
+  referral_bonus_awarded_at IS NULL`, same shape as `redeemCode()`'s
+  status flip and `approveManualPayment()`'s pending→approved flip.
+  Separately: the new user's own `referralCode` and their
+  `referredByUserId` (resolved from an `x-referral-code` header, same
+  header-based trick as `x-turnstile-token` since better-auth's sign-up
+  schema doesn't accept arbitrary extra body fields) are both written in
+  `databaseHooks.user.create.after` in apps/web/lib/auth.ts — right next
+  to, and in the same style as, the existing balances-row creation — NOT
+  in `create.before`'s documented `{ data: {...} }` return.
+- **Reasoning (bonus timing):** Awarding on signup alone is a well-known
+  abuse pattern — create N throwaway accounts via your own referral
+  link, collect N bonuses, contribute zero real revenue. Gating on
+  "referred user's first payment" means a payout only ever follows money
+  actually entering the ledger.
+- **Reasoning (`after` vs `before`):** better-auth's `create.after` hook
+  has a documented FK-constraint timing bug (better-auth#7260) — but only
+  for social-login/OAuth signups, where the hook can run before the
+  triggering transaction is fully committed. This app is email/password
+  only, and `create.after` already reliably creates the `balances` row
+  for every signup (proven, working code, not new to this change) — so
+  extending that exact same hook to also write `referralCode`/
+  `referredByUserId` via a plain `db.update(users)...where(eq(users.id,
+  user.id))` reuses a mechanism already known to work here, rather than
+  introducing `create.before`'s different, untested-in-this-codebase
+  `{ data }`-merge contract for the same result.
+- **Trade-off:** A referrer doesn't see their bonus land immediately when
+  a friend signs up — only after that friend actually pays. Slower
+  gratification, but the alternative is a directly farmable free-credit
+  faucet.
+- **Mitigation:** The award call sits inside the SAME database
+  transaction as the qualifying credit grant (`tx` passed through, exactly
+  like `creditBalance()`'s own nesting pattern) — if anything in that
+  transaction rolls back, the bonus never fires as a half-applied side
+  effect. The referral-capture block in `create.after` is wrapped in its
+  own try/catch that can never block a real signup over a bad/missing
+  header or a lookup hiccup — the balances insert above it is
+  unconditional and always runs first.
