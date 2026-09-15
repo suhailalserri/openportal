@@ -1,0 +1,52 @@
+name: Backfill Referral Codes
+
+# Manual only — for running infra/scripts/backfill-referral-codes.ts
+# without pnpm/tsx installed locally. Run from GitHub's Actions tab
+# (works from the mobile browser/app too): repo -> Actions ->
+# "Backfill Referral Codes" -> Run workflow.
+#
+# Reuses the same DATABASE_URL repository secret already set up for
+# db-migrate.yml / db-ops.yml (Settings -> Secrets and variables ->
+# Actions). If that secret isn't set yet, add it there first — value is
+# the EXTERNAL Postgres connection string (with ?sslmode=require if
+# your provider needs it), same one used by those workflows.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (preview only, no writes)"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  backfill:
+    name: Backfill referral codes
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # No explicit `version:` — package.json already pins
+      # "packageManager": "pnpm@9.0.0"; setting a version here too makes
+      # pnpm/action-setup fail with "Multiple versions of pnpm specified".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run backfill (dry run)
+        if: inputs.dry_run == true
+        run: pnpm tsx infra/scripts/backfill-referral-codes.ts --dry-run
+
+      - name: Run backfill (write)
+        if: inputs.dry_run == false
+        run: pnpm tsx infra/scripts/backfill-referral-codes.ts

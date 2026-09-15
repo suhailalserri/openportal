@@ -54,9 +54,16 @@ export default function RegisterPage() {
         const msg =
           code === "CAPTCHA_FAILED"
             ? t("auth.errors.captchaFailed")
-            : result.error.message?.includes("already")
-              ? t("auth.errors.emailTaken")
-              : t("auth.errors.generic");
+            : code === "WEAK_PASSWORD"
+              // This is the Arabic message thrown by lib/auth.ts's
+              // hooks.before password-strength check (uppercase + digit
+              // requirement) — surface it directly instead of the
+              // generic fallback below, or the user never learns why
+              // their password was rejected.
+              ? (result.error.message ?? t("auth.errors.generic"))
+              : result.error.message?.includes("already")
+                ? t("auth.errors.emailTaken")
+                : t("auth.errors.generic");
         toast.error(msg);
         // The consumed/rejected token can't be reused — force a fresh
         // challenge before the next attempt.
