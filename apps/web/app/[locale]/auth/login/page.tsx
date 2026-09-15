@@ -3,8 +3,12 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { Sparkles, ShieldCheck, KeyRound } from "lucide-react";
 import { signIn, twoFactor } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function LoginPage() {
   const t      = useTranslations();
@@ -79,10 +83,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo / Title */}
         <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl gradient-primary
+                          shadow-[var(--shadow-elevation-2)] mb-4">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
           <h1 className="text-3xl font-bold text-white mb-2">
             {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
           </h1>
@@ -92,42 +100,34 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-[#1E293B] rounded-2xl border border-slate-700 p-8 shadow-2xl">
-          <h2 className="text-xl font-semibold text-white mb-6">
-            {t("auth.login")}
-          </h2>
+        <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
+          <div className="flex items-center gap-2 mb-6">
+            {needs2fa && <ShieldCheck className="h-5 w-5 text-blue-400" />}
+            <h2 className="text-xl font-semibold text-white">
+              {needs2fa ? (locale === "ar" ? "التحقق بخطوتين" : "Two-factor verification") : t("auth.login")}
+            </h2>
+          </div>
 
           {needs2fa ? (
             <form onSubmit={handleVerify2fa} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                  {useBackup
-                    ? (locale === "ar" ? "رمز احتياطي" : "Backup code")
-                    : (locale === "ar" ? "رمز التحقق (تطبيق المصادقة)" : "Authenticator code")}
-                </label>
-                <input
-                  type="text"
-                  inputMode={useBackup ? "text" : "numeric"}
-                  autoFocus
-                  value={code}
-                  onChange={e => setCode(e.target.value)}
-                  required
-                  dir="ltr"
-                  className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                             text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
-                             transition-colors text-sm tracking-widest text-center"
-                  placeholder={useBackup ? "xxxxx-xxxxx" : "123456"}
-                />
-              </div>
+              <Input
+                type="text"
+                inputMode={useBackup ? "text" : "numeric"}
+                autoFocus
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                required
+                dir="ltr"
+                label={useBackup
+                  ? (locale === "ar" ? "رمز احتياطي" : "Backup code")
+                  : (locale === "ar" ? "رمز التحقق (تطبيق المصادقة)" : "Authenticator code")}
+                className="text-center tracking-widest"
+                placeholder={useBackup ? "xxxxx-xxxxx" : "123456"}
+              />
 
-              <button
-                type="submit"
-                disabled={verifying}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
-                           text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm"
-              >
-                {verifying ? t("common.loading") : (locale === "ar" ? "تحقق" : "Verify")}
-              </button>
+              <Button type="submit" className="w-full" loading={verifying}>
+                {locale === "ar" ? "تحقق" : "Verify"}
+              </Button>
 
               <button
                 type="button"
@@ -141,39 +141,25 @@ export default function LoginPage() {
             </form>
           ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                {t("auth.email")}
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                dir="ltr"
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
-                           transition-colors text-sm"
-                placeholder="you@example.com"
-              />
-            </div>
+            <Input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              dir="ltr"
+              label={t("auth.email")}
+              placeholder="you@example.com"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                {t("auth.password")}
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                dir="ltr"
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
-                           transition-colors text-sm"
-                placeholder="••••••••"
-              />
-            </div>
+            <Input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              dir="ltr"
+              label={t("auth.password")}
+              placeholder="••••••••"
+            />
 
             <div className="flex justify-end">
               <Link
@@ -184,14 +170,9 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
-                         text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm"
-            >
-              {loading ? t("common.loading") : t("auth.loginButton")}
-            </button>
+            <Button type="submit" className="w-full" loading={loading}>
+              {t("auth.loginButton")}
+            </Button>
           </form>
           )}
 
@@ -206,7 +187,14 @@ export default function LoginPage() {
             </Link>
           </p>
           )}
-        </div>
+        </Card>
+
+        {needs2fa && (
+          <p className="mt-4 text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
+            <KeyRound className="h-3.5 w-3.5" />
+            {locale === "ar" ? "جلستك محمية بخطوة تحقق إضافية" : "Your session is protected with an extra verification step"}
+          </p>
+        )}
       </div>
     </div>
   );

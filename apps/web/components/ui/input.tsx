@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?:  string | undefined;
+  label?:  React.ReactNode;
   error?:  string | undefined;
   hint?:   string | undefined;
 }

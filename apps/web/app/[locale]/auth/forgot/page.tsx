@@ -3,8 +3,12 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { MailCheck } from "lucide-react";
 import { requestPasswordReset } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function ForgotPage() {
   const t = useTranslations();
@@ -27,27 +31,29 @@ export default function ForgotPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-[#1E293B] rounded-2xl border border-slate-700 p-8">
+        <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
           <h2 className="text-xl font-semibold text-white mb-6">{t("auth.resetPassword")}</h2>
           {sent ? (
-            <div className="text-center">
-              <div className="text-4xl mb-4">✉️</div>
-              <p className="text-slate-300">{t("auth.resetSent")}</p>
+            <div className="text-center py-2">
+              <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl
+                              bg-emerald-500/10 border border-emerald-500/20 mb-4">
+                <MailCheck className="h-7 w-7 text-emerald-400" />
+              </div>
+              <p className="text-slate-300 text-sm">{t("auth.resetSent")}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input type="email" required dir="ltr" value={email}
+              <Input
+                type="email" required dir="ltr" value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm" />
-              <button type="submit" disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white
-                           font-semibold py-3 rounded-xl transition-colors text-sm">
-                {loading ? t("common.loading") : t("common.confirm")}
-              </button>
+                label={t("auth.email")}
+              />
+              <Button type="submit" className="w-full" loading={loading}>
+                {t("common.confirm")}
+              </Button>
             </form>
           )}
           <div className="mt-4 text-center">
@@ -55,7 +61,7 @@ export default function ForgotPage() {
               {t("common.back")}
             </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

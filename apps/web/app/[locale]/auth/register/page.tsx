@@ -3,10 +3,15 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { getStoredReferralCode } from "@/components/referral/ReferralCapture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export default function RegisterPage() {
   const t      = useTranslations();
@@ -86,7 +91,9 @@ export default function RegisterPage() {
     : /[A-Z]/.test(form.password) && /[0-9]/.test(form.password) ? "strong"
     : "medium";
 
-  const strengthColors = { weak: "bg-red-500", medium: "bg-yellow-500", strong: "bg-green-500" };
+  const strengthColors = { weak: "bg-red-500", medium: "bg-amber-500", strong: "bg-emerald-500" };
+  const strengthText   = { weak: "text-red-400", medium: "text-amber-400", strong: "text-emerald-400" };
+  const strengthWidth  = { weak: "w-1/3", medium: "w-2/3", strong: "w-full" };
   const strengthLabels = {
     weak:   t("auth.passwordStrength.weak"),
     medium: t("auth.passwordStrength.medium"),
@@ -94,65 +101,57 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl gradient-primary
+                          shadow-[var(--shadow-elevation-2)] mb-4">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
           <h1 className="text-3xl font-bold text-white mb-2">
             {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
           </h1>
         </div>
 
-        <div className="bg-[#1E293B] rounded-2xl border border-slate-700 p-8 shadow-2xl">
+        <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
           <h2 className="text-xl font-semibold text-white mb-6">{t("auth.register")}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                {t("auth.displayName")} <span className="text-slate-500">({t("common.optional")})</span>
-              </label>
-              <input name="name" type="text" value={form.name} onChange={handleChange}
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm" />
-            </div>
+            <Input
+              name="name" type="text" value={form.name} onChange={handleChange}
+              label={<>{t("auth.displayName")} <span className="text-slate-500">({t("common.optional")})</span></>}
+            />
+
+            <Input
+              name="email" type="email" required dir="ltr" value={form.email} onChange={handleChange}
+              label={t("auth.email")}
+              placeholder="you@example.com"
+            />
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">{t("auth.email")}</label>
-              <input name="email" type="email" required dir="ltr" value={form.email} onChange={handleChange}
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                placeholder="you@example.com" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">{t("auth.password")}</label>
-              <input name="password" type="password" required dir="ltr" value={form.password} onChange={handleChange}
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
-                           text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 text-sm"
-                placeholder="••••••••" />
+              <Input
+                name="password" type="password" required dir="ltr" value={form.password} onChange={handleChange}
+                label={t("auth.password")}
+                placeholder="••••••••"
+              />
               {strength && (
                 <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-slate-700 rounded">
-                    <div className={`h-1 rounded transition-all ${strengthColors[strength]}
-                      ${strength === "weak" ? "w-1/3" : strength === "medium" ? "w-2/3" : "w-full"}`} />
+                  <div className="flex-1 h-1 bg-slate-700 rounded overflow-hidden">
+                    <div className={cn("h-1 rounded transition-all", strengthColors[strength], strengthWidth[strength])} />
                   </div>
-                  <span className={`text-xs ${strength === "weak" ? "text-red-400" : strength === "medium" ? "text-yellow-400" : "text-green-400"}`}>
+                  <span className={cn("text-xs shrink-0", strengthText[strength])}>
                     {strengthLabels[strength]}
                   </span>
                 </div>
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">{t("auth.confirmPassword")}</label>
-              <input name="confirm" type="password" required dir="ltr" value={form.confirm} onChange={handleChange}
-                className={`w-full bg-[#0F172A] border rounded-xl px-4 py-3 text-white
-                            placeholder-slate-500 focus:outline-none text-sm transition-colors
-                            ${form.confirm && form.confirm !== form.password ? "border-red-500" : "border-slate-600 focus:border-blue-500"}`}
-                placeholder="••••••••" />
-              {form.confirm && form.confirm !== form.password && (
-                <p className="mt-1 text-xs text-red-400">{t("auth.errors.passwordMismatch")}</p>
-              )}
-            </div>
+            <Input
+              name="confirm" type="password" required dir="ltr" value={form.confirm} onChange={handleChange}
+              label={t("auth.confirmPassword")}
+              placeholder="••••••••"
+              error={form.confirm && form.confirm !== form.password ? t("auth.errors.passwordMismatch") : undefined}
+            />
 
             <TurnstileWidget
               locale={locale}
@@ -161,11 +160,14 @@ export default function RegisterPage() {
               onExpire={() => setTurnstileToken(null)}
             />
 
-            <button type="submit" disabled={loading || (captchaConfigured && !turnstileToken)}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
-                         text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm">
-              {loading ? t("common.loading") : t("auth.registerButton")}
-            </button>
+            <Button
+              type="submit"
+              className="w-full"
+              loading={loading}
+              disabled={loading || (captchaConfigured && !turnstileToken)}
+            >
+              {t("auth.registerButton")}
+            </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-400">
@@ -175,7 +177,7 @@ export default function RegisterPage() {
               {t("auth.loginButton")}
             </Link>
           </p>
-        </div>
+        </Card>
       </div>
     </div>
   );
