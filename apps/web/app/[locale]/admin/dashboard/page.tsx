@@ -1,5 +1,7 @@
 "use client";
 import { useParams } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import { Wallet, Radio, TrendingUp, Users, UserRound, Ticket, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +9,9 @@ import { RevenueChart } from "@/components/admin/RevenueChart";
 import { trpc } from "@/lib/trpc";
 import { formatRelativeDate } from "@/lib/utils";
 
-interface StatCardProps { title: string; value: string; sub?: string | undefined; icon: string; color?: string; loading?: boolean }
+interface StatCardProps { title: string; value: string; sub?: string | undefined; icon: LucideIcon; color?: string; loading?: boolean }
 
-function StatCard({ title, value, sub, icon, color = "text-blue-400", loading }: StatCardProps) {
+function StatCard({ title, value, sub, icon: Icon, color = "text-blue-400", loading }: StatCardProps) {
   return (
     <Card>
       <CardContent className="pt-6">
@@ -23,7 +25,11 @@ function StatCard({ title, value, sub, icon, color = "text-blue-400", loading }:
             )}
             {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
           </div>
-          <span className="text-3xl shrink-0">{icon}</span>
+          {/* Icon in its own tinted badge (bg-current/10) rather than a
+              bare glyph — reads as a designed KPI card, not a label. */}
+          <span className={`shrink-0 p-2.5 rounded-xl bg-slate-800 ${color}`}>
+            <Icon className="h-5 w-5" />
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -69,21 +75,21 @@ export default function AdminDashboardPage() {
       {/* KPIs — today */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="الإيرادات اليوم" icon="💰" color="text-emerald-400" loading={stats.isLoading}
+          title="الإيرادات اليوم" icon={Wallet} color="text-emerald-400" loading={stats.isLoading}
           value={s ? fmtYer(s.revenue.todayYer) : "—"}
           sub={s ? `≈ ${fmtUsd(s.revenue.today30dUsd)}` : undefined}
         />
         <StatCard
-          title="تكاليف API اليوم" icon="📡" color="text-blue-400" loading={stats.isLoading}
+          title="تكاليف API اليوم" icon={Radio} color="text-blue-400" loading={stats.isLoading}
           value={s ? fmtUsd(s.cost.todayUsd) : "—"}
         />
         <StatCard
-          title="هامش الربح اليوم" icon="📈" color="text-purple-400" loading={stats.isLoading}
+          title="هامش الربح اليوم" icon={TrendingUp} color="text-purple-400" loading={stats.isLoading}
           value={s ? fmtMargin(s.marginPercent.today) : "—"}
           sub={s?.marginPercent.today === null ? "لا توجد مبيعات اليوم بعد" : undefined}
         />
         <StatCard
-          title="مستخدمون نشطون" icon="👥" color="text-teal-400" loading={stats.isLoading}
+          title="مستخدمون نشطون" icon={Users} color="text-teal-400" loading={stats.isLoading}
           value={s ? String(s.activeUsers) : "—"}
           sub="آخر 5 دقائق"
         />
@@ -91,10 +97,10 @@ export default function AdminDashboardPage() {
 
       {/* Quick stats row */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard title="إجمالي المستخدمين"   value={s ? String(s.totalUsers)         : "—"} icon="🧑‍💻" loading={stats.isLoading}
+        <StatCard title="إجمالي المستخدمين"   value={s ? String(s.totalUsers)         : "—"} icon={UserRound} color="text-slate-300" loading={stats.isLoading}
           sub={s ? `+${s.newUsersToday} اليوم` : undefined} />
-        <StatCard title="أكواد مستخدمة اليوم" value={s ? String(s.codesRedeemedToday) : "—"} icon="🎟️" loading={stats.isLoading} />
-        <StatCard title="طلبات اليوم"         value={s ? String(s.requestsToday)      : "—"} icon="⚡" loading={stats.isLoading} />
+        <StatCard title="أكواد مستخدمة اليوم" value={s ? String(s.codesRedeemedToday) : "—"} icon={Ticket} color="text-slate-300" loading={stats.isLoading} />
+        <StatCard title="طلبات اليوم"         value={s ? String(s.requestsToday)      : "—"} icon={Zap} color="text-slate-300" loading={stats.isLoading} />
       </div>
 
       {/* Revenue vs Cost chart */}

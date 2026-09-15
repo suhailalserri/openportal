@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { toast }       from "sonner";
+import { RefreshCw }   from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge }       from "@/components/ui/badge";
 import { Button }      from "@/components/ui/button";
@@ -127,7 +128,8 @@ function PendingQueue() {
           </p>
         </div>
         <Button size="sm" loading={sync.isPending} onClick={() => sync.mutate()}>
-          🔄 مزامنة الآن من البوابة
+          {!sync.isPending && <RefreshCw className="h-3.5 w-3.5 me-1.5" />}
+          مزامنة الآن من البوابة
         </Button>
       </CardHeader>
       <CardContent className="p-0">

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams }           from "next/navigation";
 import Link                    from "next/link";
 import { toast }               from "sonner";
+import { TriangleAlert }       from "lucide-react";
 import { Card }                from "@/components/ui/card";
 import { Badge }               from "@/components/ui/badge";
 import { Button }              from "@/components/ui/button";
@@ -96,7 +97,7 @@ export default function AdminUsersPage() {
                       <div>
                         <p className="font-medium text-white flex items-center gap-2">
                           {user.displayName ?? "—"}
-                          {user.isFraudFlagged && <span className="text-red-400 text-xs">🚨</span>}
+                          {user.isFraudFlagged && <TriangleAlert className="h-3.5 w-3.5 text-red-400" />}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5" dir="ltr">{user.email}</p>
                       </div>

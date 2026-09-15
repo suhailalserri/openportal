@@ -2,6 +2,7 @@
 import { useTranslations }   from "next-intl";
 import Link                  from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { X, SquarePen, Settings, ShieldCheck } from "lucide-react";
 import { BalanceWidget }     from "../shared/BalanceWidget";
 import { AccountMenu }       from "../shared/AccountMenu";
 import { LanguageSwitcher }  from "../shared/LanguageSwitcher";
@@ -64,6 +65,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
       <aside className={`
         fixed md:relative inset-y-0 start-0 z-40
         flex flex-col bg-[#1E293B] border-e border-slate-700
+        shadow-[var(--shadow-elevation-2)] md:shadow-none
         transition-all duration-200 ease-in-out
         ${isOpen ? "w-72 translate-x-0" : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden"}
         md:${isOpen ? "w-72" : "w-0"}
@@ -73,15 +75,18 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
           <Link href={`/${locale}/chat`} className="font-bold text-white text-lg hover:text-blue-400 transition-colors">
             {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
           </Link>
-          <button onClick={onClose} className="md:hidden p-1 text-slate-400 hover:text-white">✕</button>
+          <button onClick={onClose} className="md:hidden p-1 text-slate-400 hover:text-white transition-colors">
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* New Chat */}
         <div className="p-3 flex-shrink-0">
           <button onClick={() => { router.push(`/${locale}/chat`); onClose(); }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600
-                       hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors">
-            <span>✏️</span> {t("chat.newChat")}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 gradient-primary
+                       text-white rounded-xl font-medium text-sm transition-all active:scale-[0.98]
+                       shadow-[var(--shadow-elevation-1)] hover:shadow-[var(--shadow-elevation-2)]">
+            <SquarePen className="h-4 w-4" /> {t("chat.newChat")}
           </button>
         </div>
 
@@ -130,12 +135,14 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
           <div className="flex items-center justify-between gap-2">
             <LanguageSwitcher />
             <Link href={`/${locale}/settings`}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
-              ⚙️
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              aria-label={t("nav.settings")}>
+              <Settings className="h-4 w-4" />
             </Link>
             <Link href={`/${locale}/admin/dashboard`}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
-              🛡️
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              aria-label={t("nav.admin")}>
+              <ShieldCheck className="h-4 w-4" />
             </Link>
           </div>
         </div>

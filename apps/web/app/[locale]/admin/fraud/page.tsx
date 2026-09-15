@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams }           from "next/navigation";
 import { toast }               from "sonner";
+import { ShieldAlert, Check }  from "lucide-react";
 import { Card }                from "@/components/ui/card";
 import { Badge }               from "@/components/ui/badge";
 import { Button }              from "@/components/ui/button";
@@ -64,7 +65,9 @@ export default function AdminFraudPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">مكافحة الاحتيال 🛡️</h1>
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <ShieldAlert className="h-6 w-6 text-red-400" /> مكافحة الاحتيال
+        </h1>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
             <input type="checkbox" checked={showResolved}
@@ -135,8 +138,8 @@ export default function AdminFraudPage() {
                           </button>
                         )}
                         <button onClick={() => resolveEvent(ev.id)}
-                          className="text-xs text-emerald-400 hover:underline px-2 py-1">
-                          تحديد كمحلول ✓
+                          className="flex items-center gap-1 text-xs text-emerald-400 hover:underline px-2 py-1">
+                          <Check className="h-3.5 w-3.5" /> تحديد كمحلول
                         </button>
                       </div>
                     )}

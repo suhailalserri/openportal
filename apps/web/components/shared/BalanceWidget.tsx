@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { CreditCard, TriangleAlert, CircleAlert } from "lucide-react";
 import { formatCredits } from "@/lib/utils";
 import { LOW_BALANCE_THRESHOLD } from "@ai-platform/config";
 
@@ -33,14 +34,15 @@ export function BalanceWidget({ locale }: BalanceWidgetProps) {
 
   const isLow  = credits > 0 && credits < LOW_BALANCE_THRESHOLD;
   const isZero = credits <= 0;
+  const Icon   = isZero ? CircleAlert : isLow ? TriangleAlert : CreditCard;
 
   return (
     <Link href={`/${locale}/billing`}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors
-        ${isZero ? "bg-red-900/30 text-red-400 border border-red-800 hover:bg-red-900/50"
-          : isLow  ? "bg-amber-900/30 text-amber-400 border border-amber-800 hover:bg-amber-900/50"
+        ${isZero ? "status-error border border-red-800 hover:bg-red-900/40"
+          : isLow  ? "status-warning border border-amber-800 hover:bg-amber-900/40"
           : "bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700"}`}>
-      <span className="text-base">{isZero ? "🔴" : isLow ? "⚠️" : "💳"}</span>
+      <Icon className="h-4 w-4 shrink-0" />
       <span dir="ltr">{formatCredits(credits, locale)}</span>
       <span className="text-xs opacity-70">{t("balance.unit")}</span>
     </Link>

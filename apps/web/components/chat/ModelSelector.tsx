@@ -1,7 +1,14 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { ChevronDown, Check, Eye, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { useEffect } from "react";
 
 interface Props { value: string; onChange: (modelId: string) => void }
 
@@ -10,11 +17,11 @@ interface Props { value: string; onChange: (modelId: string) => void }
 // admin "Pending Models" queue publishes into after a gateway sync. No
 // more static MODEL_CATALOG here.
 export function ModelSelector({ value, onChange }: Props) {
-  const t                = useTranslations();
-  const [open, setOpen]  = useState(false);
-  const ref              = useRef<HTMLDivElement>(null);
+  const t        = useTranslations();
+  const locale   = useLocale();
+  const dir      = locale === "ar" ? "rtl" : "ltr";
   const { data: available = [], isLoading } = trpc.models.list.useQuery();
-  const selected          = available.find(m => m.id === value) ?? available[0];
+  const selected = available.find(m => m.id === value) ?? available[0];
 
   // If the previously-selected model got hidden/disabled, fall back to
   // whatever's first in the live list so the picker never shows a ghost model.
@@ -24,15 +31,6 @@ export function ModelSelector({ value, onChange }: Props) {
     }
   }, [isLoading, available, value, onChange]);
 
-  // Close on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   const tierColors: Record<string, string> = {
     premium:  "text-amber-400",
     standard: "text-blue-400",
@@ -41,59 +39,59 @@ export function ModelSelector({ value, onChange }: Props) {
 
   if (isLoading) {
     return (
-      <div className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm text-slate-500">
-        …
+      <div className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm text-slate-500 animate-pulse">
+        <span className="inline-block w-20 h-4 bg-slate-700 rounded" />
       </div>
     );
   }
 
   if (available.length === 0 || !selected) {
     return (
-      <div className="px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400">
+      <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
         {t("models.noneAvailable")}
       </div>
     );
   }
 
   return (
-    <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700
-                   border border-slate-600 rounded-xl text-sm text-white transition-colors">
-        <span>{selected.badge}</span>
-        <span className="max-w-[120px] truncate">{selected.displayNameAr}</span>
-        <span className="text-slate-400 text-xs">{open ? "▲" : "▼"}</span>
-      </button>
+    <DropdownMenu dir={dir}>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700
+                     border border-slate-600 rounded-xl text-sm text-white transition-colors
+                     data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
+        >
+          <span>{selected.badge}</span>
+          <span className="max-w-[120px] truncate">{selected.displayNameAr}</span>
+          <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180" />
+        </button>
+      </DropdownMenuTrigger>
 
-      {open && (
-        <div className="absolute bottom-full mb-2 start-0 w-72 bg-[#1E293B] border border-slate-700
-                        rounded-2xl shadow-2xl overflow-hidden z-50 animate-slide-up">
-          <div className="p-2 max-h-80 overflow-y-auto">
-            {available.map((model) => (
-              <button key={model.id}
-                onClick={() => { onChange(model.id); setOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-start
-                            transition-colors hover:bg-slate-700
-                            ${model.id === value ? "bg-blue-600/20 border border-blue-700/50" : ""}`}>
-                <span className="text-xl">{model.badge}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white truncate">{model.displayNameAr}</span>
-                    <span className={`text-xs font-medium ${tierColors[model.tier] ?? "text-slate-400"}`}>
-                      {t(`models.${model.tier}` as Parameters<typeof t>[0])}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    {(model.contextWindow / 1000).toFixed(0)}k {t("models.contextWindow")}
-                    {model.supportsVision && " · 👁️"}
-                  </div>
-                </div>
-                {model.id === value && <span className="text-blue-400 text-sm">✓</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <DropdownMenuContent side="top" align="start" className="w-72 max-h-80 overflow-y-auto">
+        {available.map((model) => (
+          <DropdownMenuItem
+            key={model.id}
+            onSelect={() => onChange(model.id)}
+            className={model.id === value ? "bg-blue-600/20" : undefined}
+          >
+            <span className="text-xl shrink-0">{model.badge}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-white truncate">{model.displayNameAr}</span>
+                <span className={`text-xs font-medium ${tierColors[model.tier] ?? "text-slate-400"}`}>
+                  {t(`models.${model.tier}` as Parameters<typeof t>[0])}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                {(model.contextWindow / 1000).toFixed(0)}k {t("models.contextWindow")}
+                {model.supportsVision && <Eye className="h-3 w-3 ms-1" />}
+              </div>
+            </div>
+            {model.id === value && <Check className="h-4 w-4 shrink-0 text-blue-400" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

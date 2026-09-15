@@ -17,11 +17,48 @@
   --color-text-primary: #F8FAFC;
   --color-text-muted:   #94A3B8;
   --color-accent-blue:  #2563EB;
+  --color-accent-blue-light: #3B82F6;
   --color-accent-teal:  #0F766E;
+
+  /* Semantic status colors — one definition, used consistently instead of
+     ad hoc red-400/amber-400/emerald-400 scattered per component */
+  --color-success:      #10B981;
+  --color-success-bg:   rgb(16 185 129 / 0.1);
+  --color-warning:      #F59E0B;
+  --color-warning-bg:   rgb(245 158 11 / 0.1);
+  --color-error:        #EF4444;
+  --color-error-bg:     rgb(239 68 68 / 0.1);
+
+  /* Type scale — 12/14/16/18/20/24/32/48 per the design spec, with
+     matched line-heights so nothing relies on browser defaults */
+  --text-xs:   0.75rem;
+  --text-xs--line-height:   1rem;
+  --text-sm:   0.875rem;
+  --text-sm--line-height:   1.35rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg:   1.125rem;
+  --text-lg--line-height:   1.7rem;
+  --text-xl:   1.25rem;
+  --text-xl--line-height:   1.8rem;
+  --text-2xl:  1.5rem;
+  --text-2xl--line-height:  2rem;
+  --text-3xl:  2rem;
+  --text-3xl--line-height:  2.4rem;
+  --text-4xl:  3rem;
+  --text-4xl--line-height:  3.4rem;
+
+  /* Elevation — layered shadows (not just borders) so cards, dropdowns,
+     and modals read as physically "above" the surface behind them */
+  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-elevation-2: 0 4px 12px -2px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.25);
+  --shadow-elevation-3: 0 12px 32px -4px rgb(0 0 0 / 0.45), 0 4px 8px -4px rgb(0 0 0 / 0.3);
+  --shadow-glow-blue:   0 0 0 1px rgb(37 99 235 / 0.4), 0 0 20px -4px rgb(37 99 235 / 0.5);
 
   /* Named animations → generates animate-fade-in, animate-slide-up utilities */
   --animate-fade-in:  fadeIn  0.2s ease-in-out;
   --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-scale-in: scaleIn 0.15s ease-out;
 }
 
 /* ── CSS custom properties (for direct var() usage) ─────────────────── */
@@ -34,7 +71,25 @@
   --text-muted:   #94A3B8;
   --accent-blue:  #2563EB;
   --accent-teal:  #0F766E;
+  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #0F766E 130%);
 }
+
+/* ── Elevation & status utility classes ──────────────────────────────
+   Reusable across chat/billing/admin so "card-like" surfaces share one
+   depth language instead of every component inventing its own
+   border+shadow combination. */
+.surface-1 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-1); }
+.surface-2 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-2); }
+.surface-3 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-3); }
+
+.gradient-primary {
+  background-image: var(--gradient-primary);
+}
+.gradient-primary:hover { filter: brightness(1.08); }
+
+.status-success { color: var(--color-success); background: var(--color-success-bg); }
+.status-warning { color: var(--color-warning); background: var(--color-warning-bg); }
+.status-error   { color: var(--color-error);   background: var(--color-error-bg); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -69,6 +124,7 @@ pre, code, kbd, .code-block {
 /* RTL-aware animations */
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* Focus ring */
 :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 4px; }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
 import remarkGfm     from "remark-gfm";
+import { Copy, Check, User, Sparkles } from "lucide-react";
 import { formatCredits } from "@/lib/utils";
 import type { Message } from "@ai-platform/db";
 
@@ -32,9 +33,10 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
     <div className={`flex gap-3 group animate-fade-in ${isUser ? "justify-end" : "justify-start"}`}>
       {/* Avatar */}
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
-                        flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-1">
-          AI
+        <div className="w-8 h-8 rounded-full gradient-primary
+                        flex items-center justify-center text-white flex-shrink-0 mt-1
+                        shadow-[var(--shadow-elevation-1)]">
+          <Sparkles className="h-4 w-4" />
         </div>
       )}
 
@@ -42,8 +44,8 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
         {/* Bubble */}
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed
           ${isUser
-            ? "bg-blue-600 text-white rounded-ee-sm"
-            : "bg-[#1E293B] text-slate-100 border border-slate-700 rounded-es-sm"
+            ? "bg-blue-600 text-white rounded-ee-sm shadow-[var(--shadow-elevation-1)]"
+            : "bg-[#1E293B] text-slate-100 border border-slate-700 rounded-es-sm shadow-[var(--shadow-elevation-1)]"
           }`}>
           {isUser ? (
             <p className="whitespace-pre-wrap message-content">{message.content}</p>
@@ -80,7 +82,8 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
                         ${isUser ? "flex-row-reverse" : "flex-row"}`}>
           <button onClick={handleCopy}
             className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1">
-            {copied ? "✓" : "📋"} {copied ? t("chat.copied") : t("chat.copy")}
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? t("chat.copied") : t("chat.copy")}
           </button>
 
           {/* Credit cost tooltip */}
@@ -94,8 +97,8 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
 
       {isUser && (
         <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center
-                        text-slate-300 text-xs font-bold flex-shrink-0 mt-1">
-          👤
+                        text-slate-300 flex-shrink-0 mt-1 shadow-[var(--shadow-elevation-1)]">
+          <User className="h-4 w-4" />
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams }           from "next/navigation";
 import Link                    from "next/link";
 import { toast }               from "sonner";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge }               from "@/components/ui/badge";
 import { Button }              from "@/components/ui/button";
@@ -51,9 +52,15 @@ export default function UserDetailPage() {
   return (
     <div className="p-6 space-y-6 max-w-4xl">
       <div className="flex items-center gap-3">
-        <Link href={`/${locale}/admin/users`} className="text-slate-400 hover:text-white">←</Link>
+        <Link href={`/${locale}/admin/users`} className="text-slate-400 hover:text-white transition-colors">
+          <ArrowLeft className="h-5 w-5" style={{ transform: locale === "ar" ? "scaleX(-1)" : "none" }} />
+        </Link>
         <h1 className="text-2xl font-bold text-white">{user?.displayName ?? user?.email}</h1>
-        {user?.isFraudFlagged && <Badge variant="error">🚨 مبلغ عنه</Badge>}
+        {user?.isFraudFlagged && (
+          <Badge variant="error" className="flex items-center gap-1">
+            <TriangleAlert className="h-3 w-3" /> مبلغ عنه
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

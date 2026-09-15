@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { TriangleAlert, Square, SendHorizontal } from "lucide-react";
 import { TokenCounter } from "./TokenCounter";
 
 interface InputBarProps {
@@ -59,13 +60,18 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
     <div className="border-t border-slate-700 bg-[#1E293B] p-4">
       {/* Context limit warning */}
       {isOverLimit && (
-        <p className="text-red-400 text-xs mb-2 text-center animate-fade-in">
-          ⚠️ {t("chat.contextExceeded")}
+        <p className="flex items-center justify-center gap-1.5 text-red-400 text-xs mb-2 text-center animate-fade-in">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+          {t("chat.contextExceeded")}
         </p>
       )}
 
+      {/* Elevated "composer" feel: soft shadow that intensifies with a
+          glow ring on focus, instead of a flat bordered box. */}
       <div className="flex items-end gap-3 bg-[#0F172A] rounded-2xl border border-slate-600
-                      focus-within:border-blue-500 transition-colors p-3">
+                      shadow-[var(--shadow-elevation-1)]
+                      focus-within:border-blue-500 focus-within:shadow-[var(--shadow-glow-blue)]
+                      transition-all duration-200 p-3">
         <textarea
           ref={textareaRef}
           value={text}
@@ -85,20 +91,18 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
         {/* Send / Stop button */}
         {isLoading ? (
           <button onClick={onStop}
-            className="p-2 bg-red-600 hover:bg-red-700 rounded-xl text-white transition-colors flex-shrink-0">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
+            className="p-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl text-white
+                       transition-all flex-shrink-0">
+            <Square className="w-4 h-4" fill="currentColor" />
           </button>
         ) : (
           <button onClick={handleSend}
             disabled={!text.trim() || isBlocked || isOverLimit}
-            className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed
-                       rounded-xl text-white transition-colors flex-shrink-0">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              style={{ transform: isRTL ? "rotate(180deg)" : "none" }}>
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-            </svg>
+            className="p-2 gradient-primary disabled:opacity-40 disabled:cursor-not-allowed
+                       active:scale-95 disabled:active:scale-100
+                       rounded-xl text-white transition-all flex-shrink-0
+                       shadow-[var(--shadow-elevation-1)]">
+            <SendHorizontal className="w-4 h-4" style={{ transform: isRTL ? "scaleX(-1)" : "none" }} />
           </button>
         )}
       </div>

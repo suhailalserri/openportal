@@ -1,13 +1,16 @@
 "use client";
 import { useTranslations } from "next-intl";
+import { WifiOff, FolderOpen, TriangleAlert } from "lucide-react";
 
 // EDGE CASE 6 (Phase 14.1): network offline detection.
 export function OfflineBanner({ locale }: { locale: string }) {
   const t = useTranslations();
+  void locale;
   return (
-    <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-2 text-center animate-fade-in">
-      <p className="text-red-400 text-sm">
-        📡 {t("chat.offline")}
+    <div className="status-error border-b border-red-500/20 px-4 py-2 text-center animate-fade-in">
+      <p className="flex items-center justify-center gap-1.5 text-sm">
+        <WifiOff className="h-4 w-4 shrink-0" />
+        {t("chat.offline")}
       </p>
     </div>
   );
@@ -17,9 +20,10 @@ export function OfflineBanner({ locale }: { locale: string }) {
 export function TabConflictBanner({ sending }: { sending: boolean }) {
   const t = useTranslations();
   return (
-    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center animate-fade-in">
-      <p className="text-amber-400 text-sm">
-        🗂️ {sending ? t("chat.tabConflictSending") : t("chat.tabConflict")}
+    <div className="status-warning border-b border-amber-500/20 px-4 py-2 text-center animate-fade-in">
+      <p className="flex items-center justify-center gap-1.5 text-sm">
+        <FolderOpen className="h-4 w-4 shrink-0" />
+        {sending ? t("chat.tabConflictSending") : t("chat.tabConflict")}
       </p>
     </div>
   );
@@ -38,13 +42,17 @@ export function StreamErrorBanner({ message, onRetry, locale }: StreamErrorBanne
   const isRTL = locale === "ar";
   return (
     <div className="mx-4 mb-3 flex items-center justify-between gap-3 rounded-xl border
-                    border-red-500/30 bg-red-500/10 px-4 py-3 animate-fade-in">
-      <p className="text-sm text-red-300">⚠️ {message}</p>
+                    border-red-500/30 bg-red-500/10 px-4 py-3 animate-fade-in
+                    shadow-[var(--shadow-elevation-1)]">
+      <p className="flex items-center gap-1.5 text-sm text-red-300">
+        <TriangleAlert className="h-4 w-4 shrink-0" />
+        {message}
+      </p>
       {onRetry && (
         <button
           onClick={onRetry}
           className="shrink-0 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs
-                     text-red-200 hover:bg-red-500/20 transition-colors"
+                     text-red-200 hover:bg-red-500/20 active:scale-95 transition-all"
         >
           {isRTL ? "إعادة المحاولة" : t("chat.regenerate")}
         </button>
