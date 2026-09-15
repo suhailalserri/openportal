@@ -57,7 +57,9 @@ export function MessageList({
     const el = containerRef.current;
     if (!el || !shouldVirtualize) return;
     const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
       setSize({ width, height });
     });
     ro.observe(el);
