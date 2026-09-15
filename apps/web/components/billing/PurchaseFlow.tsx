@@ -89,7 +89,7 @@ export function PurchaseFlow({ locale, onCreditsGranted }: Props) {
                 className={`text-start rounded-xl border p-4 transition-colors ${
                   packageId === pkg.id
                     ? "border-blue-500 bg-blue-500/10"
-                    : "border-slate-700 bg-[#0F172A] hover:border-slate-600"
+                    : "border-slate-700 bg-[#17130F] hover:border-slate-600"
                 }`}>
                 <p className="text-white font-bold">{pkg.priceYer.toLocaleString()} <span className="text-xs font-normal text-slate-400">YER</span></p>
                 <p className="text-sm text-emerald-400 font-mono mt-1">{formatCredits(pkg.credits, locale)} {isAr ? "رصيد" : "credits"}</p>
@@ -108,7 +108,7 @@ export function PurchaseFlow({ locale, onCreditsGranted }: Props) {
                   className={`text-start rounded-xl border p-4 transition-colors ${
                     methodId === m.id
                       ? "border-blue-500 bg-blue-500/10"
-                      : "border-slate-700 bg-[#0F172A] hover:border-slate-600"
+                      : "border-slate-700 bg-[#17130F] hover:border-slate-600"
                   }`}>
                   <p className="text-white font-medium">{isAr ? m.nameAr : m.name}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -124,7 +124,7 @@ export function PurchaseFlow({ locale, onCreditsGranted }: Props) {
 
         {/* Jaib instructional panel — §7.9 */}
         {selectedMethod?.type === "jaib_voucher" && (
-          <div className="rounded-xl border border-slate-700 bg-[#0F172A] p-4 space-y-3">
+          <div className="rounded-xl border border-slate-700 bg-[#17130F] p-4 space-y-3">
             {selectedMethod.accountCode && (
               <p className="text-sm">
                 <span className="text-slate-400">{isAr ? "كود الشبكة: " : "Network code: "}</span>
@@ -142,7 +142,7 @@ export function PurchaseFlow({ locale, onCreditsGranted }: Props) {
 
         {/* Manual-transfer claim form — §7.10 */}
         {selectedMethod?.type === "manual_transfer" && (
-          <div className="rounded-xl border border-slate-700 bg-[#0F172A] p-4 space-y-4">
+          <div className="rounded-xl border border-slate-700 bg-[#17130F] p-4 space-y-4">
             {selectedMethod.accountCode && (
               <p className="text-sm">
                 <span className="text-slate-400">{isAr ? "رقم المحفظة: " : "Wallet number: "}</span>
@@ -192,7 +192,7 @@ export function PurchaseFlow({ locale, onCreditsGranted }: Props) {
           <div className="space-y-2">
             <p className="text-sm font-medium text-slate-300">{isAr ? "طلباتك السابقة" : "Your claims"}</p>
             {myClaims.map((claim) => (
-              <div key={claim.id} className="flex items-center justify-between rounded-lg bg-[#0F172A] px-4 py-2.5 text-sm">
+              <div key={claim.id} className="flex items-center justify-between rounded-lg bg-[#17130F] px-4 py-2.5 text-sm">
                 <div>
                   <span className="font-mono text-slate-300" dir="ltr">{claim.referenceCode}</span>
                   <span className="text-slate-500 ms-2">{formatDate(claim.createdAt, locale)}</span>

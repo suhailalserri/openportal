@@ -31,10 +31,10 @@ export default function ForgotPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-noise bg-[color:var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
-          <h2 className="text-xl font-semibold text-white mb-6">{t("auth.resetPassword")}</h2>
+          <h2 className="text-xl font-semibold text-slate-50 mb-6">{t("auth.resetPassword")}</h2>
           {sent ? (
             <div className="text-center py-2">
               <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl

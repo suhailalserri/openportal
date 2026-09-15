@@ -16,7 +16,7 @@ export function BalanceWidget({ locale }: BalanceWidgetProps) {
     async function fetchBalance() {
       try {
         const res = await fetch("/api/balance");
-        if (!res.ok) { setCredits(0); return; } // e.g. 401 when logged out
+        if (!res.ok) { setCredits(0); return; }
         const data = await res.json() as { credits: number };
         setCredits(typeof data.credits === "number" ? data.credits : 0);
       } catch {
@@ -29,7 +29,7 @@ export function BalanceWidget({ locale }: BalanceWidgetProps) {
   }, []);
 
   if (credits === null) {
-    return <div className="h-8 w-24 bg-slate-700/50 animate-pulse rounded-lg" />;
+    return <div className="h-9 w-full bg-slate-800 animate-pulse rounded-xl" />;
   }
 
   const isLow  = credits > 0 && credits < LOW_BALANCE_THRESHOLD;
@@ -38,12 +38,12 @@ export function BalanceWidget({ locale }: BalanceWidgetProps) {
 
   return (
     <Link href={`/${locale}/billing`}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors
-        ${isZero ? "status-error border border-red-800 hover:bg-red-900/40"
-          : isLow  ? "status-warning border border-amber-800 hover:bg-amber-900/40"
-          : "bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700"}`}>
+      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors w-full
+        ${isZero ? "status-error border border-red-800/60 hover:bg-red-900/30"
+          : isLow  ? "status-warning border border-amber-800/60 hover:bg-amber-900/30"
+          : "bg-slate-800/60 text-slate-300 border border-slate-700 hover:bg-slate-800"}`}>
       <Icon className="h-4 w-4 shrink-0" />
-      <span dir="ltr">{formatCredits(credits, locale)}</span>
+      <span dir="ltr" className="tabular-nums">{formatCredits(credits, locale)}</span>
       <span className="text-xs opacity-70">{t("balance.unit")}</span>
     </Link>
   );

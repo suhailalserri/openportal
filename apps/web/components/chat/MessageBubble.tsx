@@ -10,11 +10,6 @@ import type { Message } from "@ai-platform/db";
 interface MessageBubbleProps {
   message: Pick<Message, "role" | "content" | "creditCost" | "modelId" | "isPartial">;
   locale:  string;
-  // Present only on the most recent assistant message when it was left
-  // partial by an interrupted stream — lets the "click to retry" copy
-  // actually do something instead of being static text.
-  // `| undefined` spelled out: exactOptionalPropertyTypes means MessageList
-  // passing `onRetry={cond ? handler : undefined}` needs this explicitly.
   onRetry?: (() => void) | undefined;
 }
 
@@ -31,9 +26,8 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
 
   return (
     <div className={`flex gap-3 group animate-fade-in ${isUser ? "justify-end" : "justify-start"}`}>
-      {/* Avatar */}
       {!isUser && (
-        <div className="w-8 h-8 rounded-full gradient-primary
+        <div className="w-8 h-8 rounded-full bg-[color:var(--accent-blue)]
                         flex items-center justify-center text-white flex-shrink-0 mt-1
                         shadow-[var(--shadow-elevation-1)]">
           <Sparkles className="h-4 w-4" />
@@ -41,43 +35,42 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
       )}
 
       <div className={`max-w-[80%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
-        {/* Bubble */}
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed
           ${isUser
-            ? "bg-blue-600 text-white rounded-ee-sm shadow-[var(--shadow-elevation-1)]"
-            : "bg-[#1E293B] text-slate-100 border border-slate-700 rounded-es-sm shadow-[var(--shadow-elevation-1)]"
+            ? "bg-[color:var(--accent-blue)] text-white rounded-ee-sm shadow-[var(--shadow-elevation-1)]"
+            : "bg-[color:var(--bg-surface)] text-slate-100 border border-slate-700/80 rounded-es-sm shadow-[var(--shadow-elevation-1)]"
           }`}>
           {isUser ? (
             <p className="whitespace-pre-wrap message-content">{message.content}</p>
           ) : (
             <div className="prose prose-invert prose-sm max-w-none message-content
-                            prose-pre:bg-[#0F172A] prose-pre:border prose-pre:border-slate-700
-                            prose-code:text-blue-300 prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded">
+                            prose-headings:font-display
+                            prose-pre:bg-[color:var(--bg-base)] prose-pre:border prose-pre:border-slate-700
+                            prose-code:text-[color:var(--accent-blue-light)] prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded
+                            prose-a:text-[color:var(--accent-blue-light)]">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {message.content}
               </ReactMarkdown>
             </div>
           )}
 
-          {/* Partial response indicator */}
           {message.isPartial && !isUser && (
             onRetry ? (
               <button
                 onClick={onRetry}
-                className="text-xs text-amber-400 mt-2 border-t border-slate-600 pt-2 w-full text-start
+                className="text-xs text-amber-400 mt-2 border-t border-slate-700 pt-2 w-full text-start
                            hover:text-amber-300 transition-colors"
               >
                 {t("chat.partialResponse")}
               </button>
             ) : (
-              <p className="text-xs text-amber-400 mt-2 border-t border-slate-600 pt-2">
+              <p className="text-xs text-amber-400 mt-2 border-t border-slate-700 pt-2">
                 {t("chat.partialResponse")}
               </p>
             )
           )}
         </div>
 
-        {/* Actions row (visible on hover) */}
         <div className={`flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity
                         ${isUser ? "flex-row-reverse" : "flex-row"}`}>
           <button onClick={handleCopy}
@@ -86,7 +79,6 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
             {copied ? t("chat.copied") : t("chat.copy")}
           </button>
 
-          {/* Credit cost tooltip */}
           {message.creditCost && message.creditCost > 0 && (
             <span className="text-xs text-slate-600">
               {formatCredits(message.creditCost, locale)} {t("balance.unit")}
@@ -96,7 +88,7 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
       </div>
 
       {isUser && (
-        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center
+        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center
                         text-slate-300 flex-shrink-0 mt-1 shadow-[var(--shadow-elevation-1)]">
           <User className="h-4 w-4" />
         </div>

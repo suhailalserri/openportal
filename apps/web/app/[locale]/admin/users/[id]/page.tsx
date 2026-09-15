@@ -55,7 +55,7 @@ export default function UserDetailPage() {
         <Link href={`/${locale}/admin/users`} className="text-slate-400 hover:text-white transition-colors">
           <ArrowLeft className="h-5 w-5" style={{ transform: locale === "ar" ? "scaleX(-1)" : "none" }} />
         </Link>
-        <h1 className="text-2xl font-bold text-white">{user?.displayName ?? user?.email}</h1>
+        <h1 className="font-display text-2xl text-slate-50">{user?.displayName ?? user?.email}</h1>
         {user?.isFraudFlagged && (
           <Badge variant="error" className="flex items-center gap-1">
             <TriangleAlert className="h-3 w-3" /> مبلغ عنه
@@ -92,11 +92,11 @@ export default function UserDetailPage() {
           <div className="flex gap-3">
             <input type="number" placeholder="عدد الأرصدة" value={credits}
               onChange={e => setCredits(e.target.value)}
-              className="w-32 bg-[#0F172A] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
+              className="w-32 bg-[#17130F] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
                          focus:outline-none focus:border-blue-500" />
             <input type="text" placeholder="السبب (مطلوب)" value={reason}
               onChange={e => setReason(e.target.value)}
-              className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
+              className="flex-1 bg-[#17130F] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
                          focus:outline-none focus:border-blue-500" />
             <Button variant="secondary" onClick={() => adjustCredits("admin_credit")}>+ إضافة</Button>
             <Button variant="danger"    onClick={() => adjustCredits("admin_debit")}>− خصم</Button>

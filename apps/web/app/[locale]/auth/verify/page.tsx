@@ -14,14 +14,14 @@ export default async function VerifyPage({ params, searchParams }: Props) {
   const t = await getTranslations({ locale });
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-noise bg-[color:var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Card className="p-8 text-center shadow-[var(--shadow-elevation-3)]">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl
                           bg-blue-500/10 border border-blue-500/20 mb-6">
             <Mail className="h-7 w-7 text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-4">{t("auth.verifyEmail")}</h1>
+          <h1 className="font-display text-2xl text-slate-50 mb-4">{t("auth.verifyEmail")}</h1>
           {email ? (
             <>
               <p className="text-slate-400 text-sm mb-2">

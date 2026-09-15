@@ -9,11 +9,11 @@ export function EmptyState({ locale }: EmptyStateProps) {
   const isRTL = locale === "ar";
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fade-in">
-      <div className="w-16 h-16 mb-6 rounded-2xl gradient-primary flex items-center justify-center
-                      shadow-[var(--shadow-elevation-3)]">
-        <Sparkles className="h-8 w-8 text-white" />
+      <div className="w-14 h-14 mb-6 rounded-2xl bg-[color:var(--accent-blue)] flex items-center justify-center
+                      shadow-[var(--shadow-elevation-2)]">
+        <Sparkles className="h-7 w-7 text-white" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-3">
+      <h2 className="font-display text-3xl text-slate-50 mb-3">
         {isRTL ? "كيف يمكنني مساعدتك اليوم؟" : "How can I help you today?"}
       </h2>
       <p className="text-slate-400 max-w-md">

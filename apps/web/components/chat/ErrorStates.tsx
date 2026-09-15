@@ -2,7 +2,6 @@
 import { useTranslations } from "next-intl";
 import { WifiOff, FolderOpen, TriangleAlert } from "lucide-react";
 
-// EDGE CASE 6 (Phase 14.1): network offline detection.
 export function OfflineBanner({ locale }: { locale: string }) {
   const t = useTranslations();
   void locale;
@@ -16,7 +15,6 @@ export function OfflineBanner({ locale }: { locale: string }) {
   );
 }
 
-// EDGE CASE 4 (Phase 14.1): same conversation open in another browser tab.
 export function TabConflictBanner({ sending }: { sending: boolean }) {
   const t = useTranslations();
   return (
@@ -35,8 +33,6 @@ interface StreamErrorBannerProps {
   locale:   string;
 }
 
-// EDGE CASE 7 (Phase 14.1): stream interrupted / any other request-level
-// failure the chat page surfaces beyond the toast, with a clear retry path.
 export function StreamErrorBanner({ message, onRetry, locale }: StreamErrorBannerProps) {
   const t = useTranslations();
   const isRTL = locale === "ar";

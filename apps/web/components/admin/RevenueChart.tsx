@@ -55,19 +55,19 @@ export function RevenueChart({ data }: { data: Point[] }) {
           <line key={f} x1={padding} x2={width - padding}
             y1={height - padding - (height - padding * 2) * f}
             y2={height - padding - (height - padding * 2) * f}
-            stroke="#334155" strokeWidth={1} strokeDasharray="4 4" />
+            stroke="#4A423B" strokeWidth={1} strokeDasharray="4 4" />
         ))}
         {bars.map((b, i) => (
           <g key={b.date} onMouseEnter={() => setHover(i)}>
             <rect x={b.x + 2} y={height - padding - b.revH} width={Math.max(2, b.barWidth / 2 - 3)}
-              height={b.revH} fill="#10B981" opacity={hover === null || hover === i ? 1 : 0.35} rx={1} />
+              height={b.revH} fill="#6B9A56" opacity={hover === null || hover === i ? 1 : 0.35} rx={1} />
             <rect x={b.x + b.barWidth / 2 + 1} y={height - padding - b.costH} width={Math.max(2, b.barWidth / 2 - 3)}
-              height={b.costH} fill="#EF4444" opacity={hover === null || hover === i ? 1 : 0.35} rx={1} />
+              height={b.costH} fill="#C24B3A" opacity={hover === null || hover === i ? 1 : 0.35} rx={1} />
             <rect x={b.x} y={padding} width={b.barWidth} height={height - padding * 2}
               fill="transparent" />
           </g>
         ))}
-        <line x1={padding} x2={width - padding} y1={height - padding} y2={height - padding} stroke="#475569" />
+        <line x1={padding} x2={width - padding} y1={height - padding} y2={height - padding} stroke="#6E6357" />
       </svg>
       <div className="flex justify-between text-[10px] text-slate-500 mt-1">
         <span>{data[0]?.date}</span>

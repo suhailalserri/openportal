@@ -32,7 +32,7 @@ export const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         "z-50 min-w-[12rem] overflow-hidden rounded-2xl border border-slate-700",
-        "bg-[#1E293B] p-1.5 shadow-2xl",
+        "bg-[color:var(--bg-elevated)] p-1.5 shadow-[var(--shadow-elevation-3)]",
         "data-[state=open]:animate-slide-up",
         "data-[side=bottom]:slide-in-from-top-1",
         className

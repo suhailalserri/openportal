@@ -37,7 +37,7 @@ export default function AdminLogsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">سجلات الاستخدام</h1>
+        <h1 className="font-display text-2xl text-slate-50">سجلات الاستخدام</h1>
         <button onClick={loadLogs}
           className="text-sm text-blue-400 hover:underline">تحديث</button>
       </div>
@@ -46,10 +46,10 @@ export default function AdminLogsPage() {
       <div className="flex gap-3">
         <input value={filter.model} onChange={e => setFilter(f => ({...f, model: e.target.value}))}
           placeholder="فلتر النموذج..." dir="ltr"
-          className="bg-[#1E293B] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
+          className="bg-[#1D1815] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
                      focus:outline-none focus:border-blue-500 w-48" />
         <select value={filter.type} onChange={e => setFilter(f => ({...f, type: e.target.value}))}
-          className="bg-[#1E293B] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
+          className="bg-[#1D1815] border border-slate-600 rounded-xl px-3 py-2 text-white text-sm
                      focus:outline-none focus:border-blue-500">
           <option value="">كل الأنواع</option>
           <option value="usage_debit">استخدام</option>

@@ -83,27 +83,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-noise bg-[color:var(--bg-base)] flex items-center justify-center p-4">
+      <div className="w-full max-w-md animate-fade-in">
         {/* Logo / Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl gradient-primary
-                          shadow-[var(--shadow-elevation-2)] mb-4">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[color:var(--accent-blue)]
+                          shadow-[var(--shadow-elevation-2)] mb-5">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
+          <h1 className="font-display text-3xl text-slate-50 mb-2">
+            {locale === "ar" ? "البوابة المفتوحة" : "OpenPortal"}
           </h1>
-          <p className="text-slate-400 text-sm">
-            {locale === "ar" ? "ذكاء اصطناعي متقدم" : "Advanced AI Models"}
+          <p className="text-slate-500 text-sm">
+            {locale === "ar" ? "ذكاء اصطناعي متقدم بسعر في متناول الجميع" : "Advanced AI models, accessibly priced"}
           </p>
         </div>
 
         {/* Card */}
         <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
           <div className="flex items-center gap-2 mb-6">
-            {needs2fa && <ShieldCheck className="h-5 w-5 text-blue-400" />}
-            <h2 className="text-xl font-semibold text-white">
+            {needs2fa && <ShieldCheck className="h-5 w-5 text-[color:var(--accent-blue-light)]" />}
+            <h2 className="text-xl font-semibold text-slate-50">
               {needs2fa ? (locale === "ar" ? "التحقق بخطوتين" : "Two-factor verification") : t("auth.login")}
             </h2>
           </div>

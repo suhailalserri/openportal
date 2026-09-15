@@ -23,7 +23,7 @@ export default function AdminChannelsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">القنوات</h1>
+        <h1 className="font-display text-2xl text-slate-50">القنوات</h1>
         <button onClick={() => refetch()} disabled={isFetching}
           className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline disabled:opacity-50">
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />

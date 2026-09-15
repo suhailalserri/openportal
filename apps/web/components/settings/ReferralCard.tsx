@@ -41,7 +41,7 @@ export function ReferralCard({ locale }: { locale: string }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-[#0F172A] border border-slate-700 rounded-xl px-4 py-3
+          <div className="flex-1 bg-[#17130F] border border-slate-700 rounded-xl px-4 py-3
                           font-mono text-white text-sm tracking-wider" dir="ltr">
             {data.referralCode}
           </div>
@@ -51,7 +51,7 @@ export function ReferralCard({ locale }: { locale: string }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-[#0F172A] border border-slate-700 rounded-xl px-4 py-3
+          <div className="flex-1 bg-[#17130F] border border-slate-700 rounded-xl px-4 py-3
                           text-slate-400 text-xs truncate" dir="ltr">
             {link}
           </div>
@@ -61,11 +61,11 @@ export function ReferralCard({ locale }: { locale: string }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 pt-2">
-          <div className="bg-[#0F172A] rounded-xl px-4 py-3 text-center">
+          <div className="bg-[#17130F] rounded-xl px-4 py-3 text-center">
             <p className="text-2xl font-bold text-white">{data.referredCount}</p>
             <p className="text-xs text-slate-500 mt-1">{isAr ? "أصدقاء مسجلون" : "Friends signed up"}</p>
           </div>
-          <div className="bg-[#0F172A] rounded-xl px-4 py-3 text-center">
+          <div className="bg-[#17130F] rounded-xl px-4 py-3 text-center">
             <p className="text-2xl font-bold text-emerald-400">{formatCredits(data.totalBonusMicroCredits, locale)}</p>
             <p className="text-xs text-slate-500 mt-1">{isAr ? "رصيد مكتسب" : "Credits earned"}</p>
           </div>

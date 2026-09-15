@@ -56,7 +56,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-base)] p-4 md:p-8">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-white">{t("nav.settings")}</h1>
+        <h1 className="font-display text-2xl text-slate-50">{t("nav.settings")}</h1>
 
         {/* Profile */}
         <Card className="surface-1">

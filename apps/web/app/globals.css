@@ -1,36 +1,107 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap");
 
-/* ── Tailwind v4 theme ──────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────────────────────────
+   OpenPortal design system
+   A warm, editorial dark theme in the spirit of Anthropic's product
+   language: ink-black neutrals (not blue-slate), a single confident
+   clay accent instead of a rainbow of blues, and a serif reserved for
+   moments that deserve a little weight (brand mark, empty states,
+   auth). Everything else stays a quiet, legible sans.
+   ──────────────────────────────────────────────────────────────────── */
 @theme {
-  /* Font families → generates font-arabic, font-inter, font-mono utilities */
   --font-arabic: "IBM Plex Arabic", sans-serif;
   --font-inter:  "Inter", sans-serif;
+  --font-serif:  "Source Serif 4", Georgia, serif;
   --font-mono:   "JetBrains Mono", monospace;
 
-  /* Brand colors → generates bg-surface, text-muted, border-accent-blue etc. */
-  --color-bg-base:      #0F172A;
-  --color-bg-surface:   #1E293B;
-  --color-bg-elevated:  #334155;
-  --color-border:       #475569;
-  --color-text-primary: #F8FAFC;
-  --color-text-muted:   #94A3B8;
-  --color-accent-blue:  #2563EB;
-  --color-accent-blue-light: #3B82F6;
-  --color-accent-teal:  #0F766E;
+  /* ── Neutral scale — warm ink, not cold slate ─────────────────────
+     Every bg-slate-*/text-slate-*/border-slate-* class already used
+     throughout the app repaints through this scale, so pages we don't
+     hand-restyle still land on-brand. */
+  --color-slate-50:  #F7F4EF;
+  --color-slate-100: #EFEAE2;
+  --color-slate-200: #E1D9CC;
+  --color-slate-300: #C9BEAE;
+  --color-slate-400: #A79C8D;
+  --color-slate-500: #8C8072;
+  --color-slate-600: #6E6357;
+  --color-slate-700: #4A423B;
+  --color-slate-800: #322C27;
+  --color-slate-900: #221D19;
+  --color-slate-950: #17130F;
 
-  /* Semantic status colors — one definition, used consistently instead of
-     ad hoc red-400/amber-400/emerald-400 scattered per component */
-  --color-success:      #10B981;
-  --color-success-bg:   rgb(16 185 129 / 0.1);
-  --color-warning:      #F59E0B;
-  --color-warning-bg:   rgb(245 158 11 / 0.1);
-  --color-error:        #EF4444;
-  --color-error-bg:     rgb(239 68 68 / 0.1);
+  /* ── Accent — clay/terracotta, standing in for the old "blue" ────── */
+  --color-blue-50:  #FCF1EA;
+  --color-blue-100: #F8DFCF;
+  --color-blue-200: #F0BC9C;
+  --color-blue-300: #E59D74;
+  --color-blue-400: #DD8560;
+  --color-blue-500: #D97757;
+  --color-blue-600: #C2603F;
+  --color-blue-700: #9C4C33;
+  --color-blue-800: #753A28;
+  --color-blue-900: #4E271B;
+  --color-blue-950: #2C160F;
 
-  /* Type scale — 12/14/16/18/20/24/32/48 per the design spec, with
-     matched line-heights so nothing relies on browser defaults */
+  /* ── Status — sage / gold / terracotta-red, muted to sit quietly
+     next to the accent instead of shouting over it ─────────────────── */
+  --color-emerald-50:  #F1F6EC;
+  --color-emerald-100: #E1EBD4;
+  --color-emerald-200: #C3D8AA;
+  --color-emerald-300: #A1C17D;
+  --color-emerald-400: #85AC61;
+  --color-emerald-500: #6B9A56;
+  --color-emerald-600: #587E45;
+  --color-emerald-700: #446337;
+  --color-emerald-800: #324A28;
+  --color-emerald-900: #21301B;
+  --color-emerald-950: #131C10;
+
+  --color-amber-50:  #FBF3E7;
+  --color-amber-100: #F5E3C6;
+  --color-amber-200: #EBC98C;
+  --color-amber-300: #DFAE57;
+  --color-amber-400: #D69B3F;
+  --color-amber-500: #CC8F35;
+  --color-amber-600: #AD772B;
+  --color-amber-700: #8A5F22;
+  --color-amber-800: #674718;
+  --color-amber-900: #453010;
+  --color-amber-950: #291C09;
+
+  --color-red-50:  #FBEEEC;
+  --color-red-100: #F5D8D3;
+  --color-red-200: #E9AFA5;
+  --color-red-300: #DD8779;
+  --color-red-400: #D1604F;
+  --color-red-500: #C24B3A;
+  --color-red-600: #A53C2E;
+  --color-red-700: #7F2E23;
+  --color-red-800: #5A2119;
+  --color-red-900: #38140F;
+  --color-red-950: #220C09;
+
+  /* Brand tokens → bg-surface, text-muted, border-accent-blue, etc. */
+  --color-bg-base:      #17130F;
+  --color-bg-surface:   #1D1815;
+  --color-bg-elevated:  #322C27;
+  --color-border:       #4A423B;
+  --color-text-primary: #F7F4EF;
+  --color-text-muted:   #A79C8D;
+  --color-accent-blue:       #D97757;
+  --color-accent-blue-light: #DD8560;
+  --color-accent-teal:       #CC8F35;
+
+  --color-success:      #6B9A56;
+  --color-success-bg:   rgb(107 154 86 / 0.12);
+  --color-warning:      #CC8F35;
+  --color-warning-bg:   rgb(204 143 53 / 0.12);
+  --color-error:        #C24B3A;
+  --color-error-bg:     rgb(194 75 58 / 0.12);
+
+  /* Type scale — unchanged rhythm, still 12/14/16/18/20/24/32/48 */
   --text-xs:   0.75rem;
   --text-xs--line-height:   1rem;
   --text-sm:   0.875rem;
@@ -48,36 +119,33 @@
   --text-4xl:  3rem;
   --text-4xl--line-height:  3.4rem;
 
-  /* Elevation — layered shadows (not just borders) so cards, dropdowns,
-     and modals read as physically "above" the surface behind them */
-  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.2);
-  --shadow-elevation-2: 0 4px 12px -2px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.25);
-  --shadow-elevation-3: 0 12px 32px -4px rgb(0 0 0 / 0.45), 0 4px 8px -4px rgb(0 0 0 / 0.3);
-  --shadow-glow-blue:   0 0 0 1px rgb(37 99 235 / 0.4), 0 0 20px -4px rgb(37 99 235 / 0.5);
+  /* Elevation — soft, low-contrast shadows; depth reads from layered
+     warm darks, not from hard black drop shadows */
+  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-elevation-2: 0 8px 24px -6px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+  --shadow-elevation-3: 0 24px 48px -12px rgb(0 0 0 / 0.55), 0 6px 16px -6px rgb(0 0 0 / 0.35);
+  --shadow-glow-blue:   0 0 0 1px rgb(217 119 87 / 0.4), 0 0 24px -6px rgb(217 119 87 / 0.35);
 
-  /* Named animations → generates animate-fade-in, animate-slide-up utilities */
-  --animate-fade-in:  fadeIn  0.2s ease-in-out;
-  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-fade-in:  fadeIn  0.2s ease-out;
+  --animate-slide-up: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-scale-in: scaleIn 0.15s ease-out;
 }
 
 /* ── CSS custom properties (for direct var() usage) ─────────────────── */
 :root {
-  --bg-base:      #0F172A;
-  --bg-surface:   #1E293B;
-  --bg-elevated:  #334155;
-  --border:       #475569;
-  --text-primary: #F8FAFC;
-  --text-muted:   #94A3B8;
-  --accent-blue:  #2563EB;
-  --accent-teal:  #0F766E;
-  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #0F766E 130%);
+  --bg-base:      #17130F;
+  --bg-surface:   #1D1815;
+  --bg-elevated:  #322C27;
+  --border:       #4A423B;
+  --text-primary: #F7F4EF;
+  --text-muted:   #A79C8D;
+  --accent-blue:  #D97757;
+  --accent-blue-light: #DD8560;
+  --accent-teal:  #CC8F35;
+  /* Restrained — a single-hue depth gradient rather than a rainbow */
+  --gradient-primary: linear-gradient(135deg, #D97757 0%, #B85A3B 100%);
 }
 
-/* ── Elevation & status utility classes ──────────────────────────────
-   Reusable across chat/billing/admin so "card-like" surfaces share one
-   depth language instead of every component inventing its own
-   border+shadow combination. */
 .surface-1 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-1); }
 .surface-2 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-2); }
 .surface-3 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-3); }
@@ -85,11 +153,25 @@
 .gradient-primary {
   background-image: var(--gradient-primary);
 }
-.gradient-primary:hover { filter: brightness(1.08); }
+.gradient-primary:hover { filter: brightness(1.06); }
 
 .status-success { color: var(--color-success); background: var(--color-success-bg); }
 .status-warning { color: var(--color-warning); background: var(--color-warning-bg); }
 .status-error   { color: var(--color-error);   background: var(--color-error-bg); }
+
+/* Grain — a very faint texture on the base layer so large flat dark
+   areas don't read as flat digital black. Anthropic-style paper feel. */
+.bg-noise {
+  position: relative;
+}
+.bg-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -101,11 +183,11 @@ html {
 
 body { min-height: 100vh; }
 
-/* Arabic font */
 [lang="ar"] body, [dir="rtl"] body { font-family: "IBM Plex Arabic", sans-serif; }
 [lang="en"] body, [dir="ltr"] body { font-family: "Inter", sans-serif; }
 
-/* Code blocks — ALWAYS LTR regardless of document direction */
+.font-display { font-family: var(--font-serif); font-feature-settings: "liga" 1; letter-spacing: -0.01em; }
+
 pre, code, kbd, .code-block {
   direction:    ltr !important;
   unicode-bidi: isolate;
@@ -113,21 +195,17 @@ pre, code, kbd, .code-block {
   font-family:  "JetBrains Mono", monospace;
 }
 
-/* Mixed bidirectional content in messages */
 .message-content { unicode-bidi: plaintext; }
 
-/* Smooth scrollbar */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-slate-600); }
 
-/* RTL-aware animations */
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* Focus ring */
 :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 4px; }
 
-/* Selection */
-::selection { background: rgba(37,99,235,0.3); }
+::selection { background: rgba(217,119,87,0.35); }

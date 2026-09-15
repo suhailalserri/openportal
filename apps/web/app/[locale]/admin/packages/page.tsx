@@ -81,7 +81,7 @@ export default function AdminPackagesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">{isAr ? "الباقات" : "Packages"}</h1>
+      <h1 className="font-display text-2xl text-slate-50">{isAr ? "الباقات" : "Packages"}</h1>
 
       <Card>
         <CardHeader>

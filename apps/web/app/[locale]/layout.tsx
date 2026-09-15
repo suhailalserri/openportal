@@ -17,10 +17,10 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   return {
-    title:       locale === "ar" ? "منصة الذكاء الاصطناعي" : "AI Platform",
+    title:       locale === "ar" ? "البوابة المفتوحة | OpenPortal" : "OpenPortal | البوابة المفتوحة",
     description: locale === "ar"
       ? "ذكاء اصطناعي متقدم بسعر في متناول الجميع"
-      : "Advanced AI at accessible prices",
+      : "Advanced AI models, accessibly priced",
   };
 }
 
@@ -40,7 +40,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
       </head>
@@ -54,9 +54,9 @@ export default async function LocaleLayout({ children, params }: Props) {
             dir={direction}
             toastOptions={{
               style: {
-                background: "#1E293B",
-                border:     "1px solid #334155",
-                color:      "#F8FAFC",
+                background: "#1D1815",
+                border:     "1px solid #4A423B",
+                color:      "#F7F4EF",
               },
             }}
           />

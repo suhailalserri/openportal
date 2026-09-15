@@ -101,20 +101,23 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-noise bg-[color:var(--bg-base)] flex items-center justify-center p-4">
+      <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl gradient-primary
-                          shadow-[var(--shadow-elevation-2)] mb-4">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[color:var(--accent-blue)]
+                          shadow-[var(--shadow-elevation-2)] mb-5">
             <Sparkles className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
+          <h1 className="font-display text-3xl text-slate-50 mb-2">
+            {locale === "ar" ? "البوابة المفتوحة" : "OpenPortal"}
           </h1>
+          <p className="text-slate-500 text-sm">
+            {locale === "ar" ? "أنشئ حسابك وابدأ خلال دقيقة" : "Create your account and start in a minute"}
+          </p>
         </div>
 
         <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
-          <h2 className="text-xl font-semibold text-white mb-6">{t("auth.register")}</h2>
+          <h2 className="text-xl font-semibold text-slate-50 mb-6">{t("auth.register")}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input

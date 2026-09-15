@@ -33,7 +33,7 @@ function generateReferralCode(): string {
 export const auth = betterAuth({
   // Used as the default TOTP issuer name shown in authenticator apps
   // (Google Authenticator, Authy, etc.) for the twoFactor plugin below.
-  appName: "AI Platform",
+  appName: "OpenPortal",
 
   // better-auth uses this to build every outgoing link it generates itself
   // (email verification, password reset, etc). It reads BETTER_AUTH_URL
@@ -202,7 +202,7 @@ export const auth = betterAuth({
         const resend = new Resend(process.env.RESEND_API_KEY!);
         const name   = user.name ?? "";
         await resend.emails.send({
-          from:    `${process.env.RESEND_FROM_NAME ?? "AI Platform"} <${process.env.RESEND_FROM_EMAIL ?? "noreply@yourplatform.com"}>`,
+          from:    `${process.env.RESEND_FROM_NAME ?? "OpenPortal"} <${process.env.RESEND_FROM_EMAIL ?? "noreply@yourplatform.com"}>`,
           to:      user.email,
           subject: "تأكيد البريد الإلكتروني | Verify Your Email",
           html: `

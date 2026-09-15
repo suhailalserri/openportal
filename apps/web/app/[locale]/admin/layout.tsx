@@ -25,13 +25,13 @@ export default async function AdminLayout({ children, params }: Props) {
   if (!isAdmin) redirect(`/${locale}/auth/login`);
 
   return (
-    <div className="flex h-screen bg-[#0F172A]">
+    <div className="flex h-screen bg-[#17130F]">
       {/* Admin sidebar */}
-      <aside className="w-56 flex-shrink-0 bg-[#1E293B] border-e border-slate-700 flex flex-col
+      <aside className="w-56 flex-shrink-0 bg-[#1D1815] border-e border-slate-700 flex flex-col
                         shadow-[var(--shadow-elevation-2)]">
         <div className="p-4 border-b border-slate-700">
-          <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">Admin Panel</p>
-          <p className="text-lg font-bold text-white mt-1">
+          <p className="text-xs text-[color:var(--accent-blue-light)] font-medium uppercase tracking-wider">OpenPortal Admin</p>
+          <p className="font-display text-lg text-slate-50 mt-1">
             {locale === "ar" ? "لوحة الإدارة" : "Dashboard"}
           </p>
         </div>

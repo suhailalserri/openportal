@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "AI Platform",
-    "nameEn": "AI Platform",
-    "tagline": "Advanced AI at an accessible price"
+    "name": "OpenPortal",
+    "nameEn": "OpenPortal",
+    "tagline": "Advanced AI models, accessibly priced"
   },
   "nav": {
     "chat": "Chat",

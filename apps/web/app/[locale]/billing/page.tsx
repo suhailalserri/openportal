@@ -94,9 +94,9 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] p-4 md:p-8">
+    <div className="min-h-screen bg-[#17130F] p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-white">{t("nav.billing")}</h1>
+        <h1 className="font-display text-2xl text-slate-50">{t("nav.billing")}</h1>
 
         {/* Balance card */}
         <Card>
@@ -122,7 +122,7 @@ export default function BillingPage() {
         {/* Redeem code */}
         <Card id="redeem-box">
           <CardHeader>
-            <h2 className="font-semibold text-white">{t("redeem.title")}</h2>
+            <h2 className="font-semibold text-slate-50">{t("redeem.title")}</h2>
             <p className="text-sm text-slate-400">{t("redeem.description")}</p>
           </CardHeader>
           <CardContent>
@@ -134,7 +134,7 @@ export default function BillingPage() {
                   placeholder={t("redeem.placeholder")}
                   dir="ltr"
                   maxLength={32}
-                  className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3
+                  className="flex-1 bg-[#17130F] border border-slate-600 rounded-xl px-4 py-3
                              text-white placeholder-slate-500 focus:outline-none focus:border-blue-500
                              text-sm font-mono tracking-wider"
                 />
@@ -155,7 +155,7 @@ export default function BillingPage() {
         {/* Model pricing */}
         <Card>
           <CardHeader>
-            <h2 className="font-semibold text-white">{t("models.pricing")}</h2>
+            <h2 className="font-semibold text-slate-50">{t("models.pricing")}</h2>
           </CardHeader>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -191,7 +191,7 @@ export default function BillingPage() {
         {/* Transaction history */}
         <Card>
           <CardHeader>
-            <h2 className="font-semibold text-white">{t("balance.history")}</h2>
+            <h2 className="font-semibold text-slate-50">{t("balance.history")}</h2>
           </CardHeader>
           <div>
             {txLoading ? (

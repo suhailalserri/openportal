@@ -19,15 +19,13 @@ function ConversationItem({ conv, locale, isActive }: {
   locale:   string;
   isActive: boolean;
 }) {
-  // trpc.models.list is a small, cached query — cheap to call once per
-  // sidebar render just to look up a conversation's badge.
   const { data: modelList = [] } = trpc.models.list.useQuery();
   const model = modelList.find(m => m.id === conv.modelId);
   return (
     <Link href={`/${locale}/chat/${conv.id}`}
-      className={`block px-3 py-2 rounded-xl text-sm transition-colors group
-        ${isActive ? "bg-blue-600/20 border border-blue-700/40 text-white"
-          : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+      className={`block px-3 py-2.5 rounded-xl text-sm transition-colors group
+        ${isActive ? "bg-[color:var(--accent-blue)]/12 border border-[color:var(--accent-blue)]/30 text-slate-50"
+          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"}`}>
       <div className="flex items-center gap-2 mb-0.5">
         {model && <span className="text-xs">{model.badge}</span>}
         <span className="truncate font-medium">
@@ -64,18 +62,22 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
 
       <aside className={`
         fixed md:relative inset-y-0 start-0 z-40
-        flex flex-col bg-[#1E293B] border-e border-slate-700
+        flex flex-col bg-[color:var(--bg-surface)] border-e border-slate-800
         shadow-[var(--shadow-elevation-2)] md:shadow-none
         transition-all duration-200 ease-in-out
         ${isOpen ? "w-72 translate-x-0" : "w-0 -translate-x-full md:translate-x-0 md:w-0 overflow-hidden"}
         md:${isOpen ? "w-72" : "w-0"}
       `}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-700 flex-shrink-0">
-          <Link href={`/${locale}/chat`} className="font-bold text-white text-lg hover:text-blue-400 transition-colors">
-            {locale === "ar" ? "منصة الذكاء" : "AI Platform"}
+        {/* Header — wordmark, bilingual */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 flex-shrink-0">
+          <Link href={`/${locale}/chat`} className="flex items-baseline gap-2 group">
+            <span className="w-6 h-6 rounded-md bg-[color:var(--accent-blue)] shrink-0 flex items-center justify-center
+                              text-white text-xs font-display font-semibold">O</span>
+            <span className="font-display text-lg text-slate-50 group-hover:text-[color:var(--accent-blue-light)] transition-colors">
+              {locale === "ar" ? "البوابة المفتوحة" : "OpenPortal"}
+            </span>
           </Link>
-          <button onClick={onClose} className="md:hidden p-1 text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -83,9 +85,9 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
         {/* New Chat */}
         <div className="p-3 flex-shrink-0">
           <button onClick={() => { router.push(`/${locale}/chat`); onClose(); }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 gradient-primary
-                       text-white rounded-xl font-medium text-sm transition-all active:scale-[0.98]
-                       shadow-[var(--shadow-elevation-1)] hover:shadow-[var(--shadow-elevation-2)]">
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[color:var(--accent-blue)]
+                       hover:brightness-110 text-white rounded-xl font-medium text-sm transition-all active:scale-[0.98]
+                       shadow-[var(--shadow-elevation-1)]">
             <SquarePen className="h-4 w-4" /> {t("chat.newChat")}
           </button>
         </div>
@@ -103,7 +105,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
                 if (!items?.length) return null;
                 return (
                   <div key={key} className="mb-2">
-                    <p className="text-xs text-slate-500 px-3 py-2 font-medium uppercase tracking-wider">
+                    <p className="text-xs text-slate-600 px-3 py-2 font-medium uppercase tracking-wider">
                       {t(labelKey as Parameters<typeof t>[0])}
                     </p>
                     <div className="space-y-0.5">
@@ -129,21 +131,23 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-slate-700 space-y-2 flex-shrink-0">
+        <div className="p-3 border-t border-slate-800 space-y-2 flex-shrink-0">
           <AccountMenu locale={locale} />
           {session && <BalanceWidget locale={locale} />}
           <div className="flex items-center justify-between gap-2">
             <LanguageSwitcher />
-            <Link href={`/${locale}/settings`}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              aria-label={t("nav.settings")}>
-              <Settings className="h-4 w-4" />
-            </Link>
-            <Link href={`/${locale}/admin/dashboard`}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              aria-label={t("nav.admin")}>
-              <ShieldCheck className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-1">
+              <Link href={`/${locale}/settings`}
+                className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+                aria-label={t("nav.settings")}>
+                <Settings className="h-4 w-4" />
+              </Link>
+              <Link href={`/${locale}/admin/dashboard`}
+                className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+                aria-label={t("nav.admin")}>
+                <ShieldCheck className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </aside>

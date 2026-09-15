@@ -37,10 +37,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-noise bg-[color:var(--bg-base)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Card className="p-8 shadow-[var(--shadow-elevation-3)]">
-          <h2 className="text-xl font-semibold text-white mb-6">{t("auth.resetPassword")}</h2>
+          <h2 className="text-xl font-semibold text-slate-50 mb-6">{t("auth.resetPassword")}</h2>
 
           {done ? (
             <div className="text-center py-4">

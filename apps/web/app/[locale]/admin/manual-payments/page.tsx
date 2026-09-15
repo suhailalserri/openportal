@@ -42,7 +42,7 @@ export default function AdminManualPaymentsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">{isAr ? "طلبات التحويل اليدوي" : "Manual Transfer Claims"}</h1>
+      <h1 className="font-display text-2xl text-slate-50">{isAr ? "طلبات التحويل اليدوي" : "Manual Transfer Claims"}</h1>
 
       <div className="flex gap-2">
         {STATUS_TABS.map((s) => (
@@ -86,7 +86,7 @@ export default function AdminManualPaymentsPage() {
                 <p className="text-xs text-slate-500 whitespace-nowrap">{formatDate(row.claim.createdAt, locale)}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-[#0F172A] rounded-lg p-3">
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 bg-[#17130F] rounded-lg p-3">
                 {row.claim.submittedTxRef && (
                   <p><span className="text-slate-500">{isAr ? "مرجع التحويل: " : "Tx ref: "}</span>
                     <span className="font-mono text-slate-200" dir="ltr">{row.claim.submittedTxRef}</span></p>
@@ -123,7 +123,7 @@ export default function AdminManualPaymentsPage() {
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         placeholder={isAr ? "سبب الرفض" : "Rejection reason"}
-                        className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl px-3 py-2 text-sm text-white
+                        className="flex-1 bg-[#17130F] border border-slate-600 rounded-xl px-3 py-2 text-sm text-white
                                    placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                       <Button size="sm" variant="danger" loading={rejectMutation.isPending}

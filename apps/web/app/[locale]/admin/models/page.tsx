@@ -70,7 +70,7 @@ function PublishRow({ model, onDone }: { model: PendingModel; onDone: () => void
           <div className="space-y-1.5">
             <label className="block text-sm font-medium text-slate-300">الفئة</label>
             <select value={form.tier} onChange={e => setForm(f => ({ ...f, tier: e.target.value as "standard" | "premium" }))}
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500">
+              className="w-full bg-[#17130F] border border-slate-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500">
               <option value="standard">standard</option>
               <option value="premium">premium</option>
             </select>
@@ -163,7 +163,7 @@ export default function AdminModelsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">النماذج</h1>
+      <h1 className="font-display text-2xl text-slate-50">النماذج</h1>
 
       <PendingQueue />
 

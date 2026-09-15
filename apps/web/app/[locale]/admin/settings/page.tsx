@@ -16,7 +16,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold text-white">إعدادات المنصة</h1>
+      <h1 className="font-display text-2xl text-slate-50">إعدادات المنصة</h1>
 
       {/* Branding */}
       <Card>
@@ -24,20 +24,20 @@ export default function AdminSettingsPage() {
         <CardContent className="space-y-4">
           <div>
             <label className="block text-sm text-slate-400 mb-1.5">اسم المنصة (عربي)</label>
-            <input defaultValue="منصة الذكاء"
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-2.5
+            <input defaultValue="البوابة المفتوحة"
+              className="w-full bg-[#17130F] border border-slate-600 rounded-xl px-4 py-2.5
                          text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1.5">اسم المنصة (English)</label>
-            <input defaultValue="AI Platform" dir="ltr"
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-2.5
+            <input defaultValue="OpenPortal" dir="ltr"
+              className="w-full bg-[#17130F] border border-slate-600 rounded-xl px-4 py-2.5
                          text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1.5">رابط الدعم</label>
             <input type="url" dir="ltr" placeholder="https://t.me/yoursupport"
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-2.5
+              className="w-full bg-[#17130F] border border-slate-600 rounded-xl px-4 py-2.5
                          text-white text-sm focus:outline-none focus:border-blue-500" />
           </div>
         </CardContent>
@@ -50,7 +50,7 @@ export default function AdminSettingsPage() {
           <div className="flex items-center gap-3">
             <input type="number" min="0" value={welcomeCredits}
               onChange={e => setWelcomeCredits(e.target.value)}
-              className="w-32 bg-[#0F172A] border border-slate-600 rounded-xl px-4 py-2.5
+              className="w-32 bg-[#17130F] border border-slate-600 rounded-xl px-4 py-2.5
                          text-white text-sm focus:outline-none focus:border-blue-500" />
             <span className="text-slate-400 text-sm">رصيد مجاني عند التسجيل (0 = معطل)</span>
           </div>

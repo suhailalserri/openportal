@@ -62,7 +62,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">لوحة التحكم</h1>
+        <h1 className="font-display text-2xl text-slate-50">لوحة التحكم</h1>
         {stats.isFetching && <span className="text-xs text-slate-500">جارٍ التحديث…</span>}
       </div>
 

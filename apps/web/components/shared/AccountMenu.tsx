@@ -19,16 +19,15 @@ export function AccountMenu({ locale }: Props) {
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   if (isPending) {
-    return <div className="h-9 w-full bg-slate-700/50 animate-pulse rounded-xl" />;
+    return <div className="h-10 w-full bg-slate-800 animate-pulse rounded-xl" />;
   }
 
-  // Logged out: single clear call-to-action
   if (!session) {
     return (
       <Link
         href={`/${locale}/auth/login`}
-        className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl text-sm
-                   font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+        className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm
+                   font-medium bg-[color:var(--accent-blue)] hover:brightness-110 text-white transition-all"
       >
         <User className="h-4 w-4" />
         {locale === "ar" ? "تسجيل الدخول" : "Sign in"}
@@ -48,12 +47,12 @@ export function AccountMenu({ locale }: Props) {
     <DropdownMenu dir={dir}>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-xl text-sm
-                     text-slate-300 hover:bg-slate-700 transition-colors
-                     data-[state=open]:bg-slate-700"
+          className="flex items-center gap-2.5 w-full px-2 py-2 rounded-xl text-sm
+                     text-slate-300 hover:bg-slate-800 transition-colors
+                     data-[state=open]:bg-slate-800"
         >
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600
-                            text-white text-xs font-semibold shrink-0">
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-[color:var(--accent-blue)]
+                            text-white text-xs font-semibold shrink-0 font-display">
             {initial}
           </span>
           <span className="truncate flex-1 text-start">{email}</span>

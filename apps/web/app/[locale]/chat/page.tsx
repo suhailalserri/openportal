@@ -121,11 +121,11 @@ export default function ChatPage() {
 
   const typingIndicator = (
     <div className="flex gap-3 animate-fade-in">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
+      <div className="w-8 h-8 rounded-full bg-[color:var(--accent-blue)]
                       flex items-center justify-center text-white text-xs font-bold">
         AI
       </div>
-      <div className="bg-[#1E293B] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
+      <div className="bg-[#1D1815] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
         <div className="flex gap-1.5 items-center h-5">
           {[0,1,2].map(i => (
             <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
@@ -140,8 +140,8 @@ export default function ChatPage() {
     <ChatLayout locale={locale}>
       <div className="flex flex-col h-full">
         {/* Chat header */}
-        <header className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-[#1E293B]">
-          <h2 className="text-sm font-medium text-slate-300 truncate max-w-[200px]">
+        <header className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-[#1D1815]">
+          <h2 className="text-sm font-medium text-slate-300 truncate max-w-[200px] font-display">
             {messages.length > 0
               ? (messages[0]?.content?.slice(0, 40) ?? t("chat.newChat"))
               : t("chat.newChat")}

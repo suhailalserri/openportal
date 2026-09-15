@@ -35,8 +35,8 @@ export function AdminNav({ locale }: Props) {
               href={`/${locale}/admin/${href}`}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors
                 ${isActive
-                  ? "bg-blue-600/20 border border-blue-700/40 text-white"
-                  : "text-slate-400 border border-transparent hover:text-white hover:bg-slate-700"}`}
+                  ? "bg-[color:var(--accent-blue)]/12 border border-[color:var(--accent-blue)]/30 text-slate-50"
+                  : "text-slate-400 border border-transparent hover:text-slate-100 hover:bg-slate-800"}`}
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span>{locale === "ar" ? labelAr : labelEn}</span>
@@ -46,7 +46,7 @@ export function AdminNav({ locale }: Props) {
       </nav>
       <div className="p-3 border-t border-slate-700">
         <a href={`/${locale}/chat`}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors">
           <ArrowLeft className="h-4 w-4" style={{ transform: isRTL ? "scaleX(-1)" : "none" }} />
           {locale === "ar" ? "العودة للتطبيق" : "Back to App"}
         </a>
