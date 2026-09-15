@@ -16,10 +16,19 @@ jobs:
       - uses: pnpm/action-setup@v4
 
       # NOTE: deliberately NOT using setup-node's built-in pnpm cache here.
-      # That cache is what caused the esbuild postinstall failure ("Expected
-      # 0.28.2 but got 0.19.12") — a stale cached binary from a previous
-      # run's store getting reused for a different esbuild version. A fresh,
-      # uncached install avoids the whole class of bug for this one-off task.
+      # ORIGINAL cause suspected here was a stale cached binary; that theory
+      # was disproven by a repeat failure with caching already off. Actual
+      # root cause: drizzle-kit, tsx, and vite each depend on a DIFFERENT
+      # esbuild version (0.18/0.19, 0.28, 0.21 respectively), so pnpm
+      # installs multiple esbuild copies side by side — and esbuild's own
+      # postinstall version-check script has a known race under that
+      # multi-version layout, where one version's install.js validates
+      # against a sibling version's package.json/binary mid-install.
+      # Fixed via `pnpm.overrides.esbuild` in the root package.json, which
+      # forces a single esbuild version workspace-wide and removes the
+      # multi-version tree the race depends on. Leaving cache disabled
+      # here anyway since a clean install is still the right call for a
+      # one-off lockfile-regeneration job.
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
