@@ -17,9 +17,9 @@
   --font-mono:   "JetBrains Mono", monospace;
 
   /* ── Neutral scale — warm ink, not cold slate ─────────────────────
-     Every bg-slate-*/text-slate-*/border-slate-* class already used
-     throughout the app repaints through this scale, so pages we don't
-     hand-restyle still land on-brand. */
+     Every "bg-slate-N", "text-slate-N", "border-slate-N" class already
+     used throughout the app repaints through this scale, so pages we
+     don't hand-restyle still land on-brand. */
   --color-slate-50:  #F7F4EF;
   --color-slate-100: #EFEAE2;
   --color-slate-200: #E1D9CC;
