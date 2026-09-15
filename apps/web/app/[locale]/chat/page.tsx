@@ -1,14 +1,18 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useChat } from "ai/react";
 import { toast } from "sonner";
-import { ChatLayout }    from "@/components/chat/ChatLayout";
-import { ModelSelector } from "@/components/chat/ModelSelector";
-import { InputBar }      from "@/components/chat/InputBar";
-import { MessageBubble } from "@/components/chat/MessageBubble";
-import { useBalance }    from "@/hooks/useBalance";
+import { ChatLayout }        from "@/components/chat/ChatLayout";
+import { ModelSelector }     from "@/components/chat/ModelSelector";
+import { InputBar }          from "@/components/chat/InputBar";
+import { EmptyState }        from "@/components/chat/EmptyState";
+import { MessageList }       from "@/components/chat/MessageList";
+import { OfflineBanner, TabConflictBanner, StreamErrorBanner } from "@/components/chat/ErrorStates";
+import { useBalance }        from "@/hooks/useBalance";
+import { useOnlineStatus }   from "@/hooks/useOnlineStatus";
+import { useTabConflict }    from "@/hooks/useTabConflict";
 
 export default function ChatPage() {
   const t = useTranslations();
@@ -22,9 +26,16 @@ export default function ChatPage() {
   const balanceState = useBalance();
   const balance       = balanceState.microCredits;
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const messagesEndRef         = useRef<HTMLDivElement>(null);
+  const isOnline       = useOnlineStatus();
+  const { otherTabOpen, otherTabSending, announceSending } = useTabConflict(conversationId);
 
-  const { messages, input, handleSubmit, isLoading, stop, setInput, error } = useChat({
+  // EDGE CASE 7: track whether the most recent assistant message was cut
+  // short by a dropped stream, so we can label it and offer a real retry
+  // instead of a "click to retry" label that does nothing.
+  const [partialMessageId, setPartialMessageId] = useState<string | null>(null);
+  const [streamErrorMsg, setStreamErrorMsg]     = useState<string | null>(null);
+
+  const { messages, isLoading, stop, append, reload } = useChat({
     api: "/api/chat",
     // The backend streams plain text deltas (no SSE framing, no JSON
     // envelope) — this must match, or useChat's default "data" protocol
@@ -36,28 +47,37 @@ export default function ChatPage() {
     // (gateway.service.ts), so the balance shown mid-stream is stale by
     // design — refresh right when we know a debit likely just happened,
     // instead of waiting up to 30s for the next poll.
-    onFinish: () => { balanceState.refresh(); },
+    onFinish: () => { balanceState.refresh(); setPartialMessageId(null); setStreamErrorMsg(null); },
     onError: (err) => {
+      let msg = t("errors.streamInterrupted");
       if (err.message.includes("INSUFFICIENT_BALANCE")) {
-        toast.error(t("errors.insufficientBalance"));
+        msg = t("errors.insufficientBalance");
         balanceState.refresh();
       } else if (err.message.includes("CONTEXT_TOO_LONG")) {
-        toast.error(t("chat.contextExceeded"));
+        msg = t("chat.contextExceeded");
       } else if (err.message.includes("MODEL_UNAVAILABLE")) {
-        toast.error(t("errors.modelUnavailable"));
-      } else {
-        toast.error(t("errors.streamInterrupted"));
+        msg = t("errors.modelUnavailable");
+      } else if (!isOnline) {
+        msg = t("chat.offline");
       }
+      toast.error(msg);
+      setStreamErrorMsg(msg);
+      setPartialMessageId(prev => {
+        const last = messages[messages.length - 1];
+        return last?.role === "assistant" ? last.id : prev;
+      });
     },
   });
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  function handleRetry() {
+    setStreamErrorMsg(null);
+    setPartialMessageId(null);
+    reload({ body: { model: modelId, conversationId } });
+  }
 
-  async function handleSend(text: string) {
+  const handleSend = useCallback(async (text: string) => {
     if (balance <= 0) { toast.error(t("errors.insufficientBalance")); return; }
+    if (!isOnline) { toast.error(t("chat.offline")); return; }
 
     // A brand-new chat has no conversation row yet. Create one up front
     // (same endpoint the sidebar's "New chat" already relies on existing)
@@ -81,11 +101,39 @@ export default function ChatPage() {
       }
     }
 
-    setInput(text);
-    handleSubmit(new Event("submit") as unknown as React.FormEvent, {
-      body: { model: modelId, conversationId: id },
-    });
-  }
+    setStreamErrorMsg(null);
+    announceSending();
+    // BUG FIX: the previous implementation called `setInput(text)` then
+    // immediately `handleSubmit(...)` in the same tick. `setInput` only
+    // schedules a state update — `handleSubmit` read the *old* `input`
+    // value (empty string on the very first send), so nothing was sent
+    // until the input state caught up a render later. `append()` takes
+    // the message content directly and sends it right away, no state
+    // race involved.
+    await append(
+      { role: "user", content: text },
+      { body: { model: modelId, conversationId: id } }
+    );
+  }, [balance, isOnline, conversationId, locale, modelId, append, announceSending, t]);
+
+  const meta = partialMessageId ? { [partialMessageId]: { isPartial: true } } : undefined;
+
+  const typingIndicator = (
+    <div className="flex gap-3 animate-fade-in">
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
+                      flex items-center justify-center text-white text-xs font-bold">
+        AI
+      </div>
+      <div className="bg-[#1E293B] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
+        <div className="flex gap-1.5 items-center h-5">
+          {[0,1,2].map(i => (
+            <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <ChatLayout locale={locale}>
@@ -100,58 +148,29 @@ export default function ChatPage() {
           <ModelSelector value={modelId} onChange={setModelId} />
         </header>
 
+        {!isOnline && <OfflineBanner locale={locale} />}
+        {isOnline && otherTabOpen && <TabConflictBanner sending={otherTabSending} />}
+
         {/* Messages */}
         <main className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
-            /* Empty state */
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fade-in">
-              <div className="text-6xl mb-6">🧠</div>
-              <h2 className="text-2xl font-bold text-white mb-3">
-                {locale === "ar" ? "كيف يمكنني مساعدتك اليوم؟" : "How can I help you today?"}
-              </h2>
-              <p className="text-slate-400 max-w-md">
-                {locale === "ar"
-                  ? "اختر نموذج الذكاء الاصطناعي واكتب رسالتك للبدء"
-                  : "Choose an AI model and type your message to get started"}
-              </p>
-            </div>
+            <EmptyState locale={locale} />
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  locale={locale}
-                  message={{
-                    role:       msg.role as "user" | "assistant",
-                    content:    msg.content,
-                    creditCost: null,
-                    modelId:    modelId,
-                    isPartial:  false,
-                  }}
-                />
-              ))}
-
-              {/* Typing indicator */}
-              {isLoading && (
-                <div className="flex gap-3 animate-fade-in">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
-                                  flex items-center justify-center text-white text-xs font-bold">
-                    AI
-                  </div>
-                  <div className="bg-[#1E293B] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
-                    <div className="flex gap-1.5 items-center h-5">
-                      {[0,1,2].map(i => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
-                          style={{ animationDelay: `${i * 0.15}s` }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+            <MessageList
+              messages={messages.map(m => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content }))}
+              meta={meta}
+              locale={locale}
+              modelId={modelId}
+              isLoading={isLoading}
+              typingIndicator={typingIndicator}
+              onRetryLast={handleRetry}
+            />
           )}
         </main>
+
+        {streamErrorMsg && !isLoading && (
+          <StreamErrorBanner message={streamErrorMsg} onRetry={handleRetry} locale={locale} />
+        )}
 
         {/* Input */}
         <InputBar
@@ -159,6 +178,7 @@ export default function ChatPage() {
           onStop={stop}
           isLoading={isLoading}
           disabled={balance <= 0}
+          offline={!isOnline}
           modelId={modelId}
           locale={locale}
         />

@@ -1,8 +1,7 @@
 "use client";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { estimateTokens } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
+import { TokenCounter } from "./TokenCounter";
 
 interface InputBarProps {
   onSubmit:  (text: string) => void;
@@ -11,30 +10,21 @@ interface InputBarProps {
   disabled:  boolean;
   modelId:   string;
   locale:    string;
+  // EDGE CASE 6: block sending while offline instead of letting the
+  // request fail silently — the placeholder + disabled state make this
+  // visible right at the input, in addition to the top-of-page banner.
+  offline?:  boolean;
 }
 
-export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, locale }: InputBarProps) {
+export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, locale, offline }: InputBarProps) {
   const t             = useTranslations();
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
-  const { data: modelList = [] } = trpc.models.list.useQuery();
-  const model         = modelList.find(m => m.id === modelId);
-  const estTokens     = estimateTokens(text);
-  const isOverLimit   = !!model && estTokens > model.contextWindow * 0.9;
+  const [isOverLimit, setIsOverLimit] = useState(false);
   const isRTL         = locale === "ar";
+  const isBlocked     = disabled || !!offline;
 
-  // Pre-send cost estimate. The input side is a real number (we know the
-  // text); the reply side can't be known until the model actually answers,
-  // so we assume a typical reply length as a rough midpoint — this is
-  // clearly labeled "estimated" in the UI, not presented as an exact price.
-  // Uses the same creditsPerKInput/Output the model picker already fetches
-  // (models.router.ts's `list`), so no extra request is needed.
-  const TYPICAL_REPLY_TOKENS = 400;
-  const estInputCredits = model ? Math.ceil((estTokens / 1000) * model.creditsPerKInput) : 0;
-  const estReplyCredits = model
-    ? Math.ceil((Math.min(TYPICAL_REPLY_TOKENS, model.maxOutputTokens) / 1000) * model.creditsPerKOutput)
-    : 0;
-  const estTotalCredits = model ? Math.max(estInputCredits + estReplyCredits, 1) : 0;
+  const handleOverLimitChange = useCallback((v: boolean) => setIsOverLimit(v), []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -53,11 +43,17 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
 
   function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || isLoading || disabled || isOverLimit) return;
+    if (!trimmed || isLoading || isBlocked || isOverLimit) return;
     onSubmit(trimmed);
     setText("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
+
+  const placeholder = offline
+    ? t("chat.offline")
+    : disabled
+      ? t("balance.zeroMessage")
+      : t("chat.placeholder");
 
   return (
     <div className="border-t border-slate-700 bg-[#1E293B] p-4">
@@ -75,8 +71,8 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? t("balance.zeroMessage") : t("chat.placeholder")}
-          disabled={disabled || isLoading}
+          placeholder={placeholder}
+          disabled={isBlocked || isLoading}
           rows={1}
           dir={isRTL ? "rtl" : "ltr"}
           className="flex-1 bg-transparent resize-none text-white placeholder-slate-500
@@ -84,24 +80,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
                      disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
-        {/* Token counter + estimated credit cost */}
-        {text && (
-          <div className="flex flex-col items-end gap-0.5 self-center leading-tight">
-            <span className={`text-xs ${isOverLimit ? "text-red-400" : "text-slate-500"}`}>
-              {estTokens.toLocaleString()} {t("models.tokens")}
-            </span>
-            {model && (
-              <span
-                className="text-[11px] text-slate-500"
-                title={isRTL
-                  ? "تقدير تقريبي: تكلفة الإدخال مؤكدة، تكلفة الرد تُحسب على طول رد افتراضي متوسط وقد تختلف فعلياً."
-                  : "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ."}
-              >
-                {isRTL ? `≈ ${estTotalCredits} رصيد تقريباً` : `≈ ${estTotalCredits} credits (est.)`}
-              </span>
-            )}
-          </div>
-        )}
+        <TokenCounter text={text} modelId={modelId} locale={locale} onOverLimitChange={handleOverLimitChange} />
 
         {/* Send / Stop button */}
         {isLoading ? (
@@ -113,7 +92,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
           </button>
         ) : (
           <button onClick={handleSend}
-            disabled={!text.trim() || disabled || isOverLimit}
+            disabled={!text.trim() || isBlocked || isOverLimit}
             className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed
                        rounded-xl text-white transition-colors flex-shrink-0">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

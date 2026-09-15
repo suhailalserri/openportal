@@ -9,9 +9,13 @@ import type { Message } from "@ai-platform/db";
 interface MessageBubbleProps {
   message: Pick<Message, "role" | "content" | "creditCost" | "modelId" | "isPartial">;
   locale:  string;
+  // Present only on the most recent assistant message when it was left
+  // partial by an interrupted stream — lets the "click to retry" copy
+  // actually do something instead of being static text.
+  onRetry?: () => void;
 }
 
-export function MessageBubble({ message, locale }: MessageBubbleProps) {
+export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) {
   const t           = useTranslations();
   const [copied, setCopied] = useState(false);
   const isUser      = message.role === "user";
@@ -53,9 +57,19 @@ export function MessageBubble({ message, locale }: MessageBubbleProps) {
 
           {/* Partial response indicator */}
           {message.isPartial && !isUser && (
-            <p className="text-xs text-amber-400 mt-2 border-t border-slate-600 pt-2">
-              {t("chat.partialResponse")}
-            </p>
+            onRetry ? (
+              <button
+                onClick={onRetry}
+                className="text-xs text-amber-400 mt-2 border-t border-slate-600 pt-2 w-full text-start
+                           hover:text-amber-300 transition-colors"
+              >
+                {t("chat.partialResponse")}
+              </button>
+            ) : (
+              <p className="text-xs text-amber-400 mt-2 border-t border-slate-600 pt-2">
+                {t("chat.partialResponse")}
+              </p>
+            )
           )}
         </div>
 

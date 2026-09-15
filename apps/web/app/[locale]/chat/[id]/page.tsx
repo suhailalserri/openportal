@@ -1,56 +1,140 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useChat } from "ai/react";
+import { useChat, type Message as AiMessage } from "ai/react";
 import { toast } from "sonner";
-import { ChatLayout }    from "@/components/chat/ChatLayout";
-import { ModelSelector } from "@/components/chat/ModelSelector";
-import { InputBar }      from "@/components/chat/InputBar";
-import { MessageBubble } from "@/components/chat/MessageBubble";
-import { Skeleton }      from "@/components/ui/skeleton";
-import { useBalance }    from "@/hooks/useBalance";
+import { ChatLayout }        from "@/components/chat/ChatLayout";
+import { ModelSelector }     from "@/components/chat/ModelSelector";
+import { InputBar }          from "@/components/chat/InputBar";
+import { EmptyState }        from "@/components/chat/EmptyState";
+import { MessageList, type ChatMessageMeta } from "@/components/chat/MessageList";
+import { OfflineBanner, TabConflictBanner, StreamErrorBanner } from "@/components/chat/ErrorStates";
+import { Skeleton }          from "@/components/ui/skeleton";
+import { useBalance }        from "@/hooks/useBalance";
+import { useOnlineStatus }   from "@/hooks/useOnlineStatus";
+import { useTabConflict }    from "@/hooks/useTabConflict";
+
+interface DbMessage {
+  id:          string;
+  role:        "user" | "assistant";
+  content:     string;
+  creditCost:  number | null;
+  isPartial:   boolean | null;
+}
 
 export default function ConversationPage() {
   const t = useTranslations();
   const { locale, id: conversationId } = useParams<{ locale: string; id: string }>();
   const [modelId, setModelId] = useState("claude-sonnet-4-6");
   const [title,   setTitle]   = useState<string | null>(null);
-  const { isZero }            = useBalance();
-  const messagesEndRef        = useRef<HTMLDivElement>(null);
+  const { isZero, refresh: refreshBalance } = useBalance();
+  const isOnline               = useOnlineStatus();
+  const { otherTabOpen, otherTabSending, announceSending } = useTabConflict(conversationId);
 
-  const { messages, isLoading, stop, setInput, handleSubmit, error } = useChat({
+  // Loaded from the server once per conversation; keyed by message id so
+  // history retains its real creditCost/isPartial instead of every past
+  // message being flattened to "creditCost: null, isPartial: false".
+  const [historyMeta, setHistoryMeta] = useState<Record<string, ChatMessageMeta>>({});
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [partialMessageId, setPartialMessageId] = useState<string | null>(null);
+  const [streamErrorMsg, setStreamErrorMsg]     = useState<string | null>(null);
+  const loadedFor = useRef<string | null>(null);
+
+  const { messages, isLoading, stop, append, reload, setMessages } = useChat({
     api:  "/api/chat",
     id:   conversationId,
     streamProtocol: "text",
     body: { model: modelId, conversationId },
+    onFinish: () => { refreshBalance(); setPartialMessageId(null); setStreamErrorMsg(null); },
     onError: (err) => {
-      if (err.message.includes("INSUFFICIENT_BALANCE")) toast.error(t("errors.insufficientBalance"));
-      else if (err.message.includes("CONTEXT_TOO_LONG"))    toast.error(t("chat.contextExceeded"));
-      else toast.error(t("errors.streamInterrupted"));
+      let msg = t("errors.streamInterrupted");
+      if (err.message.includes("INSUFFICIENT_BALANCE")) {
+        msg = t("errors.insufficientBalance");
+        refreshBalance();
+      } else if (err.message.includes("CONTEXT_TOO_LONG")) {
+        msg = t("chat.contextExceeded");
+      } else if (err.message.includes("MODEL_UNAVAILABLE")) {
+        msg = t("errors.modelUnavailable");
+      } else if (!isOnline) {
+        msg = t("chat.offline");
+      }
+      toast.error(msg);
+      setStreamErrorMsg(msg);
+      setPartialMessageId(prev => {
+        const last = messages[messages.length - 1];
+        return last?.role === "assistant" ? last.id : prev;
+      });
     },
   });
 
-  // Load existing conversation title on mount
+  // Load conversation title/model AND prior messages exactly once per
+  // conversation id. Previously this only pulled title/modelId and threw
+  // the `messages` array away, so opening an existing conversation always
+  // rendered as if it were brand new.
   useEffect(() => {
+    if (loadedFor.current === conversationId) return;
+    loadedFor.current = conversationId;
+    setHistoryLoading(true);
     fetch(`/api/conversations/${conversationId}`)
       .then(r => r.json())
-      .then((d: { title?: string; modelId?: string }) => {
+      .then((d: { title?: string; modelId?: string; messages?: DbMessage[] }) => {
         if (d.title)   setTitle(d.title);
         if (d.modelId) setModelId(d.modelId);
+        if (d.messages?.length) {
+          const asAiMessages: AiMessage[] = d.messages.map(m => ({
+            id: m.id, role: m.role, content: m.content,
+          }));
+          setMessages(asAiMessages);
+          const meta: Record<string, ChatMessageMeta> = {};
+          for (const m of d.messages) {
+            meta[m.id] = { creditCost: m.creditCost, isPartial: !!m.isPartial };
+          }
+          setHistoryMeta(meta);
+        }
       })
-      .catch(() => {});
-  }, [conversationId]);
+      .catch(() => { toast.error(t("errors.network")); })
+      .finally(() => setHistoryLoading(false));
+  }, [conversationId, setMessages, t]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  function handleSend(text: string) {
-    if (isZero) { toast.error(t("errors.insufficientBalance")); return; }
-    setInput(text);
-    handleSubmit(new Event("submit") as unknown as React.FormEvent);
+  function handleRetry() {
+    setStreamErrorMsg(null);
+    setPartialMessageId(null);
+    reload({ body: { model: modelId, conversationId } });
   }
+
+  const handleSend = useCallback(async (text: string) => {
+    if (isZero) { toast.error(t("errors.insufficientBalance")); return; }
+    if (!isOnline) { toast.error(t("chat.offline")); return; }
+
+    setStreamErrorMsg(null);
+    announceSending();
+    // BUG FIX: see chat/page.tsx — `setInput` + immediate `handleSubmit`
+    // sent whatever `input` held from the *previous* render (empty on the
+    // first message ever sent in a session), so the first click silently
+    // did nothing. `append()` sends the given content immediately.
+    await append(
+      { role: "user", content: text },
+      { body: { model: modelId, conversationId } }
+    );
+  }, [isZero, isOnline, modelId, conversationId, append, announceSending, t]);
+
+  const meta = { ...historyMeta, ...(partialMessageId ? { [partialMessageId]: { isPartial: true } } : {}) };
+
+  const typingIndicator = (
+    <div className="flex gap-3 animate-fade-in">
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
+                      flex items-center justify-center text-white text-xs">AI</div>
+      <div className="bg-[#1E293B] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
+        <div className="flex gap-1.5 h-5 items-center">
+          {[0,1,2].map(i => (
+            <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <ChatLayout locale={locale}>
@@ -62,39 +146,35 @@ export default function ConversationPage() {
           <ModelSelector value={modelId} onChange={setModelId} />
         </header>
 
+        {!isOnline && <OfflineBanner locale={locale} />}
+        {isOnline && otherTabOpen && <TabConflictBanner sending={otherTabSending} />}
+
         <main className="flex-1 overflow-y-auto">
-          {messages.length === 0 ? (
+          {historyLoading ? (
             <div className="flex items-center justify-center h-full">
               <Skeleton className="w-32 h-32 rounded-full" />
             </div>
+          ) : messages.length === 0 ? (
+            <EmptyState locale={locale} />
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-              {messages.map(msg => (
-                <MessageBubble key={msg.id} locale={locale}
-                  message={{ role: msg.role as "user" | "assistant", content: msg.content,
-                    creditCost: null, modelId, isPartial: false }} />
-              ))}
-              {isLoading && (
-                <div className="flex gap-3 animate-fade-in">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-teal-600
-                                  flex items-center justify-center text-white text-xs">AI</div>
-                  <div className="bg-[#1E293B] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
-                    <div className="flex gap-1.5 h-5 items-center">
-                      {[0,1,2].map(i => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
-                          style={{ animationDelay: `${i * 0.15}s` }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+            <MessageList
+              messages={messages.map(m => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content }))}
+              meta={meta}
+              locale={locale}
+              modelId={modelId}
+              isLoading={isLoading}
+              typingIndicator={typingIndicator}
+              onRetryLast={handleRetry}
+            />
           )}
         </main>
 
+        {streamErrorMsg && !isLoading && (
+          <StreamErrorBanner message={streamErrorMsg} onRetry={handleRetry} locale={locale} />
+        )}
+
         <InputBar onSubmit={handleSend} onStop={stop} isLoading={isLoading}
-          disabled={isZero} modelId={modelId} locale={locale} />
+          disabled={isZero} offline={!isOnline} modelId={modelId} locale={locale} />
       </div>
     </ChatLayout>
   );

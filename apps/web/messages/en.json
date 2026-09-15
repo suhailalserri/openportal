@@ -39,6 +39,9 @@
     "noConversations": "No conversations yet",
     "startNewChat": "Start a new chat",
     "partialResponse": "⚠️ Response interrupted — click to retry",
+    "offline": "You're offline. Check your connection to keep chatting.",
+    "tabConflict": "This conversation is open in another tab.",
+    "tabConflictSending": "A message is being sent from another tab.",
     "feedback": {
       "positive": "Good response",
       "negative": "Bad response"
