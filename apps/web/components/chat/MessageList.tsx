@@ -16,12 +16,17 @@ export interface ChatListMessage {
 
 interface MessageListProps {
   messages:  ChatListMessage[];
-  meta?:     Record<string, ChatMessageMeta>;
+  // `| undefined` spelled out explicitly: the project builds with
+  // exactOptionalPropertyTypes, which treats `meta?: T` and `meta?: T |
+  // undefined` differently — the former forbids callers from ever passing
+  // `meta={undefined}` (only omitting the prop entirely), which is exactly
+  // what both chat pages do while there's no partial-message override.
+  meta?:     Record<string, ChatMessageMeta> | undefined;
   locale:    string;
   modelId:   string;
   isLoading: boolean;
   typingIndicator: React.ReactNode;
-  onRetryLast?: () => void;
+  onRetryLast?: (() => void) | undefined;
 }
 
 // EDGE CASE 5 (Phase 14.1): very long conversations / long responses with
@@ -103,7 +108,11 @@ export function MessageList({
       );
     }
 
+    // noUncheckedIndexedAccess means `messages[index]` is typed
+    // `ChatListMessage | undefined` even though index is always in range
+    // here (0..messages.length-1) — guard explicitly rather than assert.
     const msg = messages[index];
+    if (!msg) return <div style={style} />;
     const msgMeta = meta?.[msg.id];
     return (
       <div style={style}>

@@ -12,7 +12,9 @@ interface MessageBubbleProps {
   // Present only on the most recent assistant message when it was left
   // partial by an interrupted stream — lets the "click to retry" copy
   // actually do something instead of being static text.
-  onRetry?: () => void;
+  // `| undefined` spelled out: exactOptionalPropertyTypes means MessageList
+  // passing `onRetry={cond ? handler : undefined}` needs this explicitly.
+  onRetry?: (() => void) | undefined;
 }
 
 export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) {

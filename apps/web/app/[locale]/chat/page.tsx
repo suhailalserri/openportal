@@ -64,7 +64,8 @@ export default function ChatPage() {
       setStreamErrorMsg(msg);
       setPartialMessageId(prev => {
         const last = messages[messages.length - 1];
-        return last?.role === "assistant" ? last.id : prev;
+        if (last && last.role === "assistant") return last.id;
+        return prev;
       });
     },
   });
