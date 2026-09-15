@@ -17,8 +17,15 @@
  * running it twice (or after new organic signups happen) is a no-op for
  * anyone who already has a code.
  *
- * Usage: pnpm tsx infra/scripts/backfill-referral-codes.ts
- *        pnpm tsx infra/scripts/backfill-referral-codes.ts --dry-run
+ * Usage (from repo root):
+ *   pnpm --filter @ai-platform/db exec tsx ../../infra/scripts/backfill-referral-codes.ts
+ *   pnpm --filter @ai-platform/db exec tsx ../../infra/scripts/backfill-referral-codes.ts --dry-run
+ *
+ * ("pnpm tsx ...") does NOT work here — tsx isn't a root dependency,
+ * only packages/db and apps/api have it, so it has to be run from one
+ * of those package directories. The GitHub Actions workflow
+ * (.github/workflows/backfill-referral-codes.yml) handles this for you
+ * if you don't want to run it locally.
  */
 import { db, users } from "@ai-platform/db";
 import { eq, isNull } from "drizzle-orm";

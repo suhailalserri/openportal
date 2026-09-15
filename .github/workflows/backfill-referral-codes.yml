@@ -45,8 +45,10 @@ jobs:
 
       - name: Run backfill (dry run)
         if: inputs.dry_run == true
-        run: pnpm tsx infra/scripts/backfill-referral-codes.ts --dry-run
+        working-directory: packages/db
+        run: pnpm exec tsx ../../infra/scripts/backfill-referral-codes.ts --dry-run
 
       - name: Run backfill (write)
         if: inputs.dry_run == false
-        run: pnpm tsx infra/scripts/backfill-referral-codes.ts
+        working-directory: packages/db
+        run: pnpm exec tsx ../../infra/scripts/backfill-referral-codes.ts
