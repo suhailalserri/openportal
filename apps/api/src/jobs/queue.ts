@@ -1,16 +1,8 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { config } from "../config";
+import { parseRedisConnection } from "../utils/redis-connection";
 
-const _queueRedisUrl = new URL(config.REDIS_URL);
-const connection = {
-  host: _queueRedisUrl.hostname,
-  port: parseInt(_queueRedisUrl.port || "6379"),
-  ...(_queueRedisUrl.password ? { password: _queueRedisUrl.password } : {}),
-  // Fail a *connection attempt* in 10s instead of the OS-level TCP timeout
-  // (which can be 60s+ on some hosts) when the host is wrong or unreachable.
-  // Does not affect BullMQ's own command-retry behavior once connected.
-  connectTimeout: 10_000,
-};
+const connection = parseRedisConnection(config.REDIS_URL);
 
 // Without an error listener, an unreachable/misconfigured Redis (wrong
 // REDIS_URL, DNS failure) throws unhandled "ECONNREFUSED"/"ENOTFOUND"

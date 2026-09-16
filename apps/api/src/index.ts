@@ -12,6 +12,7 @@ import { startReportWorker } from "./jobs/report.worker";
 import { registerScheduledJobs } from "./jobs/scheduled.jobs";
 import { reportQueue } from "./jobs/queue";
 import { metricsHandler, recordHttpRequest, instrumentWorker } from "./metrics";
+import { parseRedisConnection } from "./utils/redis-connection";
 
 const app = Fastify({
   logger: config.NODE_ENV === "development"
@@ -120,15 +121,7 @@ try {
 }
 
 // ── Start background workers (non-blocking, timeout-guarded) ───────────
-// Parse all Redis URL components including DB number (path segment after /)
-const _redisUrl  = new URL(config.REDIS_URL);
-const redisConn = {
-  host: _redisUrl.hostname,
-  port: parseInt(_redisUrl.port || "6379"),
-  // DB number from path: redis://host:port/1 → db=1, default 0
-  db:   parseInt(_redisUrl.pathname.slice(1) || "0"),
-  ...(_redisUrl.password ? { password: _redisUrl.password } : {}),
-};
+const redisConn = parseRedisConnection(config.REDIS_URL);
 
 /** Rejects after `ms` if `promise` hasn't settled — prevents any single
  * startup step (e.g. a Redis-dependent queue.add call) from hanging the
