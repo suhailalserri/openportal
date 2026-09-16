@@ -151,7 +151,7 @@
    components/providers.tsx). Every neutral + shadow token is mirrored
    end-for-end (50↔950, 100↔900, …) so components that reference the
    scale numerically (bg-slate-800, text-slate-400, border-slate-700…)
-   or the semantic --bg-*/--text-* vars stay correctly ordered — dark
+   or the semantic --bg-* / --text-* vars stay correctly ordered — dark
    text stays dark relative to light surfaces, muted stays mid-tone —
    without auditing every call site individually. Accent hues keep
    their identity but shift a step for AA contrast on a light ground. */
