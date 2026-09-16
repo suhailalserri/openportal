@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useChat } from "ai/react";
@@ -77,45 +77,63 @@ export default function ChatPage() {
     reload({ body: { model: modelId, conversationId } });
   }
 
+  // BUG FIX: a brand-new chat creates its conversation row with an `await
+  // fetch(...)` before `conversationId` state is set. If handleSend fires
+  // twice in quick succession (a double-tap on a suggestion chip, or the
+  // duplicate-Enter-keydown quirk some Android soft keyboards have) before
+  // that fetch resolves, both calls read the same stale `conversationId ===
+  // null` and each independently POSTs a new conversation + message — the
+  // exact "two identical bubbles, no reply" duplicate. A plain `isLoading`
+  // check doesn't close this gap because React state updates are async;
+  // this ref is synchronous and set on the very first line, so the second
+  // call sees the lock immediately and bails before touching the network.
+  const isSendingRef = useRef(false);
+
   const handleSend = useCallback(async (text: string) => {
+    if (isSendingRef.current) return;
     if (balance <= 0) { toast.error(t("errors.insufficientBalance")); return; }
     if (!isOnline) { toast.error(t("chat.offline")); return; }
+    isSendingRef.current = true;
 
-    // A brand-new chat has no conversation row yet. Create one up front
-    // (same endpoint the sidebar's "New chat" already relies on existing)
-    // instead of letting the backend invent a fresh, never-inserted UUID
-    // on every message — that's what was causing the foreign-key error.
-    let id = conversationId;
-    if (!id) {
-      try {
-        const res = await fetch("/api/conversations", { method: "POST" });
-        if (!res.ok) throw new Error("failed to create conversation");
-        const conv = await res.json() as { id: string };
-        id = conv.id;
-        setConversationId(id);
-        // Swap the URL in place so refresh/share links land on /chat/[id]
-        // without remounting this component (which would drop the
-        // in-flight message + streaming state).
-        window.history.replaceState(null, "", `/${locale}/chat/${id}`);
-      } catch {
-        toast.error(t("errors.streamInterrupted"));
-        return;
+    try {
+      // A brand-new chat has no conversation row yet. Create one up front
+      // (same endpoint the sidebar's "New chat" already relies on existing)
+      // instead of letting the backend invent a fresh, never-inserted UUID
+      // on every message — that's what was causing the foreign-key error.
+      let id = conversationId;
+      if (!id) {
+        try {
+          const res = await fetch("/api/conversations", { method: "POST" });
+          if (!res.ok) throw new Error("failed to create conversation");
+          const conv = await res.json() as { id: string };
+          id = conv.id;
+          setConversationId(id);
+          // Swap the URL in place so refresh/share links land on /chat/[id]
+          // without remounting this component (which would drop the
+          // in-flight message + streaming state).
+          window.history.replaceState(null, "", `/${locale}/chat/${id}`);
+        } catch {
+          toast.error(t("errors.streamInterrupted"));
+          return;
+        }
       }
-    }
 
-    setStreamErrorMsg(null);
-    announceSending();
-    // BUG FIX: the previous implementation called `setInput(text)` then
-    // immediately `handleSubmit(...)` in the same tick. `setInput` only
-    // schedules a state update — `handleSubmit` read the *old* `input`
-    // value (empty string on the very first send), so nothing was sent
-    // until the input state caught up a render later. `append()` takes
-    // the message content directly and sends it right away, no state
-    // race involved.
-    await append(
-      { role: "user", content: text },
-      { body: { model: modelId, conversationId: id } }
-    );
+      setStreamErrorMsg(null);
+      announceSending();
+      // BUG FIX: the previous implementation called `setInput(text)` then
+      // immediately `handleSubmit(...)` in the same tick. `setInput` only
+      // schedules a state update — `handleSubmit` read the *old* `input`
+      // value (empty string on the very first send), so nothing was sent
+      // until the input state caught up a render later. `append()` takes
+      // the message content directly and sends it right away, no state
+      // race involved.
+      await append(
+        { role: "user", content: text },
+        { body: { model: modelId, conversationId: id } }
+      );
+    } finally {
+      isSendingRef.current = false;
+    }
   }, [balance, isOnline, conversationId, locale, modelId, append, announceSending, t]);
 
   const meta = partialMessageId ? { [partialMessageId]: { isPartial: true } } : undefined;

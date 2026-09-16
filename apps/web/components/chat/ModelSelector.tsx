@@ -70,22 +70,28 @@ export function ModelSelector({ value, onChange }: Props) {
     <DropdownMenu dir={dir}>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700
+          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700
                      border border-slate-600 rounded-xl text-sm text-white transition-colors
                      data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
         >
           <span>{selected.badge}</span>
-          <span className="max-w-[120px] truncate">{nameOf(selected)}</span>
+          <span className="max-w-[72px] sm:max-w-[120px] truncate">{nameOf(selected)}</span>
+          {/* Latency is genuinely useful at desktop width but is the first
+              thing to go on a phone — badge, name and the dropdown chevron
+              already fill the row next to the conversation title, and
+              adding "⚡1,930ms" on top of that is what was squeezing
+              everything down to unreadable sizes. Full detail is still one
+              tap away in the dropdown below. */}
           {selected.avgResponseTimeMs != null && (
             <span
-              className={`flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
+              className={`hidden sm:flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
               title={t("models.latencyTooltip")}
             >
               <Zap className="h-3 w-3" />
               {selected.avgResponseTimeMs.toLocaleString()}ms
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180" />
+          <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
         </button>
       </DropdownMenuTrigger>
 

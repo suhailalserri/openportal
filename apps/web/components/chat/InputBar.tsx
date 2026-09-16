@@ -24,6 +24,16 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
 
   const handleOverLimitChange = useCallback((v: boolean) => setIsOverLimit(v), []);
 
+  // BUG FIX: `isLoading` is React state, which is async/batched — two Enter
+  // keydowns landing in the same tick (a well-documented quirk on Android
+  // soft keyboards, which can fire two keydown events for one tap of the
+  // send glyph) both read the same stale `isLoading = false` and both call
+  // onSubmit, producing the duplicate user bubble. A synchronous ref isn't
+  // subject to React's batching, so the second call in the same tick sees
+  // the lock the first call just set and bails out immediately.
+  const sendingRef = useRef(false);
+  useEffect(() => { if (!isLoading) sendingRef.current = false; }, [isLoading]);
+
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -32,7 +42,11 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
   }, [text]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Ignore Enter while an IME composition is in progress (e.g. typing
+    // Arabic/CJK, or the composition-end event some Android keyboards emit
+    // right before the "real" Enter) — otherwise this fires mid-composition
+    // on top of the real keydown.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -40,7 +54,8 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
 
   function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || isLoading || isBlocked || isOverLimit) return;
+    if (!trimmed || isLoading || isBlocked || isOverLimit || sendingRef.current) return;
+    sendingRef.current = true;
     onSubmit(trimmed);
     setText("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
