@@ -11,7 +11,7 @@ export interface ModelConfig {
   supportsVision:   boolean;
   supportsStreaming: boolean;
   isAvailable:      boolean;
-  avgResponseTimeMs: number | null; // from New API's channel health check, null until first sync
+  avgResponseTimeMs?: number | null; // from New API's channel health check; absent in the static seed catalog, null until first sync
   creditsPerKInput:  number;  // calculated, for display
   creditsPerKOutput: number;  // calculated, for display
 }
