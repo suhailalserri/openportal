@@ -4,8 +4,9 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useChat, type Message as AiMessage } from "ai/react";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { ChatLayout }        from "@/components/chat/ChatLayout";
-import { ModelSelector }     from "@/components/chat/ModelSelector";
+import { ChatHeader }        from "@/components/chat/ChatHeader";
 import { InputBar }          from "@/components/chat/InputBar";
 import { EmptyState }        from "@/components/chat/EmptyState";
 import { MessageList, type ChatMessageMeta } from "@/components/chat/MessageList";
@@ -125,8 +126,11 @@ export default function ConversationPage() {
   const typingIndicator = (
     <div className="flex gap-3 animate-fade-in">
       <div className="w-8 h-8 rounded-full bg-[color:var(--accent-blue)]
-                      flex items-center justify-center text-white text-xs">AI</div>
-      <div className="bg-[#1D1815] border border-slate-700 rounded-2xl rounded-es-sm px-4 py-3">
+                      flex items-center justify-center text-white flex-shrink-0
+                      shadow-[var(--shadow-elevation-1)]">
+        <Sparkles className="h-4 w-4" />
+      </div>
+      <div className="bg-[color:var(--bg-surface)] border border-slate-700/80 rounded-2xl rounded-es-sm px-4 py-3">
         <div className="flex gap-1.5 h-5 items-center">
           {[0,1,2].map(i => (
             <div key={i} className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
@@ -140,12 +144,12 @@ export default function ConversationPage() {
   return (
     <ChatLayout locale={locale}>
       <div className="flex flex-col h-full">
-        <header className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-[#1D1815]">
-          <h2 className="text-sm font-medium text-slate-300 truncate max-w-xs font-display">
-            {title ?? (messages[0]?.content.slice(0, 40) ?? t("chat.newChat"))}
-          </h2>
-          <ModelSelector value={modelId} onChange={setModelId} />
-        </header>
+        <ChatHeader
+          title={title ?? (messages[0]?.content.slice(0, 40) ?? t("chat.newChat"))}
+          modelId={modelId}
+          locale={locale}
+          onModelChange={setModelId}
+        />
 
         {!isOnline && <OfflineBanner locale={locale} />}
         {isOnline && otherTabOpen && <TabConflictBanner sending={otherTabSending} />}
@@ -156,7 +160,7 @@ export default function ConversationPage() {
               <Skeleton className="w-32 h-32 rounded-full" />
             </div>
           ) : messages.length === 0 ? (
-            <EmptyState locale={locale} />
+            <EmptyState locale={locale} onSuggestionSelect={handleSend} />
           ) : (
             <MessageList
               messages={messages.map(m => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content }))}

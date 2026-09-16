@@ -146,6 +146,59 @@
   --gradient-primary: linear-gradient(135deg, #D97757 0%, #B85A3B 100%);
 }
 
+/* ── Light theme ──────────────────────────────────────────────────────
+   Toggled by next-themes adding/removing `.light` on <html> (see
+   components/providers.tsx). Every neutral + shadow token is mirrored
+   end-for-end (50↔950, 100↔900, …) so components that reference the
+   scale numerically (bg-slate-800, text-slate-400, border-slate-700…)
+   or the semantic --bg-*/--text-* vars stay correctly ordered — dark
+   text stays dark relative to light surfaces, muted stays mid-tone —
+   without auditing every call site individually. Accent hues keep
+   their identity but shift a step for AA contrast on a light ground. */
+:root.light {
+  --color-slate-50:  #17130F;
+  --color-slate-100: #221D19;
+  --color-slate-200: #322C27;
+  --color-slate-300: #4A423B;
+  --color-slate-400: #6E6357;
+  --color-slate-500: #8C8072;
+  --color-slate-600: #A79C8D;
+  --color-slate-700: #C9BEAE;
+  --color-slate-800: #E1D9CC;
+  --color-slate-900: #EFEAE2;
+  --color-slate-950: #FBF9F6;
+
+  --color-blue-400: #C2603F;
+  --color-blue-500: #B0552F;
+
+  --color-emerald-400: #446337;
+  --color-amber-400:   #8A5F22;
+  --color-red-400:     #7F2E23;
+
+  --color-success:    #446337;
+  --color-success-bg: rgb(107 154 86 / 0.14);
+  --color-warning:    #8A5F22;
+  --color-warning-bg: rgb(204 143 53 / 0.16);
+  --color-error:      #7F2E23;
+  --color-error-bg:   rgb(194 75 58 / 0.14);
+
+  --bg-base:      #FBF9F6;
+  --bg-surface:   #F3EEE6;
+  --bg-elevated:  #E9E1D3;
+  --border:       #D9CEBD;
+  --text-primary: #221D19;
+  --text-muted:   #6E6357;
+  --accent-blue:       #C2603F;
+  --accent-blue-light: #B0552F;
+  --accent-teal:       #8A5F22;
+  --gradient-primary: linear-gradient(135deg, #C2603F 0%, #9C4C33 100%);
+
+  --shadow-elevation-1: 0 1px 2px rgb(23 19 15 / 0.06);
+  --shadow-elevation-2: 0 8px 24px -6px rgb(23 19 15 / 0.12), 0 2px 6px -2px rgb(23 19 15 / 0.08);
+  --shadow-elevation-3: 0 24px 48px -12px rgb(23 19 15 / 0.18), 0 6px 16px -6px rgb(23 19 15 / 0.1);
+  --shadow-glow-blue:   0 0 0 1px rgb(194 96 63 / 0.35), 0 0 24px -6px rgb(194 96 63 / 0.3);
+}
+
 .surface-1 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-1); }
 .surface-2 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-2); }
 .surface-3 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-3); }

@@ -46,7 +46,27 @@
     "feedback": {
       "positive": "Good response",
       "negative": "Bad response"
-    }
+    },
+    "suggestionsHeading": "Or start with one of these",
+    "disclaimer": "AI responses may be inaccurate. Verify important information.",
+    "suggestions": [
+      {
+        "label": "Write for me",
+        "prompt": "Write a professional email asking for a deadline extension"
+      },
+      {
+        "label": "Explain a concept",
+        "prompt": "Explain how a four-stroke engine works like I'm new to it"
+      },
+      {
+        "label": "Help me code",
+        "prompt": "Write a Python function that validates an email address"
+      },
+      {
+        "label": "Analyze something",
+        "prompt": "What's the best way to analyze an oil well's production data over time?"
+      }
+    ]
   },
   "balance": {
     "current": "Your Balance",
@@ -243,5 +263,11 @@
     "degraded": "Some services are experiencing slowdowns",
     "outage": "{service} is currently unavailable",
     "viewDetails": "View details"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggle": "Toggle theme"
   }
 }

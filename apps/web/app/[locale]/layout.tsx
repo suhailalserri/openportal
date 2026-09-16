@@ -34,7 +34,12 @@ export default async function LocaleLayout({ children, params }: Props) {
   const direction = isRTL ? "rtl" : "ltr";
 
   return (
-    <html lang={locale} dir={direction} className="dark">
+    // No hardcoded `className="dark"` — next-themes (mounted in
+    // <Providers>) now owns the `light`/`dark` class on this element and
+    // reads the visitor's saved choice (falling back to `dark`) before
+    // paint. suppressHydrationWarning only covers this one attribute,
+    // which next-themes intentionally sets client-side pre-paint.
+    <html lang={locale} dir={direction} suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -53,10 +58,13 @@ export default async function LocaleLayout({ children, params }: Props) {
             position={isRTL ? "bottom-left" : "bottom-right"}
             dir={direction}
             toastOptions={{
+              // Was hardcoded to the dark palette's hex values, so toasts
+              // stayed dark even after switching to the light theme.
+              // These CSS vars follow whichever theme is active.
               style: {
-                background: "#1D1815",
-                border:     "1px solid #4A423B",
-                color:      "#F7F4EF",
+                background: "var(--bg-surface)",
+                border:     "1px solid var(--border)",
+                color:      "var(--text-primary)",
               },
             }}
           />

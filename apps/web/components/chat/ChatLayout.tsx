@@ -1,9 +1,22 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useTranslations } from "next-intl";
-import { PanelLeft } from "lucide-react";
+import { createContext, useContext, useState, useEffect } from "react";
 import { ChatSidebar }  from "./ChatSidebar";
 import { StatusBanner } from "../shared/StatusBanner";
+
+interface SidebarContextValue { isOpen: boolean; toggle: () => void }
+
+// Was: a `<PanelLeft>` button absolutely positioned over the content at
+// top-4/start-4 — on narrow screens that floated directly on top of the
+// chat header's title text instead of beside it. Exposing the toggle
+// through context instead lets each page's header lay the button out
+// in normal flow (see ChatHeader) with no overlap and no prop drilling.
+const SidebarContext = createContext<SidebarContextValue | null>(null);
+
+export function useSidebar(): SidebarContextValue {
+  const ctx = useContext(SidebarContext);
+  if (!ctx) throw new Error("useSidebar must be used within ChatLayout");
+  return ctx;
+}
 
 interface ChatLayoutProps {
   children: React.ReactNode;
@@ -11,7 +24,6 @@ interface ChatLayoutProps {
 }
 
 export function ChatLayout({ children, locale }: ChatLayoutProps) {
-  const t = useTranslations();
   // Desktop starts with the sidebar open, mobile starts closed — avoids the
   // drawer flashing open over the chat on first paint on small screens.
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,26 +33,19 @@ export function ChatLayout({ children, locale }: ChatLayoutProps) {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[color:var(--bg-base)] overflow-hidden">
-      <ChatSidebar
-        locale={locale}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+    <SidebarContext.Provider value={{ isOpen: sidebarOpen, toggle: () => setSidebarOpen(o => !o) }}>
+      <div className="flex h-screen bg-[color:var(--bg-base)] overflow-hidden">
+        <ChatSidebar
+          locale={locale}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
 
-      <div className="flex-1 flex flex-col min-w-0 relative">
-        <StatusBanner />
-        <button
-          onClick={() => setSidebarOpen(o => !o)}
-          className="absolute top-4 start-4 z-30 p-2 bg-slate-800 rounded-lg
-                     border border-slate-700 text-slate-400 hover:text-slate-100 transition-colors
-                     shadow-[var(--shadow-elevation-1)]"
-          aria-label={t("nav.chat")}
-        >
-          <PanelLeft className="h-4 w-4" />
-        </button>
-        {children}
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          <StatusBanner />
+          {children}
+        </div>
       </div>
-    </div>
+    </SidebarContext.Provider>
   );
 }

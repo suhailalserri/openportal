@@ -101,9 +101,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
       </div>
 
       <p className="text-xs text-slate-600 text-center mt-2">
-        {locale === "ar"
-          ? "قد تكون استجابات الذكاء الاصطناعي غير دقيقة. تحقق من المعلومات المهمة."
-          : "AI responses may be inaccurate. Verify important information."}
+        {t("chat.disclaimer")}
       </p>
     </div>
   );
