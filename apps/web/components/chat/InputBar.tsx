@@ -83,13 +83,13 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
         <TokenCounter text={text} modelId={modelId} locale={locale} onOverLimitChange={handleOverLimitChange} />
 
         {isLoading ? (
-          <button onClick={onStop}
+          <button onClick={onStop} aria-label={t("chat.stop")}
             className="p-2.5 bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl text-white
                        transition-all flex-shrink-0">
             <Square className="w-4 h-4" fill="currentColor" />
           </button>
         ) : (
-          <button onClick={handleSend}
+          <button onClick={handleSend} aria-label={t("chat.send")}
             disabled={!text.trim() || isBlocked || isOverLimit}
             className="p-2.5 bg-[color:var(--accent-blue)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed
                        active:scale-95 disabled:active:scale-100

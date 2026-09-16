@@ -41,6 +41,15 @@ export const models = pgTable("models", {
   supportsVision:   boolean("supports_vision").default(false).notNull(),
   // App-layer usage cap, independent of New API's channel-level limits.
   rateLimitPerUserDaily: integer("rate_limit_per_user_daily"),
+  // Average response time (ms) across the gateway channels currently
+  // serving this model, per New API's own channel health check
+  // (`response_time` / `test_time` on /api/channel). Refreshed by
+  // syncModelsFromGateway (see model-sync.service.ts) — null until the
+  // first sync runs, or if no enabled channel has a recorded test yet.
+  // This is real, measured latency, not an estimate — the model picker
+  // labels it "approximate" only because it's a point-in-time average,
+  // not because the number itself is made up.
+  avgResponseTimeMs: integer("avg_response_time_ms"),
   // Last time the gateway sync saw this model id on an active channel.
   lastSeenAt:       timestamp("last_seen_at"),
   // Aggregate usage stats (updated post-stream via background job)

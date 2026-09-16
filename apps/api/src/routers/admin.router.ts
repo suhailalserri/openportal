@@ -16,8 +16,8 @@ import {
   getModelUsageBreakdown,
   getRecentTransactions,
 } from "../services/dashboard.service";
-import { config }          from "../config";
 import { stripUndefined }  from "../utils/strip-undefined";
+import { fetchGatewayChannels } from "../services/gateway-channels.service";
 
 export const adminRouter = router({
 
@@ -29,52 +29,14 @@ export const adminRouter = router({
   // `/v1/*` — if yours is the latter, this will come back unauthorized;
   // see the error message for what to check.
   gatewayChannels: adminProcedure.query(async () => {
-    let res: Response;
     try {
-      res = await fetch(`${config.GATEWAY_URL}/api/channel/?p=0&page_size=100`, {
-        // Admin routes need the system access token, not the chat-completions
-        // key — see the note on GATEWAY_ROOT_TOKEN in config.ts.
-        headers: { Authorization: `Bearer ${config.GATEWAY_ROOT_TOKEN}` },
-        signal: AbortSignal.timeout(15_000),
-      });
+      return await fetchGatewayChannels();
     } catch (err) {
       throw new TRPCError({
         code: "BAD_GATEWAY",
-        message: `Could not reach gateway: ${err instanceof Error ? err.message : String(err)}`,
+        message: err instanceof Error ? err.message : String(err),
       });
     }
-
-    if (!res.ok) {
-      throw new TRPCError({
-        code: "BAD_GATEWAY",
-        message:
-          `Gateway channel list returned ${res.status}. GATEWAY_ROOT_TOKEN must be a ` +
-          `New API admin/system access token (Settings → Security & Access → Access Token ` +
-          `on the gateway) — a regular chat-completions API key won't work here.`,
-      });
-    }
-
-    const body = (await res.json().catch(() => null)) as
-      | { data?: { items?: unknown[] } | unknown[] }
-      | null;
-
-    const rawItems: unknown[] = Array.isArray(body?.data)
-      ? body.data
-      : Array.isArray((body?.data as { items?: unknown[] } | undefined)?.items)
-      ? (body!.data as { items: unknown[] }).items
-      : [];
-
-    return rawItems.map((raw) => {
-      const r = raw as Record<string, unknown>;
-      return {
-        id:           Number(r.id ?? 0),
-        name:         String(r.name ?? "unnamed"),
-        type:         String(r.type ?? r.type_name ?? "unknown"),
-        status:       Number(r.status ?? 0),
-        responseTime: Number(r.response_time ?? r.test_time ?? 0),
-        models:       typeof r.models === "string" ? (r.models as string).split(",").filter(Boolean) : [],
-      };
-    });
   }),
 
   // ── Dashboard stats ─────────────────────────────────────────────────

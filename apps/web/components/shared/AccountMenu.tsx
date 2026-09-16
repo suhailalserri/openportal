@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { User, Settings, CreditCard, LogOut, ChevronDown } from "lucide-react";
@@ -14,6 +15,7 @@ import {
 interface Props { locale: string }
 
 export function AccountMenu({ locale }: Props) {
+  const t = useTranslations();
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const dir = locale === "ar" ? "rtl" : "ltr";
@@ -30,7 +32,7 @@ export function AccountMenu({ locale }: Props) {
                    font-medium bg-[color:var(--accent-blue)] hover:brightness-110 text-white transition-all"
       >
         <User className="h-4 w-4" />
-        {locale === "ar" ? "تسجيل الدخول" : "Sign in"}
+        {t("auth.login")}
       </Link>
     );
   }
@@ -64,19 +66,19 @@ export function AccountMenu({ locale }: Props) {
         <DropdownMenuItem asChild>
           <Link href={`/${locale}/settings`}>
             <Settings className="h-4 w-4 shrink-0" />
-            {locale === "ar" ? "الإعدادات" : "Settings"}
+            {t("nav.settings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href={`/${locale}/billing`}>
             <CreditCard className="h-4 w-4 shrink-0" />
-            {locale === "ar" ? "الفواتير" : "Billing"}
+            {t("nav.billing")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem destructive onSelect={handleSignOut}>
           <LogOut className="h-4 w-4 shrink-0" />
-          {locale === "ar" ? "تسجيل الخروج" : "Sign out"}
+          {t("nav.logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

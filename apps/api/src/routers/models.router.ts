@@ -24,10 +24,12 @@ export const modelsRouter = router({
       displayName:      m.displayName,
       displayNameAr:    m.displayNameAr,
       badge:            m.badge,
+      provider:         m.provider,
       tier:             m.tier,
       contextWindow:    m.contextWindow,
       maxOutputTokens:  m.maxOutputTokens,
       supportsVision:   m.supportsVision,
+      avgResponseTimeMs: m.avgResponseTimeMs,
       creditsPerKInput:  creditsPerK(Number(m.wholesaleCostInputPerM),  Number(m.markupMultiplier)),
       creditsPerKOutput: creditsPerK(Number(m.wholesaleCostOutputPerM), Number(m.markupMultiplier)),
     }));

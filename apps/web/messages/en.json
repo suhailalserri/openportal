@@ -16,6 +16,7 @@
     "newChat": "New Chat",
     "placeholder": "Type your message...",
     "placeholderEmpty": "Start a conversation. Ask anything.",
+    "emptyStateTitle": "How can I help you today?",
     "send": "Send",
     "stop": "Stop",
     "regenerate": "Regenerate",
@@ -146,7 +147,8 @@
     "priceOutput": "Output",
     "perThousand": "per 1,000 tokens",
     "tokens": "tokens",
-    "noneAvailable": "No models available — ask an admin to publish one"
+    "noneAvailable": "No models available — ask an admin to publish one",
+    "latencyTooltip": "Average response time across active gateway channels for this model"
   },
   "settings": {
     "profile": "Profile",

@@ -153,7 +153,11 @@ export default function ChatPage() {
         {isOnline && otherTabOpen && <TabConflictBanner sending={otherTabSending} />}
 
         {/* Messages */}
-        <main className="flex-1 overflow-y-auto">
+        {/* MessageList owns its own internal scroll container (for the
+            scroll-to-latest pill + scroll position tracking), so this
+            wrapper must not also scroll — min-h-0 lets it shrink inside
+            the flex column instead of growing to content height. */}
+        <main className="flex-1 min-h-0 overflow-hidden">
           {messages.length === 0 ? (
             <EmptyState locale={locale} />
           ) : (

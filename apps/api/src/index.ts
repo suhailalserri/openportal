@@ -8,6 +8,9 @@ import { appRouter }     from "./routers/index";
 import { createContext } from "./routers/trpc";
 import { startEmailWorker } from "./jobs/email.worker";
 import { startAlertWorker } from "./jobs/alert.worker";
+import { startReportWorker } from "./jobs/report.worker";
+import { registerScheduledJobs } from "./jobs/scheduled.jobs";
+import { reportQueue } from "./jobs/queue";
 import { metricsHandler, recordHttpRequest, instrumentWorker } from "./metrics";
 
 const app = Fastify({
@@ -109,6 +112,8 @@ const redisConn = {
 if (config.NODE_ENV === "production") {
   instrumentWorker(startEmailWorker(redisConn), "email");
   instrumentWorker(startAlertWorker(redisConn), "alerts");
+  instrumentWorker(startReportWorker(redisConn), "reports");
+  await registerScheduledJobs(reportQueue);
   console.log("✓ Background workers started");
 }
 

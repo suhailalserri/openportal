@@ -197,6 +197,42 @@ pre, code, kbd, .code-block {
 
 .message-content { unicode-bidi: plaintext; }
 
+/* ── Syntax highlighting (rehype-highlight token classes) ────────────
+   Hand-written theme instead of importing a highlight.js CSS package —
+   keeps the palette on-brand (clay/sage/amber, same tokens as the rest
+   of the UI) with zero new dependencies. */
+.hljs                 { color: var(--color-slate-200); background: transparent; }
+.hljs-comment,
+.hljs-quote            { color: var(--color-slate-500); font-style: italic; }
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-subst             { color: var(--color-blue-400); }
+.hljs-string,
+.hljs-doctag,
+.hljs-regexp             { color: var(--color-emerald-400); }
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-attr                { color: var(--color-amber-400); }
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-class .hljs-title     { color: var(--color-blue-300); font-weight: 600; }
+.hljs-function .hljs-title   { color: var(--color-blue-300); }
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type                    { color: var(--color-slate-100); }
+.hljs-tag                      { color: var(--color-slate-400); }
+.hljs-attribute                 { color: var(--color-amber-300); }
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link                       { color: var(--color-emerald-300); }
+.hljs-deletion                    { color: var(--color-red-400); }
+.hljs-addition                     { color: var(--color-emerald-400); }
+.hljs-emphasis                      { font-style: italic; }
+.hljs-strong                         { font-weight: 700; }
+
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

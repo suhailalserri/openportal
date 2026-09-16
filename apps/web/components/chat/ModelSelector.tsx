@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations, useLocale } from "next-intl";
-import { ChevronDown, Check, Eye, AlertTriangle } from "lucide-react";
+import { ChevronDown, Check, Eye, AlertTriangle, Zap } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ export function ModelSelector({ value, onChange }: Props) {
   const dir      = locale === "ar" ? "rtl" : "ltr";
   const { data: available = [], isLoading } = trpc.models.list.useQuery();
   const selected = available.find(m => m.id === value) ?? available[0];
+  const nameOf = (m: NonNullable<typeof selected>) => (locale === "ar" ? m.displayNameAr : m.displayName);
 
   // If the previously-selected model got hidden/disabled, fall back to
   // whatever's first in the live list so the picker never shows a ghost model.
@@ -36,6 +37,17 @@ export function ModelSelector({ value, onChange }: Props) {
     standard: "text-blue-400",
     free:     "text-emerald-400",
   };
+
+  // Real measurement from New API's channel health check (see
+  // gateway-channels.service.ts), averaged per model and refreshed on
+  // each admin "sync now". Thresholds are just a display grouping —
+  // the exact ms value is always shown alongside, never hidden behind
+  // a vague label alone.
+  function speedColor(ms: number): string {
+    if (ms < 800)  return "text-emerald-400";
+    if (ms < 2000) return "text-amber-400";
+    return "text-red-400";
+  }
 
   if (isLoading) {
     return (
@@ -63,7 +75,16 @@ export function ModelSelector({ value, onChange }: Props) {
                      data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
         >
           <span>{selected.badge}</span>
-          <span className="max-w-[120px] truncate">{selected.displayNameAr}</span>
+          <span className="max-w-[120px] truncate">{nameOf(selected)}</span>
+          {selected.avgResponseTimeMs != null && (
+            <span
+              className={`flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
+              title={t("models.latencyTooltip")}
+            >
+              <Zap className="h-3 w-3" />
+              {selected.avgResponseTimeMs.toLocaleString()}ms
+            </span>
+          )}
           <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180" />
         </button>
       </DropdownMenuTrigger>
@@ -78,14 +99,28 @@ export function ModelSelector({ value, onChange }: Props) {
             <span className="text-xl shrink-0">{model.badge}</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-white truncate">{model.displayNameAr}</span>
+                <span className="text-sm font-medium text-white truncate">{nameOf(model)}</span>
                 <span className={`text-xs font-medium ${tierColors[model.tier] ?? "text-slate-400"}`}>
                   {t(`models.${model.tier}` as Parameters<typeof t>[0])}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                <span className="capitalize">{model.provider}</span>
+                <span aria-hidden className="text-slate-600">·</span>
                 {(model.contextWindow / 1000).toFixed(0)}k {t("models.contextWindow")}
                 {model.supportsVision && <Eye className="h-3 w-3 ms-1" />}
+                {model.avgResponseTimeMs != null && (
+                  <>
+                    <span aria-hidden className="text-slate-600">·</span>
+                    <span
+                      className={`flex items-center gap-0.5 ${speedColor(model.avgResponseTimeMs)}`}
+                      title={t("models.latencyTooltip")}
+                    >
+                      <Zap className="h-3 w-3" />
+                      {model.avgResponseTimeMs.toLocaleString()}ms
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             {model.id === value && <Check className="h-4 w-4 shrink-0 text-blue-400" />}

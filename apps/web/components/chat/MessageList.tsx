@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VariableSizeList, type ListChildComponentProps } from "react-window";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { ArrowDown } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 
 export interface ChatMessageMeta {
@@ -37,7 +39,27 @@ interface MessageListProps {
 // pay the virtualization complexity cost.
 const VIRTUALIZE_THRESHOLD = 25;
 const DEFAULT_ROW_HEIGHT   = 120;
-const BOTTOM_STICK_SLACK   = 2; // rows from the end still counts as "at bottom"
+const BOTTOM_STICK_SLACK   = 2;   // rows from the end still counts as "at bottom"
+const NEAR_BOTTOM_PX       = 120; // px from the end still counts as "at bottom" (non-virtualized)
+
+function JumpToLatestPill({ locale, onClick }: { locale: string; onClick: () => void }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 8 }}
+      transition={{ duration: 0.15 }}
+      className="absolute bottom-4 start-1/2 -translate-x-1/2
+                 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium
+                 bg-[color:var(--bg-elevated)] border border-slate-600 text-slate-200
+                 shadow-[var(--shadow-elevation-2)] hover:bg-slate-700 transition-colors z-10"
+    >
+      <ArrowDown className="h-3.5 w-3.5" />
+      {locale === "ar" ? "أحدث رسالة" : "Latest message"}
+    </motion.button>
+  );
+}
 
 export function MessageList({
   messages, meta, locale, modelId, isLoading, typingIndicator, onRetryLast,
@@ -45,13 +67,16 @@ export function MessageList({
   const shouldVirtualize = messages.length > VIRTUALIZE_THRESHOLD;
   const itemCount = messages.length + (isLoading ? 1 : 0);
   const lastAssistantIdx = messages.length - 1;
+  const prefersReducedMotion = useReducedMotion();
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const bottomRef     = useRef<HTMLDivElement>(null);
-  const listRef       = useRef<VariableSizeList>(null);
-  const rowHeights    = useRef<Map<number, number>>(new Map());
-  const stickToBottom = useRef(true);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const scrollRef      = useRef<HTMLDivElement>(null);
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const listRef        = useRef<VariableSizeList>(null);
+  const rowHeights      = useRef<Map<number, number>>(new Map());
+  const stickToBottom  = useRef(true);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [showPill, setShowPill] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -79,17 +104,42 @@ export function MessageList({
     []
   );
 
-  // Auto-scroll to bottom on new content, unless the user scrolled up to
-  // read earlier messages — don't yank them back down mid-read.
+  // Non-virtualized scroll tracking: stick to bottom on new content unless
+  // the user scrolled up to read earlier messages mid-stream — in that case
+  // stop auto-scrolling and surface the "jump to latest" pill instead of
+  // yanking them back down.
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom < NEAR_BOTTOM_PX;
+    stickToBottom.current = atBottom;
+    setShowPill(!atBottom && messages.length > 0);
+  }, [messages.length]);
+
   useEffect(() => {
     if (!shouldVirtualize) {
-      if (stickToBottom.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (stickToBottom.current) {
+        bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
+        setShowPill(false);
+      }
       return;
     }
     if (stickToBottom.current && listRef.current) {
       listRef.current.scrollToItem(itemCount - 1, "end");
+      setShowPill(false);
     }
-  }, [itemCount, messages, shouldVirtualize]);
+  }, [itemCount, messages, shouldVirtualize, prefersReducedMotion]);
+
+  function jumpToLatest() {
+    stickToBottom.current = true;
+    setShowPill(false);
+    if (shouldVirtualize) {
+      listRef.current?.scrollToItem(itemCount - 1, "end");
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
+    }
+  }
 
   const Row = useCallback(function RowImpl({ index, style }: ListChildComponentProps) {
     const rowRef = useRef<HTMLDivElement>(null);
@@ -137,32 +187,48 @@ export function MessageList({
 
   if (!shouldVirtualize) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {messages.map((msg, index) => {
-          const msgMeta = meta?.[msg.id];
-          return (
-            <MessageBubble
-              key={msg.id}
-              locale={locale}
-              message={{
-                role:       msg.role,
-                content:    msg.content,
-                creditCost: msgMeta?.creditCost ?? null,
-                modelId,
-                isPartial:  !!msgMeta?.isPartial,
-              }}
-              onRetry={index === lastAssistantIdx && msgMeta?.isPartial ? onRetryLast : undefined}
-            />
-          );
-        })}
-        {isLoading && typingIndicator}
-        <div ref={bottomRef} />
+      <div className="relative h-full">
+        <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+            <AnimatePresence initial={false}>
+              {messages.map((msg, index) => {
+                const msgMeta = meta?.[msg.id];
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    <MessageBubble
+                      locale={locale}
+                      message={{
+                        role:       msg.role,
+                        content:    msg.content,
+                        creditCost: msgMeta?.creditCost ?? null,
+                        modelId,
+                        isPartial:  !!msgMeta?.isPartial,
+                      }}
+                      onRetry={index === lastAssistantIdx && msgMeta?.isPartial ? onRetryLast : undefined}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+            {isLoading && typingIndicator}
+            <div ref={bottomRef} />
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {showPill && <JumpToLatestPill locale={locale} onClick={jumpToLatest} />}
+        </AnimatePresence>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
       {size.height > 0 && (
         <VariableSizeList
           ref={listRef}
@@ -171,12 +237,18 @@ export function MessageList({
           itemCount={itemCount}
           itemSize={getRowHeight}
           onItemsRendered={({ visibleStopIndex }) => {
-            stickToBottom.current = visibleStopIndex >= itemCount - 1 - BOTTOM_STICK_SLACK;
+            const atBottom = visibleStopIndex >= itemCount - 1 - BOTTOM_STICK_SLACK;
+            stickToBottom.current = atBottom;
+            setShowPill(!atBottom);
           }}
         >
           {Row}
         </VariableSizeList>
       )}
+
+      <AnimatePresence>
+        {showPill && <JumpToLatestPill locale={locale} onClick={jumpToLatest} />}
+      </AnimatePresence>
     </div>
   );
 }

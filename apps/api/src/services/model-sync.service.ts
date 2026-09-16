@@ -1,6 +1,7 @@
 import { config } from "../config";
 import { db, models } from "@ai-platform/db";
 import { eq, inArray } from "drizzle-orm";
+import { fetchGatewayChannels, averageResponseTimeByModel } from "./gateway-channels.service";
 
 /**
  * Discovers models the gateway can currently serve and reconciles them
@@ -30,9 +31,11 @@ export interface ModelSyncResult {
   discovered:  string[]; // new ids inserted as status="pending"
   deactivated: string[]; // previously-available ids no longer served by any channel
   stillPending: number;  // pending rows awaiting admin review, post-sync
+  latencyUpdated: number;    // rows whose avg_response_time_ms was refreshed
+  latencyError?: string;     // set if the channel-list call failed (discovery still succeeds)
 }
 
-export async function syncModelsFromGateway(adminUserId: string): Promise<ModelSyncResult> {
+export async function syncModelsFromGateway(adminUserId?: string): Promise<ModelSyncResult> {
   let res: Response;
   try {
     res = await fetch(`${config.GATEWAY_URL}/v1/models`, {
@@ -70,6 +73,32 @@ export async function syncModelsFromGateway(adminUserId: string): Promise<ModelS
     );
   }
 
+  // Provider + latency both come from New API's own channel list, not
+  // from parsing the model id string — a channel's `type` field is the
+  // gateway's own answer to "which provider serves this", and its
+  // response_time/test_time is a real measurement, not an estimate.
+  // This call is best-effort: a discovery sync should still succeed and
+  // publish new models even if GATEWAY_ROOT_TOKEN isn't configured for
+  // the admin channel-list endpoint (a separate token from
+  // GATEWAY_MASTER_KEY — see gateway-channels.service.ts).
+  let modelToProvider = new Map<string, string>();
+  let modelToLatency  = new Map<string, number>();
+  let latencyError: string | undefined;
+  try {
+    const channels = await fetchGatewayChannels();
+    modelToLatency = averageResponseTimeByModel(channels);
+    // Enabled channels take priority as the provider source of truth;
+    // fall back to a disabled channel's type only if no enabled channel
+    // claims the model.
+    for (const ch of [...channels].sort((a, b) => (b.status === 1 ? 1 : 0) - (a.status === 1 ? 1 : 0))) {
+      for (const modelId of ch.models) {
+        if (!modelToProvider.has(modelId)) modelToProvider.set(modelId, ch.type.toLowerCase());
+      }
+    }
+  } catch (err) {
+    latencyError = err instanceof Error ? err.message : String(err);
+  }
+
   const existing = await db.query.models.findMany();
   const existingById = new Map(existing.map((m) => [m.id, m]));
   const now = new Date();
@@ -84,7 +113,7 @@ export async function syncModelsFromGateway(adminUserId: string): Promise<ModelS
         id,
         displayName:   id,
         displayNameAr: id,
-        provider:      id.split("/")[0] || "unknown",
+        provider:      modelToProvider.get(id) || id.split("/")[0] || "unknown",
         tier:          "standard",
         status:        "pending",
         isAvailable:   false,
@@ -95,6 +124,7 @@ export async function syncModelsFromGateway(adminUserId: string): Promise<ModelS
         contextWindow:    8_192,
         maxOutputTokens:  2_048,
         supportsVision:   false,
+        avgResponseTimeMs: modelToLatency.get(id) ?? null,
         lastSeenAt: now,
       })
       .onConflictDoNothing();
@@ -108,16 +138,42 @@ export async function syncModelsFromGateway(adminUserId: string): Promise<ModelS
   const gone = existing.filter(
     (m) => m.status === "published" && m.isAvailable && !gatewayIds.includes(m.id)
   );
+  // Deliberately nullable: a scheduled/system-triggered sync (see
+  // runModelLatencySync in scheduled.jobs.ts) has no admin behind it.
+  // A manual sync from the admin UI still passes ctx.user.id.
   if (gone.length > 0) {
     await db
       .update(models)
-      .set({ isAvailable: false, updatedAt: now, updatedByAdminId: adminUserId })
+      .set({ isAvailable: false, updatedAt: now, updatedByAdminId: adminUserId ?? null })
       .where(inArray(models.id, gone.map((m) => m.id)));
   }
 
   const stillPresentIds = gatewayIds.filter((id) => existingById.has(id));
   if (stillPresentIds.length > 0) {
     await db.update(models).set({ lastSeenAt: now }).where(inArray(models.id, stillPresentIds));
+  }
+
+  // Refresh provider + latency on every row the channel list actually
+  // covered — not just newly-discovered ones. A per-row update (rather
+  // than one bulk statement) because each model's new value differs;
+  // the model count here is small enough (tens, not thousands) that
+  // this isn't a real cost, and it only runs on an admin-triggered sync.
+  let latencyUpdated = 0;
+  if (!latencyError) {
+    for (const id of stillPresentIds) {
+      const latency = modelToLatency.get(id) ?? null;
+      const provider = modelToProvider.get(id);
+      const current = existingById.get(id);
+      if (!current) continue;
+      if (current.avgResponseTimeMs === latency && (!provider || current.provider === provider)) continue;
+      await db.update(models)
+        .set({
+          avgResponseTimeMs: latency,
+          ...(provider ? { provider } : {}),
+        })
+        .where(eq(models.id, id));
+      latencyUpdated++;
+    }
   }
 
   const pendingCount = existing.filter((m) => m.status === "pending").length + discovered.length;
@@ -127,5 +183,7 @@ export async function syncModelsFromGateway(adminUserId: string): Promise<ModelS
     discovered,
     deactivated: gone.map((m) => m.id),
     stillPending: pendingCount,
+    latencyUpdated,
+    ...(latencyError ? { latencyError } : {}),
   };
 }

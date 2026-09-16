@@ -112,6 +112,11 @@ function PendingQueue() {
   const sync    = trpc.models.sync.useMutation({
     onSuccess: (res) => {
       toast.success(`تمت المزامنة: ${res.discovered.length} نموذج جديد، ${res.deactivated.length} تم إخفاؤه`);
+      if (res.latencyError) {
+        toast.warning(`تعذّر تحديث سرعة الاستجابة والمزوّد: ${res.latencyError}`);
+      } else if (res.latencyUpdated > 0) {
+        toast.success(`تم تحديث سرعة الاستجابة/المزوّد لـ ${res.latencyUpdated} نموذج`);
+      }
       utils.models.pending.invalidate();
       utils.models.listAll.invalidate();
     },

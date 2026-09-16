@@ -150,7 +150,7 @@ export default function ConversationPage() {
         {!isOnline && <OfflineBanner locale={locale} />}
         {isOnline && otherTabOpen && <TabConflictBanner sending={otherTabSending} />}
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-h-0 overflow-hidden">
           {historyLoading ? (
             <div className="flex items-center justify-center h-full">
               <Skeleton className="w-32 h-32 rounded-full" />

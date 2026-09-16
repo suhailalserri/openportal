@@ -3,8 +3,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
 import remarkGfm     from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { Copy, Check, User, Sparkles } from "lucide-react";
 import { formatCredits } from "@/lib/utils";
+import { CodeBlock } from "./CodeBlock";
 import type { Message } from "@ai-platform/db";
 
 interface MessageBubbleProps {
@@ -45,10 +47,21 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
           ) : (
             <div className="prose prose-invert prose-sm max-w-none message-content
                             prose-headings:font-display
-                            prose-pre:bg-[color:var(--bg-base)] prose-pre:border prose-pre:border-slate-700
+                            prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none
                             prose-code:text-[color:var(--accent-blue-light)] prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded
+                            prose-code:before:content-none prose-code:after:content-none
                             prose-a:text-[color:var(--accent-blue-light)]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  // react-markdown renders fenced code as <pre><code class="language-x hljs">.
+                  // Override <pre> (not <code>) so we control the outer wrapper — the copy
+                  // button, language label, and forced-LTR direction — while leaving the
+                  // <code> children (with their hljs token spans) untouched.
+                  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+                }}
+              >
                 {message.content}
               </ReactMarkdown>
             </div>
