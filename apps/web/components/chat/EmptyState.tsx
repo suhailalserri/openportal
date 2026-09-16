@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { PenLine, Lightbulb, Code2, ChartLine, Sparkles } from "lucide-react";
+import { PenLine, Lightbulb, Code2, LineChart, Sparkles } from "lucide-react";
 
 interface EmptyStateProps {
   locale: string;
@@ -14,7 +14,7 @@ interface Suggestion { label: string; prompt: string }
 // Icons are assigned by position, not stored — the label/prompt text
 // itself comes from messages/{en,ar}.json (chat.suggestions), so this
 // stays localized without hardcoding copy into the component.
-const ICONS = [PenLine, Lightbulb, Code2, ChartLine];
+const ICONS = [PenLine, Lightbulb, Code2, LineChart];
 
 export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
   void locale;
