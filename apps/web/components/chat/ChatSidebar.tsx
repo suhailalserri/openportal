@@ -143,7 +143,9 @@ function ConversationItem({
 
 // Shared between the desktop column and the mobile drawer — identical
 // content, only the outer chrome (fixed column vs. overlay dialog) differs.
-function SidebarBody({ locale, onNavigate }: { locale: string; onNavigate: () => void }) {
+function SidebarBody({
+  locale, onNavigate, isMobile = false,
+}: { locale: string; onNavigate: () => void; isMobile?: boolean }) {
   const t         = useTranslations();
   const router    = useRouter();
   const pathname  = usePathname();
@@ -175,11 +177,29 @@ function SidebarBody({ locale, onNavigate }: { locale: string; onNavigate: () =>
             {locale === "ar" ? t("app.name") : t("app.nameEn")}
           </span>
         </Link>
-        <DialogPrimitive.Close asChild>
-          <button className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors" aria-label={t("common.cancel")}>
+        {/* This "X" only ever calls Radix's DialogClose when SidebarBody is
+            actually mounted inside the mobile drawer's Dialog.Root (see
+            isMobile below). The desktop column renders this exact same
+            component with no Dialog.Root ancestor at all — Tailwind's
+            `md:hidden` only hides the button visually there, it doesn't
+            unmount it, so DialogPrimitive.Close's internal useContext call
+            would throw "must be used within Dialog" on every desktop
+            render (including SSR) if used unconditionally here. */}
+        {isMobile ? (
+          <DialogPrimitive.Close asChild>
+            <button className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors" aria-label={t("common.cancel")}>
+              <X className="h-4 w-4" />
+            </button>
+          </DialogPrimitive.Close>
+        ) : (
+          <button
+            className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors"
+            aria-label={t("common.cancel")}
+            onClick={onNavigate}
+          >
             <X className="h-4 w-4" />
           </button>
-        </DialogPrimitive.Close>
+        )}
       </div>
 
       <div className="p-3 flex-shrink-0">
@@ -307,7 +327,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
                   <DialogPrimitive.Title className="sr-only">
                     {locale === "ar" ? "قائمة المحادثات" : "Conversation menu"}
                   </DialogPrimitive.Title>
-                  <SidebarBody locale={locale} onNavigate={onClose} />
+                  <SidebarBody locale={locale} onNavigate={onClose} isMobile />
                 </motion.div>
               </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
