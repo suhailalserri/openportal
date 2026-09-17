@@ -22,15 +22,15 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
   const suggestions = t.raw("chat.suggestions") as Suggestion[];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fade-in">
-      <div className="w-14 h-14 mb-6 rounded-2xl bg-[color:var(--accent-blue)] flex items-center justify-center
-                      shadow-[var(--shadow-elevation-2)]">
+    <div className="flex h-full flex-col items-center justify-center px-4 py-6 text-center animate-fade-in sm:px-8">
+      <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-[color:var(--accent-blue)]
+                      shadow-[var(--shadow-elevation-2)] sm:mb-6">
         <Sparkles className="h-7 w-7 text-white" />
       </div>
-      <h2 className="font-display text-3xl text-slate-50 mb-3">
+      <h2 className="font-display mb-2 text-[clamp(2rem,9vw,3rem)] leading-tight text-[color:var(--text-primary)]">
         {t("chat.emptyStateTitle")}
       </h2>
-      <p className="text-slate-400 max-w-md mb-8">
+      <p className="mb-7 max-w-md text-sm leading-6 text-[color:var(--text-muted)] sm:text-base">
         {t("chat.placeholderEmpty")}
       </p>
 
@@ -39,17 +39,14 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
           <p className="text-xs font-medium uppercase tracking-wider text-slate-600 mb-3">
             {t("chat.suggestionsHeading")}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5">
             {suggestions.map((s, i) => {
               const Icon = ICONS[i % ICONS.length]!;
               return (
                 <button
                   key={s.label}
                   onClick={() => onSuggestionSelect(s.prompt)}
-                  className="flex items-start gap-3 text-start px-4 py-3 rounded-2xl
-                             bg-[color:var(--bg-surface)] border border-slate-700/80
-                             hover:border-[color:var(--accent-blue)] hover:bg-slate-800/60
-                             transition-colors shadow-[var(--shadow-elevation-1)]"
+                  className="group flex min-h-16 items-start gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3.5 py-3 text-start shadow-[var(--shadow-elevation-1)] transition-colors hover:border-[color:var(--accent-blue)] hover:bg-[color:var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-blue)] sm:px-4"
                 >
                   <Icon className="h-4 w-4 mt-0.5 shrink-0 text-[color:var(--accent-blue)]" />
                   <span>

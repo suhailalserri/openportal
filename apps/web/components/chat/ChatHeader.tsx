@@ -22,10 +22,10 @@ export function ChatHeader({ title, modelId, locale, onModelChange }: ChatHeader
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   return (
-    <header className="flex items-center gap-2 px-3 py-3 border-b border-slate-800 bg-[color:var(--bg-surface)]">
+    <header className="flex min-h-14 items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3 py-2.5">
       <button
         onClick={toggle}
-        className="p-2 -ms-1 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+        className="-ms-1 shrink-0 rounded-xl p-2 text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-blue)]"
         aria-label={t("nav.chat")}
       >
         <PanelLeft className="h-4 w-4" />

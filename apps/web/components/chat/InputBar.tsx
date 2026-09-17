@@ -68,7 +68,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
       : t("chat.placeholder");
 
   return (
-    <div className="border-t border-slate-800 bg-[color:var(--bg-surface)] p-4">
+    <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:p-4">
       {isOverLimit && (
         <p className="flex items-center justify-center gap-1.5 text-red-400 text-xs mb-2 text-center animate-fade-in">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
@@ -77,10 +77,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
       )}
 
       {/* Composer — quiet elevated surface, accent ring only on focus */}
-      <div className="flex items-end gap-3 bg-[color:var(--bg-base)] rounded-2xl border border-slate-700
-                      shadow-[var(--shadow-elevation-1)]
-                      focus-within:border-[color:var(--accent-blue)] focus-within:shadow-[var(--shadow-glow-blue)]
-                      transition-all duration-200 p-3">
+      <div className="flex items-end gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-base)] p-2.5 shadow-[var(--shadow-elevation-1)] transition-all duration-200 focus-within:border-[color:var(--accent-blue)] focus-within:shadow-[var(--shadow-glow-blue)] sm:gap-3 sm:p-3">
         <textarea
           ref={textareaRef}
           value={text}
@@ -90,9 +87,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
           disabled={isBlocked || isLoading}
           rows={1}
           dir={isRTL ? "rtl" : "ltr"}
-          className="flex-1 bg-transparent resize-none text-slate-50 placeholder-slate-500
-                     focus:outline-none text-sm leading-relaxed min-h-[24px] max-h-[200px]
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-6 max-h-[200px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-[color:var(--text-primary)] placeholder:text-[color:var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
 
         <TokenCounter text={text} modelId={modelId} locale={locale} onOverLimitChange={handleOverLimitChange} />
