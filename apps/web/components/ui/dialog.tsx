@@ -30,11 +30,17 @@ export const DialogContent = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
+    {/* Was `fixed z-50` with no top/left/transform — centered, sized, and
+        shaped here so any future consumer gets a working dialog out of the
+        box and only needs to override what's actually different about it. */}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 bg-[color:var(--bg-surface)] shadow-[var(--shadow-elevation-3)]",
-        "focus:outline-none",
+        "fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+        "w-[calc(100vw-2rem)] max-w-md max-h-[85vh] overflow-y-auto",
+        "bg-[color:var(--bg-surface)] border border-slate-700/80 rounded-2xl p-6",
+        "shadow-[var(--shadow-elevation-3)] focus:outline-none",
+        "data-[state=open]:animate-scale-in",
         className
       )}
       {...props}

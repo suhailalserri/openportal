@@ -24,7 +24,9 @@ export default {
         border:  "#4A423B",
         accent: {
           blue: "#D97757",
-          teal: "#CC8F35",
+          // "Live" state only (streaming, active generation) — kept in
+          // sync with --color-accent-teal / --accent-teal in globals.css.
+          teal: "#5EC8C0",
         },
       },
       animation: {

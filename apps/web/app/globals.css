@@ -92,7 +92,14 @@
   --color-text-muted:   #A79C8D;
   --color-accent-blue:       #D97757;
   --color-accent-blue-light: #DD8560;
-  --color-accent-teal:       #CC8F35;
+  /* Second, functional accent — reserved for "live" states only
+     (streaming responses, active generation, real-time gauges).
+     Was #CC8F35 (a near-duplicate of --color-warning), unused by any
+     component or Tailwind utility class in the app — safe to give it
+     a real, distinct hue instead of removing it. Clay stays the only
+     brand/static color; teal is purely a state signal. */
+  --color-accent-teal:       #5EC8C0;
+  --color-accent-teal-dim:   rgb(94 200 192 / 0.14);
 
   --color-success:      #6B9A56;
   --color-success-bg:   rgb(107 154 86 / 0.12);
@@ -125,6 +132,11 @@
   --shadow-elevation-2: 0 8px 24px -6px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
   --shadow-elevation-3: 0 24px 48px -12px rgb(0 0 0 / 0.55), 0 6px 16px -6px rgb(0 0 0 / 0.35);
   --shadow-glow-blue:   0 0 0 1px rgb(217 119 87 / 0.4), 0 0 24px -6px rgb(217 119 87 / 0.35);
+  --shadow-glow-teal:   0 0 0 1px rgb(94 200 192 / 0.4), 0 0 24px -6px rgb(94 200 192 / 0.35);
+  /* Quieter than the two glows above — for form-field focus rings
+     (input/textarea/select), where a tight ring reads as "focused"
+     without the spread-out glow a primary button/composer earns. */
+  --ring-accent:        0 0 0 3px rgb(217 119 87 / 0.12);
 
   --animate-fade-in:  fadeIn  0.2s ease-out;
   --animate-slide-up: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -141,7 +153,9 @@
   --text-muted:   #A79C8D;
   --accent-blue:  #D97757;
   --accent-blue-light: #DD8560;
-  --accent-teal:  #CC8F35;
+  --accent-teal:  #5EC8C0;
+  --accent-teal-dim: rgb(94 200 192 / 0.14);
+  --ring-accent:  0 0 0 3px rgb(217 119 87 / 0.12);
   /* Restrained — a single-hue depth gradient rather than a rainbow */
   --gradient-primary: linear-gradient(135deg, #D97757 0%, #B85A3B 100%);
 }
@@ -170,6 +184,10 @@
 
   --color-blue-400: #C2603F;
   --color-blue-500: #B0552F;
+  /* Teal shifts darker for AA contrast on a light ground, same rule
+     applied to every accent below. */
+  --color-accent-teal:     #21837B;
+  --color-accent-teal-dim: rgb(33 131 123 / 0.10);
 
   --color-emerald-400: #446337;
   --color-amber-400:   #8A5F22;
@@ -190,13 +208,16 @@
   --text-muted:   #6E6357;
   --accent-blue:       #C2603F;
   --accent-blue-light: #B0552F;
-  --accent-teal:       #8A5F22;
+  --accent-teal:       #21837B;
+  --accent-teal-dim:   rgb(33 131 123 / 0.10);
+  --ring-accent:       0 0 0 3px rgb(194 96 63 / 0.10);
   --gradient-primary: linear-gradient(135deg, #C2603F 0%, #9C4C33 100%);
 
   --shadow-elevation-1: 0 1px 2px rgb(23 19 15 / 0.06);
   --shadow-elevation-2: 0 8px 24px -6px rgb(23 19 15 / 0.12), 0 2px 6px -2px rgb(23 19 15 / 0.08);
   --shadow-elevation-3: 0 24px 48px -12px rgb(23 19 15 / 0.18), 0 6px 16px -6px rgb(23 19 15 / 0.1);
   --shadow-glow-blue:   0 0 0 1px rgb(194 96 63 / 0.35), 0 0 24px -6px rgb(194 96 63 / 0.3);
+  --shadow-glow-teal:   0 0 0 1px rgb(33 131 123 / 0.35), 0 0 24px -6px rgb(33 131 123 / 0.3);
 }
 
 .surface-1 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-1); }
@@ -240,6 +261,31 @@ body { min-height: 100vh; }
 [lang="en"] body, [dir="ltr"] body { font-family: "Inter", sans-serif; }
 
 .font-display { font-family: var(--font-serif); font-feature-settings: "liga" 1; letter-spacing: -0.01em; }
+
+/* Serif reserved for exactly one more job: the responding model's name
+   inside a message thread, so it reads as a masthead credit line, not
+   more chat furniture. Same restraint as .font-display — do not reach
+   for this anywhere else. */
+.font-masthead {
+  font-family: var(--font-serif);
+  color: var(--accent-blue-light);
+  letter-spacing: -0.005em;
+}
+
+/* A single reusable "this is live" signal — streaming responses,
+   active generation, real-time gauges. Teal only ever means this. */
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent-teal);
+  animation: livePulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
 
 pre, code, kbd, .code-block {
   direction:    ltr !important;

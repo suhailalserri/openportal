@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
-  size?:    "sm" | "md" | "lg";
+  size?:    "sm" | "md" | "lg" | "icon";
   loading?: boolean;
 }
 
@@ -25,7 +25,15 @@ export function Button({ variant = "primary", size = "md", loading, className, c
     ghost:     "hover:bg-slate-800 text-slate-400 hover:text-slate-100",
     danger:    "bg-red-600 hover:bg-red-700 text-white",
   };
-  const sizes = { sm: "text-xs px-3 py-1.5 gap-1.5", md: "text-sm px-4 py-2.5 gap-2", lg: "text-base px-6 py-3 gap-2.5" };
+  const sizes = {
+    sm: "text-xs px-3 py-1.5 gap-1.5",
+    md: "text-sm px-4 py-2.5 gap-2",
+    lg: "text-base px-6 py-3 gap-2.5",
+    // Square icon-only button — the header/toolbar/composer glyph
+    // buttons repeated as one-off classes across ChatHeader, InputBar,
+    // AccountMenu, etc. now have one canonical size to converge on.
+    icon: "h-9 w-9 p-0",
+  };
 
   return (
     <button className={cn(base, variants[variant], sizes[size], className)} disabled={disabled || loading} {...props}>
