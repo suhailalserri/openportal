@@ -104,6 +104,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, onMod
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
+        if (!r) continue;
         if (r.isFinal) finalChunk += r[0].transcript;
         else interim += r[0].transcript;
       }
