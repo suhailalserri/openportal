@@ -204,7 +204,6 @@ export default function ChatPage() {
           disabled={balance <= 0}
           offline={!isOnline}
           modelId={modelId}
-          onModelChange={setModelId}
           locale={locale}
         />
       </div>

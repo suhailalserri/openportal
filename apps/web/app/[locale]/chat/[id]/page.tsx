@@ -179,7 +179,7 @@ export default function ConversationPage() {
         )}
 
         <InputBar onSubmit={handleSend} onStop={stop} isLoading={isLoading}
-          disabled={isZero} offline={!isOnline} modelId={modelId} onModelChange={setModelId} locale={locale} />
+          disabled={isZero} offline={!isOnline} modelId={modelId} locale={locale} />
       </div>
     </ChatLayout>
   );
