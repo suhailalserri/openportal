@@ -19,14 +19,17 @@ export default {
         // Design system tokens — mirrors the CSS custom properties in
         // globals.css so `bg-base` / `bg-surface` / `border-border` are
         // available as Tailwind utilities too, not just `bg-[var(--x)]`.
-        base:    { DEFAULT: "#17130F", 50: "#1D1815" },
-        surface: "#1D1815",
-        border:  "#4A423B",
+        // surface/border are intentionally translucent white — they
+        // ARE the glass panel fills, meant to sit on top of the navy
+        // `base` gradient defined in globals.css.
+        base:    { DEFAULT: "#0B1220", 50: "#111C33" },
+        surface: "rgb(255 255 255 / 0.05)",
+        border:  "rgb(255 255 255 / 0.10)",
         accent: {
-          blue: "#D97757",
+          blue: "#2563EB",
           // "Live" state only (streaming, active generation) — kept in
           // sync with --color-accent-teal / --accent-teal in globals.css.
-          teal: "#5EC8C0",
+          teal: "#2DD4BF",
         },
       },
       animation: {

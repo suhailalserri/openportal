@@ -16,14 +16,15 @@ export function Button({ variant = "primary", size = "md", loading, className, c
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
   );
   const variants = {
-    // Flat, confident clay — the one action people take most (send,
-    // redeem, pay). No gradient theatrics; the weight comes from color
-    // and a quiet shadow, not a shine effect.
+    // The one solid surface in the button set — everything else here
+    // is glass, but the primary action (send, redeem, pay) earns a
+    // flat, confident fill so it never gets lost against translucent
+    // chrome behind it.
     primary:   "bg-[color:var(--accent-blue)] hover:brightness-110 text-white shadow-[var(--shadow-elevation-1)] hover:shadow-[var(--shadow-elevation-2)]",
-    secondary: "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700",
-    outline:   "bg-transparent hover:bg-slate-800 text-slate-200 border border-slate-700",
-    ghost:     "hover:bg-slate-800 text-slate-400 hover:text-slate-100",
-    danger:    "bg-red-600 hover:bg-red-700 text-white",
+    secondary: "bg-white/[0.06] hover:bg-white/[0.10] text-slate-100 border border-white/10 backdrop-blur-md",
+    outline:   "bg-transparent hover:bg-white/[0.06] text-slate-200 border border-white/15",
+    ghost:     "hover:bg-white/[0.06] text-slate-400 hover:text-slate-100",
+    danger:    "bg-red-600/90 hover:bg-red-600 text-white border border-red-400/20",
   };
   const sizes = {
     sm: "text-xs px-3 py-1.5 gap-1.5",

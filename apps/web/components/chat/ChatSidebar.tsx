@@ -73,11 +73,11 @@ function ConversationItem({
             if (e.key === "Escape") { setDraft(conv.title ?? t("chat.newChat")); setRenaming(false); }
           }}
           onBlur={commitRename}
-          className="flex-1 min-w-0 bg-[color:var(--bg-base)] border border-[color:var(--accent-blue)]
+          className="flex-1 min-w-0 bg-white/[0.06] border border-[color:var(--accent-blue)]
                      rounded-lg px-2 py-1.5 text-sm text-slate-50 focus:outline-none
                      focus:shadow-[var(--ring-accent)]"
         />
-        <button onClick={commitRename} className="shrink-0 text-[color:var(--accent-blue)] p-1.5 rounded-md hover:bg-slate-800" aria-label={t("common.confirm")}>
+        <button onClick={commitRename} className="shrink-0 text-[color:var(--accent-blue-light)] p-1.5 rounded-md hover:bg-white/10" aria-label={t("common.confirm")}>
           <Check className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -99,10 +99,10 @@ function ConversationItem({
           "relative block px-3 py-2.5 pe-9 rounded-xl text-sm transition-all duration-150",
           isActive
             ? cn(
-                "bg-[color:var(--accent-blue)]/[0.1] text-slate-50",
+                "bg-[color:var(--accent-blue)]/[0.14] text-slate-50",
                 isRTL ? "shadow-[inset_-2px_0_0_var(--accent-blue)]" : "shadow-[inset_2px_0_0_var(--accent-blue)]"
               )
-            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+            : "text-slate-400 hover:text-slate-100 hover:bg-white/[0.05]"
         )}
       >
         <div className="flex items-center gap-1.5 mb-0.5">
@@ -125,7 +125,7 @@ function ConversationItem({
             onClick={e => e.stopPropagation()}
             className="absolute top-1/2 -translate-y-1/2 end-1.5 p-1.5 rounded-lg text-slate-500
                        opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100
-                       hover:bg-slate-700 hover:text-slate-200 transition-all"
+                       hover:bg-white/10 hover:text-slate-200 transition-all"
             aria-label={t("common.edit")}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
@@ -209,7 +209,7 @@ function SidebarBody({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b border-slate-800 flex-shrink-0">
+      <div className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
         <Link href={`/${locale}/chat`} onClick={onNavigate} className="flex items-center gap-2.5 group min-w-0">
           <span className="gradient-primary w-7 h-7 rounded-lg shrink-0 flex items-center justify-center
                             text-white text-xs font-display font-semibold shadow-[var(--shadow-elevation-1)]">
@@ -229,13 +229,13 @@ function SidebarBody({
             render (including SSR) if used unconditionally here. */}
         {isMobile ? (
           <DialogPrimitive.Close asChild>
-            <button className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors shrink-0" aria-label={t("common.cancel")}>
+            <button className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-white/10 rounded-lg transition-colors shrink-0" aria-label={t("common.cancel")}>
               <X className="h-4 w-4" />
             </button>
           </DialogPrimitive.Close>
         ) : (
           <button
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-white/10 rounded-lg transition-colors shrink-0"
             aria-label={t("common.cancel")}
             onClick={onNavigate}
           >
@@ -265,7 +265,7 @@ function SidebarBody({
             onChange={e => setQuery(e.target.value)}
             placeholder={t("common.search")}
             aria-label={t("common.search")}
-            className="w-full bg-[color:var(--bg-base)] border border-slate-800 rounded-lg
+            className="w-full bg-white/[0.05] border border-white/10 rounded-lg
                        ps-8 pe-7 py-2 text-[13px] text-slate-200 placeholder:text-slate-600
                        focus:outline-none focus:border-[color:var(--accent-blue)]
                        focus:shadow-[var(--ring-accent)] transition-colors"
@@ -274,7 +274,7 @@ function SidebarBody({
             <button
               onClick={() => setQuery("")}
               aria-label={t("common.cancel")}
-              className="absolute top-1/2 -translate-y-1/2 end-2 p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-800"
+              className="absolute top-1/2 -translate-y-1/2 end-2 p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/10"
             >
               <X className="h-3 w-3" />
             </button>
@@ -327,19 +327,19 @@ function SidebarBody({
         )}
       </div>
 
-      <div className="p-3 border-t border-slate-800 space-y-2 flex-shrink-0">
+      <div className="p-3 border-t border-white/10 space-y-2 flex-shrink-0">
         {session && <BalanceWidget locale={locale} />}
         <AccountMenu locale={locale} />
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <LanguageSwitcher />
           <div className="flex items-center gap-1">
             <Link href={`/${locale}/settings`} onClick={onNavigate}
-              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-white/10 rounded-lg transition-colors"
               aria-label={t("nav.settings")}>
               <Settings className="h-4 w-4" />
             </Link>
             <Link href={`/${locale}/admin/dashboard`} onClick={onNavigate}
-              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-white/10 rounded-lg transition-colors"
               aria-label={t("nav.admin")}>
               <ShieldCheck className="h-4 w-4" />
             </Link>
@@ -356,15 +356,16 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
 
   return (
     <>
-      {/* Desktop: permanent column, width animates open/closed. No template-
-          literal Tailwind classes — Tailwind can't see dynamic class names,
-          so state drives inline width + a conditional literal class instead. */}
+      {/* Desktop: permanent glass column, width animates open/closed. No
+          template-literal Tailwind classes — Tailwind can't see dynamic
+          class names, so state drives inline width + a conditional
+          literal class instead. */}
       <motion.aside
         initial={false}
         animate={{ width: isOpen ? 288 : 0 }}
         transition={{ type: "tween", duration: 0.2, ease: "easeInOut" }}
         className={cn(
-          "hidden md:flex flex-col overflow-hidden bg-[color:var(--bg-surface)] border-e border-slate-800"
+          "hidden md:flex flex-col overflow-hidden bg-white/[0.05] backdrop-blur-md border-e border-white/10"
         )}
       >
         <div className="w-72 h-full flex-shrink-0">
@@ -380,7 +381,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
             <DialogPrimitive.Portal forceMount>
               <DialogPrimitive.Overlay asChild forceMount>
                 <motion.div
-                  className="md:hidden fixed inset-0 bg-black/60 z-40"
+                  className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-[2px] z-40"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -390,7 +391,8 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
               <DialogPrimitive.Content asChild forceMount aria-describedby={undefined}>
                 <motion.div
                   className={cn(
-                    "md:hidden fixed inset-y-0 z-50 w-72 bg-[color:var(--bg-surface)]",
+                    "md:hidden fixed inset-y-0 z-50 w-72 bg-white/[0.07] backdrop-blur-xl",
+                    "border-white/10", isRTL ? "border-s" : "border-e",
                     "shadow-[var(--shadow-elevation-3)] focus:outline-none",
                     isRTL ? "end-0" : "start-0"
                   )}

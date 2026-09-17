@@ -23,9 +23,9 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fade-in">
-      <div className="w-14 h-14 mb-6 rounded-2xl bg-[color:var(--accent-blue)] flex items-center justify-center
-                      shadow-[var(--shadow-elevation-2)]">
-        <Sparkles className="h-7 w-7 text-white" />
+      <div className="w-14 h-14 mb-6 rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-md
+                      flex items-center justify-center shadow-[var(--shadow-elevation-1)]">
+        <Sparkles className="h-7 w-7 text-[color:var(--accent-blue-light)]" />
       </div>
       <h2 className="font-display text-3xl text-slate-50 mb-3">
         {t("chat.emptyStateTitle")}
@@ -47,11 +47,11 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
                   key={s.label}
                   onClick={() => onSuggestionSelect(s.prompt)}
                   className="flex items-start gap-3 text-start px-4 py-3 rounded-2xl
-                             bg-[color:var(--bg-surface)] border border-slate-700/80
-                             hover:border-[color:var(--accent-blue)] hover:bg-slate-800/60
+                             bg-white/[0.05] border border-white/10 backdrop-blur-md
+                             hover:border-blue-400/30 hover:bg-white/[0.08]
                              transition-colors shadow-[var(--shadow-elevation-1)]"
                 >
-                  <Icon className="h-4 w-4 mt-0.5 shrink-0 text-[color:var(--accent-blue)]" />
+                  <Icon className="h-4 w-4 mt-0.5 shrink-0 text-[color:var(--accent-blue-light)]" />
                   <span>
                     <span className="block text-sm font-medium text-slate-200">{s.label}</span>
                     <span className="block text-xs text-slate-500 mt-0.5 line-clamp-2">{s.prompt}</span>

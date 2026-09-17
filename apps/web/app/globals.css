@@ -3,12 +3,14 @@
 @plugin "@tailwindcss/typography";
 
 /* ────────────────────────────────────────────────────────────────────
-   OpenPortal design system
-   A warm, editorial dark theme in the spirit of Anthropic's product
-   language: ink-black neutrals (not blue-slate), a single confident
-   clay accent instead of a rainbow of blues, and a serif reserved for
-   moments that deserve a little weight (brand mark, empty states,
-   auth). Everything else stays a quiet, legible sans.
+   AI Platform design system
+   Dark, subtly blue-tinted glassmorphism. A near-black navy base
+   (#0B1220 → #0F1B2E) sits underneath everything; chrome surfaces
+   (header, sidebar, composer, modals) are thin translucent glass
+   planes — backdrop-blur, low-opacity white fills, hairline borders —
+   never more than 2–3 stacked per screen so the navy base always
+   shows through. One accent blue, used sparingly; a separate teal is
+   reserved purely as a "this is live" signal.
    ──────────────────────────────────────────────────────────────────── */
 @theme {
   --font-arabic: "IBM Plex Arabic", sans-serif;
@@ -16,97 +18,96 @@
   --font-serif:  "Source Serif 4", Georgia, serif;
   --font-mono:   "JetBrains Mono", monospace;
 
-  /* ── Neutral scale — warm ink, not cold slate ─────────────────────
-     Every "bg-slate-N", "text-slate-N", "border-slate-N" class already
-     used throughout the app repaints through this scale, so pages we
-     don't hand-restyle still land on-brand. */
-  --color-slate-50:  #F7F4EF;
-  --color-slate-100: #EFEAE2;
-  --color-slate-200: #E1D9CC;
-  --color-slate-300: #C9BEAE;
-  --color-slate-400: #A79C8D;
-  --color-slate-500: #8C8072;
-  --color-slate-600: #6E6357;
-  --color-slate-700: #4A423B;
-  --color-slate-800: #322C27;
-  --color-slate-900: #221D19;
-  --color-slate-950: #17130F;
+  /* ── Neutral scale — cool blue-gray, mirrors every bg-slate-N /
+     text-slate-N / border-slate-N class already used across the app,
+     so pages we don't hand-restyle still land on the new navy theme. */
+  --color-slate-50:  #F8FAFC;
+  --color-slate-100: #F1F5F9;
+  --color-slate-200: #E2E8F0;
+  --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1E293B;
+  --color-slate-900: #172033;
+  --color-slate-950: #0B1220;
 
-  /* ── Accent — clay/terracotta, standing in for the old "blue" ────── */
-  --color-blue-50:  #FCF1EA;
-  --color-blue-100: #F8DFCF;
-  --color-blue-200: #F0BC9C;
-  --color-blue-300: #E59D74;
-  --color-blue-400: #DD8560;
-  --color-blue-500: #D97757;
-  --color-blue-600: #C2603F;
-  --color-blue-700: #9C4C33;
-  --color-blue-800: #753A28;
-  --color-blue-900: #4E271B;
-  --color-blue-950: #2C160F;
+  /* ── Accent — a single restrained blue, no gradients-as-theatrics ── */
+  --color-blue-50:  #EFF6FF;
+  --color-blue-100: #DBEAFE;
+  --color-blue-200: #BFDBFE;
+  --color-blue-300: #93C5FD;
+  --color-blue-400: #60A5FA;
+  --color-blue-500: #3B82F6;
+  --color-blue-600: #2563EB;
+  --color-blue-700: #1D4ED8;
+  --color-blue-800: #1E40AF;
+  --color-blue-900: #1E3A8A;
+  --color-blue-950: #172554;
 
-  /* ── Status — sage / gold / terracotta-red, muted to sit quietly
-     next to the accent instead of shouting over it ─────────────────── */
-  --color-emerald-50:  #F1F6EC;
-  --color-emerald-100: #E1EBD4;
-  --color-emerald-200: #C3D8AA;
-  --color-emerald-300: #A1C17D;
-  --color-emerald-400: #85AC61;
-  --color-emerald-500: #6B9A56;
-  --color-emerald-600: #587E45;
-  --color-emerald-700: #446337;
-  --color-emerald-800: #324A28;
-  --color-emerald-900: #21301B;
-  --color-emerald-950: #131C10;
+  /* ── Status — kept muted so they sit quietly next to the accent ──── */
+  --color-emerald-50:  #ECFDF5;
+  --color-emerald-100: #D1FAE5;
+  --color-emerald-200: #A7F3D0;
+  --color-emerald-300: #6EE7B7;
+  --color-emerald-400: #34D399;
+  --color-emerald-500: #10B981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065F46;
+  --color-emerald-900: #064E3B;
+  --color-emerald-950: #022C22;
 
-  --color-amber-50:  #FBF3E7;
-  --color-amber-100: #F5E3C6;
-  --color-amber-200: #EBC98C;
-  --color-amber-300: #DFAE57;
-  --color-amber-400: #D69B3F;
-  --color-amber-500: #CC8F35;
-  --color-amber-600: #AD772B;
-  --color-amber-700: #8A5F22;
-  --color-amber-800: #674718;
-  --color-amber-900: #453010;
-  --color-amber-950: #291C09;
+  --color-amber-50:  #FFFBEB;
+  --color-amber-100: #FEF3C7;
+  --color-amber-200: #FDE68A;
+  --color-amber-300: #FCD34D;
+  --color-amber-400: #FBBF24;
+  --color-amber-500: #F59E0B;
+  --color-amber-600: #D97706;
+  --color-amber-700: #B45309;
+  --color-amber-800: #92400E;
+  --color-amber-900: #78350F;
+  --color-amber-950: #451A03;
 
-  --color-red-50:  #FBEEEC;
-  --color-red-100: #F5D8D3;
-  --color-red-200: #E9AFA5;
-  --color-red-300: #DD8779;
-  --color-red-400: #D1604F;
-  --color-red-500: #C24B3A;
-  --color-red-600: #A53C2E;
-  --color-red-700: #7F2E23;
-  --color-red-800: #5A2119;
-  --color-red-900: #38140F;
-  --color-red-950: #220C09;
+  --color-red-50:  #FEF2F2;
+  --color-red-100: #FEE2E2;
+  --color-red-200: #FECACA;
+  --color-red-300: #FCA5A5;
+  --color-red-400: #F87171;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+  --color-red-700: #B91C1C;
+  --color-red-800: #991B1B;
+  --color-red-900: #7F1D1D;
+  --color-red-950: #450A0A;
 
-  /* Brand tokens → bg-surface, text-muted, border-accent-blue, etc. */
-  --color-bg-base:      #17130F;
-  --color-bg-surface:   #1D1815;
-  --color-bg-elevated:  #322C27;
-  --color-border:       #4A423B;
-  --color-text-primary: #F7F4EF;
-  --color-text-muted:   #A79C8D;
-  --color-accent-blue:       #D97757;
-  --color-accent-blue-light: #DD8560;
+  /* Brand tokens → bg-surface, text-muted, border-accent-blue, etc.
+     bg-surface / bg-elevated / border are intentionally translucent —
+     they ARE the glass panels, no opacity modifier required at call
+     sites (though one may still be layered on top for extra hush). */
+  --color-bg-base:      #0B1220;
+  --color-bg-surface:   rgb(255 255 255 / 0.05);
+  --color-bg-elevated:  rgb(255 255 255 / 0.09);
+  --color-border:       rgb(255 255 255 / 0.10);
+  --color-text-primary: #F1F5F9;
+  --color-text-muted:   #94A3B8;
+  --color-accent-blue:       #2563EB;
+  --color-accent-blue-light: #60A5FA;
   /* Second, functional accent — reserved for "live" states only
      (streaming responses, active generation, real-time gauges).
-     Was #CC8F35 (a near-duplicate of --color-warning), unused by any
-     component or Tailwind utility class in the app — safe to give it
-     a real, distinct hue instead of removing it. Clay stays the only
-     brand/static color; teal is purely a state signal. */
-  --color-accent-teal:       #5EC8C0;
-  --color-accent-teal-dim:   rgb(94 200 192 / 0.14);
+     Teal is purely a state signal; blue stays the only brand/static
+     accent. */
+  --color-accent-teal:       #2DD4BF;
+  --color-accent-teal-dim:   rgb(45 212 191 / 0.14);
 
-  --color-success:      #6B9A56;
-  --color-success-bg:   rgb(107 154 86 / 0.12);
-  --color-warning:      #CC8F35;
-  --color-warning-bg:   rgb(204 143 53 / 0.12);
-  --color-error:        #C24B3A;
-  --color-error-bg:     rgb(194 75 58 / 0.12);
+  --color-success:      #10B981;
+  --color-success-bg:   rgb(16 185 129 / 0.12);
+  --color-warning:      #F59E0B;
+  --color-warning-bg:   rgb(245 158 11 / 0.12);
+  --color-error:        #EF4444;
+  --color-error-bg:     rgb(239 68 68 / 0.12);
 
   /* Type scale — unchanged rhythm, still 12/14/16/18/20/24/32/48 */
   --text-xs:   0.75rem;
@@ -126,17 +127,17 @@
   --text-4xl:  3rem;
   --text-4xl--line-height:  3.4rem;
 
-  /* Elevation — soft, low-contrast shadows; depth reads from layered
-     warm darks, not from hard black drop shadows */
-  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.25);
-  --shadow-elevation-2: 0 8px 24px -6px rgb(0 0 0 / 0.45), 0 2px 6px -2px rgb(0 0 0 / 0.3);
-  --shadow-elevation-3: 0 24px 48px -12px rgb(0 0 0 / 0.55), 0 6px 16px -6px rgb(0 0 0 / 0.35);
-  --shadow-glow-blue:   0 0 0 1px rgb(217 119 87 / 0.4), 0 0 24px -6px rgb(217 119 87 / 0.35);
-  --shadow-glow-teal:   0 0 0 1px rgb(94 200 192 / 0.4), 0 0 24px -6px rgb(94 200 192 / 0.35);
+  /* Elevation — soft, low-contrast shadows; depth reads from the glass
+     blur + hairline borders, not from hard black drop shadows. */
+  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.30);
+  --shadow-elevation-2: 0 8px 24px -6px rgb(0 0 0 / 0.50), 0 2px 6px -2px rgb(0 0 0 / 0.35);
+  --shadow-elevation-3: 0 24px 48px -12px rgb(0 0 0 / 0.60), 0 6px 16px -6px rgb(0 0 0 / 0.40);
+  --shadow-glow-blue:   0 0 0 1px rgb(37 99 235 / 0.40), 0 0 24px -6px rgb(37 99 235 / 0.35);
+  --shadow-glow-teal:   0 0 0 1px rgb(45 212 191 / 0.40), 0 0 24px -6px rgb(45 212 191 / 0.35);
   /* Quieter than the two glows above — for form-field focus rings
      (input/textarea/select), where a tight ring reads as "focused"
      without the spread-out glow a primary button/composer earns. */
-  --ring-accent:        0 0 0 3px rgb(217 119 87 / 0.12);
+  --ring-accent:        0 0 0 3px rgb(37 99 235 / 0.15);
 
   --animate-fade-in:  fadeIn  0.2s ease-out;
   --animate-slide-up: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -145,19 +146,24 @@
 
 /* ── CSS custom properties (for direct var() usage) ─────────────────── */
 :root {
-  --bg-base:      #17130F;
-  --bg-surface:   #1D1815;
-  --bg-elevated:  #322C27;
-  --border:       #4A423B;
-  --text-primary: #F7F4EF;
-  --text-muted:   #A79C8D;
-  --accent-blue:  #D97757;
-  --accent-blue-light: #DD8560;
-  --accent-teal:  #5EC8C0;
-  --accent-teal-dim: rgb(94 200 192 / 0.14);
-  --ring-accent:  0 0 0 3px rgb(217 119 87 / 0.12);
+  --bg-base:      #0B1220;
+  --bg-surface:   rgb(255 255 255 / 0.05);
+  --bg-elevated:  rgb(255 255 255 / 0.09);
+  --border:       rgb(255 255 255 / 0.10);
+  --text-primary: #F1F5F9;
+  --text-muted:   #94A3B8;
+  --accent-blue:  #2563EB;
+  --accent-blue-light: #60A5FA;
+  --accent-teal:  #2DD4BF;
+  --accent-teal-dim: rgb(45 212 191 / 0.14);
+  --ring-accent:  0 0 0 3px rgb(37 99 235 / 0.15);
   /* Restrained — a single-hue depth gradient rather than a rainbow */
-  --gradient-primary: linear-gradient(135deg, #D97757 0%, #B85A3B 100%);
+  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  /* The navy base gradient the whole app shell sits on top of.
+     Not referenced by name anywhere else — html{} below applies it
+     directly — but kept as a token in case a future surface needs to
+     match the base exactly instead of a flat color. */
+  --gradient-base: linear-gradient(180deg, #0B1220 0%, #0D1830 55%, #0F1B2E 100%);
 }
 
 /* ── Light theme ──────────────────────────────────────────────────────
@@ -165,59 +171,58 @@
    components/providers.tsx). Every neutral + shadow token is mirrored
    end-for-end (50↔950, 100↔900, …) so components that reference the
    scale numerically (bg-slate-800, text-slate-400, border-slate-700…)
-   or the semantic --bg-* / --text-* vars stay correctly ordered — dark
-   text stays dark relative to light surfaces, muted stays mid-tone —
-   without auditing every call site individually. Accent hues keep
-   their identity but shift a step for AA contrast on a light ground. */
+   or the semantic --bg-* / --text-* vars stay correctly ordered —
+   dark text stays dark relative to light surfaces, muted stays
+   mid-tone — without auditing every call site individually. Glass
+   panels turn into soft ink-on-white tints instead of white-on-navy. */
 :root.light {
-  --color-slate-50:  #17130F;
-  --color-slate-100: #221D19;
-  --color-slate-200: #322C27;
-  --color-slate-300: #4A423B;
-  --color-slate-400: #6E6357;
-  --color-slate-500: #8C8072;
-  --color-slate-600: #A79C8D;
-  --color-slate-700: #C9BEAE;
-  --color-slate-800: #E1D9CC;
-  --color-slate-900: #EFEAE2;
-  --color-slate-950: #FBF9F6;
+  --color-slate-50:  #0B1220;
+  --color-slate-100: #172033;
+  --color-slate-200: #1E293B;
+  --color-slate-300: #334155;
+  --color-slate-400: #475569;
+  --color-slate-500: #64748B;
+  --color-slate-600: #94A3B8;
+  --color-slate-700: #CBD5E1;
+  --color-slate-800: #E2E8F0;
+  --color-slate-900: #F1F5F9;
+  --color-slate-950: #FAFBFF;
 
-  --color-blue-400: #C2603F;
-  --color-blue-500: #B0552F;
-  /* Teal shifts darker for AA contrast on a light ground, same rule
-     applied to every accent below. */
-  --color-accent-teal:     #21837B;
-  --color-accent-teal-dim: rgb(33 131 123 / 0.10);
+  --color-blue-400: #1D4ED8;
+  --color-blue-500: #1E40AF;
+  --color-accent-teal:     #0F766E;
+  --color-accent-teal-dim: rgb(15 118 110 / 0.10);
 
-  --color-emerald-400: #446337;
-  --color-amber-400:   #8A5F22;
-  --color-red-400:     #7F2E23;
+  --color-emerald-400: #047857;
+  --color-amber-400:   #B45309;
+  --color-red-400:     #B91C1C;
 
-  --color-success:    #446337;
-  --color-success-bg: rgb(107 154 86 / 0.14);
-  --color-warning:    #8A5F22;
-  --color-warning-bg: rgb(204 143 53 / 0.16);
-  --color-error:      #7F2E23;
-  --color-error-bg:   rgb(194 75 58 / 0.14);
+  --color-success:    #047857;
+  --color-success-bg: rgb(16 185 129 / 0.14);
+  --color-warning:    #B45309;
+  --color-warning-bg: rgb(245 158 11 / 0.16);
+  --color-error:      #B91C1C;
+  --color-error-bg:   rgb(239 68 68 / 0.14);
 
-  --bg-base:      #FBF9F6;
-  --bg-surface:   #F3EEE6;
-  --bg-elevated:  #E9E1D3;
-  --border:       #D9CEBD;
-  --text-primary: #221D19;
-  --text-muted:   #6E6357;
-  --accent-blue:       #C2603F;
-  --accent-blue-light: #B0552F;
-  --accent-teal:       #21837B;
-  --accent-teal-dim:   rgb(33 131 123 / 0.10);
-  --ring-accent:       0 0 0 3px rgb(194 96 63 / 0.10);
-  --gradient-primary: linear-gradient(135deg, #C2603F 0%, #9C4C33 100%);
+  --bg-base:      #F4F7FC;
+  --bg-surface:   rgb(15 23 42 / 0.04);
+  --bg-elevated:  rgb(15 23 42 / 0.07);
+  --border:       rgb(15 23 42 / 0.10);
+  --text-primary: #0B1220;
+  --text-muted:   #475569;
+  --accent-blue:       #1D4ED8;
+  --accent-blue-light: #1E40AF;
+  --accent-teal:       #0F766E;
+  --accent-teal-dim:   rgb(15 118 110 / 0.10);
+  --ring-accent:       0 0 0 3px rgb(29 78 216 / 0.12);
+  --gradient-primary: linear-gradient(135deg, #1D4ED8 0%, #1E3A8A 100%);
+  --gradient-base: linear-gradient(180deg, #F4F7FC 0%, #EEF2FA 100%);
 
-  --shadow-elevation-1: 0 1px 2px rgb(23 19 15 / 0.06);
-  --shadow-elevation-2: 0 8px 24px -6px rgb(23 19 15 / 0.12), 0 2px 6px -2px rgb(23 19 15 / 0.08);
-  --shadow-elevation-3: 0 24px 48px -12px rgb(23 19 15 / 0.18), 0 6px 16px -6px rgb(23 19 15 / 0.1);
-  --shadow-glow-blue:   0 0 0 1px rgb(194 96 63 / 0.35), 0 0 24px -6px rgb(194 96 63 / 0.3);
-  --shadow-glow-teal:   0 0 0 1px rgb(33 131 123 / 0.35), 0 0 24px -6px rgb(33 131 123 / 0.3);
+  --shadow-elevation-1: 0 1px 2px rgb(11 18 32 / 0.06);
+  --shadow-elevation-2: 0 8px 24px -6px rgb(11 18 32 / 0.12), 0 2px 6px -2px rgb(11 18 32 / 0.08);
+  --shadow-elevation-3: 0 24px 48px -12px rgb(11 18 32 / 0.18), 0 6px 16px -6px rgb(11 18 32 / 0.10);
+  --shadow-glow-blue:   0 0 0 1px rgb(29 78 216 / 0.30), 0 0 24px -6px rgb(29 78 216 / 0.25);
+  --shadow-glow-teal:   0 0 0 1px rgb(15 118 110 / 0.30), 0 0 24px -6px rgb(15 118 110 / 0.25);
 }
 
 .surface-1 { background: var(--bg-surface); border: 1px solid var(--border); box-shadow: var(--shadow-elevation-1); }
@@ -234,7 +239,7 @@
 .status-error   { color: var(--color-error);   background: var(--color-error-bg); }
 
 /* Grain — a very faint texture on the base layer so large flat dark
-   areas don't read as flat digital black. Anthropic-style paper feel. */
+   areas don't read as flat digital black. */
 .bg-noise {
   position: relative;
 }
@@ -243,14 +248,34 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A single, restrained radial glow — used exactly once, behind the
+   chat header — so the glass chrome at the top of the screen reads as
+   gently lit rather than flat. Never stack this elsewhere; one glow
+   per screen is the budget. */
+.header-glow {
+  position: relative;
+  isolation: isolate;
+}
+.header-glow::before {
+  content: "";
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 180px;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(60% 100% at 50% 0%, rgb(37 99 235 / 0.16) 0%, rgb(37 99 235 / 0) 70%);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
   background-color: var(--bg-base);
+  background-image: var(--gradient-base);
+  background-attachment: fixed;
   color:            var(--text-primary);
   scroll-behavior:  smooth;
 }
@@ -298,8 +323,8 @@ pre, code, kbd, .code-block {
 
 /* ── Syntax highlighting (rehype-highlight token classes) ────────────
    Hand-written theme instead of importing a highlight.js CSS package —
-   keeps the palette on-brand (clay/sage/amber, same tokens as the rest
-   of the UI) with zero new dependencies. */
+   keeps the palette on-brand (blue/emerald/amber, same tokens as the
+   rest of the UI) with zero new dependencies. */
 .hljs                 { color: var(--color-slate-200); background: transparent; }
 .hljs-comment,
 .hljs-quote            { color: var(--color-slate-500); font-style: italic; }
@@ -341,47 +366,6 @@ pre, code, kbd, .code-block {
 @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-/* ── Composer send button — a small "launch" flourish on submit ──────
-   The icon itself darts up-and-out and fades, a fresh one fades back
-   in behind it (handled by remounting via `key` in InputBar), and a
-   quiet ring expands from the button and dissipates — reads as the
-   message "taking off" without needing any extra assets or a JS
-   animation library. Direction mirrors for RTL (message flow goes the
-   other way), so two keyframes instead of one transform. */
-@keyframes sendFlyLTR {
-  0%   { transform: translate(0, 0) scale(1);       opacity: 1; }
-  45%  { transform: translate(7px, -9px) scale(0.75); opacity: 0; }
-  46%  { transform: translate(-6px, 6px) scale(0.75); opacity: 0; }
-  100% { transform: translate(0, 0) scale(1);       opacity: 1; }
-}
-@keyframes sendFlyRTL {
-  0%   { transform: translate(0, 0) scale(1);        opacity: 1; }
-  45%  { transform: translate(-7px, -9px) scale(0.75); opacity: 0; }
-  46%  { transform: translate(6px, 6px) scale(0.75);   opacity: 0; }
-  100% { transform: translate(0, 0) scale(1);        opacity: 1; }
-}
-@keyframes sendRing {
-  0%   { box-shadow: 0 0 0 0 rgb(217 119 87 / 0.45); }
-  100% { box-shadow: 0 0 0 14px rgb(217 119 87 / 0); }
-}
-.animate-send-fly-ltr { animation: sendFlyLTR 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-send-fly-rtl { animation: sendFlyRTL 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-send-ring    { animation: sendRing 0.5s ease-out; }
-
-/* Composer mic — a soft pulse while actively listening, distinct from
-   .live-dot (that's reserved for streaming/generation state; this is
-   input-side, so it borrows the same teal but a slower, breathing
-   rhythm rather than a hard blink). */
-@keyframes micPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(94 200 192 / 0.35); }
-  50%      { box-shadow: 0 0 0 6px rgb(94 200 192 / 0); }
-}
-.animate-mic-pulse { animation: micPulse 1.6s ease-in-out infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-send-fly-ltr, .animate-send-fly-rtl, .animate-send-ring, .animate-mic-pulse { animation: none; }
-}
-
 :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 4px; }
 
-::selection { background: rgba(217,119,87,0.35); }
+::selection { background: rgba(37,99,235,0.35); }

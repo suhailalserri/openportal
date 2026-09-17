@@ -34,7 +34,11 @@ export function ChatLayout({ children, locale }: ChatLayoutProps) {
 
   return (
     <SidebarContext.Provider value={{ isOpen: sidebarOpen, toggle: () => setSidebarOpen(o => !o) }}>
-      <div className="flex h-screen bg-[color:var(--bg-base)] overflow-hidden">
+      {/* Solid navy-gradient base (set on <html> in globals.css) shows
+          through everywhere; this shell just arranges the two glass
+          columns on top of it. No extra background here — a second
+          background would compete with the base gradient underneath. */}
+      <div className="flex h-screen overflow-hidden">
         <ChatSidebar
           locale={locale}
           isOpen={sidebarOpen}
@@ -43,9 +47,9 @@ export function ChatLayout({ children, locale }: ChatLayoutProps) {
 
         {/* bg-noise: the same faint-grain texture token used on the auth
             and empty-state surfaces (see globals.css) — applied here so
-            the whole chat column reads as one continuous "paper" surface
-            instead of a flat digital black. Purely decorative, zero
-            layout or behavior impact. */}
+            the whole chat column reads as one continuous surface instead
+            of a flat digital black. Purely decorative, zero layout or
+            behavior impact. */}
         <div className="flex-1 flex flex-col min-w-0 relative bg-noise">
           <StatusBanner />
           {children}
