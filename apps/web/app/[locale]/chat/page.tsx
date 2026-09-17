@@ -164,6 +164,8 @@ export default function ChatPage() {
             ? (messages[0]?.content?.slice(0, 40) ?? t("chat.newChat"))
             : t("chat.newChat")}
           locale={locale}
+          modelId={modelId}
+          onModelChange={setModelId}
         />
 
         {!isOnline && <OfflineBanner locale={locale} />}

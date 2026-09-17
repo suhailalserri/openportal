@@ -147,6 +147,8 @@ export default function ConversationPage() {
         <ChatHeader
           title={title ?? (messages[0]?.content.slice(0, 40) ?? t("chat.newChat"))}
           locale={locale}
+          modelId={modelId}
+          onModelChange={setModelId}
         />
 
         {!isOnline && <OfflineBanner locale={locale} />}
