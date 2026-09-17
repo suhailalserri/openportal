@@ -66,7 +66,14 @@
         "label": "Analyze something",
         "prompt": "What's the best way to analyze an oil well's production data over time?"
       }
-    ]
+    ],
+    "attach": "Attach file",
+    "attachComingSoon": "File attachments are coming soon",
+    "record": "Voice input",
+    "recording": "Listening…",
+    "recordStop": "Stop listening",
+    "recordUnsupported": "Voice input isn't supported in this browser",
+    "estCostTooltip": "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ."
   },
   "balance": {
     "current": "Your Balance",

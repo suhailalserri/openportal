@@ -10,13 +10,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useEffect } from "react";
 
-interface Props { value: string; onChange: (modelId: string) => void }
+interface Props {
+  value: string;
+  onChange: (modelId: string) => void;
+  // Slimmer, borderless trigger for sitting inline among other composer
+  // controls (InputBar) instead of standing alone in the header bar.
+  // Same data source, same dropdown content — only the closed-state
+  // chip's styling changes.
+  compact?: boolean;
+}
 
 // Models come from trpc.models.list, which reads the `models` DB table
 // (status="published" AND isAvailable=true only) — the same table the
 // admin "Pending Models" queue publishes into after a gateway sync. No
 // more static MODEL_CATALOG here.
-export function ModelSelector({ value, onChange }: Props) {
+export function ModelSelector({ value, onChange, compact = false }: Props) {
   const t        = useTranslations();
   const locale   = useLocale();
   const dir      = locale === "ar" ? "rtl" : "ltr";
@@ -50,7 +58,11 @@ export function ModelSelector({ value, onChange }: Props) {
   }
 
   if (isLoading) {
-    return (
+    return compact ? (
+      <div className="px-2.5 py-1.5 rounded-lg text-sm text-slate-500 animate-pulse">
+        <span className="inline-block w-16 h-3.5 bg-slate-700/70 rounded" />
+      </div>
+    ) : (
       <div className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm text-slate-500 animate-pulse">
         <span className="inline-block w-20 h-4 bg-slate-700 rounded" />
       </div>
@@ -59,7 +71,9 @@ export function ModelSelector({ value, onChange }: Props) {
 
   if (available.length === 0 || !selected) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400">
+      <div className={compact
+        ? "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-red-400"
+        : "flex items-center gap-2 px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400"}>
         <AlertTriangle className="h-4 w-4 shrink-0" />
         {t("models.noneAvailable")}
       </div>
@@ -69,30 +83,43 @@ export function ModelSelector({ value, onChange }: Props) {
   return (
     <DropdownMenu dir={dir}>
       <DropdownMenuTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700
-                     border border-slate-600 rounded-xl text-sm text-white transition-colors
-                     data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
-        >
-          <span>{selected.badge}</span>
-          <span className="max-w-[72px] sm:max-w-[120px] truncate">{nameOf(selected)}</span>
-          {/* Latency is genuinely useful at desktop width but is the first
-              thing to go on a phone — badge, name and the dropdown chevron
-              already fill the row next to the conversation title, and
-              adding "⚡1,930ms" on top of that is what was squeezing
-              everything down to unreadable sizes. Full detail is still one
-              tap away in the dropdown below. */}
-          {selected.avgResponseTimeMs != null && (
-            <span
-              className={`hidden sm:flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
-              title={t("models.latencyTooltip")}
-            >
-              <Zap className="h-3 w-3" />
-              {selected.avgResponseTimeMs.toLocaleString()}ms
-            </span>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
-        </button>
+        {compact ? (
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-slate-300
+                       hover:bg-[color:var(--bg-elevated)] hover:text-white transition-colors
+                       data-[state=open]:bg-[color:var(--bg-elevated)] data-[state=open]:text-white shrink-0"
+          >
+            <span className="text-base leading-none">{selected.badge}</span>
+            <span className="max-w-[92px] sm:max-w-[140px] truncate font-medium">{nameOf(selected)}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-500 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
+          </button>
+        ) : (
+          <button
+            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700
+                       border border-slate-600 rounded-xl text-sm text-white transition-colors
+                       data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
+          >
+            <span>{selected.badge}</span>
+            <span className="max-w-[72px] sm:max-w-[120px] truncate">{nameOf(selected)}</span>
+            {/* Latency is genuinely useful at desktop width but is the first
+                thing to go on a phone — badge, name and the dropdown chevron
+                already fill the row next to the conversation title, and
+                adding "⚡1,930ms" on top of that is what was squeezing
+                everything down to unreadable sizes. Full detail is still one
+                tap away in the dropdown below. */}
+            {selected.avgResponseTimeMs != null && (
+              <span
+                className={`hidden sm:flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
+                title={t("models.latencyTooltip")}
+              >
+                <Zap className="h-3 w-3" />
+                {selected.avgResponseTimeMs.toLocaleString()}ms
+              </span>
+            )}
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
+          </button>
+        )}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent side="top" align="start" className="w-72 max-h-80 overflow-y-auto">

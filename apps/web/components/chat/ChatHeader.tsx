@@ -2,14 +2,11 @@
 import { useTranslations } from "next-intl";
 import { PanelLeft } from "lucide-react";
 import { useSidebar } from "./ChatLayout";
-import { ModelSelector } from "./ModelSelector";
 import { ThemeToggle } from "../shared/ThemeToggle";
 
 interface ChatHeaderProps {
   title:    string;
-  modelId:  string;
   locale:   string;
-  onModelChange: (modelId: string) => void;
 }
 
 // Single header shared by /chat and /chat/[id]. Sticky + a translucent
@@ -18,7 +15,13 @@ interface ChatHeaderProps {
 // to sit at the top — same visual language as the composer at the
 // bottom (see InputBar), so the chat column is framed top and bottom by
 // matching "elevated glass" chrome instead of two unrelated bars.
-export function ChatHeader({ title, modelId, locale, onModelChange }: ChatHeaderProps) {
+//
+// The model picker used to live here; it now lives inline in InputBar
+// (next to where the cost estimate and send button already are), so
+// picking a model and seeing what it costs are in the same place. This
+// header keeps only what's genuinely page-chrome: the sidebar toggle,
+// the conversation title, and the theme toggle.
+export function ChatHeader({ title, locale }: ChatHeaderProps) {
   const t = useTranslations();
   const { toggle } = useSidebar();
   const dir = locale === "ar" ? "rtl" : "ltr";
@@ -42,10 +45,6 @@ export function ChatHeader({ title, modelId, locale, onModelChange }: ChatHeader
       </h2>
 
       <div className="flex items-center gap-1.5 shrink-0">
-        <ModelSelector value={modelId} onChange={onModelChange} />
-        {/* Quiet vertical rule to separate "what model" from "how it looks"
-            controls — only shown once there's room for it. */}
-        <div className="hidden sm:block w-px h-5 bg-slate-800 mx-0.5" aria-hidden="true" />
         <ThemeToggle dir={dir} />
       </div>
     </header>

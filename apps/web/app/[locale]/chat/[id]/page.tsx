@@ -146,9 +146,7 @@ export default function ConversationPage() {
       <div className="flex flex-col h-full">
         <ChatHeader
           title={title ?? (messages[0]?.content.slice(0, 40) ?? t("chat.newChat"))}
-          modelId={modelId}
           locale={locale}
-          onModelChange={setModelId}
         />
 
         {!isOnline && <OfflineBanner locale={locale} />}
@@ -179,7 +177,7 @@ export default function ConversationPage() {
         )}
 
         <InputBar onSubmit={handleSend} onStop={stop} isLoading={isLoading}
-          disabled={isZero} offline={!isOnline} modelId={modelId} locale={locale} />
+          disabled={isZero} offline={!isOnline} modelId={modelId} onModelChange={setModelId} locale={locale} />
       </div>
     </ChatLayout>
   );

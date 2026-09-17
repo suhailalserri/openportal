@@ -163,9 +163,7 @@ export default function ChatPage() {
           title={messages.length > 0
             ? (messages[0]?.content?.slice(0, 40) ?? t("chat.newChat"))
             : t("chat.newChat")}
-          modelId={modelId}
           locale={locale}
-          onModelChange={setModelId}
         />
 
         {!isOnline && <OfflineBanner locale={locale} />}
@@ -204,6 +202,7 @@ export default function ChatPage() {
           disabled={balance <= 0}
           offline={!isOnline}
           modelId={modelId}
+          onModelChange={setModelId}
           locale={locale}
         />
       </div>

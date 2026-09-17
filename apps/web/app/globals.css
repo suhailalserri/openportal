@@ -341,6 +341,47 @@ pre, code, kbd, .code-block {
 @keyframes slideUp { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes scaleIn { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+/* ── Composer send button — a small "launch" flourish on submit ──────
+   The icon itself darts up-and-out and fades, a fresh one fades back
+   in behind it (handled by remounting via `key` in InputBar), and a
+   quiet ring expands from the button and dissipates — reads as the
+   message "taking off" without needing any extra assets or a JS
+   animation library. Direction mirrors for RTL (message flow goes the
+   other way), so two keyframes instead of one transform. */
+@keyframes sendFlyLTR {
+  0%   { transform: translate(0, 0) scale(1);       opacity: 1; }
+  45%  { transform: translate(7px, -9px) scale(0.75); opacity: 0; }
+  46%  { transform: translate(-6px, 6px) scale(0.75); opacity: 0; }
+  100% { transform: translate(0, 0) scale(1);       opacity: 1; }
+}
+@keyframes sendFlyRTL {
+  0%   { transform: translate(0, 0) scale(1);        opacity: 1; }
+  45%  { transform: translate(-7px, -9px) scale(0.75); opacity: 0; }
+  46%  { transform: translate(6px, 6px) scale(0.75);   opacity: 0; }
+  100% { transform: translate(0, 0) scale(1);        opacity: 1; }
+}
+@keyframes sendRing {
+  0%   { box-shadow: 0 0 0 0 rgb(217 119 87 / 0.45); }
+  100% { box-shadow: 0 0 0 14px rgb(217 119 87 / 0); }
+}
+.animate-send-fly-ltr { animation: sendFlyLTR 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-send-fly-rtl { animation: sendFlyRTL 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-send-ring    { animation: sendRing 0.5s ease-out; }
+
+/* Composer mic — a soft pulse while actively listening, distinct from
+   .live-dot (that's reserved for streaming/generation state; this is
+   input-side, so it borrows the same teal but a slower, breathing
+   rhythm rather than a hard blink). */
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(94 200 192 / 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgb(94 200 192 / 0); }
+}
+.animate-mic-pulse { animation: micPulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-send-fly-ltr, .animate-send-fly-rtl, .animate-send-ring, .animate-mic-pulse { animation: none; }
+}
+
 :focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 4px; }
 
 ::selection { background: rgba(217,119,87,0.35); }
