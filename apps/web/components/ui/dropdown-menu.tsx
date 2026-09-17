@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Thin wrapper around Radix's DropdownMenu, styled for this app's dark
- * theme. Replaces the hand-rolled "useState(open) + outside-click
+ * glass theme. Replaces the hand-rolled "useState(open) + outside-click
  * useEffect" pattern that was duplicated across ModelSelector,
  * AccountMenu, and LanguageSwitcher.
  *
@@ -31,8 +31,8 @@ export const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[12rem] overflow-hidden rounded-2xl border border-slate-700",
-        "bg-[color:var(--bg-elevated)] p-1.5 shadow-[var(--shadow-elevation-3)]",
+        "z-50 min-w-[12rem] overflow-hidden rounded-2xl border border-white/10",
+        "bg-white/[0.07] backdrop-blur-xl p-1.5 shadow-[var(--shadow-elevation-3)]",
         "data-[state=open]:animate-slide-up",
         "data-[side=bottom]:slide-in-from-top-1",
         className
@@ -54,9 +54,9 @@ export const DropdownMenuItem = React.forwardRef<
     className={cn(
       "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm outline-none",
       "cursor-pointer select-none transition-colors",
-      "text-slate-300 focus:bg-slate-700 focus:text-white",
+      "text-slate-300 focus:bg-white/10 focus:text-white",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
-      destructive && "text-red-400 focus:bg-red-950/40 focus:text-red-300",
+      destructive && "text-red-400 focus:bg-red-500/15 focus:text-red-300",
       className
     )}
     {...props}
@@ -73,7 +73,7 @@ export const DropdownMenuCheckboxItem = React.forwardRef<
     className={cn(
       "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm outline-none",
       "cursor-pointer select-none transition-colors",
-      "text-slate-300 focus:bg-slate-700 focus:text-white",
+      "text-slate-300 focus:bg-white/10 focus:text-white",
       props.checked && "bg-blue-600/20",
       className
     )}
@@ -91,7 +91,7 @@ export const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn("my-1 h-px bg-slate-700", className)}
+    className={cn("my-1 h-px bg-white/10", className)}
     {...props}
   />
 ));

@@ -38,7 +38,7 @@ export function ThemeToggle({ dir = "ltr" }: { dir?: "ltr" | "rtl" }) {
     <DropdownMenu dir={dir}>
       <DropdownMenuTrigger asChild>
         <button
-          className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+          className="p-2 text-slate-400 hover:text-slate-100 hover:bg-white/10 rounded-lg transition-colors"
           aria-label={t("theme.toggle")}
         >
           <ActiveIcon className="h-4 w-4" />

@@ -33,7 +33,7 @@ export function StatusBanner() {
   const fallbackMessage = status.overall === "outage" ? t("status.degraded") : t("status.degraded");
 
   return (
-    <div className="status-warning border-b border-amber-500/20 px-4 py-2 text-center animate-fade-in">
+    <div className="status-warning backdrop-blur-md border-b border-amber-500/20 px-4 py-2 text-center animate-fade-in">
       <p className="flex items-center justify-center gap-1.5 text-sm">
         <TriangleAlert className="h-4 w-4 shrink-0" />
         {status.message ?? fallbackMessage}

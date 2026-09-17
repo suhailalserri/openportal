@@ -21,7 +21,7 @@ export function AccountMenu({ locale }: Props) {
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   if (isPending) {
-    return <div className="h-10 w-full bg-slate-800 animate-pulse rounded-xl" />;
+    return <div className="h-10 w-full bg-white/[0.05] border border-white/10 animate-pulse rounded-xl" />;
   }
 
   if (!session) {
@@ -29,7 +29,8 @@ export function AccountMenu({ locale }: Props) {
       <Link
         href={`/${locale}/auth/login`}
         className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm
-                   font-medium bg-[color:var(--accent-blue)] hover:brightness-110 text-white transition-all"
+                   font-medium bg-[color:var(--accent-blue)] hover:brightness-110 text-white transition-all
+                   shadow-[var(--shadow-elevation-1)]"
       >
         <User className="h-4 w-4" />
         {t("auth.login")}
@@ -50,8 +51,8 @@ export function AccountMenu({ locale }: Props) {
       <DropdownMenuTrigger asChild>
         <button
           className="flex items-center gap-2.5 w-full px-2 py-2 rounded-xl text-sm
-                     text-slate-300 hover:bg-slate-800 transition-colors
-                     data-[state=open]:bg-slate-800"
+                     text-slate-300 hover:bg-white/[0.06] transition-colors
+                     data-[state=open]:bg-white/[0.06]"
         >
           <span className="flex items-center justify-center w-7 h-7 rounded-full bg-[color:var(--accent-blue)]
                             text-white text-xs font-semibold shrink-0 font-display">
