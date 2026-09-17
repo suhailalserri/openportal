@@ -46,7 +46,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
     // Arabic/CJK, or the composition-end event some Android keyboards emit
     // right before the "real" Enter) — otherwise this fires mid-composition
     // on top of the real keydown.
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       handleSend();
     }
@@ -77,7 +77,7 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
       )}
 
       {/* Composer — quiet elevated surface, accent ring only on focus */}
-      <div className="flex items-end gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-base)] p-2.5 shadow-[var(--shadow-elevation-1)] transition-all duration-200 focus-within:border-[color:var(--accent-blue)] focus-within:shadow-[var(--shadow-glow-blue)] sm:gap-3 sm:p-3">
+      <div className="flex min-w-0 items-end gap-2 overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-base)] p-2.5 shadow-[var(--shadow-elevation-1)] transition-all duration-200 focus-within:border-[color:var(--accent-blue)] focus-within:shadow-[var(--shadow-glow-blue)] sm:gap-3 sm:p-3">
         <textarea
           ref={textareaRef}
           value={text}
@@ -87,19 +87,19 @@ export function InputBar({ onSubmit, onStop, isLoading, disabled, modelId, local
           disabled={isBlocked || isLoading}
           rows={1}
           dir={isRTL ? "rtl" : "ltr"}
-            className="min-h-6 max-h-[200px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-[color:var(--text-primary)] placeholder:text-[color:var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-6 min-w-0 max-h-[200px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-[color:var(--text-primary)] placeholder:text-[color:var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
 
         <TokenCounter text={text} modelId={modelId} locale={locale} onOverLimitChange={handleOverLimitChange} />
 
         {isLoading ? (
-          <button onClick={onStop} aria-label={t("chat.stop")}
+          <button type="button" onClick={onStop} aria-label={t("chat.stop")}
             className="p-2.5 bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl text-white
                        transition-all flex-shrink-0">
             <Square className="w-4 h-4" fill="currentColor" />
           </button>
         ) : (
-          <button onClick={handleSend} aria-label={t("chat.send")}
+          <button type="button" onClick={handleSend} aria-label={t("chat.send")}
             disabled={!text.trim() || isBlocked || isOverLimit}
             className="p-2.5 bg-[color:var(--accent-blue)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed
                        active:scale-95 disabled:active:scale-100

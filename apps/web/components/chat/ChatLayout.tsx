@@ -34,7 +34,7 @@ export function ChatLayout({ children, locale }: ChatLayoutProps) {
 
   return (
     <SidebarContext.Provider value={{ isOpen: sidebarOpen, toggle: () => setSidebarOpen(o => !o) }}>
-      <div className="flex h-[100dvh] overflow-hidden bg-[color:var(--bg-base)]">
+      <div className="relative flex h-[100dvh] overflow-hidden bg-[color:var(--bg-base)] bg-noise">
         <ChatSidebar
           locale={locale}
           isOpen={sidebarOpen}

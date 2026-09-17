@@ -22,12 +22,12 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
   const suggestions = t.raw("chat.suggestions") as Suggestion[];
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-4 py-6 text-center animate-fade-in sm:px-8">
+    <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-8 text-center animate-fade-in sm:px-8">
       <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-[color:var(--accent-blue)]
                       shadow-[var(--shadow-elevation-2)] sm:mb-6">
         <Sparkles className="h-7 w-7 text-white" />
       </div>
-      <h2 className="font-display mb-2 text-[clamp(2rem,9vw,3rem)] leading-tight text-[color:var(--text-primary)]">
+      <h2 className="font-display mb-2 max-w-full break-words px-2 text-[clamp(1.75rem,8.5vw,3rem)] leading-tight text-[color:var(--text-primary)]">
         {t("chat.emptyStateTitle")}
       </h2>
       <p className="mb-7 max-w-md text-sm leading-6 text-[color:var(--text-muted)] sm:text-base">
@@ -44,12 +44,13 @@ export function EmptyState({ locale, onSuggestionSelect }: EmptyStateProps) {
               const Icon = ICONS[i % ICONS.length]!;
               return (
                 <button
+                  type="button"
                   key={s.label}
                   onClick={() => onSuggestionSelect(s.prompt)}
                   className="group flex min-h-16 items-start gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3.5 py-3 text-start shadow-[var(--shadow-elevation-1)] transition-colors hover:border-[color:var(--accent-blue)] hover:bg-[color:var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-blue)] sm:px-4"
                 >
                   <Icon className="h-4 w-4 mt-0.5 shrink-0 text-[color:var(--accent-blue)]" />
-                  <span>
+                  <span className="min-w-0">
                     <span className="block text-sm font-medium text-slate-200">{s.label}</span>
                     <span className="block text-xs text-slate-500 mt-0.5 line-clamp-2">{s.prompt}</span>
                   </span>

@@ -289,7 +289,7 @@ export function ChatSidebar({ locale, isOpen, onClose }: Props) {
         animate={{ width: isOpen ? 288 : 0 }}
         transition={{ type: "tween", duration: 0.2, ease: "easeInOut" }}
         className={cn(
-          "hidden md:flex flex-col overflow-hidden bg-[color:var(--bg-surface)] border-e border-slate-800"
+          "hidden md:flex flex-col overflow-hidden border-e border-[color:var(--border)] bg-[color:var(--bg-surface)]"
         )}
       >
         <div className="w-72 h-full flex-shrink-0">

@@ -22,7 +22,7 @@ export function ChatHeader({ title, modelId, locale, onModelChange }: ChatHeader
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   return (
-    <header className="flex min-h-14 items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3 py-2.5">
+    <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)]/95 px-3 py-2.5 backdrop-blur-md sm:px-4">
       <button
         onClick={toggle}
         className="-ms-1 shrink-0 rounded-xl p-2 text-[color:var(--text-muted)] transition-colors hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-blue)]"
