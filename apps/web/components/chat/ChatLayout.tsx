@@ -41,7 +41,12 @@ export function ChatLayout({ children, locale }: ChatLayoutProps) {
           onClose={() => setSidebarOpen(false)}
         />
 
-        <div className="flex-1 flex flex-col min-w-0 relative">
+        {/* bg-noise: the same faint-grain texture token used on the auth
+            and empty-state surfaces (see globals.css) — applied here so
+            the whole chat column reads as one continuous "paper" surface
+            instead of a flat digital black. Purely decorative, zero
+            layout or behavior impact. */}
+        <div className="flex-1 flex flex-col min-w-0 relative bg-noise">
           <StatusBanner />
           {children}
         </div>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslations }   from "next-intl";
 import Link                  from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, SquarePen, Settings, ShieldCheck, MoreHorizontal,
-  Pencil, Pin, PinOff, Trash2, Check,
+  Pencil, Pin, PinOff, Trash2, Check, Search,
 } from "lucide-react";
 import { BalanceWidget }     from "../shared/BalanceWidget";
 import { AccountMenu }       from "../shared/AccountMenu";
@@ -28,14 +28,15 @@ import {
 interface Props { locale: string; isOpen: boolean; onClose: () => void }
 
 function ConversationItem({
-  conv, locale, isActive, onRename, onTogglePin, onDelete,
+  conv, locale, isActive, isPinnedGroup, onRename, onTogglePin, onDelete,
 }: {
-  conv:        ConversationSummary;
-  locale:      string;
-  isActive:    boolean;
-  onRename:    (id: string, title: string) => Promise<boolean>;
-  onTogglePin: (id: string, isPinned: boolean) => Promise<boolean>;
-  onDelete:    (id: string) => Promise<boolean>;
+  conv:          ConversationSummary;
+  locale:        string;
+  isActive:      boolean;
+  isPinnedGroup: boolean;
+  onRename:      (id: string, title: string) => Promise<boolean>;
+  onTogglePin:   (id: string, isPinned: boolean) => Promise<boolean>;
+  onDelete:      (id: string) => Promise<boolean>;
 }) {
   const t = useTranslations();
   const { data: modelList = [] } = trpc.models.list.useQuery();
@@ -73,27 +74,43 @@ function ConversationItem({
           }}
           onBlur={commitRename}
           className="flex-1 min-w-0 bg-[color:var(--bg-base)] border border-[color:var(--accent-blue)]
-                     rounded-lg px-2 py-1 text-sm text-slate-50 focus:outline-none"
+                     rounded-lg px-2 py-1.5 text-sm text-slate-50 focus:outline-none
+                     focus:shadow-[var(--ring-accent)]"
         />
-        <button onClick={commitRename} className="shrink-0 text-[color:var(--accent-blue)] p-1" aria-label={t("common.confirm")}>
+        <button onClick={commitRename} className="shrink-0 text-[color:var(--accent-blue)] p-1.5 rounded-md hover:bg-slate-800" aria-label={t("common.confirm")}>
           <Check className="h-3.5 w-3.5" />
         </button>
       </div>
     );
   }
 
+  // box-shadow has no logical-property equivalent (no "inset-inline-start"
+  // offset in CSS), so the active-item accent bar has to pick its physical
+  // offset by hand: -2px sits the bar on the visual "start" edge in RTL
+  // (right, in Arabic), +2px sits it on the start edge in LTR (left).
+  // Getting this backwards means every active conversation in Arabic
+  // shows its accent bar on the wrong side of the row.
+  const isRTL = locale === "ar";
+
   return (
     <div className="group relative">
       <Link href={`/${locale}/chat/${conv.id}`}
         className={cn(
-          "block px-3 py-2.5 pe-9 rounded-xl text-sm transition-colors",
+          "relative block px-3 py-2.5 pe-9 rounded-xl text-sm transition-all duration-150",
           isActive
-            ? "bg-[color:var(--accent-blue)]/12 border border-[color:var(--accent-blue)]/30 text-slate-50"
-            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"
-        )}>
-        <div className="flex items-center gap-2 mb-0.5">
-          {model && <span className="text-xs">{model.badge}</span>}
-          <span className="truncate font-medium">
+            ? cn(
+                "bg-[color:var(--accent-blue)]/[0.1] text-slate-50",
+                isRTL ? "shadow-[inset_-2px_0_0_var(--accent-blue)]" : "shadow-[inset_2px_0_0_var(--accent-blue)]"
+              )
+            : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+        )}
+      >
+        <div className="flex items-center gap-1.5 mb-0.5">
+          {isPinnedGroup && (
+            <Pin className={cn("h-3 w-3 shrink-0 -rotate-45", isActive ? "text-[color:var(--accent-blue-light)]" : "text-slate-600")} />
+          )}
+          {model && <span className="text-xs leading-none shrink-0">{model.badge}</span>}
+          <span className={cn("truncate font-medium", isActive && "text-[color:var(--accent-blue-light)]")}>
             {conv.title ?? t("chat.newChat")}
           </span>
         </div>
@@ -151,14 +168,37 @@ function SidebarBody({
   const pathname  = usePathname();
   const { grouped, loading, error, rename, togglePin, remove } = useConversations();
   const { data: session } = useSession();
+  const [query, setQuery] = useState("");
 
-  const groups: Array<{ key: keyof typeof grouped; labelKey: string }> = [
-    { key: "pinned",    labelKey: "chat.pinned"    },
+  const groups: Array<{ key: keyof typeof grouped; labelKey: string; pinned?: boolean }> = [
+    { key: "pinned",    labelKey: "chat.pinned",    pinned: true },
     { key: "today",     labelKey: "chat.today"     },
     { key: "yesterday", labelKey: "chat.yesterday" },
     { key: "thisWeek",  labelKey: "chat.thisWeek"  },
     { key: "older",     labelKey: "chat.older"     },
   ];
+
+  // Pure client-side filter over conversations already loaded by
+  // useConversations — no new endpoint, no network round-trip. A
+  // conversation with no title (still "New Chat" in the UI) simply
+  // won't match a text query, which is correct: there's no real title
+  // to search yet.
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredGroups = useMemo(() => {
+    if (!normalizedQuery) return grouped;
+    const filterList = (items: ConversationSummary[]) =>
+      items.filter(c => (c.title ?? "").toLowerCase().includes(normalizedQuery));
+    return {
+      pinned:    filterList(grouped.pinned),
+      today:     filterList(grouped.today),
+      yesterday: filterList(grouped.yesterday),
+      thisWeek:  filterList(grouped.thisWeek),
+      older:     filterList(grouped.older),
+    };
+  }, [grouped, normalizedQuery]);
+
+  const hasAnyConversations = Object.values(grouped).some(g => g.length > 0);
+  const hasAnyResults        = Object.values(filteredGroups).some(g => g.length > 0);
 
   async function handleDelete(id: string) {
     const isCurrent = pathname.includes(id);
@@ -170,10 +210,12 @@ function SidebarBody({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-slate-800 flex-shrink-0">
-        <Link href={`/${locale}/chat`} onClick={onNavigate} className="flex items-baseline gap-2 group">
-          <span className="w-6 h-6 rounded-md bg-[color:var(--accent-blue)] shrink-0 flex items-center justify-center
-                            text-white text-xs font-display font-semibold">O</span>
-          <span className="font-display text-lg text-slate-50 group-hover:text-[color:var(--accent-blue-light)] transition-colors">
+        <Link href={`/${locale}/chat`} onClick={onNavigate} className="flex items-center gap-2.5 group min-w-0">
+          <span className="gradient-primary w-7 h-7 rounded-lg shrink-0 flex items-center justify-center
+                            text-white text-xs font-display font-semibold shadow-[var(--shadow-elevation-1)]">
+            O
+          </span>
+          <span className="font-display text-lg text-slate-50 truncate group-hover:text-[color:var(--accent-blue-light)] transition-colors">
             {locale === "ar" ? t("app.name") : t("app.nameEn")}
           </span>
         </Link>
@@ -187,13 +229,13 @@ function SidebarBody({
             render (including SSR) if used unconditionally here. */}
         {isMobile ? (
           <DialogPrimitive.Close asChild>
-            <button className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors" aria-label={t("common.cancel")}>
+            <button className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors shrink-0" aria-label={t("common.cancel")}>
               <X className="h-4 w-4" />
             </button>
           </DialogPrimitive.Close>
         ) : (
           <button
-            className="md:hidden p-1 text-slate-400 hover:text-slate-100 transition-colors"
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
             aria-label={t("common.cancel")}
             onClick={onNavigate}
           >
@@ -202,7 +244,7 @@ function SidebarBody({
         )}
       </div>
 
-      <div className="p-3 flex-shrink-0">
+      <div className="p-3 pb-2 flex-shrink-0">
         <button onClick={() => { router.push(`/${locale}/chat`); onNavigate(); }}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[color:var(--accent-blue)]
                      hover:brightness-110 text-white rounded-xl font-medium text-sm transition-all active:scale-[0.98]
@@ -210,6 +252,35 @@ function SidebarBody({
           <SquarePen className="h-4 w-4" /> {t("chat.newChat")}
         </button>
       </div>
+
+      {/* Search — filters the conversation list already held in memory.
+          Not shown at all when there's nothing to search through yet, so
+          a brand-new account doesn't see an empty search box above an
+          empty list. */}
+      {!loading && !error && hasAnyConversations && (
+        <div className="px-3 pb-2 flex-shrink-0 relative">
+          <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-[26px] h-3.5 w-3.5 text-slate-600" />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={t("common.search")}
+            aria-label={t("common.search")}
+            className="w-full bg-[color:var(--bg-base)] border border-slate-800 rounded-lg
+                       ps-8 pe-7 py-2 text-[13px] text-slate-200 placeholder:text-slate-600
+                       focus:outline-none focus:border-[color:var(--accent-blue)]
+                       focus:shadow-[var(--ring-accent)] transition-colors"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label={t("common.cancel")}
+              className="absolute top-1/2 -translate-y-1/2 end-2 p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-800"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
         {loading ? (
@@ -220,8 +291,8 @@ function SidebarBody({
           <p className="text-center text-slate-600 text-sm py-8 px-3">{t("errors.network")}</p>
         ) : (
           <>
-            {groups.map(({ key, labelKey }) => {
-              const items = grouped[key];
+            {groups.map(({ key, labelKey, pinned }) => {
+              const items = filteredGroups[key];
               if (!items?.length) return null;
               return (
                 <div key={key} className="mb-2">
@@ -235,6 +306,7 @@ function SidebarBody({
                           conv={conv}
                           locale={locale}
                           isActive={pathname.includes(conv.id)}
+                          isPinnedGroup={!!pinned}
                           onRename={rename}
                           onTogglePin={togglePin}
                           onDelete={handleDelete}
@@ -245,17 +317,20 @@ function SidebarBody({
                 </div>
               );
             })}
-            {!Object.values(grouped).some(g => g.length > 0) && (
+            {!hasAnyConversations && (
               <p className="text-center text-slate-600 text-sm py-8">{t("chat.noConversations")}</p>
+            )}
+            {hasAnyConversations && !hasAnyResults && (
+              <p className="text-center text-slate-600 text-sm py-8 px-3">{t("chat.noConversations")}</p>
             )}
           </>
         )}
       </div>
 
       <div className="p-3 border-t border-slate-800 space-y-2 flex-shrink-0">
-        <AccountMenu locale={locale} />
         {session && <BalanceWidget locale={locale} />}
-        <div className="flex items-center justify-between gap-2">
+        <AccountMenu locale={locale} />
+        <div className="flex items-center justify-between gap-2 pt-0.5">
           <LanguageSwitcher />
           <div className="flex items-center gap-1">
             <Link href={`/${locale}/settings`} onClick={onNavigate}
