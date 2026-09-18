@@ -19,23 +19,23 @@ except backend PRs (§7, additive only) — per plan rules L3 and 0.2.
   frontend phase, that PR targets `main` directly per plan rule L3 — it
   is not part of the `frontend-v2` branch.
 
-## D1 — Preview environment data (still open)
-The plan's default: "Staging Supabase project; else prod DB with
-dedicated test accounts." **Not decided in this session** — I don't have
-access to your Vercel project's environment variable configuration, so I
-can't confirm which `DATABASE_URL` the `frontend-v2` preview will
-actually use at runtime. That's a Vercel dashboard setting (Project →
-Settings → Environment Variables, scoped to Preview), not a file in this
-repo.
+## D1 — Preview environment data — DECIDED
+`frontend-v2` previews use the **production database** (same Vercel
+Preview env as prod, incl. GATEWAY_*, CODE_SALT). Rules that follow:
+- Sign in on previews with dedicated test accounts only.
+- Previews spend real provider credits (shared GATEWAY_MASTER_KEY) and
+  real users CAN sign in on a preview URL — treat it as production data.
+- Do not run admin money actions (approve payments, adjust credits,
+  revoke codes) on real users' records from a preview.
+- Revisit before 5.1 (redeem/billing) and 8b (admin money ops); a
+  staging DB is the safer setup for those.
 
-Action needed from you: in Vercel, set the `frontend-v2` preview
-environment's `DATABASE_URL` (and the other vars listed in
-`web-build`'s CI job below) to either a staging DB or your production DB
-with credentials for dedicated test accounts only. Until that's set,
-Vercel previews will build (assuming Vercel's own build also has *some*
-value for `DATABASE_URL`, even a placeholder — same constraint as CI)
-but any page that actually queries the DB at request time will fail at
-runtime, not build time.
+## 0.2 closed
+All 5 CI jobs green on `frontend-v2` (run #111). Vercel preview builds
+and sign-in works on it (F18 confirmed). Tracker 0.1 + 0.2 ticked.
+Carry into 0.3: pin `runs-on: ubuntu-24.04` (ubuntu-latest moves to 26 on
+2026-10-19); confirm `creditBalance > throws if the user has no balance
+row` passes for the right reason.
 
 ## CI jobs added in `.github/workflows/deploy.yml`
 | Job | Status this session | Notes |
