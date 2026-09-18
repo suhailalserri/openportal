@@ -9,6 +9,12 @@ on:
 env:
   NODE_VERSION: "20"
 
+# A newer push to the same ref supersedes the older run instead of queueing
+# behind it (the Testcontainers job is slow; stale runs just burn minutes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ─── CHECK ───────────────────────────────────────────────────────────
   # Type-check + lint across the whole monorepo (was the only job before
@@ -17,6 +23,7 @@ jobs:
   check:
     name: Type-check & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +52,7 @@ jobs:
   api-tests:
     name: API Tests (Testcontainers)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -74,8 +82,12 @@ jobs:
   web-build:
     name: Web Build (next build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # NODE_ENV is deliberately NOT set here. pnpm treats NODE_ENV=production
+    # as `--prod` and skips devDependencies (typescript, tailwindcss,
+    # @tailwindcss/postcss, eslint-config-next…), all of which `next build`
+    # needs. `next build` sets NODE_ENV=production for itself.
     env:
-      NODE_ENV: production
       DATABASE_URL: "postgres://placeholder:placeholder@localhost:1/unused"
       REDIS_URL: "redis://localhost:1/0"
       GATEWAY_URL: "http://localhost:1"
@@ -83,7 +95,9 @@ jobs:
       GATEWAY_ROOT_TOKEN: "ci-placeholder"
       BETTER_AUTH_SECRET: "ci-placeholder-32-bytes-minimum-xxxxxxxx"
       BETTER_AUTH_URL: "http://localhost:3000"
-      INTERNAL_SERVICE_TOKEN: "ci-placeholder"
+      # apps/api/src/config.ts requires INTERNAL_SERVICE_TOKEN.min(32) and
+      # throws at import time ("Collecting page data") if it is shorter.
+      INTERNAL_SERVICE_TOKEN: "ci-placeholder-internal-service-token-32plus"
       INTERNAL_API_URL: "http://localhost:1"
       RESEND_API_KEY: "ci-placeholder"
       RESEND_FROM_EMAIL: "noreply@openportal.site"
@@ -119,6 +133,7 @@ jobs:
   web-unit:
     name: Web Unit Tests (vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -147,6 +162,7 @@ jobs:
   i18n-parity:
     name: i18n Key Parity
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 

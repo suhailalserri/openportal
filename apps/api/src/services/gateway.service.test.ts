@@ -28,13 +28,21 @@ const { deductCreditsAtomicMock, chainableNoop, MODEL_FIXTURES, modelIdRef } = v
     // (Referencing `vi` itself here is safe — Vitest hoists the `import
     // { vi } from "vitest"` above vi.mock/vi.hoisted specifically so this works.)
     deductCreditsAtomicMock: vi.fn().mockResolvedValue({ success: true, newBalance: 999 }),
-    // Message-save / conversation-timestamp-update are fire-and-forget
-    // writes unrelated to what this file covers (billing + passthrough).
-    // A Proxy that returns itself from any property access or call lets
-    // `.insert(x).values(y).catch(z)` and `.update(x).set(y).where(z).catch(w)`
-    // both resolve harmlessly instead of opening a real connection.
+    // A stand-in for Drizzle's fluent query builder. Some call sites just
+    // chain and `.catch()` (fire-and-forget message saves / timestamp
+    // updates), but streamChat also does
+    //   await db.insert(conversations).values(...).onConflictDoNothing()
+    // — and `await` treats any object with a callable `.then` as a thenable.
+    // A Proxy that returns itself for EVERY property (including "then") is
+    // therefore a thenable whose then() never calls resolve, so that await
+    // hangs forever (every test past the model lookup timed out at 60s).
+    // Answering `undefined` for "then" makes the awaited value resolve to
+    // the proxy itself, while all other chaining still returns the proxy.
     chainableNoop: (): any => {
-      const proxy: any = new Proxy(() => proxy, { get: () => proxy, apply: () => proxy });
+      const proxy: any = new Proxy(() => proxy, {
+        get: (_target, prop) => (prop === "then" ? undefined : proxy),
+        apply: () => proxy,
+      });
       return proxy;
     },
     // Fixture rows for the one model these tests actually route through.
@@ -223,10 +231,18 @@ describe("streamChat", () => {
 
   it("still bills for partial content if the stream is interrupted mid-response", async () => {
     const encoder = new TextEncoder();
+    // Deliver one real chunk, THEN fail on the next pull. Doing enqueue()
+    // and error() in the same pull() would be wrong: error() resets the
+    // stream's queue, so the chunk would be discarded before the consumer
+    // ever reads it and the test would exercise "no content" instead.
+    let pulls = 0;
     const interruptedStream = new ReadableStream<Uint8Array>({
       pull(controller) {
-        controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial"}}]}\n\n`));
-        controller.error(new Error("simulated connection drop"));
+        if (pulls++ === 0) {
+          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial"}}]}\n\n`));
+        } else {
+          controller.error(new Error("simulated connection drop"));
+        }
       },
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({

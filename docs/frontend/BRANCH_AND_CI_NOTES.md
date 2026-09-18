@@ -66,16 +66,36 @@ confirm (a) a Vercel preview URL is generated, (b) you can sign in on
 it. That satisfies plan rule 0.2's "confirm Vercel builds previews" step
 and closes the F18 unverified tag.
 
-## api-tests risk (unresolved, needs your CI run to know)
-The plan says: "If `api-tests` is red, fix or explicitly skip-list now."
-This session could not run the suite (no network/Docker access here to
-actually execute Testcontainers). The 6 existing test files
-(`balance`, `redeem`, `fraud`, `gateway`, `referral`,
-`manual-payment` `.service.test.ts`) look self-contained and shouldn't
-need anything beyond what CI already provides (Docker on
-`ubuntu-latest`), but this is unverified. **If this job goes red on your
-first CI run, paste the failing log lines in the next message** per the
-plan's "one blocker at a time" rule — don't let me guess at a fix here.
+## api-tests — first CI run result and fix (0.2 continuation)
+First run: `gateway.service.test.ts` — 4 of 5 tests timed out at 60s each;
+the job then hung ~10 min until cancelled. Root cause was in the TEST
+mocks, not production code:
+1. `chainableNoop` (Proxy) returned itself for `.then`, making it a
+   thenable that never resolves. `streamChat` awaits
+   `db.insert(conversations)...onConflictDoNothing()` (gateway.service.ts),
+   so every test past the model lookup hung. Test 1 passed only because it
+   returns before that line. Fix: `get` returns `undefined` for `"then"`.
+2. The interrupted-stream test called `enqueue()` and `error()` in the same
+   `pull()`; `error()` resets the queue, discarding the chunk, so the
+   "bills partial content" assertion could never pass. Fix: enqueue on the
+   first pull, error on the second.
+Both reproduced in plain Node before fixing. Only the test file changed;
+`gateway.service.ts` is untouched. Land on `main` (plan L3) and merge into
+`frontend-v2`. The other 5 API test files had not reported results when
+the run was cancelled — still unverified.
+
+## web-build — first CI run result and fix (0.2 continuation)
+Red on first run. The job log was not available, so these two causes are
+inferred from the files (not observed in a log):
+- Job-level `NODE_ENV: production` makes pnpm skip devDependencies
+  (typescript, tailwindcss, @tailwindcss/postcss, eslint-config-next…).
+  Removed; `next build` sets NODE_ENV itself.
+- Dummy `INTERNAL_SERVICE_TOKEN` was 14 chars; `apps/api/src/config.ts`
+  requires `min(32)` and throws at import while Next collects page data.
+If it is still red, paste the failing lines from the Web Build job.
+
+Also added: `timeout-minutes` on every job and a `concurrency` group with
+cancel-in-progress.
 
 ## ESLint config
 Added `apps/web/.eslintrc.json` (legacy format — `apps/web`'s ESLint is
