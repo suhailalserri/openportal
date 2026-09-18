@@ -101,6 +101,21 @@ documented `strict` behaviour, not observed in a log** — I could not run
 drizzle-kit here. If the job still fails/hangs, the new error output will
 say why; paste it.
 
+**Update — hang fixed, confirmed by the next CI run:** the DB test files
+now start (schema push works; TRUNCATE notices in the log) and the suite
+finishes in ~2m20s instead of hanging.
+
+## api-tests — third finding: TLS to a non-TLS test database
+That run: 43 of 52 tests failed, all with "Client network socket
+disconnected before secure TLS connection was established".
+`packages/db/src/index.ts` sets `ssl: "require"` unless
+`DATABASE_SSL=disable`; the Testcontainers Postgres has no TLS. Fix: set
+`DATABASE_SSL: "disable"` in `apps/api/vitest.config.ts` `test.env` and in
+`startTestDb()`. No production code touched. Watch for: the 9 tests that
+passed include `creditBalance > throws if the user has no balance row`,
+which would also "pass" on ANY error — once the TLS fix lands, confirm it
+still passes for the right reason (a "balance row" message).
+
 ## Vercel preview build — missing env (not a code problem)
 `next build` on the `frontend-v2` preview compiled, linted (3 warnings, no
 errors) and type-checked, then failed at "Collecting page data" with

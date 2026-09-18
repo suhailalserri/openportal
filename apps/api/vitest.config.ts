@@ -30,6 +30,13 @@ export default defineConfig({
     // real connection string before doing anything DB-dependent.
     env: {
       DATABASE_URL: "postgres://placeholder:placeholder@localhost:1/unused",
+      // packages/db/src/index.ts forces `ssl: "require"` unless this is
+      // "disable" (it targets managed Postgres). Testcontainers' Postgres
+      // has no TLS, so without this EVERY query through @ai-platform/db
+      // fails with "Client network socket disconnected before secure TLS
+      // connection was established" (43 of 52 tests in the first CI run
+      // that got past drizzle-kit push).
+      DATABASE_SSL: "disable",
       CODE_SALT: "test-salt-do-not-use-in-production",
       // fraud.service.ts / metrics.ts read process.env.REDIS_URL directly
       // (not through the Zod-validated ./config — see metrics.ts for why),

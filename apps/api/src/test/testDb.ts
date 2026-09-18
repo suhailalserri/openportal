@@ -45,6 +45,11 @@ export async function startTestDb(): Promise<void> {
 
   const url = container.getConnectionUri();
   process.env.DATABASE_URL = url;
+  // packages/db forces TLS unless DATABASE_SSL=disable; the container has
+  // none. Also set in vitest.config.ts — repeated here so it holds even if
+  // a test is run with a different config. Must precede any import of
+  // "@ai-platform/db" (which builds its client at module load).
+  process.env.DATABASE_SSL = "disable";
   // redeem.service.ts HMACs the code checksum with this — must be set
   // before that module (or anything importing it) is first evaluated.
   process.env.CODE_SALT ??= "test-salt-do-not-use-in-production";
