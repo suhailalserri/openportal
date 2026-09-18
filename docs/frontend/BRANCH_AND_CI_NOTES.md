@@ -19,23 +19,23 @@ except backend PRs (§7, additive only) — per plan rules L3 and 0.2.
   frontend phase, that PR targets `main` directly per plan rule L3 — it
   is not part of the `frontend-v2` branch.
 
-## D1 — Preview environment data (still open)
-The plan's default: "Staging Supabase project; else prod DB with
-dedicated test accounts." **Not decided in this session** — I don't have
-access to your Vercel project's environment variable configuration, so I
-can't confirm which `DATABASE_URL` the `frontend-v2` preview will
-actually use at runtime. That's a Vercel dashboard setting (Project →
-Settings → Environment Variables, scoped to Preview), not a file in this
-repo.
+## D1 — Preview environment data — DECIDED
+`frontend-v2` previews use the **production database** (same Vercel
+Preview env as prod, incl. GATEWAY_*, CODE_SALT). Rules that follow:
+- Sign in on previews with dedicated test accounts only.
+- Previews spend real provider credits (shared GATEWAY_MASTER_KEY) and
+  real users CAN sign in on a preview URL — treat it as production data.
+- Do not run admin money actions (approve payments, adjust credits,
+  revoke codes) on real users' records from a preview.
+- Revisit before 5.1 (redeem/billing) and 8b (admin money ops); a
+  staging DB is the safer setup for those.
 
-Action needed from you: in Vercel, set the `frontend-v2` preview
-environment's `DATABASE_URL` (and the other vars listed in
-`web-build`'s CI job below) to either a staging DB or your production DB
-with credentials for dedicated test accounts only. Until that's set,
-Vercel previews will build (assuming Vercel's own build also has *some*
-value for `DATABASE_URL`, even a placeholder — same constraint as CI)
-but any page that actually queries the DB at request time will fail at
-runtime, not build time.
+## 0.2 closed
+All 5 CI jobs green on `frontend-v2` (run #111). Vercel preview builds
+and sign-in works on it (F18 confirmed). Tracker 0.1 + 0.2 ticked.
+Carry into 0.3: pin `runs-on: ubuntu-24.04` (ubuntu-latest moves to 26 on
+2026-10-19); confirm `creditBalance > throws if the user has no balance
+row` passes for the right reason.
 
 ## CI jobs added in `.github/workflows/deploy.yml`
 | Job | Status this session | Notes |
@@ -83,6 +83,48 @@ Both reproduced in plain Node before fixing. Only the test file changed;
 `gateway.service.ts` is untouched. Land on `main` (plan L3) and merge into
 `frontend-v2`. The other 5 API test files had not reported results when
 the run was cancelled — still unverified.
+
+## api-tests — second finding: DB-backed test files hang (0.2 continuation)
+After the gateway fix, `gateway.service.test.ts` passes (5 tests, 41 ms),
+but the job ran 10+ min with no other file reporting. The 5 DB-backed
+files all call `startTestDb()`, which runs `npx drizzle-kit push` via
+`execSync`. `packages/db/drizzle.config.ts` has `strict: true`, which makes
+push wait for an interactive confirmation on EVERY run (the old comment in
+testDb.ts said otherwise — wrong). stdin is "ignore", push holds its DB
+connection open, so the child never exits; `execSync` blocks the event
+loop so vitest's 60s hookTimeout can't fire. Result: silent infinite hang.
+Fix: `packages/db/drizzle.test.config.ts` (same as the real config with
+`strict`/`verbose` off), used only by testDb.ts, plus `timeout: 120_000`
+and captured stdout/stderr on `execSync` so any future hang fails in 2 min
+WITH the reason. **This diagnosis is inferred from the code and drizzle's
+documented `strict` behaviour, not observed in a log** — I could not run
+drizzle-kit here. If the job still fails/hangs, the new error output will
+say why; paste it.
+
+**Update — hang fixed, confirmed by the next CI run:** the DB test files
+now start (schema push works; TRUNCATE notices in the log) and the suite
+finishes in ~2m20s instead of hanging.
+
+## api-tests — third finding: TLS to a non-TLS test database
+That run: 43 of 52 tests failed, all with "Client network socket
+disconnected before secure TLS connection was established".
+`packages/db/src/index.ts` sets `ssl: "require"` unless
+`DATABASE_SSL=disable`; the Testcontainers Postgres has no TLS. Fix: set
+`DATABASE_SSL: "disable"` in `apps/api/vitest.config.ts` `test.env` and in
+`startTestDb()`. No production code touched. Watch for: the 9 tests that
+passed include `creditBalance > throws if the user has no balance row`,
+which would also "pass" on ANY error — once the TLS fix lands, confirm it
+still passes for the right reason (a "balance row" message).
+
+## Vercel preview build — missing env (not a code problem)
+`next build` on the `frontend-v2` preview compiled, linted (3 warnings, no
+errors) and type-checked, then failed at "Collecting page data" with
+REDIS_URL, GATEWAY_URL, GATEWAY_MASTER_KEY, GATEWAY_ROOT_TOKEN, CODE_SALT
+"Required". Those five are missing from the **Preview** environment scope
+in Vercel (Settings → Environment Variables; each var has separate
+Production / Preview / Development checkboxes). Env changes only apply to
+NEW deployments — redeploy after fixing. Use the same CODE_SALT as the DB
+you point the preview at, or redeem-code checksums won't validate.
 
 ## web-build — first CI run result and fix (0.2 continuation)
 Red on first run. The job log was not available, so these two causes are

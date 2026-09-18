@@ -59,7 +59,7 @@ Everything below was read from the zip. Items marked **(unverified)** could not 
 ### Open (defaults apply if you don't answer)
 | # | Decision | Default | Decide by |
 |---|---|---|---|
-| D1 | Preview environment data | Staging Supabase project; else prod DB with dedicated test accounts | 0.2 |
+| D1 | Preview environment data | **DECIDED (0.2): production DB, dedicated test accounts only.** Revisit before 5.1 and 8b (money flows / admin approvals on preview touch real data). | 0.2 |
 | D2 | Brand/design direction | Claude proposes 3 token presets, you pick | 1.1 |
 | D3 | Chat state | Custom reducer hook (backend stream is plain text; edit/regenerate need control) vs AI SDK `useChat` | 4b |
 | D4 | Charts | `recharts` (no chart lib today; admin `RevenueChart` is inline SVG) | 6.1 |
@@ -123,8 +123,8 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 
 | ID | Session | Status |
 |---|---|---|
-| 0.1 | Legal gate fix | [ ] |
-| 0.2 | Branch, CI, preview | [ ] |
+| 0.1 | Legal gate fix | [x] |
+| 0.2 | Branch, CI, preview | [x] |
 | 0.3 | Contract freeze + cleanup | [ ] |
 | 1.1 | Design direction + tokens | [ ] |
 | 1.2 | Foundation code + kitchen-sink | [ ] |
