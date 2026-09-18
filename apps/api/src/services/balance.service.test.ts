@@ -151,9 +151,14 @@ describe("creditBalance", () => {
   });
 
   it("throws if the user has no balance row (fail loud, not silent)", async () => {
+    // Matches the specific message balance.service.ts throws for this case
+    // (`Balance row not found for user ${userId}`). A bare `.rejects.toThrow()`
+    // with no argument passes on ANY rejection — including an unrelated
+    // connection/TLS failure — so it could pass even if this code path
+    // stopped throwing its own error entirely.
     await expect(
       creditBalance("00000000-0000-0000-0000-000000000000", 1_000_000, "redeem", {})
-    ).rejects.toThrow();
+    ).rejects.toThrow("Balance row not found");
   });
 
   it("when nested via an injected tx, rolls back together with the outer transaction", async () => {
