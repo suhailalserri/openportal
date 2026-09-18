@@ -12,41 +12,31 @@ interface ChatHeaderProps {
   onModelChange: (modelId: string) => void;
 }
 
-// Single header shared by /chat and /chat/[id]. A translucent glass
-// plane (backdrop-blur + hairline bottom border) floating above the
-// thread as it scrolls underneath — same visual language as the
-// composer at the bottom (see InputBar), so the chat column is framed
-// top and bottom by matching glass chrome. The `.header-glow` class
-// (globals.css) is the app's one permitted radial accent glow — used
-// here and nowhere else.
+// Single header shared by /chat and /chat/[id] — previously each page
+// hand-rolled its own copy of this markup (including a `bg-[#1D1815]`
+// literal that silently opted this row out of the light theme; both
+// copies now go through `var(--bg-surface)` like the rest of the app).
 export function ChatHeader({ title, modelId, locale, onModelChange }: ChatHeaderProps) {
   const t = useTranslations();
   const { toggle } = useSidebar();
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   return (
-    <header
-      className="header-glow sticky top-0 z-20 flex items-center gap-2 px-3 py-2.5 sm:px-4
-                 border-b border-white/10 bg-white/[0.05] backdrop-blur-md overflow-hidden"
-    >
+    <header className="flex items-center gap-3 px-4 py-4 border-b border-slate-800 bg-[color:var(--bg-surface)]">
       <button
         onClick={toggle}
-        className="p-2 -ms-1 text-slate-400 hover:text-slate-100 hover:bg-white/10
-                   rounded-lg transition-colors shrink-0 active:scale-95"
+        className="p-2.5 -ms-1 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-xl transition-colors shrink-0"
         aria-label={t("nav.chat")}
       >
-        <PanelLeft className="h-4 w-4" />
+        <PanelLeft className="h-5 w-5" />
       </button>
 
-      <h2 className="flex-1 min-w-0 text-sm font-medium text-slate-300 truncate font-display">
+      <h2 className="flex-1 min-w-0 text-base font-medium text-slate-300 truncate font-display">
         {title}
       </h2>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <ModelSelector value={modelId} onChange={onModelChange} />
-        {/* Quiet vertical rule to separate "what model" from "how it looks"
-            controls — only shown once there's room for it. */}
-        <div className="hidden sm:block w-px h-5 bg-white/10 mx-0.5" aria-hidden="true" />
         <ThemeToggle dir={dir} />
       </div>
     </header>

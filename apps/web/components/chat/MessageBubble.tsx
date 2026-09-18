@@ -29,18 +29,18 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
   return (
     <div className={`flex gap-3 group animate-fade-in ${isUser ? "justify-end" : "justify-start"}`}>
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-[color:var(--accent-blue)]
+        <div className="w-9 h-9 rounded-full bg-[color:var(--accent-blue)]
                         flex items-center justify-center text-white flex-shrink-0 mt-1
                         shadow-[var(--shadow-elevation-1)]">
-          <Sparkles className="h-4 w-4" />
+          <Sparkles className="h-[18px] w-[18px]" />
         </div>
       )}
 
-      <div className={`max-w-[80%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
-        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed backdrop-blur-md
+      <div className={`max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1.5`}>
+        <div className={`rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed
           ${isUser
-            ? "bg-blue-600/50 text-white border border-blue-400/20 rounded-ee-sm shadow-[var(--shadow-elevation-1)]"
-            : "bg-white/[0.06] text-slate-100 border border-white/10 rounded-es-sm shadow-[var(--shadow-elevation-1)]"
+            ? "bg-[color:var(--accent-blue)] text-white rounded-ee-sm shadow-[var(--shadow-elevation-1)]"
+            : "bg-[color:var(--bg-surface)] text-slate-100 border border-slate-700/80 rounded-es-sm shadow-[var(--shadow-elevation-1)]"
           }`}>
           {isUser ? (
             <p className="whitespace-pre-wrap message-content">{message.content}</p>
@@ -48,7 +48,7 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
             <div className="prose prose-invert prose-sm max-w-none message-content
                             prose-headings:font-display
                             prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none
-                            prose-code:text-[color:var(--accent-blue-light)] prose-code:bg-white/10 prose-code:px-1 prose-code:rounded
+                            prose-code:text-[color:var(--accent-blue-light)] prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded
                             prose-code:before:content-none prose-code:after:content-none
                             prose-a:text-[color:var(--accent-blue-light)]">
               <ReactMarkdown
@@ -71,13 +71,13 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
             onRetry ? (
               <button
                 onClick={onRetry}
-                className="text-xs text-amber-400 mt-2 border-t border-white/10 pt-2 w-full text-start
+                className="text-xs text-amber-400 mt-2 border-t border-slate-700 pt-2 w-full text-start
                            hover:text-amber-300 transition-colors"
               >
                 {t("chat.partialResponse")}
               </button>
             ) : (
-              <p className="text-xs text-amber-400 mt-2 border-t border-white/10 pt-2">
+              <p className="text-xs text-amber-400 mt-2 border-t border-slate-700 pt-2">
                 {t("chat.partialResponse")}
               </p>
             )
@@ -101,10 +101,9 @@ export function MessageBubble({ message, locale, onRetry }: MessageBubbleProps) 
       </div>
 
       {isUser && (
-        <div className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-md
-                        flex items-center justify-center text-slate-300 flex-shrink-0 mt-1
-                        shadow-[var(--shadow-elevation-1)]">
-          <User className="h-4 w-4" />
+        <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center
+                        text-slate-300 flex-shrink-0 mt-1 shadow-[var(--shadow-elevation-1)]">
+          <User className="h-[18px] w-[18px]" />
         </div>
       )}
     </div>

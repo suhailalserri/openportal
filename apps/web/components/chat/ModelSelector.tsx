@@ -51,15 +51,15 @@ export function ModelSelector({ value, onChange }: Props) {
 
   if (isLoading) {
     return (
-      <div className="px-3 py-2 bg-white/[0.05] border border-white/10 backdrop-blur-md rounded-xl text-sm text-slate-500 animate-pulse">
-        <span className="inline-block w-20 h-4 bg-white/10 rounded" />
+      <div className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-xl text-sm text-slate-500 animate-pulse">
+        <span className="inline-block w-20 h-4 bg-slate-700 rounded" />
       </div>
     );
   }
 
   if (available.length === 0 || !selected) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/25 backdrop-blur-md rounded-xl text-sm text-red-300">
+      <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border border-red-800 rounded-xl text-sm text-red-400">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         {t("models.noneAvailable")}
       </div>
@@ -70,12 +70,12 @@ export function ModelSelector({ value, onChange }: Props) {
     <DropdownMenu dir={dir}>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-white/[0.05] hover:bg-white/[0.08]
-                     border border-white/10 backdrop-blur-md rounded-xl text-sm text-white transition-colors
-                     data-[state=open]:border-[color:var(--accent-blue)] data-[state=open]:bg-white/[0.08]"
+          className="flex items-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700
+                     border border-slate-600 rounded-xl text-sm text-white transition-colors
+                     data-[state=open]:border-blue-600 data-[state=open]:bg-slate-700"
         >
-          <span>{selected.badge}</span>
-          <span className="max-w-[72px] sm:max-w-[120px] truncate">{nameOf(selected)}</span>
+          <span className="text-base">{selected.badge}</span>
+          <span className="max-w-[90px] sm:max-w-[140px] truncate">{nameOf(selected)}</span>
           {/* Latency is genuinely useful at desktop width but is the first
               thing to go on a phone — badge, name and the dropdown chevron
               already fill the row next to the conversation title, and
@@ -87,11 +87,11 @@ export function ModelSelector({ value, onChange }: Props) {
               className={`hidden sm:flex items-center gap-0.5 text-xs ${speedColor(selected.avgResponseTimeMs)}`}
               title={t("models.latencyTooltip")}
             >
-              <Zap className="h-3 w-3" />
+              <Zap className="h-3.5 w-3.5" />
               {selected.avgResponseTimeMs.toLocaleString()}ms
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
+          <ChevronDown className="h-4 w-4 text-slate-400 transition-transform duration-200 data-[state=open]:rotate-180 shrink-0" />
         </button>
       </DropdownMenuTrigger>
 
