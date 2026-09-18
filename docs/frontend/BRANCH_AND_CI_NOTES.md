@@ -84,6 +84,33 @@ Both reproduced in plain Node before fixing. Only the test file changed;
 `frontend-v2`. The other 5 API test files had not reported results when
 the run was cancelled — still unverified.
 
+## api-tests — second finding: DB-backed test files hang (0.2 continuation)
+After the gateway fix, `gateway.service.test.ts` passes (5 tests, 41 ms),
+but the job ran 10+ min with no other file reporting. The 5 DB-backed
+files all call `startTestDb()`, which runs `npx drizzle-kit push` via
+`execSync`. `packages/db/drizzle.config.ts` has `strict: true`, which makes
+push wait for an interactive confirmation on EVERY run (the old comment in
+testDb.ts said otherwise — wrong). stdin is "ignore", push holds its DB
+connection open, so the child never exits; `execSync` blocks the event
+loop so vitest's 60s hookTimeout can't fire. Result: silent infinite hang.
+Fix: `packages/db/drizzle.test.config.ts` (same as the real config with
+`strict`/`verbose` off), used only by testDb.ts, plus `timeout: 120_000`
+and captured stdout/stderr on `execSync` so any future hang fails in 2 min
+WITH the reason. **This diagnosis is inferred from the code and drizzle's
+documented `strict` behaviour, not observed in a log** — I could not run
+drizzle-kit here. If the job still fails/hangs, the new error output will
+say why; paste it.
+
+## Vercel preview build — missing env (not a code problem)
+`next build` on the `frontend-v2` preview compiled, linted (3 warnings, no
+errors) and type-checked, then failed at "Collecting page data" with
+REDIS_URL, GATEWAY_URL, GATEWAY_MASTER_KEY, GATEWAY_ROOT_TOKEN, CODE_SALT
+"Required". Those five are missing from the **Preview** environment scope
+in Vercel (Settings → Environment Variables; each var has separate
+Production / Preview / Development checkboxes). Env changes only apply to
+NEW deployments — redeploy after fixing. Use the same CODE_SALT as the DB
+you point the preview at, or redeem-code checksums won't validate.
+
 ## web-build — first CI run result and fix (0.2 continuation)
 Red on first run. The job log was not available, so these two causes are
 inferred from the files (not observed in a log):
