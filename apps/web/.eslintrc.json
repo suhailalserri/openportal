@@ -4,8 +4,8 @@
     "no-restricted-syntax": [
       "error",
       {
-        "selector": "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(ml|mr|pl|pr|left|right|text-left|text-right|border-l|border-r|rounded-l|rounded-r)(-|\\b)/]",
-        "message": "Physical-direction Tailwind classes (ml-/mr-/pl-/pr-/left-/right-/text-left/text-right/border-l/border-r/rounded-l/rounded-r) are banned — use logical properties instead (ps-/pe-/ms-/me-/start-/end-). See FRONTEND_REBUILD_PLAN.md §3 Rule 2."
+        "selector": "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(?!left-1\\/2(\\s|$))(?!right-1\\/2(\\s|$))(ml|mr|pl|pr|left|right|text-left|text-right|border-l|border-r|rounded-l|rounded-r)(-|\\b)/]",
+        "message": "Physical-direction Tailwind classes (ml-/mr-/pl-/pr-/left-/right-/text-left/text-right/border-l/border-r/rounded-l/rounded-r) are banned — use logical properties instead (ps-/pe-/ms-/me-/start-/end-). See FRONTEND_REBUILD_PLAN.md §3 Rule 2. Exception: left-1/2 and right-1/2 are allowed — combined with -translate-x-1/2, they express direction-neutral centering (midpoint), not a directional choice; there is no ps-/pe- equivalent for that idiom."
       }
     ]
   },
