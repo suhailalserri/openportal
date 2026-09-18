@@ -1,5 +1,8 @@
 # Acceptable Use Policy
 
+**Last Updated:** June 18, 2026
+**Effective Date:** June 18, 2026
+
 ## Prohibited Content
 
 The following content is strictly prohibited:
@@ -19,6 +22,16 @@ The following content is strictly prohibited:
 - Scraping our platform or reverse-engineering our systems is prohibited
 - Selling access to your account credentials is prohibited
 
+## Rate Limits
+
+- Your account is subject to request, redeem-attempt, and login rate limits enforced at the
+  account and IP level. Current limits are published in your account settings and may change
+  without prior notice to prevent abuse.
+- Attempting to circumvent, evade, or automate around rate limits (including via multiple
+  accounts, rotating IPs, or credential sharing) is a violation of this policy and may result
+  in suspension under the Enforcement section below.
+- By using the Service, you acknowledge and agree to these rate limits.
+
 ## Enforcement
 
 Violations result in immediate account suspension without refund.
@@ -26,4 +39,4 @@ Severe violations (CSAM, explicit threats) are reported to appropriate authoriti
 
 ## Reporting
 
-Report violations to: abuse@yourplatform.com
+Report violations to: abuse@openportal.site

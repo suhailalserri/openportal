@@ -53,7 +53,21 @@ export async function startTestDb(): Promise<void> {
   //    migration files (none exist yet in this repo) — `push` always
   //    reflects whatever is currently in packages/db/src/schema, so these
   //    tests can never silently drift from the real schema.
-  execSync("npx drizzle-kit push --force", {
+  //
+  //    NOTE: no --force flag. That flag was only added in drizzle-kit
+  //    0.23.0 ("New flag --force for drizzle-kit push", auto-accepts
+  //    data-loss statements) — this repo's pnpm-lock.yaml pins
+  //    drizzle-kit@0.22.8, which predates it and errors with
+  //    "unknown option '--force'". It isn't needed here anyway: this
+  //    always runs against a brand-new, empty Testcontainers database
+  //    with no prior schema to diff against, so push has nothing
+  //    ambiguous or destructive to confirm — drizzle.config.ts's
+  //    `strict: true` only prompts when there's existing divergent
+  //    schema to reconcile. If packages/db's drizzle-kit is ever
+  //    upgraded to >=0.23 AND this starts prompting interactively
+  //    (e.g. because a future schema change makes push ambiguous even
+  //    against an empty DB), re-add --force then.
+  execSync("npx drizzle-kit push", {
     cwd: DB_PACKAGE_DIR,
     env: { ...process.env, DATABASE_URL: url },
     stdio: ["ignore", "pipe", "pipe"],

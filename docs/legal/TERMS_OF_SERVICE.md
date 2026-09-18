@@ -124,7 +124,7 @@ acceptance of the new Terms. Material changes will be communicated via email 14 
 
 ## 13. Contact
 
-For questions about these Terms: support@yourplatform.com
+For questions about these Terms: support@openportal.site
 
 ---
 

@@ -17,22 +17,66 @@ vi.mock("../config", () => ({
 // a factory throws "Cannot access before initialization" — `vi.hoisted()`
 // is the correct escape hatch: it hoists its own contents right along with
 // the mocks, so both are safely initialized before any import runs.
-const { deductCreditsAtomicMock, chainableNoop } = vi.hoisted(() => {
+// Everything vi.mock() factories close over must live inside vi.hoisted()
+// (see the comment on the block below) — that includes MODEL_FIXTURES and
+// modelIdRef, not just deductCreditsAtomicMock/chainableNoop, since the
+// "@ai-platform/db" mock further down reads both.
+const { deductCreditsAtomicMock, chainableNoop, MODEL_FIXTURES, modelIdRef } = vi.hoisted(() => {
   return {
     // vi.fn() created INSIDE vi.hoisted so it's a real, call-trackable spy
     // that's still safely initialized before the vi.mock factory runs.
     // (Referencing `vi` itself here is safe — Vitest hoists the `import
     // { vi } from "vitest"` above vi.mock/vi.hoisted specifically so this works.)
     deductCreditsAtomicMock: vi.fn().mockResolvedValue({ success: true, newBalance: 999 }),
-    // Message-save / conversation-timestamp-update are fire-and-forget
-    // writes unrelated to what this file covers (billing + passthrough).
-    // A Proxy that returns itself from any property access or call lets
-    // `.insert(x).values(y).catch(z)` and `.update(x).set(y).where(z).catch(w)`
-    // both resolve harmlessly instead of opening a real connection.
+    // A stand-in for Drizzle's fluent query builder. Some call sites just
+    // chain and `.catch()` (fire-and-forget message saves / timestamp
+    // updates), but streamChat also does
+    //   await db.insert(conversations).values(...).onConflictDoNothing()
+    // — and `await` treats any object with a callable `.then` as a thenable.
+    // A Proxy that returns itself for EVERY property (including "then") is
+    // therefore a thenable whose then() never calls resolve, so that await
+    // hangs forever (every test past the model lookup timed out at 60s).
+    // Answering `undefined` for "then" makes the awaited value resolve to
+    // the proxy itself, while all other chaining still returns the proxy.
     chainableNoop: (): any => {
-      const proxy: any = new Proxy(() => proxy, { get: () => proxy, apply: () => proxy });
+      const proxy: any = new Proxy(() => proxy, {
+        get: (_target, prop) => (prop === "then" ? undefined : proxy),
+        apply: () => proxy,
+      });
       return proxy;
     },
+    // Fixture rows for the one model these tests actually route through.
+    // gateway.service.ts's calcCreditCost() reads wholesaleCostInputPerM /
+    // wholesaleCostOutputPerM / markupMultiplier as strings (numeric columns
+    // come back as strings from the pg driver — see models.ts) and
+    // streamChat's pre-flight gate requires status="published" AND
+    // isAvailable=true, so both must be set correctly for "deepseek-r2" to
+    // resolve at all.
+    //
+    // The real query is `db.query.models.findFirst({ where: and(eq(models.id,
+    // modelId), eq(models.status,"published"), eq(models.isAvailable,true)) })`.
+    // `where` is a compiled Drizzle SQL fragment, not something a plain mock
+    // can cheaply introspect to recover `modelId` from. Rather than parse it,
+    // the mock below keys off `modelIdRef.current` — set immediately before
+    // each streamChat() call via callStreamChat() further down — which every
+    // test already effectively knows (it's the same modelId passed into
+    // opts/baseOpts).
+    MODEL_FIXTURES: {
+      "deepseek-r2": {
+        id: "deepseek-r2",
+        status: "published",
+        isAvailable: true,
+        contextWindow: 65536, // smallest context window on purpose — see baseOpts comment
+        maxOutputTokens: 8192,
+        wholesaleCostInputPerM: "0.14",
+        wholesaleCostOutputPerM: "0.28",
+        markupMultiplier: "2.0",
+      },
+    } as Record<string, Record<string, unknown>>,
+    // Plain `let` reassignment doesn't survive being destructured out of
+    // vi.hoisted() the way a const object does, so this is a mutable-field
+    // holder instead — callStreamChat() sets modelIdRef.current.
+    modelIdRef: { current: "" },
   };
 });
 
@@ -41,10 +85,32 @@ vi.mock("./balance.service", () => ({
 }));
 
 vi.mock("@ai-platform/db", () => ({
-  db: chainableNoop(),
+  db: {
+    // Only db.query.models.findFirst is used by streamChat's pre-flight
+    // model lookup (see gateway.service.ts) — everything else (message/
+    // conversation inserts, timestamp updates) is fire-and-forget writes
+    // this file doesn't assert on, so they fall through to chainableNoop.
+    query: {
+      models: {
+        findFirst: vi.fn(async () => MODEL_FIXTURES[modelIdRef.current]),
+      },
+    },
+    insert: chainableNoop(),
+    update: chainableNoop(),
+  },
   messages: {},
   conversations: {},
+  // Only ever used as `eq(models.id, x)` / `eq(models.status, x)` etc. —
+  // findFirst above never evaluates the resulting SQL fragment, so these
+  // just need to be stable, distinguishable values, not real columns.
+  models: { id: "models.id", status: "models.status", isAvailable: "models.isAvailable" },
 }));
+
+/** Wraps streamChat so every call sets modelIdRef.current first — see above. */
+async function callStreamChat(opts: Parameters<typeof streamChat>[0]): Promise<void> {
+  modelIdRef.current = opts.model;
+  await streamChat(opts);
+}
 
 const { streamChat } = await import("./gateway.service");
 
@@ -103,7 +169,7 @@ describe("streamChat", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { reply, sends } = makeReply();
 
-    await streamChat({ ...baseOpts, model: "not-a-real-model", reply });
+    await callStreamChat({ ...baseOpts, model: "not-a-real-model", reply });
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
@@ -120,7 +186,7 @@ describe("streamChat", () => {
     const { reply, sends } = makeReply();
 
     const hugeMessage = { role: "user", content: "x".repeat(300_000) }; // deepseek-r2 context is 64k tokens
-    await streamChat({ ...baseOpts, messages: [hugeMessage], reply });
+    await callStreamChat({ ...baseOpts, messages: [hugeMessage], reply });
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
@@ -143,7 +209,7 @@ describe("streamChat", () => {
     }));
 
     const { reply, writes } = makeReply();
-    await streamChat({ ...baseOpts, reply });
+    await callStreamChat({ ...baseOpts, reply });
 
     // Only the extracted text content is forwarded — no SSE framing, no
     // JSON envelope — because useChat's `streamProtocol: "text"` expects
@@ -165,10 +231,18 @@ describe("streamChat", () => {
 
   it("still bills for partial content if the stream is interrupted mid-response", async () => {
     const encoder = new TextEncoder();
+    // Deliver one real chunk, THEN fail on the next pull. Doing enqueue()
+    // and error() in the same pull() would be wrong: error() resets the
+    // stream's queue, so the chunk would be discarded before the consumer
+    // ever reads it and the test would exercise "no content" instead.
+    let pulls = 0;
     const interruptedStream = new ReadableStream<Uint8Array>({
       pull(controller) {
-        controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial"}}]}\n\n`));
-        controller.error(new Error("simulated connection drop"));
+        if (pulls++ === 0) {
+          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial"}}]}\n\n`));
+        } else {
+          controller.error(new Error("simulated connection drop"));
+        }
       },
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
@@ -176,7 +250,7 @@ describe("streamChat", () => {
     }));
 
     const { reply } = makeReply();
-    await streamChat({ ...baseOpts, reply });
+    await callStreamChat({ ...baseOpts, reply });
 
     // No usage chunk ever arrived (outputTokens stays 0), but content WAS
     // received before the drop, so billing must still fire for what was
@@ -191,7 +265,7 @@ describe("streamChat", () => {
     }));
 
     const { reply, sends } = makeReply();
-    await streamChat({ ...baseOpts, reply });
+    await callStreamChat({ ...baseOpts, reply });
 
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
     expect(sends).toEqual([{ code: 429, body: expect.objectContaining({ status: 429 }) }]);

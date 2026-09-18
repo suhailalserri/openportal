@@ -111,5 +111,5 @@ We will notify you by email of material changes 14 days before they take effect.
 
 ## 10. Contact
 
-For privacy questions or data requests: privacy@yourplatform.com
+For privacy questions or data requests: privacy@openportal.site
 

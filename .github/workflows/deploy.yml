@@ -2,24 +2,28 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, frontend-v2]
   pull_request:
-    branches: [main]
+    branches: [main, frontend-v2]
 
 env:
   NODE_VERSION: "20"
 
+# A newer push to the same ref supersedes the older run instead of queueing
+# behind it (the Testcontainers job is slow; stale runs just burn minutes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # ─── TEST ────────────────────────────────────────────────────────────
-  # NOTE: deployment is handled by Render's own GitHub integration
-  # (auto-deploys on push to main), not by this workflow. The previous
-  # version of this file also SSH'd into a VPS via docker-compose — that
-  # infra no longer exists, so it's removed. If Render's webhook isn't
-  # active for some reason, check the service settings in the Render
-  # dashboard rather than re-adding a deploy step here.
-  test:
+  # ─── CHECK ───────────────────────────────────────────────────────────
+  # Type-check + lint across the whole monorepo (was the only job before
+  # 0.2; kept as-is, just renamed from "test" to "check" to make room for
+  # the new jobs below).
+  check:
     name: Type-check & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -38,3 +42,156 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+  # ─── API TESTS ───────────────────────────────────────────────────────
+  # apps/api's vitest suite provisions its own Postgres via Testcontainers
+  # (see apps/api/vitest.config.ts + src/test/testDb.ts) — no external
+  # Postgres service container or real DATABASE_URL secret needed here.
+  # GitHub's ubuntu-latest runners have Docker preinstalled, which is all
+  # Testcontainers requires.
+  api-tests:
+    name: API Tests (Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run API test suite
+        run: pnpm --filter @ai-platform/api test
+
+  # ─── WEB BUILD ───────────────────────────────────────────────────────
+  # `next build` with dummy env vars. This is the job that would have
+  # caught the build-breaking-import-reaches-prod-500 failures noted in
+  # PAYMENT_METHODS_PLAN.md — type-check alone does not run Next's build
+  # pipeline (route generation, RSC boundary checks, etc).
+  #
+  # Values are deliberately unreachable/fake: nothing in `next build`
+  # opens a real network connection or DB connection for these packages,
+  # it only needs env validation (packages/db throws at import time if
+  # DATABASE_URL is unset at all — see packages/db/src/index.ts) to pass.
+  web-build:
+    name: Web Build (next build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # NODE_ENV is deliberately NOT set here. pnpm treats NODE_ENV=production
+    # as `--prod` and skips devDependencies (typescript, tailwindcss,
+    # @tailwindcss/postcss, eslint-config-next…), all of which `next build`
+    # needs. `next build` sets NODE_ENV=production for itself.
+    env:
+      DATABASE_URL: "postgres://placeholder:placeholder@localhost:1/unused"
+      REDIS_URL: "redis://localhost:1/0"
+      GATEWAY_URL: "http://localhost:1"
+      GATEWAY_MASTER_KEY: "ci-placeholder"
+      GATEWAY_ROOT_TOKEN: "ci-placeholder"
+      BETTER_AUTH_SECRET: "ci-placeholder-32-bytes-minimum-xxxxxxxx"
+      BETTER_AUTH_URL: "http://localhost:3000"
+      # apps/api/src/config.ts requires INTERNAL_SERVICE_TOKEN.min(32) and
+      # throws at import time ("Collecting page data") if it is shorter.
+      INTERNAL_SERVICE_TOKEN: "ci-placeholder-internal-service-token-32plus"
+      INTERNAL_API_URL: "http://localhost:1"
+      RESEND_API_KEY: "ci-placeholder"
+      RESEND_FROM_EMAIL: "noreply@openportal.site"
+      RESEND_FROM_NAME: "OpenPortal"
+      CODE_SALT: "ci-placeholder-salt"
+      TURNSTILE_SECRET_KEY: "ci-placeholder"
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "ci-placeholder"
+      FRONTEND_URL: "http://localhost:3000"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build apps/web
+        run: pnpm --filter @ai-platform/web build
+
+  # ─── WEB UNIT TESTS ──────────────────────────────────────────────────
+  # No vitest config or test files exist yet in apps/web as of 0.2 — this
+  # job is added now (per the plan's own job list) but will only start
+  # doing real work once 1.2 adds a vitest config and the formatCredits /
+  # lint-rule tests. Until then it's a deliberate no-op pass rather than
+  # a failure, so the job SHAPE exists in CI history from before there's
+  # anything to break.
+  web-unit:
+    name: Web Unit Tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run web unit tests (no-op until 1.2 adds vitest config)
+        working-directory: apps/web
+        run: |
+          if [ -f vitest.config.ts ] || [ -f vitest.config.mts ]; then
+            pnpm exec vitest run
+          else
+            echo "No vitest config in apps/web yet (expected until session 1.2) — skipping."
+          fi
+
+  # ─── I18N PARITY ─────────────────────────────────────────────────────
+  # scripts/check-i18n.ts doesn't exist yet either (also lands in 1.2).
+  # Same no-op-until-it-exists pattern as web-unit above.
+  i18n-parity:
+    name: i18n Key Parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check ar/en key parity (no-op until 1.2 adds the script)
+        working-directory: apps/web
+        run: |
+          if [ -f scripts/check-i18n.ts ]; then
+            pnpm exec tsx scripts/check-i18n.ts
+          else
+            echo "scripts/check-i18n.ts doesn't exist yet (expected until session 1.2) — skipping."
+          fi
+
+# ─── NOTE ON DEPLOYMENT ────────────────────────────────────────────────
+# This workflow is CI (checks) only. Actual deploys are handled outside
+# GitHub Actions:
+#   - apps/web  -> Vercel, auto-deploys on push (production: main branch,
+#                  preview: every other branch/PR, including frontend-v2)
+#   - apps/api  -> Render, auto-deploys on push to main via Render's own
+#                  GitHub integration (see the note this file already had)
+# Do not add SSH/docker-compose deploy steps back here — that infra was
+# removed when the project moved off the single-VPS setup described in
+# AI_Aggregator_Master_Plan_v2.md.
