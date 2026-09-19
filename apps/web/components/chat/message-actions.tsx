@@ -27,7 +27,7 @@ export function MessageActions({ onCopy, onRegenerate, onFeedback, className }: 
       <IconButton label="نسخ" onClick={handleCopy}>
         {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
       </IconButton>
-      <IconButton label="إعادة المحاولة" onClick={onRegenerate}>
+      <IconButton label="إعادة المحاولة" onClick={() => onRegenerate?.()}>
         <RotateCcw className="size-3.5" />
       </IconButton>
       <IconButton label="إجابة جيدة" onClick={() => onFeedback?.("up")}>

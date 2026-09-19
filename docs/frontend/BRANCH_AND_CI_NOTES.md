@@ -504,3 +504,21 @@ components,providers}` or `docs/design/design-preview.html` /
 - Full preview pass owed: push to `frontend-v2`, check `/en/` and
   `/ar/dev/kitchen-sink`, both themes, plus manual RTL pass (drawer edge,
   composer send-button side, sidebar delete-icon reveal, new toast position).
+
+### First CI push — build fix
+`web-build` (`next build`, real vitest not needed here — this was a type error
+caught at compile) failed: `components/chat/message-actions.tsx:30` —
+`onClick={onRegenerate}` passes `(() => void) | undefined` into `IconButton`'s
+own `onClick?: () => void`, and `exactOptionalPropertyTypes: true`
+(`tsconfig.base.json`) forbids the explicit-`undefined` case on an optional
+prop. Same class of error as 2.1's `nav-link-item.tsx` fix, missed here for
+the same reason: this sandbox's `tsc` pass only covers `.ts` modules, no
+React/Next types installed, so a JSX prop-assignability error like this one
+doesn't surface until a real `next build`. Fix: `onClick={() => onRegenerate?.()}`,
+matching the pattern already used one line below it for `onFeedback` and in
+`message-bubble.tsx`. Everything else in the delivered files was clean on
+this metric — traced every optional callback prop (`onCopy`, `onRegenerate`,
+`onFeedback`, `onNewChat`, `onSend`, `onSelectConversation`,
+`onDeleteConversation`) across all 4 moved files; this was the only
+direct (unwrapped) pass-through of an optional value into a non-`undefined`-typed
+slot. No other files in this delivery touch JSX prop typing.
