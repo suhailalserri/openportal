@@ -1,31 +1,24 @@
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?:  React.ReactNode;
-  error?:  string | undefined;
-  hint?:   string | undefined;
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  return (
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(
+        "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none",
+        "placeholder:text-muted-foreground",
+        "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "aria-invalid:border-destructive aria-invalid:ring-destructive/30",
+        "file:border-0 file:bg-transparent file:text-sm file:font-medium",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, className, ...props }, ref) => (
-    <div className="space-y-1.5">
-      {label && <label className="block text-sm font-medium text-slate-300">{label}</label>}
-      <input
-        ref={ref}
-        className={cn(
-          "w-full bg-[color:var(--bg-base)] border rounded-xl px-4 py-3 text-sm text-slate-50",
-          "placeholder-slate-500 focus:outline-none transition-[border-color,box-shadow]",
-          error
-            ? "border-red-500 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(194,75,58,0.12)]"
-            : "border-slate-700 focus:border-[color:var(--accent-blue)] focus:shadow-[var(--ring-accent)]",
-          className
-        )}
-        {...props}
-      />
-      {error && <p className="text-xs text-red-400">{error}</p>}
-      {hint  && <p className="text-xs text-slate-500">{hint}</p>}
-    </div>
-  )
-);
-Input.displayName = "Input";
+export { Input };

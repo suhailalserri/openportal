@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./theme.css";
+@import "./theme-presets.css";
+
+@theme inline {
+  /*
+   * Bridges next/font's runtime CSS variables (set via the `variable`
+   * option in lib/fonts.ts, applied as classNames on <html> in
+   * app/[locale]/layout.tsx) into Tailwind v4 font utilities. The names
+   * on both sides are deliberately identical — this isn't circular, it
+   * tells Tailwind "the `font-arabic` utility's value is whatever
+   * next/font already put in --font-arabic at runtime", so the font
+   * stack is never hardcoded twice.
+   */
+  --font-arabic: var(--font-arabic);
+  --font-inter: var(--font-inter);
+  --font-mono: var(--font-mono);
+}
+
+/*
+ * Rule 2 (FRONTEND_REBUILD_PLAN.md §3): code stays LTR regardless of
+ * document direction. Arabic body copy that embeds an LTR run (a number,
+ * inline code, a mixed-language phrase) uses unicode-bidi: plaintext so
+ * each run's own directionality wins instead of inheriting the
+ * document's — this is what keeps "طلب رقم 12345 تم" from reordering the
+ * digits.
+ */
+pre,
+code,
+kbd,
+.code-block {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font-family: var(--font-mono);
+}
+
+.message-content,
+p {
+  unicode-bidi: plaintext;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
