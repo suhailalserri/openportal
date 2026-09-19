@@ -41,6 +41,53 @@ p {
   unicode-bidi: plaintext;
 }
 
+/*
+ * Typography base — ported from `.t-h1…t-caption`/`.t-mono` in
+ * docs/design/design-preview.html (added to that file this session;
+ * sizes/weights/line-heights are copied 1:1, colors point at the
+ * existing semantic tokens rather than the source's raw
+ * `--text-muted`/`--text-faint`/`--gate-strong` names).
+ * `.t-mono` intentionally does not set `direction`/`unicode-bidi` — the
+ * `pre, code, kbd, .code-block` rule above already owns that.
+ */
+.t-h1 {
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.t-h2 {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.t-h3 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.t-body {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.t-small {
+  font-size: 13.5px;
+  color: var(--muted-foreground);
+}
+
+.t-caption {
+  font-size: 11.5px;
+  color: var(--faint-foreground);
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent-foreground);
+}
+
 @layer base {
   * {
     border-color: var(--border);

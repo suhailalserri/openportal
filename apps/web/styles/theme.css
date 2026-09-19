@@ -9,6 +9,16 @@
  * phase's extrapolation to satisfy the token list below; flagged in the
  * phase summary for override.
  *
+ * Provenance updated (Session "restyle"): design-preview.html was swapped
+ * for a newer export of the same "Gateway" direction (was
+ * openportal-theme-design.html, confirmed a pure superset before the
+ * swap — all 20 shared color values, hex and rgba alike, byte-identical;
+ * it only adds markup/rules this file didn't need yet: chat primitives
+ * (.bubble, .msg-row, .composer and their .error/.msg-actions/.msg-meta/
+ * .composer-meta extensions) and the .t-h1…t-caption/.t-mono typography
+ * scale, both now ported below and into styles/index.css). No token
+ * value in this file changed as a result.
+ *
  * `text-faint` from the source file measured under WCAG AA (4.5:1) at the
  * sizes it's actually used at (table headers, disclaimer, footer note —
  * all ~12px, i.e. "normal text" under WCAG, not "large text"):
@@ -47,6 +57,7 @@
   --primary-foreground: #FFFFFF;
   --accent:              rgba(185, 121, 31, 0.10); /* gate-wash */
   --accent-foreground:  #9C6516; /* gate-strong */
+  --accent-strong:       rgba(185, 121, 31, 0.18); /* gate-wash-strong — added this session for switch.tsx's checked track */
 
   /* ── Secondary surface (one step up from muted, for secondary
        buttons / chips that shouldn't compete with primary) ───────── */
@@ -126,6 +137,7 @@
   --primary-foreground: #100F15; /* mirrors the source file's send-btn: dark icon on gold */
   --accent:              rgba(217, 164, 65, 0.14); /* gate-wash */
   --accent-foreground:  #F0B94E; /* gate-strong */
+  --accent-strong:       rgba(217, 164, 65, 0.22); /* gate-wash-strong — added this session for switch.tsx's checked track */
 
   --secondary:           #100F15;
   --secondary-foreground: #EDEAE2;
@@ -178,6 +190,7 @@
   --color-faint-foreground:       var(--faint-foreground);
   --color-accent:                  var(--accent);
   --color-accent-foreground:      var(--accent-foreground);
+  --color-accent-strong:           var(--accent-strong);
   --color-destructive:             var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success:                 var(--success);

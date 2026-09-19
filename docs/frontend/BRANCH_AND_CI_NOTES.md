@@ -369,8 +369,23 @@ The value is untrusted everywhere: it only reaches a redirect via `sanitizeNext`
 - 1.2's unresolved placeholders in this file (`run #[___]`, tailwind `@config` finding,
   "confirm on preview" items) are still yours to fill in.
 
-### Tracker
-2.1 → tick after CI green + preview checks below.
+### 2.1 closed (signed-out scope)
+CI green on `frontend-v2` after the `nav-link-item.tsx` type fix (run #[___]).
+Verified on the preview: signed-out `/ar/chat` redirects to
+`/ar/auth/login?next=%2Far%2Fchat`, so the `x-pathname` header, the (app) guard and
+`buildLoginRedirect` work end to end. `/api/auth/get-session` returns `null` on the preview
+host: session cookies are per host, and no login page exists until 3.1, so the signed-in
+checks could not run. Moved to 3.1's "Done when" (see the plan).
+Tracker 2.1 ticked.
+
+### Carry into 3.1
+- Signed-in checks from 2.1 (listed in the plan's 3.1 "Done when").
+- Confirm what deployed `lib/auth.ts` does when `RESEND_API_KEY` is unset
+  (`requireEmailVerification` is unconditional).
+- Have a seeded admin and a seeded non-admin test account ready. D1: previews use the
+  production DB, so use dedicated test accounts only.
+- Gate or delete `/dev/kitchen-sink` before 9.3.
+- `sheet.tsx` has a hard-coded English `sr-only` close label.
 
 ### 2.1 CI fix — first push
 `Type-check & Lint` and `Web Build` failed with the same error (Lint never ran, it was
@@ -382,3 +397,110 @@ optional prop. Fix: `onClick={() => onNavigate?.()}` and a conditional spread fo
 installed), which is why this was missed. Everything else was green on that run:
 API tests, Web Unit Tests (incl. `middleware.test.ts` on real `next/server`) and i18n parity.
 Lint still unverified until the next run.
+
+---
+
+## Session "restyle" (between 2.1 and 2.2) — component restyle + design-source swap
+
+Not a numbered plan session — a detour off Phase 2.2 to restyle `components/ui/*`
+against a new design export and pull the chat-only primitives forward, at your
+request. Folds and supersedes `docs/frontend/SESSION_RESTYLE_MIDPOINT_NOTES.md`
+(deleted as part of this entry, per its own instruction to fold in once the rest
+landed).
+
+### Restyled (apps/web/components/ui/*)
+Ported from the design file's `.btn* / .input,.select / .switch / .card / .chip /
+.modal-scrim,.modal / .drawer / .tabs,.tab / .data-table / .tip-bubble` rules,
+reading color/radius/shadow tokens from `theme.css`:
+`button.tsx`, `input.tsx`, `textarea.tsx`, `label.tsx`, `switch.tsx`, `select.tsx`
+(trigger/value only; `SelectContent`/`SelectItem` untouched — agreed carve-out),
+`card.tsx`, `badge.tsx`, `dialog.tsx`, `alert-dialog.tsx` (modal box only;
+`AlertDialogAction`/`Cancel` restyled for free via `buttonVariants`), `sheet.tsx`
+(start/end drawer sizing/surface only; top/bottom left at prior defaults, no
+source data for those), `tabs.tsx`, `table.tsx`, `tooltip.tsx`.
+
+### Design-source swap (done this delivery)
+`docs/design/design-preview.html` replaced with the newer export (was
+`openportal-theme-design.html`). Verified before swapping, not just asserted:
+all 20 shared color values (10 hex + the `--gate-wash`/`--gate-wash-strong`
+rgba pair, ×2 themes) are byte-identical between old and new, and `.bubble`/
+`.msg-row`/`.composer` are unchanged — the new file only adds
+`.bubble.error`/`.msg-actions`/`.msg-meta`/`.composer-meta` and a
+`.t-h1…t-caption`/`.t-mono` typography scale that didn't exist in the old file
+at all (not a change to something old, a genuinely new addition). `theme.css`'s
+header comment updated with the new provenance note. No color token value
+changed.
+
+### Typography base (done this delivery — was item 2 on the "not yet built" list)
+Added to `apps/web/styles/index.css`: `.t-h1/.t-h2/.t-h3/.t-body/.t-small/
+.t-caption/.t-mono`, sizes/weights/line-heights copied 1:1 from the source;
+colors point at existing semantic tokens (`--muted-foreground`,
+`--faint-foreground`, `--accent-foreground`) rather than the source's raw
+`--text-*`/`--gate-strong` names, since those aren't what's exposed here.
+
+### Chat components — relocated, not re-ported
+The midpoint notes' plan always called for `components/chat/*.tsx`, separate
+from the `ui/` primitives folder. The zip that landed had them at
+`components/ui/{message-bubble,message-actions,composer,chat-sidebar}.tsx`
+instead. This delivery moves the 4 files to `components/chat/` (contents
+unchanged). This wasn't a style preference: `message-bubble.tsx`'s own import
+already read `from "@/components/chat/message-actions"` while the file sat in
+`ui/` — a broken import that would have failed `tsc`/`next build` the moment
+anything imported `MessageBubble`. Confirmed via repo-wide grep that nothing
+imports any of the 4 files yet (chat route is still 2.1's placeholder), so the
+move has no other call sites to update. Components themselves unchanged;
+they're presentational-only per the confirmed scope, with local types (not
+`packages/types`, which has no `Message` shape yet) and callback props ready
+for real wiring in the chat phase.
+
+### Toast provider — duplicate found and merged (not in either prior note)
+Two files exported the same `AppToastProvider`: `providers/toast-provider.tsx`
+(1.2's original, plain style using `--popover`/`--border`) and
+`components/ui/toast-provider.tsx` (the restyled one, ported from
+`.toast-region`/`.toast.success/.danger/.info`). `app/[locale]/layout.tsx` has
+always imported from `providers/`, so the restyled copy was dead code — none
+of its `.toast.*` tone classes were ever rendered. Fixed by merging the
+restyled body into `providers/toast-provider.tsx` and deleting the
+`components/ui/` copy. One behavior change worth flagging: position moved from
+a `bottom-left`/`bottom-right` RTL split to `bottom-center` for both
+directions, matching the source's actual rule (`inset-inline: 0`) — this is a
+correction, not a new deviation.
+
+### `--accent-strong` token — added (resolves a flagged gap)
+`switch.tsx`'s checked-track color (`--gate-wash-strong` in the source) had no
+matching token; it was approximated as `bg-primary/20`. Added `--accent-strong`
+to `theme.css` (`:root`, `.dark`, and `@theme inline`) at the exact
+`--gate-wash-strong` values (`rgba(185,121,31,.18)` light /
+`rgba(217,164,65,.22)` dark — same values confirmed identical between the old
+and new design files above), and switched `switch.tsx` to `bg-accent-strong`.
+Straightforward additive token, no existing token's value touched.
+
+### Frozen zone
+Nothing in this delivery touches it — every change is under `apps/web/{styles,
+components,providers}` or `docs/design/design-preview.html` /
+`docs/frontend/*.md`.
+
+### Not verified (no network/build in this sandbox — same standing gap)
+- `next build`, `tsc`, lint, vitest, `i18n-parity` — none run.
+- The Rule 2 eslint regex was re-read over the touched files by eye, not run
+  for real.
+- Visual result of the design-preview.html swap and the new typography classes
+  — not rendered anywhere; only diffed textually against the old file.
+- `bg-accent-strong` actually resolving (Tailwind v4 `@theme inline` token
+  wiring assumed correct by pattern-matching the existing `--color-accent`
+  line, not compiled).
+- RTL check on `.t-mono`/toast `bottom-center` change, and the
+  `components/chat/` move's effect on any path-based tooling (eslint
+  `import/order`, etc. — none configured here that this session found, but
+  not exhaustively checked).
+
+### Carried forward from the midpoint notes, still open
+- Real chat data-wiring (`useStreamingChat`, `TokenCounter`, conversations
+  router) — explicitly out of scope, Phase 4/7/14 per the master plan.
+- `sheet.tsx`'s hard-coded English `sr-only` close label — 2.1's known gap,
+  still untouched.
+- `button.tsx`'s `not-disabled:` variant — still unverified against a real
+  build (Tailwind v3.4+/v4 syntax, not compiled here).
+- Full preview pass owed: push to `frontend-v2`, check `/en/` and
+  `/ar/dev/kitchen-sink`, both themes, plus manual RTL pass (drawer edge,
+  composer send-button side, sidebar delete-icon reveal, new toast position).

@@ -4,18 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Ported from `.chip` / `.chip.ok` / `.chip.pending` / `.chip.error` /
+ * `.chip.neutral` in the theme HTML. Variant names kept from the existing
+ * primitive (default/secondary/destructive/success/warning/info/outline)
+ * for back-compat with anything already typed against them; each maps to
+ * the closest `.chip` tone. `.chip.dot`/`.chip.live` (leading pulse dot)
+ * are not ported — no consumer needs them yet, flagged for later.
+ */
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:pointer-events-none [&_svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-[10px] py-[3px] text-[11.5px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:pointer-events-none [&_svg]:size-3",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground",
-        secondary: "border-transparent bg-secondary text-secondary-foreground",
-        destructive: "border-transparent bg-destructive text-destructive-foreground",
-        success: "border-transparent bg-success text-success-foreground",
-        warning: "border-transparent bg-warning text-warning-foreground",
-        info: "border-transparent bg-info text-info-foreground",
-        outline: "border-border text-foreground",
+        default: "bg-accent text-accent-foreground", // .chip.pending
+        secondary: "bg-border text-muted-foreground", // .chip.neutral
+        destructive: "bg-destructive/10 text-destructive", // .chip.error
+        success: "bg-success/10 text-success", // .chip.ok
+        warning: "bg-accent text-accent-foreground",
+        info: "bg-info/10 text-info",
+        outline: "border border-border text-foreground",
       },
     },
     defaultVariants: {

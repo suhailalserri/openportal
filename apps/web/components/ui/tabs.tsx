@@ -15,12 +15,18 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
   );
 }
 
+/**
+ * Ported from `.tabs` (underline strip, no pill background) / `.tab` /
+ * `.tab[aria-selected=true]` (2px gate underline via a bottom border,
+ * approximating the source's `::after` since Radix triggers don't expose
+ * a pseudo-element hook per-item).
+ */
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground",
+        "inline-flex w-fit items-center gap-0.5 overflow-x-auto border-b border-input",
         className
       )}
       {...props}
@@ -33,11 +39,13 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap outline-none",
-        "text-foreground transition-[color,box-shadow]",
+        "relative inline-flex items-center justify-center gap-1.5 whitespace-nowrap px-[14px] py-[10px] text-[13.5px] font-medium outline-none",
+        "text-muted-foreground transition-colors",
+        "hover:text-foreground",
         "focus-visible:ring-2 focus-visible:ring-ring/50",
         "disabled:pointer-events-none disabled:opacity-50",
-        "data-[state=active]:bg-background data-[state=active]:shadow-1",
+        "data-[state=active]:text-accent-foreground",
+        "after:absolute after:inset-x-[10px] after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 data-[state=active]:after:opacity-100",
         "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         className
       )}
@@ -50,7 +58,7 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
+      className={cn("flex-1 text-sm text-muted-foreground outline-none", className)}
       {...props}
     />
   );

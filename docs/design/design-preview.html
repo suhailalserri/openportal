@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenPortal — Gateway direction preview</title>
+<title>OpenPortal — Gateway theme guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=El+Messiri:wght@400;500;600;700&family=Cairo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* ═════════════════════════════════════════════════════════════
+     THEME TOKENS — identical to the Gateway direction preview
+     ═════════════════════════════════════════════════════════════ */
   :root {
     --bg:            #15141B;
     --bg-raised:     #1D1B24;
@@ -24,6 +27,7 @@
     --signal:        #35B7A0;
     --signal-wash:   rgba(53,183,160,0.14);
     --danger:        #E0665A;
+    --danger-wash:   rgba(224,102,90,0.14);
     --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
     --shadow-2: 0 12px 28px -8px rgba(0,0,0,0.55);
     --font-display-en: 'Fraunces', serif;
@@ -39,7 +43,7 @@
       --text: #1B1A20; --text-muted: #63606B; --text-faint: #98939E;
       --gate: #B9791F; --gate-strong: #9C6516; --gate-wash: rgba(185,121,31,0.10); --gate-wash-strong: rgba(185,121,31,0.18);
       --signal: #147A69; --signal-wash: rgba(20,122,105,0.10);
-      --danger: #B8402F;
+      --danger: #B8402F; --danger-wash: rgba(184,64,47,0.10);
       --shadow-1: 0 1px 2px rgba(21,20,27,0.08); --shadow-2: 0 12px 28px -8px rgba(21,20,27,0.16);
     }
   }
@@ -49,182 +53,309 @@
     --text: #1B1A20; --text-muted: #63606B; --text-faint: #98939E;
     --gate: #B9791F; --gate-strong: #9C6516; --gate-wash: rgba(185,121,31,0.10); --gate-wash-strong: rgba(185,121,31,0.18);
     --signal: #147A69; --signal-wash: rgba(20,122,105,0.10);
-    --danger: #B8402F;
+    --danger: #B8402F; --danger-wash: rgba(184,64,47,0.10);
     --shadow-1: 0 1px 2px rgba(21,20,27,0.08); --shadow-2: 0 12px 28px -8px rgba(21,20,27,0.16);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-body-en);
-    min-height: 100vh;
-    transition: background .2s ease, color .2s ease;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-body-en); font-size: 15px; line-height: 1.6;
+    min-height: 100vh; transition: background .2s ease, color .2s ease;
   }
   [dir="rtl"] body { font-family: var(--font-body-ar); }
   .display { font-family: var(--font-display-en); }
   [dir="rtl"] .display { font-family: var(--font-display-ar); }
-
+  button { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--gate); outline-offset: 2px; border-radius: 4px; }
   @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
-  /* ── Reviewer toolbar (not part of the product itself) ─────────── */
+  /* ═════════════════════════════════════════════════════════════
+     GUIDE CHROME (the page around the components)
+     ═════════════════════════════════════════════════════════════ */
   .toolbar {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 10px 14px;
-    background: var(--bg-inset);
-    border-bottom: 1px solid var(--hairline-strong);
-    font-size: 12.5px;
+    position: sticky; top: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 16px; background: var(--bg-inset);
+    border-bottom: 1px solid var(--hairline-strong); font-size: 12.5px;
   }
-  .toolbar-label { color: var(--text-faint); }
+  .toolbar-brand { display: flex; align-items: center; gap: 8px; color: var(--gate-strong); font-weight: 600; }
+  .toolbar-nav { display: none; gap: 2px; }
+  @media (min-width: 860px) { .toolbar-nav { display: flex; } }
+  .toolbar-nav a {
+    color: var(--text-muted); text-decoration: none; padding: 5px 9px; border-radius: 7px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .toolbar-nav a:hover { background: var(--hairline); color: var(--text); }
   .toolbar-controls { display: flex; gap: 6px; }
-  .toolbar button {
-    font: inherit; font-size: 12.5px; cursor: pointer;
-    background: var(--bg-raised); color: var(--text-muted);
-    border: 1px solid var(--hairline-strong); border-radius: 8px;
-    padding: 6px 10px; transition: color .15s ease, border-color .15s ease;
+  .toolbar-controls button {
+    cursor: pointer; font-size: 12.5px; background: var(--bg-raised); color: var(--text-muted);
+    border: 1px solid var(--hairline-strong); border-radius: 8px; padding: 6px 10px;
+    transition: color .15s ease, border-color .15s ease;
   }
-  .toolbar button[aria-pressed="true"] { color: var(--gate); border-color: var(--gate); }
+  .toolbar-controls button[aria-pressed="true"] { color: var(--gate); border-color: var(--gate); }
 
-  /* ── Brand mark: abstract gate glyph, used as avatar + wordmark ── */
   .gate-mark { display: block; }
   .gate-mark path { stroke: currentColor; stroke-width: 1.6; fill: none; stroke-linecap: round; }
 
-  /* ── App shell ───────────────────────────────────────────────── */
-  .app { max-width: 720px; margin: 0 auto; position: relative; }
+  .page { max-width: 960px; margin: 0 auto; padding: 0 20px 80px; }
+  .intro { padding: 56px 0 20px; max-width: 640px; }
+  .intro h1 { font-size: clamp(32px, 6vw, 46px); font-weight: 600; line-height: 1.12; letter-spacing: -0.01em; }
+  .intro p { margin-top: 14px; color: var(--text-muted); max-width: 56ch; }
 
-  .app-header {
-    position: sticky; top: 37px; z-index: 20;
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 16px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--hairline);
+  .section { padding-top: 56px; }
+  .section-head { margin-bottom: 22px; }
+  .section-head h2 { font-size: 26px; font-weight: 600; letter-spacing: -0.005em; }
+  .section-head p { margin-top: 6px; color: var(--text-muted); font-size: 14px; max-width: 62ch; }
+
+  .demo {
+    border: 1px solid var(--hairline); border-radius: 16px; background: var(--bg-raised);
+    padding: 22px; margin-bottom: 14px;
   }
+  .demo.flush { padding: 0; overflow: hidden; }
+  .demo-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .demo-note { font-size: 12.5px; color: var(--text-faint); margin-bottom: 16px; }
+  .demo-note code, .note code { font-family: var(--font-mono); font-size: 11.5px; color: var(--gate-strong); background: var(--bg-inset); padding: 1px 5px; border-radius: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 720px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ═════════════════════════════════════════════════════════════
+     1 · COLOR SWATCHES (click to copy)
+     ═════════════════════════════════════════════════════════════ */
+  .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .swatch {
+    text-align: start; cursor: pointer; padding: 0; border: 1px solid var(--hairline-strong);
+    border-radius: 12px; overflow: hidden; background: var(--bg-raised);
+    transition: transform .12s ease, border-color .15s ease;
+  }
+  .swatch:hover { border-color: var(--gate); }
+  .swatch:active { transform: scale(.98); }
+  .swatch-chip { height: 58px; border-bottom: 1px solid var(--hairline); }
+  .swatch-meta { padding: 9px 11px 10px; }
+  .swatch-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .swatch-var { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+  .swatch-val { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .swatch-copied { color: var(--signal) !important; }
+  .swatch-sub { font-size: 12px; font-weight: 500; color: var(--text-faint); margin: 20px 0 10px; }
+  .swatch-sub:first-child { margin-top: 0; }
+
+  /* ═════════════════════════════════════════════════════════════
+     2 · TYPOGRAPHY
+     ═════════════════════════════════════════════════════════════ */
+  .type-row { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--hairline); }
+  .type-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .type-row:first-child { padding-top: 0; }
+  @media (min-width: 720px) { .type-row { grid-template-columns: 170px 1fr; gap: 18px; align-items: baseline; } }
+  .type-meta { font-size: 12px; color: var(--text-faint); }
+  .type-meta b { display: block; color: var(--text-muted); font-weight: 600; font-size: 12.5px; }
+  .t-h1 { font-size: 40px; font-weight: 600; line-height: 1.12; }
+  .t-h2 { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  .t-h3 { font-size: 20px; font-weight: 600; }
+  .t-body { font-size: 15px; line-height: 1.65; }
+  .t-small { font-size: 13.5px; color: var(--text-muted); }
+  .t-caption { font-size: 11.5px; color: var(--text-faint); }
+  .t-mono { font-family: var(--font-mono); font-size: 13px; color: var(--gate-strong); }
+
+  /* ═════════════════════════════════════════════════════════════
+     3 · BUTTONS
+     ═════════════════════════════════════════════════════════════ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 16px; border-radius: 11px; font-weight: 600; font-size: 13.5px;
+    border: 1px solid transparent; cursor: pointer; line-height: 1.2;
+    transition: background .15s ease, border-color .15s ease, filter .15s ease, transform .1s ease, color .15s ease;
+  }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--gate); color: var(--bg-inset); }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-outline { background: transparent; border-color: var(--gate); color: var(--gate-strong); font-weight: 500; }
+  .btn-outline:hover:not(:disabled) { background: var(--gate-wash); }
+  .btn-secondary { background: var(--bg-inset); border-color: var(--hairline-strong); color: var(--text-muted); }
+  .btn-secondary:hover:not(:disabled) { color: var(--text); border-color: var(--text-faint); }
+  .btn-ghost { background: transparent; color: var(--text-muted); }
+  .btn-ghost:hover:not(:disabled) { background: var(--hairline); color: var(--text); }
+  .btn-danger { background: var(--danger-wash); border-color: var(--danger); color: var(--danger); }
+  .btn-danger:hover:not(:disabled) { background: var(--danger); color: var(--bg-inset); }
+  .btn-sm { padding: 7px 11px; font-size: 12.5px; border-radius: 9px; }
+  .btn-lg { padding: 13px 22px; font-size: 15px; border-radius: 13px; }
+  .btn-loading { pointer-events: none; }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid currentColor; border-inline-end-color: transparent;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px; border-radius: 9px;
-    background: transparent; border: none; color: var(--text-muted); cursor: pointer;
-    transition: background .15s ease, color .15s ease;
+    width: 34px; height: 34px; border-radius: 9px; background: transparent; border: none;
+    color: var(--text-muted); cursor: pointer; transition: background .15s ease, color .15s ease;
   }
   .icon-btn:hover { background: var(--hairline); color: var(--text); }
+  .icon-btn[aria-pressed="true"] { color: var(--gate-strong); background: var(--gate-wash); }
 
-  .conv-title {
-    flex: 1; min-width: 0;
-    font-size: 15px; font-weight: 500; color: var(--text);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .send-btn {
+    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+    background: var(--gate); color: var(--bg-inset); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: filter .15s ease, transform .1s ease, opacity .15s ease;
   }
+  .send-btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .send-btn:active:not(:disabled) { transform: scale(.94); }
+  .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
   .model-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 7px 10px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 20px;
     background: var(--bg-raised); border: 1px solid var(--hairline-strong);
     font-size: 12.5px; color: var(--text-muted); cursor: pointer; white-space: nowrap;
-    flex-shrink: 0;
+    transition: color .15s ease, border-color .15s ease;
   }
-  .model-pill .name { display: none; }
-  @media (min-width: 480px) { .model-pill .name { display: inline; max-width: 90px; overflow: hidden; text-overflow: ellipsis; } }
+  .model-pill:hover { color: var(--text); border-color: var(--text-faint); }
 
-  /* ── Sidebar (overlay drawer) ───────────────────────────────── */
-  .sidebar-scrim {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg-inset); border: 1px solid var(--hairline); border-radius: 11px; }
+  .seg button {
+    padding: 7px 14px; border: none; background: transparent; color: var(--text-muted);
+    border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: background .15s ease, color .15s ease;
   }
-  .sidebar-scrim.open { opacity: 1; pointer-events: auto; }
-  .sidebar {
-    position: fixed; inset-block: 0; inset-inline-start: 0;
-    width: min(300px, 84vw); z-index: 41;
-    background: var(--bg-inset);
-    border-inline-end: 1px solid var(--hairline-strong);
-    transform: translateX(-104%); transition: transform .25s cubic-bezier(.16,1,.3,1);
-    display: flex; flex-direction: column;
-  }
-  [dir="rtl"] .sidebar { transform: translateX(104%); }
-  .sidebar.open { transform: translateX(0); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--bg-raised); color: var(--gate-strong); box-shadow: var(--shadow-1); }
 
-  .sidebar-head { padding: 16px 14px 12px; display: flex; align-items: center; gap: 9px; }
-  .wordmark { font-size: 17px; font-weight: 600; color: var(--gate-strong); }
-  .sidebar-body { flex: 1; overflow-y: auto; padding: 0 10px 14px; }
-  .new-chat-btn {
-    width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px;
-    padding: 10px 12px; margin: 4px 4px 14px;
-    border-radius: 11px; border: 1px solid var(--gate); color: var(--gate-strong);
-    background: transparent; font: inherit; font-weight: 500; font-size: 13.5px; cursor: pointer;
-    transition: background .15s ease;
+  /* ═════════════════════════════════════════════════════════════
+     4 · FORM CONTROLS
+     ═════════════════════════════════════════════════════════════ */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+  .input, .select {
+    width: 100%; padding: 11px 13px; font: inherit; font-size: 14px; color: var(--text);
+    background: var(--bg-inset); border: 1px solid var(--hairline-strong); border-radius: 11px;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
-  .new-chat-btn:hover { background: var(--gate-wash); }
-  .group-label {
-    font-size: 11.5px; color: var(--text-faint); padding: 12px 8px 6px;
-    font-weight: 500;
-  }
-  .conv-item {
-    display: block; width: 100%; text-align: start;
-    padding: 9px 10px; border-radius: 9px; border: none; background: transparent;
-    color: var(--text-muted); font: inherit; font-size: 13.5px; cursor: pointer;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    transition: background .15s ease, color .15s ease;
-  }
-  .conv-item:hover { background: var(--hairline); color: var(--text); }
-  .conv-item.active { background: var(--gate-wash); color: var(--text); }
+  .input::placeholder { color: var(--text-faint); }
+  .input:focus, .select:focus { outline: none; border-color: var(--gate); box-shadow: 0 0 0 3px var(--gate-wash); }
+  .input.invalid { border-color: var(--danger); }
+  .input.invalid:focus { box-shadow: 0 0 0 3px var(--danger-wash); }
+  .input.valid { border-color: var(--signal); }
+  .input:disabled { opacity: .5; cursor: not-allowed; }
+  .help { font-size: 12px; color: var(--text-faint); }
+  .help.error { color: var(--danger); }
+  .help.ok { color: var(--signal); }
+  .select { appearance: none; padding-inline-end: 34px; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239C97A6' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; }
+  [dir="rtl"] .select { background-position: left 12px center; }
 
-  /* ── Thread ──────────────────────────────────────────────────── */
-  .thread { padding: 20px 16px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+  .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .toggle-row:first-child { padding-top: 0; }
+  .toggle-text b { display: block; font-size: 14px; font-weight: 500; }
+  .toggle-text span { font-size: 12.5px; color: var(--text-faint); }
+  .switch {
+    position: relative; width: 42px; height: 24px; border-radius: 20px; flex-shrink: 0; cursor: pointer;
+    background: var(--bg-inset); border: 1px solid var(--hairline-strong); transition: background .2s ease, border-color .2s ease;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--text-faint); transition: transform .2s cubic-bezier(.16,1,.3,1), background .2s ease;
+  }
+  .switch[aria-checked="true"] { background: var(--gate-wash-strong); border-color: var(--gate); }
+  .switch[aria-checked="true"]::after { background: var(--gate-strong); transform: translateX(18px); }
+  [dir="rtl"] .switch[aria-checked="true"]::after { transform: translateX(-18px); }
+
+  .check { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 14px; user-select: none; }
+  .check input { position: absolute; opacity: 0; pointer-events: none; }
+  .check-box {
+    width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--hairline-strong);
+    background: var(--bg-inset); display: flex; align-items: center; justify-content: center; transition: all .15s ease;
+  }
+  .check-box svg { opacity: 0; transition: opacity .12s ease; }
+  .check input:checked + .check-box { background: var(--gate); border-color: var(--gate); }
+  .check input:checked + .check-box svg { opacity: 1; }
+  .check input:focus-visible + .check-box { outline: 2px solid var(--gate); outline-offset: 2px; }
+  .radio-box { border-radius: 50%; }
+  .radio-box::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--bg-inset); opacity: 0; transition: opacity .12s ease; }
+  .check input:checked + .radio-box::after { opacity: 1; }
+
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--hairline-strong); margin-bottom: 16px; overflow-x: auto; }
+  .tab {
+    padding: 10px 14px; border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+    font-size: 13.5px; font-weight: 500; position: relative; white-space: nowrap; transition: color .15s ease;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--gate-strong); }
+  .tab[aria-selected="true"]::after { content: ""; position: absolute; inset-inline: 10px; bottom: -1px; height: 2px; background: var(--gate); border-radius: 2px; }
+  .tab-panel { font-size: 14px; color: var(--text-muted); }
+
+  /* ═════════════════════════════════════════════════════════════
+     5 · CHAT MESSAGES (user, assistant, code, streaming, error)
+     ═════════════════════════════════════════════════════════════ */
+  .thread { display: flex; flex-direction: column; gap: 18px; }
   .msg-row { display: flex; gap: 10px; max-width: 100%; }
   .msg-row.user { flex-direction: row-reverse; }
   .avatar {
     width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid var(--hairline-strong);
+    display: flex; align-items: center; justify-content: center; border: 1px solid var(--hairline-strong);
   }
   .avatar.assistant { background: var(--gate-wash); color: var(--gate-strong); }
   .avatar.user { background: var(--bg-raised); color: var(--text-muted); }
-
-  .bubble-col { display: flex; flex-direction: column; gap: 6px; max-width: 86%; }
+  .bubble-col { display: flex; flex-direction: column; gap: 6px; max-width: 86%; min-width: 0; }
+  .msg-row:not(.user) .bubble-col { flex: 1; max-width: none; }
   .msg-row.user .bubble-col { align-items: flex-end; }
-  .bubble {
-    padding: 13px 16px; border-radius: 18px; font-size: 15px; line-height: 1.65;
-  }
-  .bubble.assistant {
-    background: var(--bg-raised); border: 1px solid var(--hairline);
-    border-start-start-radius: 6px;
-  }
-  .bubble.user {
-    background: var(--gate-wash-strong); border: 1px solid var(--gate); color: var(--text);
-    border-end-end-radius: 6px;
-  }
-  .bubble code {
-    font-family: var(--font-mono); font-size: 13px;
-    background: var(--bg-inset); padding: 1px 5px; border-radius: 4px; color: var(--gate-strong);
-  }
-  .code-block {
-    margin-top: 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--hairline-strong);
-  }
-  .code-block-head {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 12px; background: var(--bg-inset); font-family: var(--font-mono);
-    font-size: 11.5px; color: var(--text-faint); border-bottom: 1px solid var(--hairline);
-  }
-  .code-block pre { padding: 12px; overflow-x: auto; background: var(--bg-inset); }
-  .code-block code { background: none; padding: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
-  .tok-kw { color: var(--gate-strong); } .tok-str { color: var(--signal); }
+  .bubble { padding: 13px 16px; border-radius: 18px; font-size: 15px; line-height: 1.65; }
+  .bubble.assistant { background: none; border: none; border-radius: 0; padding: 4px 0 2px; }
+  .bubble.user { background: var(--gate-wash-strong); border: 1px solid var(--gate); color: var(--text); border-end-end-radius: 6px; }
+  .bubble.error { background: var(--danger-wash); border: none; border-inline-start: 3px solid var(--danger); border-radius: 4px 10px 10px 4px; color: var(--text); }
+  .bubble code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-inset); padding: 1px 5px; border-radius: 4px; color: var(--gate-strong); }
+  .bubble ul { margin: 8px 0 0; padding-inline-start: 20px; }
+  .bubble li { margin-top: 4px; }
+  .bubble li::marker { color: var(--gate); }
+  .msg-meta { font-size: 11.5px; color: var(--text-faint); display: flex; gap: 8px; align-items: center; }
+  .msg-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s ease; }
+  .bubble-col:hover .msg-actions, .bubble-col:focus-within .msg-actions { opacity: 1; }
+  @media (hover: none) { .msg-actions { opacity: 1; } }
+  .msg-actions .icon-btn { width: 28px; height: 28px; }
 
-  /* ── Composer: the one deliberate "threshold" moment ────────── */
-  .composer-wrap { position: sticky; bottom: 0; padding: 10px 16px 16px; background: var(--bg); }
+  .code-block { margin-top: 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--hairline-strong); }
+  .code-block-head {
+    display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 6px 12px;
+    background: var(--bg-inset); font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .copy-btn { font-family: var(--font-mono); font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: none; background: transparent; color: var(--text-faint); cursor: pointer; transition: color .15s ease, background .15s ease; }
+  .copy-btn:hover { color: var(--text); background: var(--hairline); }
+  .copy-btn.done { color: var(--signal); }
+  .code-block pre { padding: 12px; overflow-x: auto; background: var(--bg-inset); }
+  .code-block code { background: none; padding: 0; color: var(--text-muted); font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+  .tok-kw { color: var(--gate-strong); } .tok-str { color: var(--signal); } .tok-cm { color: var(--text-faint); font-style: italic; }
+
+  .typing { display: inline-flex; gap: 5px; padding: 4px 2px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--gate); opacity: .35; animation: blink 1.2s ease-in-out infinite; }
+  .typing span:nth-child(2) { animation-delay: .18s; }
+  .typing span:nth-child(3) { animation-delay: .36s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+
+  .attach-chip {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px;
+    background: var(--bg-inset); border: 1px solid var(--hairline-strong); font-size: 12.5px; color: var(--text-muted);
+  }
+  .attach-chip button { border: none; background: transparent; color: var(--text-faint); cursor: pointer; display: inline-flex; padding: 0; }
+  .attach-chip button:hover { color: var(--danger); }
+
+  /* ═════════════════════════════════════════════════════════════
+     6 · COMPOSER (the "threshold")
+     ═════════════════════════════════════════════════════════════ */
   .composer {
-    position: relative;
-    border-radius: 26px 26px 14px 14px;
-    border: 1px solid var(--hairline-strong);
-    background: var(--bg-raised);
-    box-shadow: var(--shadow-1);
-    padding: 14px 14px 14px 18px;
-    display: flex; align-items: flex-end; gap: 10px;
-    transition: box-shadow .2s ease;
+    position: relative; border-radius: 26px 26px 14px 14px; border: 1px solid var(--hairline-strong);
+    background: var(--bg-raised); box-shadow: var(--shadow-1); padding: 14px 14px 14px 18px;
+    display: flex; align-items: flex-end; gap: 10px; transition: box-shadow .2s ease, border-color .2s ease;
   }
   [dir="rtl"] .composer { padding: 14px 18px 14px 14px; }
   .composer::before {
     content: ""; position: absolute; inset-inline: 18px; top: -1px; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--gate), transparent);
-    opacity: .7;
+    background: linear-gradient(90deg, transparent, var(--gate), transparent); opacity: .7;
   }
   .composer:focus-within { box-shadow: var(--shadow-1), 0 0 0 3px var(--gate-wash); border-color: var(--gate); }
   .composer textarea {
@@ -233,246 +364,1069 @@
   }
   .composer textarea:focus { outline: none; }
   .composer textarea::placeholder { color: var(--text-faint); }
-  .send-btn {
-    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
-    background: var(--gate); color: var(--bg-inset); border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: filter .15s ease, transform .1s ease;
-  }
-  .send-btn:hover { filter: brightness(1.08); }
-  .send-btn:active { transform: scale(.94); }
-  .disclaimer { text-align: center; font-size: 11.5px; color: var(--text-faint); margin-top: 8px; }
+  .composer-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11.5px; color: var(--text-faint); padding: 0 6px; }
 
-  /* ── Section divider between chat demo and admin demo ─────────── */
-  .section-break {
-    max-width: 720px; margin: 40px auto 24px; padding: 0 16px;
-    display: flex; align-items: center; gap: 12px;
+  /* ═════════════════════════════════════════════════════════════
+     7 · SIDEBAR (live, as a contained panel + drawer behaviour)
+     ═════════════════════════════════════════════════════════════ */
+  .sidebar-demo { display: grid; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .sidebar-demo { grid-template-columns: 300px 1fr; } }
+  .sidebar {
+    background: var(--bg-inset); display: flex; flex-direction: column; min-height: 420px;
+    border-bottom: 1px solid var(--hairline-strong);
   }
-  .section-break hr { flex: 1; border: none; border-top: 1px solid var(--hairline-strong); }
-  .section-break span { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+  @media (min-width: 720px) { .sidebar { border-bottom: none; border-inline-end: 1px solid var(--hairline-strong); } }
+  .sidebar-head { padding: 16px 14px 12px; display: flex; align-items: center; gap: 9px; }
+  .wordmark { font-size: 17px; font-weight: 600; color: var(--gate-strong); }
+  .sidebar-body { flex: 1; overflow-y: auto; padding: 0 10px 14px; }
+  .new-chat-btn {
+    width: calc(100% - 8px); display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 12px; margin: 4px 4px 12px; border-radius: 11px; border: 1px solid var(--gate); color: var(--gate-strong);
+    background: transparent; font-weight: 500; font-size: 13.5px; cursor: pointer; transition: background .15s ease;
+  }
+  .new-chat-btn:hover { background: var(--gate-wash); }
+  .search-box { position: relative; margin: 0 4px 6px; }
+  .search-box svg { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
+  .search-box .input { padding-block: 9px; padding-inline-start: 33px; font-size: 13px; border-radius: 10px; }
+  .group-label { font-size: 11.5px; color: var(--text-faint); padding: 12px 8px 6px; font-weight: 500; }
+  .conv-item {
+    display: flex; align-items: center; gap: 6px; width: 100%; text-align: start; padding: 9px 10px; border-radius: 9px;
+    border: none; background: transparent; color: var(--text-muted); font-size: 13.5px; cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .conv-item .conv-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-item:hover { background: var(--hairline); color: var(--text); }
+  .conv-item.active { background: var(--gate-wash); color: var(--text); }
+  .conv-del { opacity: 0; color: var(--text-faint); display: inline-flex; padding: 2px; border-radius: 5px; transition: opacity .12s ease, color .15s ease; }
+  .conv-item:hover .conv-del, .conv-item:focus-within .conv-del { opacity: 1; }
+  .conv-del:hover { color: var(--danger); }
+  .sidebar-empty { padding: 26px 12px; text-align: center; font-size: 13px; color: var(--text-faint); }
+  .sidebar-foot { padding: 12px 14px; border-top: 1px solid var(--hairline); display: flex; align-items: center; gap: 10px; }
+  .user-dot { width: 30px; height: 30px; border-radius: 50%; background: var(--gate-wash); color: var(--gate-strong); display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; }
+  .user-info { flex: 1; min-width: 0; line-height: 1.3; }
+  .user-info b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .credit-pill { font-size: 11.5px; font-weight: 600; color: var(--signal); background: var(--signal-wash); padding: 2px 8px; border-radius: 20px; }
+  .sidebar-stage { padding: 22px; display: flex; flex-direction: column; justify-content: center; gap: 12px; background: var(--bg); }
 
-  /* ── Admin dashboard register: calmer, denser, data-forward ─── */
-  .admin { max-width: 720px; margin: 0 auto 48px; padding: 0 16px; }
-  .admin h3 { font-size: 20px; font-weight: 600; margin-bottom: 14px; }
-  .stat-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 22px; }
+  .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 70; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  .drawer-scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; inset-block: 0; inset-inline-start: 0; width: min(300px, 84vw); z-index: 71;
+    background: var(--bg-inset); border-inline-end: 1px solid var(--hairline-strong);
+    transform: translateX(-104%); transition: transform .25s cubic-bezier(.16,1,.3,1); display: flex; flex-direction: column;
+  }
+  [dir="rtl"] .drawer { transform: translateX(104%); }
+  .drawer.open { transform: translateX(0); }
+
+  /* ═════════════════════════════════════════════════════════════
+     8 · FEEDBACK: alerts, toasts, chips, badges, progress
+     ═════════════════════════════════════════════════════════════ */
+  .alert {
+    display: flex; gap: 12px; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--hairline-strong);
+    background: var(--bg-inset); font-size: 13.5px; line-height: 1.55;
+  }
+  .alert-icon { flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px; }
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-body b { display: block; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+  .alert-body span { color: var(--text-muted); }
+  .alert-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .alert-close { align-self: flex-start; border: none; background: transparent; color: var(--text-faint); cursor: pointer; padding: 2px; border-radius: 5px; display: inline-flex; }
+  .alert-close:hover { color: var(--text); background: var(--hairline); }
+  /* info = neutral (calm), warning = gold with a heavy leading edge so the two never read alike */
+  .alert.info    { background: var(--bg-inset);   border-color: var(--hairline-strong); }  .alert.info .alert-icon    { color: var(--text-muted); }
+  .alert.success { background: var(--signal-wash); border-color: var(--signal); }  .alert.success .alert-icon { color: var(--signal); }
+  .alert.warning { background: var(--gate-wash-strong); border-color: var(--gate-strong); border-inline-start-width: 4px; } .alert.warning .alert-icon { color: var(--gate-strong); }
+  .alert.danger  { background: var(--danger-wash); border-color: var(--danger); }  .alert.danger .alert-icon  { color: var(--danger); }
+  .alert.hide { display: none; }
+
+  .toast-region { position: fixed; bottom: 20px; inset-inline: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 16px; }
+  .toast {
+    pointer-events: auto; display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 420px;
+    padding: 11px 14px; border-radius: 12px; background: var(--bg-raised); border: 1px solid var(--hairline-strong);
+    box-shadow: var(--shadow-2); font-size: 13.5px; animation: toast-in .28s cubic-bezier(.16,1,.3,1);
+  }
+  .toast.out { animation: toast-out .2s ease forwards; }
+  .toast .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .toast.success .dot { background: var(--signal); } .toast.danger .dot { background: var(--danger); }
+  .toast.info .dot, .toast.warning .dot { background: var(--gate-strong); }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600; }
+  .chip.ok { background: var(--signal-wash); color: var(--signal); }
+  .chip.pending { background: var(--gate-wash); color: var(--gate-strong); }
+  .chip.error { background: var(--danger-wash); color: var(--danger); }
+  .chip.neutral { background: var(--hairline); color: var(--text-muted); }
+  .chip.dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.live::before { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  .progress { height: 7px; border-radius: 10px; background: var(--bg-inset); border: 1px solid var(--hairline); overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: var(--gate); border-radius: 10px; transition: width .4s cubic-bezier(.16,1,.3,1), background .2s ease; }
+  .progress.low > i { background: var(--danger); }
+  .progress-label { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-muted); margin-bottom: 7px; }
+
+  .skeleton { border-radius: 8px; background: linear-gradient(90deg, var(--hairline) 25%, var(--hairline-strong) 50%, var(--hairline) 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* ═════════════════════════════════════════════════════════════
+     9 · SURFACES: cards, modal, dropdown, tooltip, list, table
+     ═════════════════════════════════════════════════════════════ */
+  .card { padding: 18px; border-radius: 14px; background: var(--bg-raised); border: 1px solid var(--hairline); }
+  .demo .card { background: var(--bg-inset); }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .card p { font-size: 13.5px; color: var(--text-muted); }
+  .card.selectable { cursor: pointer; text-align: start; width: 100%; transition: border-color .15s ease, background .15s ease; }
+  .card.selectable:hover { border-color: var(--text-faint); }
+  .card.selectable[aria-pressed="true"] { border-color: var(--gate); background: var(--gate-wash); }
+  .price { font-size: 26px; font-weight: 600; margin: 8px 0 2px; }
+  .price small { font-family: var(--font-body-en); font-size: 12.5px; font-weight: 500; color: var(--text-faint); }
+  [dir="rtl"] .price small { font-family: var(--font-body-ar); }
+
+  .list { list-style: none; }
+  .list li { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--hairline); font-size: 14px; }
+  .list li:last-child { border-bottom: none; }
+  .list li .grow { flex: 1; min-width: 0; }
+  .list li .grow b { display: block; font-weight: 500; }
+  .list li .grow span { font-size: 12.5px; color: var(--text-faint); }
+  .list-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--gate-wash); color: var(--gate-strong); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  ol.steps { list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding: 4px 0 18px; padding-inline-start: 38px; font-size: 14px; }
+  ol.steps li::before {
+    content: counter(s); position: absolute; inset-inline-start: 0; top: 2px; width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+    background: var(--gate-wash); color: var(--gate-strong); border: 1px solid var(--gate);
+  }
+  ol.steps li::after { content: ""; position: absolute; inset-inline-start: 12.5px; top: 30px; bottom: 2px; width: 1px; background: var(--hairline-strong); }
+  ol.steps li:last-child { padding-bottom: 0; } ol.steps li:last-child::after { display: none; }
+  ol.steps li b { display: block; font-weight: 600; }
+  ol.steps li span { color: var(--text-muted); font-size: 13px; }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: start; font-weight: 500; color: var(--text-faint); font-size: 11.5px; padding: 0 10px 8px; border-bottom: 1px solid var(--hairline-strong); }
+  .data-table td { padding: 11px 10px; border-bottom: 1px solid var(--hairline); color: var(--text-muted); }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table td.primary { color: var(--text); font-weight: 500; }
+  .table-wrap { overflow-x: auto; }
+  .stat-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; }
   @media (min-width: 560px) { .stat-row { grid-template-columns: repeat(3, 1fr); } }
-  .stat-card {
-    padding: 16px; border-radius: 12px; background: var(--bg-raised); border: 1px solid var(--hairline);
-  }
+  .stat-card { padding: 16px; border-radius: 12px; background: var(--bg-inset); border: 1px solid var(--hairline); }
   .stat-label { font-size: 12px; color: var(--text-faint); margin-bottom: 6px; }
   .stat-value { font-size: 22px; font-weight: 600; font-family: var(--font-display-en); }
   [dir="rtl"] .stat-value { font-family: var(--font-display-ar); }
   .stat-delta { font-size: 12px; margin-top: 4px; }
-  .stat-delta.up { color: var(--signal); }
-  .stat-delta.down { color: var(--danger); }
+  .stat-delta.up { color: var(--signal); } .stat-delta.down { color: var(--danger); }
 
-  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  .data-table th {
-    text-align: start; font-weight: 500; color: var(--text-faint); font-size: 11.5px;
-    padding: 0 10px 8px; border-bottom: 1px solid var(--hairline-strong);
-  }
-  .data-table td { padding: 11px 10px; border-bottom: 1px solid var(--hairline); color: var(--text-muted); }
-  .data-table tr:last-child td { border-bottom: none; }
-  .data-table td.primary { color: var(--text); font-weight: 500; }
-  .status-chip {
-    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500;
-  }
-  .status-chip.ok { background: var(--signal-wash); color: var(--signal); }
-  .status-chip.pending { background: var(--gate-wash); color: var(--gate-strong); }
+  .modal-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  .modal-scrim.open { opacity: 1; pointer-events: auto; }
+  .modal { width: min(420px, 100%); background: var(--bg-raised); border: 1px solid var(--hairline-strong); border-radius: 18px; box-shadow: var(--shadow-2); padding: 22px; transform: translateY(10px) scale(.98); transition: transform .25s cubic-bezier(.16,1,.3,1); }
+  .modal-scrim.open .modal { transform: none; }
+  .modal h4 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .modal p { font-size: 14px; color: var(--text-muted); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 
-  .footer-note {
-    max-width: 720px; margin: 0 auto 40px; padding: 0 16px;
-    font-size: 12.5px; color: var(--text-faint); line-height: 1.6;
+  .menu-anchor { position: relative; display: inline-block; }
+  .menu {
+    position: absolute; top: calc(100% + 6px); inset-inline-start: 0; min-width: 240px; max-width: calc(100vw - 40px); z-index: 30;
+    background: var(--bg-raised); border: 1px solid var(--hairline-strong); border-radius: 13px; box-shadow: var(--shadow-2);
+    padding: 6px; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .15s ease, transform .15s ease;
   }
+  .menu.open { opacity: 1; transform: none; pointer-events: auto; }
+  @media (max-width: 560px) {
+    .menu-anchor { position: static; }
+    .menu { inset-inline: 20px; min-width: 0; max-width: none; }
+  }
+  .menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start; padding: 9px 10px; border-radius: 9px; border: none; background: transparent; cursor: pointer; font-size: 13.5px; color: var(--text-muted); transition: background .12s ease, color .12s ease; }
+  .menu-item:hover { background: var(--hairline); color: var(--text); }
+  .menu-item .grow { flex: 1; }
+  .menu-item .grow small { display: block; font-size: 11.5px; color: var(--text-faint); }
+  .menu-item[aria-checked="true"] { color: var(--text); }
+  .menu-item .tick { color: var(--gate-strong); opacity: 0; }
+  .menu-item[aria-checked="true"] .tick { opacity: 1; }
+
+  .tip { position: relative; display: inline-flex; }
+  .tip-bubble {
+    position: absolute; bottom: calc(100% + 8px); inset-inline-start: 50%; transform: translateX(-50%) translateY(3px);
+    background: var(--text); color: var(--bg); font-size: 12px; font-weight: 500; padding: 5px 9px; border-radius: 7px;
+    white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s ease, transform .15s ease;
+  }
+  [dir="rtl"] .tip-bubble { transform: translateX(50%) translateY(3px); }
+  .tip:hover .tip-bubble, .tip:focus-within .tip-bubble { opacity: 1; transform: translateX(-50%) translateY(0); }
+  [dir="rtl"] .tip:hover .tip-bubble, [dir="rtl"] .tip:focus-within .tip-bubble { transform: translateX(50%) translateY(0); }
+
+  .empty { text-align: center; padding: 28px 16px; }
+  .empty .empty-mark { width: 46px; height: 46px; margin: 0 auto 12px; border-radius: 14px; background: var(--gate-wash); color: var(--gate-strong); display: flex; align-items: center; justify-content: center; }
+  .empty h4 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .empty p { font-size: 13.5px; color: var(--text-muted); max-width: 34ch; margin: 0 auto 14px; }
+
+  .note { font-size: 12.5px; color: var(--text-faint); line-height: 1.6; margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--hairline); }
 </style>
 </head>
 <body>
 
-  <div class="toolbar">
-    <span class="toolbar-label">Gateway — direction preview</span>
-    <div class="toolbar-controls">
-      <button id="langBtn" aria-pressed="false" type="button">AR / EN</button>
-      <button id="themeBtn" aria-pressed="false" type="button">☾ / ☀</button>
-    </div>
+<!-- ═══ Toolbar ═══ -->
+<div class="toolbar">
+  <div class="toolbar-brand">
+    <svg class="gate-mark" width="20" height="20" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg>
+    <span class="display" data-i18n="brand">OpenPortal</span>
   </div>
+  <nav class="toolbar-nav" aria-label="Sections">
+    <a href="#colors" data-i18n="navColors">Colors</a>
+    <a href="#type" data-i18n="navType">Type</a>
+    <a href="#buttons" data-i18n="navButtons">Buttons</a>
+    <a href="#forms" data-i18n="navForms">Forms</a>
+    <a href="#chat" data-i18n="navChat">Chat</a>
+    <a href="#sidebar" data-i18n="navSidebar">Sidebar</a>
+    <a href="#feedback" data-i18n="navFeedback">Feedback</a>
+    <a href="#surfaces" data-i18n="navSurfaces">Surfaces</a>
+  </nav>
+  <div class="toolbar-controls">
+    <button id="langBtn" type="button" aria-pressed="false">AR / EN</button>
+    <button id="themeBtn" type="button" aria-pressed="false">☾ / ☀</button>
+  </div>
+</div>
 
-  <div class="sidebar-scrim" id="scrim"></div>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <svg class="gate-mark" width="22" height="22" viewBox="0 0 24 24" style="color:var(--gate-strong)">
-        <path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7" />
-      </svg>
-      <span class="wordmark display" id="wordmark">OpenPortal</span>
+<div class="page">
+
+  <header class="intro">
+    <h1 class="display" data-i18n="introTitle">Gateway theme guide</h1>
+    <p data-i18n="introText">Every color, control and message style in OpenPortal, all live. Click, type and toggle to see each state. Switch language or theme from the top bar and everything follows.</p>
+  </header>
+
+  <!-- ═══════════ 1 · COLORS ═══════════ -->
+  <section class="section" id="colors">
+    <div class="section-head">
+      <h2 class="display" data-i18n="colorsTitle">Colors</h2>
+      <p data-i18n="colorsText">Click any swatch to copy its CSS variable. Values change with the theme toggle.</p>
     </div>
-    <div class="sidebar-body">
-      <button class="new-chat-btn" type="button">
-        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-        <span id="newChatLabel">New chat</span>
-      </button>
-      <div class="group-label" id="todayLabel">Today</div>
-      <button class="conv-item active" id="convActive">Four-stroke engine, explained</button>
-      <button class="conv-item">Comparing two job offers</button>
-      <button class="conv-item">Fixing a React hydration bug</button>
-      <div class="group-label" id="yesterdayLabel">Yesterday</div>
-      <button class="conv-item">Weekend trip to Alexandria</button>
-      <button class="conv-item">Summarizing a research paper</button>
+    <div class="demo">
+      <div class="swatch-sub" data-i18n="swSurfaces">Surfaces</div>
+      <div class="swatch-grid" data-swatches="--bg:Background,--bg-raised:Raised surface,--bg-inset:Inset surface"></div>
+      <div class="swatch-sub" data-i18n="swText">Text</div>
+      <div class="swatch-grid" data-swatches="--text:Primary text,--text-muted:Muted text,--text-faint:Faint text"></div>
+      <div class="swatch-sub" data-i18n="swBrand">Brand: gate (gold)</div>
+      <div class="swatch-grid" data-swatches="--gate:Gate,--gate-strong:Gate strong,--gate-wash:Gate wash,--gate-wash-strong:Gate wash strong"></div>
+      <div class="swatch-sub" data-i18n="swStatus">Status</div>
+      <div class="swatch-grid" data-swatches="--signal:Signal (success),--signal-wash:Signal wash,--danger:Danger,--danger-wash:Danger wash"></div>
+      <div class="swatch-sub" data-i18n="swLines">Lines</div>
+      <div class="swatch-grid" data-swatches="--hairline:Hairline,--hairline-strong:Hairline strong"></div>
     </div>
-  </aside>
+  </section>
 
-  <main class="app">
-    <header class="app-header">
-      <button class="icon-btn" id="menuBtn" type="button" aria-label="Toggle sidebar">
-        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
-      </button>
-      <h2 class="conv-title" id="threadTitle">Explain how a four-stroke engine works like I'm new to it</h2>
-      <button class="model-pill" type="button">
-        <span>⚡</span><span class="name">Sonnet 5</span>
-        <svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn" id="themeBtn2" type="button" aria-label="Toggle theme">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
-      </button>
-    </header>
+  <!-- ═══════════ 2 · TYPE ═══════════ -->
+  <section class="section" id="type">
+    <div class="section-head">
+      <h2 class="display" data-i18n="typeTitle">Typography</h2>
+      <p data-i18n="typeText">Fraunces (English) and El Messiri (Arabic) for display. Manrope and Cairo for body. JetBrains Mono for code.</p>
+    </div>
+    <div class="demo">
+      <div class="type-row"><div class="type-meta"><b>Heading 1</b>display · 40 / 600</div><div class="t-h1 display" data-i18n="tH1">Open the gate to any model</div></div>
+      <div class="type-row"><div class="type-meta"><b>Heading 2</b>display · 26 / 600</div><div class="t-h2 display" data-i18n="tH2">Your conversations, in one place</div></div>
+      <div class="type-row"><div class="type-meta"><b>Heading 3</b>display · 20 / 600</div><div class="t-h3 display" data-i18n="tH3">Usage this month</div></div>
+      <div class="type-row"><div class="type-meta"><b>Body</b>body · 15 / 400</div><div class="t-body" data-i18n="tBody">A four-stroke engine turns fuel into motion in four steps: intake, compression, power, exhaust.</div></div>
+      <div class="type-row"><div class="type-meta"><b>Small</b>body · 13.5 / muted</div><div class="t-small" data-i18n="tSmall">Secondary text and descriptions use the muted color.</div></div>
+      <div class="type-row"><div class="type-meta"><b>Caption</b>body · 11.5 / faint</div><div class="t-caption" data-i18n="tCaption">Timestamps, hints and disclaimers</div></div>
+      <div class="type-row"><div class="type-meta"><b>Mono</b>JetBrains Mono · 13</div><div class="t-mono">const model = "sonnet-5";</div></div>
+    </div>
+  </section>
 
-    <div class="thread">
-      <div class="msg-row user">
-        <div class="avatar user">
-          <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="bubble-col">
-          <div class="bubble user" id="userMsg">Explain how a four-stroke engine works like I'm new to it</div>
+  <!-- ═══════════ 3 · BUTTONS ═══════════ -->
+  <section class="section" id="buttons">
+    <div class="section-head">
+      <h2 class="display" data-i18n="btnTitle">Buttons</h2>
+      <p data-i18n="btnText">One primary action per view. Everything else steps down in weight.</p>
+    </div>
+    <div class="demo">
+      <div class="demo-title" data-i18n="btnVariants">Variants</div>
+      <div class="demo-note" data-i18n="btnVariantsNote">Primary, outline, secondary, ghost and danger.</div>
+      <div class="row">
+        <button class="btn btn-primary" type="button" data-i18n="btnPrimary">Save changes</button>
+        <button class="btn btn-outline" type="button" data-i18n="btnOutline">New chat</button>
+        <button class="btn btn-secondary" type="button" data-i18n="btnSecondary">Cancel</button>
+        <button class="btn btn-ghost" type="button" data-i18n="btnGhost">Learn more</button>
+        <button class="btn btn-danger" type="button" data-i18n="btnDanger">Delete chat</button>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="btnSizes">Sizes and disabled</div>
+        <div class="demo-note">.btn-sm · default · .btn-lg</div>
+        <div class="row">
+          <button class="btn btn-primary btn-sm" type="button" data-i18n="btnSmall">Small</button>
+          <button class="btn btn-primary" type="button" data-i18n="btnDefault">Default</button>
+          <button class="btn btn-primary btn-lg" type="button" data-i18n="btnLarge">Large</button>
+          <button class="btn btn-primary" type="button" disabled data-i18n="btnDisabled">Disabled</button>
         </div>
       </div>
-
-      <div class="msg-row">
-        <div class="avatar assistant">
-          <svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg>
+      <div class="demo">
+        <div class="demo-title" data-i18n="btnLoading">Loading state</div>
+        <div class="demo-note" data-i18n="btnLoadingNote">Click to run a 2 second save.</div>
+        <div class="row">
+          <button class="btn btn-primary" type="button" id="loadBtn"><span data-i18n="btnSave">Save changes</span></button>
         </div>
-        <div class="bubble-col">
-          <div class="bubble assistant" id="assistantMsg">
-            A four-stroke engine turns fuel into motion in four steps: intake pulls in fuel and air, compression squeezes it tight, combustion ignites it for power, and exhaust clears the cylinder. One full cycle, two crankshaft rotations.
-            <div class="code-block">
-              <div class="code-block-head"><span>cycle.py</span><span>python</span></div>
-              <pre><code><span class="tok-kw">def</span> stroke_order():
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="btnIcon">Icon and send buttons</div>
+        <div class="demo-note" data-i18n="btnIconNote">The star is a toggle. The arrow is the send button.</div>
+        <div class="row">
+          <button class="icon-btn" type="button" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></button>
+          <button class="icon-btn" type="button" id="starBtn" aria-pressed="false" aria-label="Favorite"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></button>
+          <button class="icon-btn" type="button" aria-label="Theme" id="themeBtn2"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></button>
+          <button class="send-btn" type="button" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="send-btn" type="button" aria-label="Send" disabled><svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="btnSeg">Segmented control and model pill</div>
+        <div class="demo-note" data-i18n="btnSegNote">Pick one value from a small set.</div>
+        <div class="row">
+          <div class="seg" role="group" id="seg">
+            <button type="button" aria-pressed="true" data-i18n="segDay">Day</button>
+            <button type="button" aria-pressed="false" data-i18n="segWeek">Week</button>
+            <button type="button" aria-pressed="false" data-i18n="segMonth">Month</button>
+          </div>
+          <button class="model-pill" type="button"><span>⚡</span><span>Sonnet 5</span><svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 4 · FORMS ═══════════ -->
+  <section class="section" id="forms">
+    <div class="section-head">
+      <h2 class="display" data-i18n="formsTitle">Form controls</h2>
+      <p data-i18n="formsText">Inputs glow gold on focus. Errors turn red and say what to fix.</p>
+    </div>
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="fInputs">Text fields</div>
+        <div class="demo-note" data-i18n="fInputsNote">Type an email to see validation.</div>
+        <div class="stack">
+          <div class="field">
+            <label for="emailIn" data-i18n="fEmail">Email</label>
+            <input class="input" id="emailIn" type="text" placeholder="name@example.com" autocomplete="off">
+            <span class="help" id="emailHelp" data-i18n="fEmailHelp">We only use this to send receipts.</span>
+          </div>
+          <div class="field">
+            <label for="planSel" data-i18n="fPlan">Default model</label>
+            <select class="select" id="planSel">
+              <option>Sonnet 5</option><option>Opus 5</option><option>Haiku 4.5</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="disIn" data-i18n="fDisabled">Disabled</label>
+            <input class="input" id="disIn" type="text" value="Read only value" disabled>
+          </div>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="fToggles">Switches, checkboxes, radios</div>
+        <div class="demo-note" data-i18n="fTogglesNote">All are keyboard accessible.</div>
+        <div class="toggle-row">
+          <div class="toggle-text"><b data-i18n="fSw1">Save chat history</b><span data-i18n="fSw1d">Keep conversations in the sidebar.</span></div>
+          <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Save chat history"></button>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-text"><b data-i18n="fSw2">Send with Enter</b><span data-i18n="fSw2d">Use Shift + Enter for a new line.</span></div>
+          <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Send with Enter"></button>
+        </div>
+        <div class="toggle-row">
+          <label class="check"><input type="checkbox" checked><span class="check-box"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="var(--bg-inset)" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span data-i18n="fCheck">Email me receipts</span></label>
+          <span class="chip neutral" data-i18n="fOptional">Optional</span>
+        </div>
+        <div class="toggle-row">
+          <div class="row" style="gap:18px">
+            <label class="check"><input type="radio" name="lang" checked><span class="check-box radio-box"></span><span data-i18n="fRadioA">Auto-detect</span></label>
+            <label class="check"><input type="radio" name="lang"><span class="check-box radio-box"></span><span data-i18n="fRadioB">Always Arabic</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="demo-title" data-i18n="fTabs">Tabs</div>
+      <div class="demo-note" data-i18n="fTabsNote">Arrow keys move between tabs.</div>
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" aria-selected="true" data-tab="0" data-i18n="tab1">Profile</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="1" data-i18n="tab2">Billing</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="2" data-i18n="tab3">Security</button>
+      </div>
+      <div class="tab-panel" id="tabPanel" data-i18n="tabP1">Your name, language and the model you start each chat with.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 5 · CHAT ═══════════ -->
+  <section class="section" id="chat">
+    <div class="section-head">
+      <h2 class="display" data-i18n="chatTitle">Chat messages</h2>
+      <p data-i18n="chatText">User messages sit on the gold wash. Assistant replies have no bubble: plain text across the full width, beside a gate avatar.</p>
+    </div>
+    <div class="demo">
+      <div class="demo-title" data-i18n="chatThread">Conversation with every message type</div>
+      <div class="demo-note" data-i18n="chatThreadNote">Hover a reply for actions. Try the copy button in the code block.</div>
+      <div class="thread">
+        <div class="msg-row user">
+          <div class="avatar user"><svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="bubble-col">
+            <div class="bubble user" data-i18n="cUser">Explain how a four-stroke engine works like I'm new to it</div>
+            <div class="msg-meta"><span>10:42</span></div>
+          </div>
+        </div>
+
+        <div class="msg-row">
+          <div class="avatar assistant"><svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg></div>
+          <div class="bubble-col">
+            <div class="bubble assistant">
+              <span data-i18n="cAssistant">A four-stroke engine turns fuel into motion in four steps:</span>
+              <ul>
+                <li data-i18n="cLi1">Intake pulls in fuel and air</li>
+                <li data-i18n="cLi2">Compression squeezes it tight</li>
+                <li data-i18n="cLi3">Power ignites it and pushes the piston</li>
+                <li data-i18n="cLi4">Exhaust clears the cylinder</li>
+              </ul>
+              <div class="code-block">
+                <div class="code-block-head"><span>cycle.py</span><button class="copy-btn" type="button" id="copyCode">copy</button></div>
+                <pre><code id="codeText"><span class="tok-cm"># one full cycle = two crankshaft turns</span>
+<span class="tok-kw">def</span> stroke_order():
     <span class="tok-kw">return</span> [<span class="tok-str">"intake"</span>, <span class="tok-str">"compression"</span>, <span class="tok-str">"power"</span>, <span class="tok-str">"exhaust"</span>]</code></pre>
+              </div>
             </div>
+            <div class="msg-meta">
+              <span>10:42 · Sonnet 5</span>
+              <div class="msg-actions">
+                <button class="icon-btn" type="button" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M5 15V6a2 2 0 012-2h9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></button>
+                <button class="icon-btn" type="button" aria-label="Regenerate"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.7M20 4v4h-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <button class="icon-btn" type="button" id="likeBtn" aria-pressed="false" aria-label="Good answer"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M7 11v9H4v-9h3zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.8 9H19a2 2 0 012 2.3l-1.2 6.7A2 2 0 0117.8 20H7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg-row user">
+          <div class="avatar user"><svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="bubble-col">
+            <div class="attach-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+              engine-diagram.pdf
+            </div>
+            <div class="bubble user" data-i18n="cUser2">Can you compare this with a two-stroke?</div>
+          </div>
+        </div>
+
+        <div class="msg-row">
+          <div class="avatar assistant"><svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg></div>
+          <div class="bubble-col">
+            <div class="bubble assistant"><span class="typing" aria-label="Typing"><span></span><span></span><span></span></span></div>
+          </div>
+        </div>
+
+        <div class="msg-row">
+          <div class="avatar assistant"><svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg></div>
+          <div class="bubble-col">
+            <div class="bubble assistant"><span id="streamText"></span></div>
+            <div class="msg-meta"><button class="btn btn-ghost btn-sm" type="button" id="replayStream" data-i18n="cReplay">Replay streaming</button></div>
+          </div>
+        </div>
+
+        <div class="msg-row">
+          <div class="avatar assistant"><svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg></div>
+          <div class="bubble-col">
+            <div class="bubble error"><b data-i18n="cErrT">This reply didn't finish.</b> <span data-i18n="cErrB">The connection dropped. Your credits were not used.</span></div>
+            <div class="msg-meta"><button class="btn btn-outline btn-sm" type="button" data-i18n="cRetry">Try again</button></div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="composer-wrap">
+    <div class="demo">
+      <div class="demo-title" data-i18n="compTitle">Composer</div>
+      <div class="demo-note" data-i18n="compNote">Type to enable send. The gold line above the box is the "threshold".</div>
       <div class="composer">
-        <textarea rows="1" id="composerText" placeholder="Ask anything…"></textarea>
-        <button class="send-btn" type="button" aria-label="Send">
-          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
+        <textarea rows="1" id="composerText" placeholder="Ask anything…" data-i18n-ph="compPh"></textarea>
+        <button class="send-btn" type="button" id="composerSend" aria-label="Send" disabled><svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
-      <p class="disclaimer" id="disclaimer">AI responses may be inaccurate. Verify important information.</p>
+      <div class="composer-meta"><span data-i18n="compDisc">AI responses may be inaccurate. Verify important information.</span><span id="charCount">0</span></div>
     </div>
-  </main>
-
-  <div class="section-break"><hr><span id="adminBreakLabel">Admin dashboard register</span><hr></div>
-
-  <section class="admin">
-    <h3 class="display" id="adminTitle">Overview</h3>
-    <div class="stat-row">
-      <div class="stat-card">
-        <div class="stat-label" id="statRevLabel">Revenue today</div>
-        <div class="stat-value">$1,284</div>
-        <div class="stat-delta up">↑ 12% vs yesterday</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label" id="statUsersLabel">Active users</div>
-        <div class="stat-value">342</div>
-        <div class="stat-delta up">↑ 4%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label" id="statFraudLabel">Open fraud flags</div>
-        <div class="stat-value">3</div>
-        <div class="stat-delta down">↑ 2 new</div>
-      </div>
-    </div>
-
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th id="thUser">User</th>
-          <th id="thAmount">Amount</th>
-          <th id="thStatus">Status</th>
-        </tr>
-      </thead>
-      <tbody id="txBody">
-        <tr><td class="primary">sara.k@mail.com</td><td>$20.00</td><td><span class="status-chip ok" id="s1">Settled</span></td></tr>
-        <tr><td class="primary">omar91@mail.com</td><td>$5.00</td><td><span class="status-chip pending" id="s2">Pending</span></td></tr>
-        <tr><td class="primary">layla_h@mail.com</td><td>$50.00</td><td><span class="status-chip ok" id="s3">Settled</span></td></tr>
-      </tbody>
-    </table>
   </section>
 
-  <p class="footer-note" id="footerNote">This is a static preview of the new visual direction — colors, type, spacing, and the composer's "threshold" treatment. Not wired to real data.</p>
+  <!-- ═══════════ 6 · SIDEBAR ═══════════ -->
+  <section class="section" id="sidebar">
+    <div class="section-head">
+      <h2 class="display" data-i18n="sbTitle">Sidebar</h2>
+      <p data-i18n="sbText">Search, pick, and delete conversations. On phones it opens as a drawer.</p>
+    </div>
+    <div class="demo flush">
+      <div class="sidebar-demo">
+        <aside class="sidebar" id="sbPanel">
+          <div class="sidebar-head">
+            <svg class="gate-mark" width="22" height="22" viewBox="0 0 24 24" style="color:var(--gate-strong)"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg>
+            <span class="wordmark display" data-i18n="brand">OpenPortal</span>
+          </div>
+          <div class="sidebar-body">
+            <button class="new-chat-btn" type="button" id="newChat"><svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span data-i18n="sbNew">New chat</span></button>
+            <div class="search-box">
+              <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input class="input" id="sbSearch" type="text" placeholder="Search chats" data-i18n-ph="sbSearch" autocomplete="off">
+            </div>
+            <div id="convList"></div>
+          </div>
+          <div class="sidebar-foot">
+            <div class="user-dot">Y</div>
+            <div class="user-info"><b>Ynmar</b><span class="t-caption" data-i18n="sbPlan">Pro plan</span></div>
+            <span class="credit-pill" id="creditPill">$12.40</span>
+          </div>
+        </aside>
+        <div class="sidebar-stage">
+          <div class="demo-title" data-i18n="sbStageT">Try it</div>
+          <p class="t-small" data-i18n="sbStageP">Click a chat to select it, hover to reveal delete, type to filter, or add a new chat.</p>
+          <div class="row"><button class="btn btn-secondary btn-sm" type="button" id="openDrawer" data-i18n="sbDrawer">Open as mobile drawer</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 7 · FEEDBACK ═══════════ -->
+  <section class="section" id="feedback">
+    <div class="section-head">
+      <h2 class="display" data-i18n="fbTitle">Alerts, toasts and status</h2>
+      <p data-i18n="fbText">Four tones: info, success, warning, danger. Each says what happened and what to do next.</p>
+    </div>
+    <div class="demo">
+      <div class="demo-title" data-i18n="alTitle">Alerts</div>
+      <div class="demo-note" data-i18n="alNote">Dismiss any alert with the close button.</div>
+      <div class="stack" id="alerts">
+        <div class="alert info">
+          <svg class="alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div class="alert-body"><b data-i18n="alInfoT">New model available</b><span data-i18n="alInfoB">Opus 5 is now in your model menu.</span></div>
+          <button class="alert-close" type="button" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="alert success">
+          <svg class="alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M8 12.5l3 3 5-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="alert-body"><b data-i18n="alOkT">Payment received</b><span data-i18n="alOkB">$20.00 was added to your balance.</span></div>
+          <button class="alert-close" type="button" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="alert warning">
+          <svg class="alert-icon" viewBox="0 0 24 24"><path d="M12 4l9 16H3L12 4z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M12 10v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div class="alert-body"><b data-i18n="alWarnT">Low balance</b><span data-i18n="alWarnB">You have about 20 messages left. Add credits to keep chatting.</span>
+            <div class="alert-actions"><button class="btn btn-primary btn-sm" type="button" data-i18n="alWarnBtn">Add credits</button></div>
+          </div>
+          <button class="alert-close" type="button" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+        <div class="alert danger">
+          <svg class="alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M12 7.5v5.5M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div class="alert-body"><b data-i18n="alErrT">Payment failed</b><span data-i18n="alErrB">Your card was declined. Check the details or try another card.</span></div>
+          <button class="alert-close" type="button" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" type="button" id="resetAlerts" data-i18n="alReset">Restore alerts</button></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="toTitle">Toasts</div>
+        <div class="demo-note" data-i18n="toNote">Short confirmations that fade after 3 seconds.</div>
+        <div class="row">
+          <button class="btn btn-secondary btn-sm" type="button" data-toast="success" data-i18n="toOk">Success</button>
+          <button class="btn btn-secondary btn-sm" type="button" data-toast="info" data-i18n="toInfo">Info</button>
+          <button class="btn btn-secondary btn-sm" type="button" data-toast="warning" data-i18n="toWarn">Warning</button>
+          <button class="btn btn-secondary btn-sm" type="button" data-toast="danger" data-i18n="toErr">Error</button>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="chTitle">Status chips</div>
+        <div class="demo-note" data-i18n="chNote">Used in tables, headers and lists.</div>
+        <div class="row">
+          <span class="chip ok" data-i18n="chSettled">Settled</span>
+          <span class="chip pending" data-i18n="chPending">Pending</span>
+          <span class="chip error" data-i18n="chFailed">Failed</span>
+          <span class="chip neutral" data-i18n="chDraft">Draft</span>
+          <span class="chip ok dot live" data-i18n="chLive">Live</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="prTitle">Progress and credits</div>
+        <div class="demo-note" data-i18n="prNote">The bar turns red under 15%.</div>
+        <div class="progress-label"><span data-i18n="prLabel">Monthly credits</span><span id="prVal">62%</span></div>
+        <div class="progress" id="prBar"><i style="width:62%"></i></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn btn-secondary btn-sm" type="button" id="prDown" data-i18n="prUse">Use credits</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="prReset" data-i18n="prRefill">Refill</button>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="skTitle">Loading skeleton</div>
+        <div class="demo-note" data-i18n="skNote">Shown while a list or reply is loading.</div>
+        <div class="stack">
+          <div class="skeleton" style="height:14px;width:72%"></div>
+          <div class="skeleton" style="height:14px;width:94%"></div>
+          <div class="skeleton" style="height:14px;width:58%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 8 · SURFACES ═══════════ -->
+  <section class="section" id="surfaces">
+    <div class="section-head">
+      <h2 class="display" data-i18n="suTitle">Cards, lists and overlays</h2>
+      <p data-i18n="suText">Raised surfaces hold content. Overlays sit above with a stronger shadow.</p>
+    </div>
+
+    <div class="demo">
+      <div class="demo-title" data-i18n="plTitle">Selectable cards</div>
+      <div class="demo-note" data-i18n="plNote">Click to select a credit pack.</div>
+      <div class="grid-2" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))" id="packs">
+        <button class="card selectable" type="button" aria-pressed="false"><h4 data-i18n="pk1">Starter</h4><div class="price display">$5 <small data-i18n="pkUnit">one time</small></div><p data-i18n="pk1d">About 250 messages</p></button>
+        <button class="card selectable" type="button" aria-pressed="true"><h4 data-i18n="pk2">Standard</h4><div class="price display">$20 <small data-i18n="pkUnit">one time</small></div><p data-i18n="pk2d">About 1,200 messages</p></button>
+        <button class="card selectable" type="button" aria-pressed="false"><h4 data-i18n="pk3">Studio</h4><div class="price display">$50 <small data-i18n="pkUnit">one time</small></div><p data-i18n="pk3d">About 3,500 messages</p></button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="liTitle">List</div>
+        <div class="demo-note" data-i18n="liNote">Icon, title, detail and a trailing status.</div>
+        <ul class="list">
+          <li><span class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.6"/></svg></span><div class="grow"><b data-i18n="li1">Visa ending 4417</b><span data-i18n="li1d">Expires 09/28</span></div><span class="chip ok" data-i18n="liDefault">Default</span></li>
+          <li><span class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span><div class="grow"><b data-i18n="li2">Invoice INV-0231</b><span data-i18n="li2d">Sept 3, 2026</span></div><span class="chip ok" data-i18n="chSettled2">Settled</span></li>
+          <li><span class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span><div class="grow"><b data-i18n="li3">Invoice INV-0232</b><span data-i18n="li3d">Sept 17, 2026</span></div><span class="chip pending" data-i18n="chPending2">Pending</span></li>
+        </ul>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="stTitle">Step list</div>
+        <div class="demo-note" data-i18n="stNote">For onboarding and multi-step flows only.</div>
+        <ol class="steps">
+          <li><b data-i18n="st1">Create your account</b><span data-i18n="st1d">Use email or Google.</span></li>
+          <li><b data-i18n="st2">Add credits</b><span data-i18n="st2d">Pick a pack that fits you.</span></li>
+          <li><b data-i18n="st3">Start chatting</b><span data-i18n="st3d">Choose a model and ask anything.</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-title" data-i18n="tbTitle">Stats and table</div>
+      <div class="demo-note" data-i18n="tbNote">The calmer, denser register used for dashboards.</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-label" data-i18n="s1l">Revenue today</div><div class="stat-value">$1,284</div><div class="stat-delta up">↑ 12%</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="s2l">Active users</div><div class="stat-value">342</div><div class="stat-delta up">↑ 4%</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="s3l">Open flags</div><div class="stat-value">3</div><div class="stat-delta down">↑ 2</div></div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th data-i18n="thU">User</th><th data-i18n="thA">Amount</th><th data-i18n="thS">Status</th></tr></thead>
+          <tbody>
+            <tr><td class="primary">sara.k@mail.com</td><td>$20.00</td><td><span class="chip ok" data-i18n="chSettled3">Settled</span></td></tr>
+            <tr><td class="primary">omar91@mail.com</td><td>$5.00</td><td><span class="chip pending" data-i18n="chPending3">Pending</span></td></tr>
+            <tr><td class="primary">layla_h@mail.com</td><td>$50.00</td><td><span class="chip error" data-i18n="chFailed3">Failed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="demo">
+        <div class="demo-title" data-i18n="ovTitle">Modal, menu and tooltip</div>
+        <div class="demo-note" data-i18n="ovNote">Escape closes the modal and menu.</div>
+        <div class="row">
+          <button class="btn btn-danger btn-sm" type="button" id="openModal" data-i18n="ovModal">Delete chat…</button>
+          <div class="menu-anchor">
+            <button class="model-pill" type="button" id="menuBtn" aria-haspopup="menu" aria-expanded="false"><span>⚡</span><span id="menuLabel">Sonnet 5</span><svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="menu" id="menu" role="menu">
+              <button class="menu-item" role="menuitemradio" aria-checked="true" data-model="Sonnet 5"><span class="grow">Sonnet 5<small data-i18n="mdFast">Fast and balanced</small></span><svg class="tick" width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="menu-item" role="menuitemradio" aria-checked="false" data-model="Opus 5"><span class="grow">Opus 5<small data-i18n="mdDeep">Deepest reasoning</small></span><svg class="tick" width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="menu-item" role="menuitemradio" aria-checked="false" data-model="Haiku 4.5"><span class="grow">Haiku 4.5<small data-i18n="mdQuick">Quickest and cheapest</small></span><svg class="tick" width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+          </div>
+          <span class="tip"><button class="icon-btn" type="button" aria-label="Help"><svg width="17" height="17" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9.7 9.5a2.4 2.4 0 114 1.8c-.8.6-1.7 1-1.7 2.2M12 16.7h.01" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></button><span class="tip-bubble" role="tooltip" data-i18n="ovTip">Help and shortcuts</span></span>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-title" data-i18n="emTitle">Empty state</div>
+        <div class="empty">
+          <div class="empty-mark"><svg class="gate-mark" width="22" height="22" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg></div>
+          <h4 class="display" data-i18n="emH">No chats yet</h4>
+          <p data-i18n="emP">Start a conversation and it will show up in your sidebar.</p>
+          <button class="btn btn-primary btn-sm" type="button" data-toast="info" data-i18n="emBtn">Start a chat</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="note" data-i18n="footNote">This is a living reference for the OpenPortal Gateway direction. All tokens are CSS custom properties defined at the top of this file, so you can copy the :root block into any page to reuse the theme.</p>
+</div>
+
+<!-- Overlays -->
+<div class="modal-scrim" id="modalScrim" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h4 class="display" id="modalTitle" data-i18n="mdTitle">Delete this chat?</h4>
+    <p data-i18n="mdBody">"Four-stroke engine, explained" and its messages will be removed. This can't be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" id="modalCancel" data-i18n="mdCancel">Keep chat</button>
+      <button class="btn btn-danger" type="button" id="modalOk" data-i18n="mdOk">Delete chat</button>
+    </div>
+  </div>
+</div>
+<div class="drawer-scrim" id="drawerScrim"></div>
+<aside class="drawer" id="drawer" aria-label="Sidebar drawer"></aside>
+<div class="toast-region" id="toasts" aria-live="polite"></div>
 
 <script>
-  const html = document.documentElement;
-  const langBtn = document.getElementById('langBtn');
-  const themeBtn = document.getElementById('themeBtn');
-  const themeBtn2 = document.getElementById('themeBtn2');
-  const menuBtn = document.getElementById('menuBtn');
-  const sidebar = document.getElementById('sidebar');
-  const scrim = document.getElementById('scrim');
-
-  const strings = {
-    en: {
-      wordmark: "OpenPortal", newChatLabel: "New chat", todayLabel: "Today", yesterdayLabel: "Yesterday",
-      convActive: "Four-stroke engine, explained",
-      threadTitle: "Explain how a four-stroke engine works like I'm new to it",
-      userMsg: "Explain how a four-stroke engine works like I'm new to it",
-      assistantMsg1: "A four-stroke engine turns fuel into motion in four steps: intake pulls in fuel and air, compression squeezes it tight, combustion ignites it for power, and exhaust clears the cylinder. One full cycle, two crankshaft rotations.",
-      disclaimer: "AI responses may be inaccurate. Verify important information.",
-      adminBreakLabel: "Admin dashboard register", adminTitle: "Overview",
-      statRevLabel: "Revenue today", statUsersLabel: "Active users", statFraudLabel: "Open fraud flags",
-      thUser: "User", thAmount: "Amount", thStatus: "Status",
-      s1: "Settled", s2: "Pending", s3: "Settled",
-      footerNote: "This is a static preview of the new visual direction — colors, type, spacing, and the composer's \"threshold\" treatment. Not wired to real data."
-    },
-    ar: {
-      wordmark: "البوابة", newChatLabel: "محادثة جديدة", todayLabel: "اليوم", yesterdayLabel: "أمس",
-      convActive: "شرح محرك رباعي الأشواط",
-      threadTitle: "اشرح لي كيف يعمل المحرك رباعي الأشواط وكأنني مبتدئ",
-      userMsg: "اشرح لي كيف يعمل المحرك رباعي الأشواط وكأنني مبتدئ",
-      assistantMsg1: "يحوّل المحرك رباعي الأشواط الوقود إلى حركة عبر أربع خطوات: السحب يدخل الوقود والهواء، والضغط يكثّفه، والاحتعال يشعله لإنتاج القوة، والعادم يُفرغ الأسطوانة. دورة كاملة تعادل دورتين لعمود المرفق.",
-      disclaimer: "قد تكون ردود الذكاء الاصطناعي غير دقيقة. تحقق من المعلومات المهمة.",
-      adminBreakLabel: "واجهة لوحة التحكم", adminTitle: "نظرة عامة",
-      statRevLabel: "إيرادات اليوم", statUsersLabel: "المستخدمون النشطون", statFraudLabel: "بلاغات احتيال مفتوحة",
-      thUser: "المستخدم", thAmount: "المبلغ", thStatus: "الحالة",
-      s1: "تمت التسوية", s2: "قيد الانتظار", s3: "تمت التسوية",
-      footerNote: "هذه معاينة ثابتة للاتجاه البصري الجديد — الألوان والخطوط والمسافات ومعالجة \"العتبة\" في صندوق الكتابة. غير مرتبطة ببيانات حقيقية."
-    }
-  };
-
-  let lang = 'en';
-  function applyLang() {
-    const s = strings[lang];
-    html.lang = lang; html.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    for (const key in s) { const el = document.getElementById(key); if (el) el.textContent = s[key]; }
-    langBtn.setAttribute('aria-pressed', lang === 'ar');
+/* ═════════════ i18n ═════════════ */
+const T = {
+  en: {
+    brand:"OpenPortal", navColors:"Colors", navType:"Type", navButtons:"Buttons", navForms:"Forms", navChat:"Chat", navSidebar:"Sidebar", navFeedback:"Feedback", navSurfaces:"Surfaces",
+    introTitle:"Gateway theme guide", introText:"Every color, control and message style in OpenPortal, all live. Click, type and toggle to see each state. Switch language or theme from the top bar and everything follows.",
+    colorsTitle:"Colors", colorsText:"Click any swatch to copy its CSS variable. Values change with the theme toggle.",
+    swSurfaces:"Surfaces", swText:"Text", swBrand:"Brand: gate (gold)", swStatus:"Status", swLines:"Lines",
+    typeTitle:"Typography", typeText:"Fraunces (English) and El Messiri (Arabic) for display. Manrope and Cairo for body. JetBrains Mono for code.",
+    tH1:"Open the gate to any model", tH2:"Your conversations, in one place", tH3:"Usage this month",
+    tBody:"A four-stroke engine turns fuel into motion in four steps: intake, compression, power, exhaust.", tSmall:"Secondary text and descriptions use the muted color.", tCaption:"Timestamps, hints and disclaimers",
+    btnTitle:"Buttons", btnText:"One primary action per view. Everything else steps down in weight.",
+    btnVariants:"Variants", btnVariantsNote:"Primary, outline, secondary, ghost and danger.",
+    btnPrimary:"Save changes", btnOutline:"New chat", btnSecondary:"Cancel", btnGhost:"Learn more", btnDanger:"Delete chat",
+    btnSizes:"Sizes and disabled", btnSmall:"Small", btnDefault:"Default", btnLarge:"Large", btnDisabled:"Disabled",
+    btnLoading:"Loading state", btnLoadingNote:"Click to run a 2 second save.", btnSave:"Save changes", btnSaving:"Saving…", btnSaved:"Saved",
+    btnIcon:"Icon and send buttons", btnIconNote:"The star is a toggle. The arrow is the send button.",
+    btnSeg:"Segmented control and model pill", btnSegNote:"Pick one value from a small set.", segDay:"Day", segWeek:"Week", segMonth:"Month",
+    formsTitle:"Form controls", formsText:"Inputs glow gold on focus. Errors turn red and say what to fix.",
+    fInputs:"Text fields", fInputsNote:"Type an email to see validation.", fEmail:"Email", fEmailHelp:"We only use this to send receipts.", fEmailBad:"Enter a full email, like name@example.com.", fEmailOk:"Looks good.",
+    fPlan:"Default model", fDisabled:"Disabled",
+    fToggles:"Switches, checkboxes, radios", fTogglesNote:"All are keyboard accessible.",
+    fSw1:"Save chat history", fSw1d:"Keep conversations in the sidebar.", fSw2:"Send with Enter", fSw2d:"Use Shift + Enter for a new line.",
+    fCheck:"Email me receipts", fOptional:"Optional", fRadioA:"Auto-detect", fRadioB:"Always Arabic",
+    fTabs:"Tabs", fTabsNote:"Arrow keys move between tabs.", tab1:"Profile", tab2:"Billing", tab3:"Security",
+    tabP1:"Your name, language and the model you start each chat with.", tabP2:"Your credit balance, saved cards and invoices.", tabP3:"Password, active sessions and two-step sign-in.",
+    chatTitle:"Chat messages", chatText:"User messages sit on the gold wash. Assistant replies have no bubble: plain text across the full width, beside a gate avatar.",
+    chatThread:"Conversation with every message type", chatThreadNote:"Hover a reply for actions. Try the copy button in the code block.",
+    cUser:"Explain how a four-stroke engine works like I'm new to it", cAssistant:"A four-stroke engine turns fuel into motion in four steps:",
+    cLi1:"Intake pulls in fuel and air", cLi2:"Compression squeezes it tight", cLi3:"Power ignites it and pushes the piston", cLi4:"Exhaust clears the cylinder",
+    cUser2:"Can you compare this with a two-stroke?", cReplay:"Replay streaming", cErrT:"This reply didn't finish.", cErrB:"The connection dropped. Your credits were not used.", cRetry:"Try again",
+    stream:"A two-stroke engine does the same job in two piston strokes, so it fires once every revolution. It is lighter and simpler, but burns fuel less cleanly.",
+    compTitle:"Composer", compNote:"Type to enable send. The gold line above the box is the \"threshold\".", compPh:"Ask anything…", compDisc:"AI responses may be inaccurate. Verify important information.",
+    sbTitle:"Sidebar", sbText:"Search, pick, and delete conversations. On phones it opens as a drawer.", sbNew:"New chat", sbSearch:"Search chats", sbPlan:"Pro plan",
+    sbToday:"Today", sbYesterday:"Yesterday", sbNone:"No chats match your search.", sbUntitled:"Untitled chat",
+    sbStageT:"Try it", sbStageP:"Click a chat to select it, hover to reveal delete, type to filter, or add a new chat.", sbDrawer:"Open as mobile drawer",
+    c1:"Four-stroke engine, explained", c2:"Comparing two job offers", c3:"Fixing a React hydration bug", c4:"Weekend trip to Alexandria", c5:"Summarizing a research paper",
+    fbTitle:"Alerts, toasts and status", fbText:"Four tones: info, success, warning, danger. Each says what happened and what to do next.",
+    alTitle:"Alerts", alNote:"Dismiss any alert with the close button.",
+    alInfoT:"New model available", alInfoB:"Opus 5 is now in your model menu.", alOkT:"Payment received", alOkB:"$20.00 was added to your balance.",
+    alWarnT:"Low balance", alWarnB:"You have about 20 messages left. Add credits to keep chatting.", alWarnBtn:"Add credits",
+    alErrT:"Payment failed", alErrB:"Your card was declined. Check the details or try another card.", alReset:"Restore alerts",
+    toTitle:"Toasts", toNote:"Short confirmations that fade after 3 seconds.", toOk:"Success", toInfo:"Info", toWarn:"Warning", toErr:"Error",
+    toastSuccess:"Changes saved", toastInfo:"Copied link to clipboard", toastWarning:"Balance is running low", toastDanger:"Couldn't send. Check your connection.",
+    chTitle:"Status chips", chNote:"Used in tables, headers and lists.", chSettled:"Settled", chPending:"Pending", chFailed:"Failed", chDraft:"Draft", chLive:"Live",
+    prTitle:"Progress and credits", prNote:"The bar turns red under 15%.", prLabel:"Monthly credits", prUse:"Use credits", prRefill:"Refill",
+    skTitle:"Loading skeleton", skNote:"Shown while a list or reply is loading.",
+    suTitle:"Cards, lists and overlays", suText:"Raised surfaces hold content. Overlays sit above with a stronger shadow.",
+    plTitle:"Selectable cards", plNote:"Click to select a credit pack.", pk1:"Starter", pk2:"Standard", pk3:"Studio", pkUnit:"one time",
+    pk1d:"About 250 messages", pk2d:"About 1,200 messages", pk3d:"About 3,500 messages",
+    liTitle:"List", liNote:"Icon, title, detail and a trailing status.", li1:"Visa ending 4417", li1d:"Expires 09/28", liDefault:"Default",
+    li2:"Invoice INV-0231", li2d:"Sept 3, 2026", li3:"Invoice INV-0232", li3d:"Sept 17, 2026", chSettled2:"Settled", chPending2:"Pending",
+    stTitle:"Step list", stNote:"For onboarding and multi-step flows only.", st1:"Create your account", st1d:"Use email or Google.", st2:"Add credits", st2d:"Pick a pack that fits you.", st3:"Start chatting", st3d:"Choose a model and ask anything.",
+    tbTitle:"Stats and table", tbNote:"The calmer, denser register used for dashboards.", s1l:"Revenue today", s2l:"Active users", s3l:"Open flags",
+    thU:"User", thA:"Amount", thS:"Status", chSettled3:"Settled", chPending3:"Pending", chFailed3:"Failed",
+    ovTitle:"Modal, menu and tooltip", ovNote:"Escape closes the modal and menu.", ovModal:"Delete chat…", ovTip:"Help and shortcuts",
+    mdFast:"Fast and balanced", mdDeep:"Deepest reasoning", mdQuick:"Quickest and cheapest",
+    mdTitle:"Delete this chat?", mdBody:"\"Four-stroke engine, explained\" and its messages will be removed. This can't be undone.", mdCancel:"Keep chat", mdOk:"Delete chat", toastDeleted:"Chat deleted",
+    emTitle:"Empty state", emH:"No chats yet", emP:"Start a conversation and it will show up in your sidebar.", emBtn:"Start a chat",
+    footNote:"This is a living reference for the OpenPortal Gateway direction. All tokens are CSS custom properties defined at the top of this file, so you can copy the :root block into any page to reuse the theme.",
+    copy:"copy", copied:"copied", copiedVar:"Copied", toastCopied:"Copied to clipboard"
+  },
+  ar: {
+    brand:"البوابة", navColors:"الألوان", navType:"الخطوط", navButtons:"الأزرار", navForms:"النماذج", navChat:"المحادثة", navSidebar:"الشريط الجانبي", navFeedback:"التنبيهات", navSurfaces:"الأسطح",
+    introTitle:"دليل سمة البوابة", introText:"كل لون وعنصر تحكم وأسلوب رسائل في البوابة، وكلها تعمل فعلياً. اضغط واكتب وبدّل لترى كل حالة. غيّر اللغة أو السمة من الشريط العلوي وسيتبعك كل شيء.",
+    colorsTitle:"الألوان", colorsText:"اضغط على أي لون لنسخ متغير CSS الخاص به. تتغير القيم مع تبديل السمة.",
+    swSurfaces:"الأسطح", swText:"النص", swBrand:"الهوية: البوابة (ذهبي)", swStatus:"الحالة", swLines:"الخطوط",
+    typeTitle:"الخطوط", typeText:"فراونس (الإنجليزية) وإل ميسيري (العربية) للعناوين. مانروب وكايرو للنصوص. جيتبرينز مونو للأكواد.",
+    tH1:"افتح البوابة لأي نموذج", tH2:"محادثاتك في مكان واحد", tH3:"الاستخدام هذا الشهر",
+    tBody:"يحوّل المحرك رباعي الأشواط الوقود إلى حركة عبر أربع خطوات: السحب والضغط والقدرة والعادم.", tSmall:"النصوص الثانوية والأوصاف تستخدم اللون الخافت.", tCaption:"الأوقات والتلميحات وإخلاء المسؤولية",
+    btnTitle:"الأزرار", btnText:"إجراء أساسي واحد في كل شاشة. وكل ما عداه أخف وزناً.",
+    btnVariants:"الأنواع", btnVariantsNote:"أساسي ومحدد وثانوي وشفاف وخطر.",
+    btnPrimary:"حفظ التغييرات", btnOutline:"محادثة جديدة", btnSecondary:"إلغاء", btnGhost:"اعرف المزيد", btnDanger:"حذف المحادثة",
+    btnSizes:"الأحجام والتعطيل", btnSmall:"صغير", btnDefault:"عادي", btnLarge:"كبير", btnDisabled:"معطّل",
+    btnLoading:"حالة التحميل", btnLoadingNote:"اضغط لتشغيل حفظ لمدة ثانيتين.", btnSave:"حفظ التغييرات", btnSaving:"جارٍ الحفظ…", btnSaved:"تم الحفظ",
+    btnIcon:"أزرار الأيقونات والإرسال", btnIconNote:"النجمة زر تبديل. والسهم هو زر الإرسال.",
+    btnSeg:"عنصر التحكم المجزأ وزر النموذج", btnSegNote:"اختر قيمة واحدة من مجموعة صغيرة.", segDay:"يوم", segWeek:"أسبوع", segMonth:"شهر",
+    formsTitle:"عناصر النماذج", formsText:"تتوهج الحقول بالذهبي عند التركيز. وتتحول الأخطاء إلى الأحمر وتوضح ما يجب إصلاحه.",
+    fInputs:"حقول النص", fInputsNote:"اكتب بريداً إلكترونياً لترى التحقق.", fEmail:"البريد الإلكتروني", fEmailHelp:"نستخدمه فقط لإرسال الإيصالات.", fEmailBad:"أدخل بريداً كاملاً، مثل name@example.com.", fEmailOk:"يبدو صحيحاً.",
+    fPlan:"النموذج الافتراضي", fDisabled:"معطّل",
+    fToggles:"المفاتيح ومربعات الاختيار والأزرار الدائرية", fTogglesNote:"كلها تعمل بلوحة المفاتيح.",
+    fSw1:"حفظ سجل المحادثات", fSw1d:"إبقاء المحادثات في الشريط الجانبي.", fSw2:"الإرسال بمفتاح Enter", fSw2d:"استخدم Shift + Enter لسطر جديد.",
+    fCheck:"أرسل لي الإيصالات بالبريد", fOptional:"اختياري", fRadioA:"كشف تلقائي", fRadioB:"العربية دائماً",
+    fTabs:"التبويبات", fTabsNote:"مفاتيح الأسهم تنقلك بين التبويبات.", tab1:"الملف الشخصي", tab2:"الفواتير", tab3:"الأمان",
+    tabP1:"اسمك ولغتك والنموذج الذي تبدأ به كل محادثة.", tabP2:"رصيدك والبطاقات المحفوظة والفواتير.", tabP3:"كلمة المرور والجلسات النشطة وتسجيل الدخول بخطوتين.",
+    chatTitle:"رسائل المحادثة", chatText:"رسائل المستخدم على الخلفية الذهبية. أما ردود المساعد فبلا فقاعة: نص عادي بعرض الشاشة كاملاً بجانب صورة البوابة.",
+    chatThread:"محادثة بكل أنواع الرسائل", chatThreadNote:"مرّر فوق الرد لترى الإجراءات. جرّب زر النسخ في مربع الكود.",
+    cUser:"اشرح لي كيف يعمل المحرك رباعي الأشواط وكأنني مبتدئ", cAssistant:"يحوّل المحرك رباعي الأشواط الوقود إلى حركة عبر أربع خطوات:",
+    cLi1:"السحب يُدخل الوقود والهواء", cLi2:"الضغط يكثّفه", cLi3:"القدرة تشعله وتدفع المكبس", cLi4:"العادم يُفرغ الأسطوانة",
+    cUser2:"هل يمكنك مقارنته بالمحرك ثنائي الأشواط؟", cReplay:"إعادة عرض الكتابة", cErrT:"لم يكتمل هذا الرد.", cErrB:"انقطع الاتصال. لم يتم خصم أي رصيد.", cRetry:"حاول مجدداً",
+    stream:"يؤدي المحرك ثنائي الأشواط المهمة نفسها في شوطين للمكبس، فيشتعل مرة في كل دورة. وهو أخف وأبسط، لكنه يحرق الوقود بشكل أقل نظافة.",
+    compTitle:"صندوق الكتابة", compNote:"اكتب ليتفعّل الإرسال. الخط الذهبي فوق الصندوق هو \"العتبة\".", compPh:"اسأل أي شيء…", compDisc:"قد تكون ردود الذكاء الاصطناعي غير دقيقة. تحقق من المعلومات المهمة.",
+    sbTitle:"الشريط الجانبي", sbText:"ابحث واختر واحذف المحادثات. وعلى الهاتف يفتح كدرج.", sbNew:"محادثة جديدة", sbSearch:"ابحث في المحادثات", sbPlan:"باقة برو",
+    sbToday:"اليوم", sbYesterday:"أمس", sbNone:"لا توجد محادثات مطابقة لبحثك.", sbUntitled:"محادثة بلا عنوان",
+    sbStageT:"جرّبه", sbStageP:"اضغط على محادثة لاختيارها، ومرّر لإظهار الحذف، واكتب للتصفية، أو أضف محادثة جديدة.", sbDrawer:"فتح كدرج للجوال",
+    c1:"شرح محرك رباعي الأشواط", c2:"مقارنة عرضي عمل", c3:"إصلاح خطأ في React", c4:"رحلة نهاية الأسبوع إلى الإسكندرية", c5:"تلخيص ورقة بحثية",
+    fbTitle:"التنبيهات والإشعارات والحالة", fbText:"أربع نبرات: معلومة ونجاح وتحذير وخطر. وكل واحدة تقول ما حدث وما يجب فعله بعدها.",
+    alTitle:"التنبيهات", alNote:"أغلق أي تنبيه بزر الإغلاق.",
+    alInfoT:"نموذج جديد متاح", alInfoB:"أصبح Opus 5 في قائمة النماذج لديك.", alOkT:"تم استلام الدفعة", alOkB:"أضيف 20.00$ إلى رصيدك.",
+    alWarnT:"الرصيد منخفض", alWarnB:"تبقّى لديك نحو 20 رسالة. أضف رصيداً لتواصل المحادثة.", alWarnBtn:"إضافة رصيد",
+    alErrT:"فشلت الدفعة", alErrB:"تم رفض بطاقتك. راجع البيانات أو جرّب بطاقة أخرى.", alReset:"استعادة التنبيهات",
+    toTitle:"الإشعارات المنبثقة", toNote:"تأكيدات قصيرة تختفي بعد 3 ثوانٍ.", toOk:"نجاح", toInfo:"معلومة", toWarn:"تحذير", toErr:"خطأ",
+    toastSuccess:"تم حفظ التغييرات", toastInfo:"تم نسخ الرابط", toastWarning:"رصيدك يوشك على النفاد", toastDanger:"تعذّر الإرسال. تحقق من اتصالك.",
+    chTitle:"شارات الحالة", chNote:"تُستخدم في الجداول والعناوين والقوائم.", chSettled:"تمت التسوية", chPending:"قيد الانتظار", chFailed:"فشلت", chDraft:"مسودة", chLive:"مباشر",
+    prTitle:"التقدم والرصيد", prNote:"يتحول الشريط إلى الأحمر تحت 15%.", prLabel:"الرصيد الشهري", prUse:"استهلاك رصيد", prRefill:"إعادة تعبئة",
+    skTitle:"هيكل التحميل", skNote:"يظهر أثناء تحميل قائمة أو رد.",
+    suTitle:"البطاقات والقوائم والنوافذ", suText:"الأسطح المرتفعة تحمل المحتوى. والنوافذ تعلوها بظل أقوى.",
+    plTitle:"بطاقات قابلة للاختيار", plNote:"اضغط لاختيار باقة رصيد.", pk1:"مبتدئ", pk2:"قياسي", pk3:"استوديو", pkUnit:"مرة واحدة",
+    pk1d:"نحو 250 رسالة", pk2d:"نحو 1,200 رسالة", pk3d:"نحو 3,500 رسالة",
+    liTitle:"القائمة", liNote:"أيقونة وعنوان وتفصيل وحالة في النهاية.", li1:"فيزا تنتهي بـ 4417", li1d:"تنتهي 09/28", liDefault:"الافتراضية",
+    li2:"فاتورة INV-0231", li2d:"3 سبتمبر 2026", li3:"فاتورة INV-0232", li3d:"17 سبتمبر 2026", chSettled2:"تمت التسوية", chPending2:"قيد الانتظار",
+    stTitle:"قائمة الخطوات", stNote:"للتهيئة والمسارات متعددة الخطوات فقط.", st1:"أنشئ حسابك", st1d:"استخدم البريد أو جوجل.", st2:"أضف رصيداً", st2d:"اختر الباقة المناسبة لك.", st3:"ابدأ المحادثة", st3d:"اختر نموذجاً واسأل أي شيء.",
+    tbTitle:"الإحصاءات والجدول", tbNote:"النمط الأهدأ والأكثف المستخدم للوحات التحكم.", s1l:"إيرادات اليوم", s2l:"المستخدمون النشطون", s3l:"بلاغات مفتوحة",
+    thU:"المستخدم", thA:"المبلغ", thS:"الحالة", chSettled3:"تمت التسوية", chPending3:"قيد الانتظار", chFailed3:"فشلت",
+    ovTitle:"النافذة والقائمة والتلميح", ovNote:"مفتاح Escape يغلق النافذة والقائمة.", ovModal:"حذف المحادثة…", ovTip:"المساعدة والاختصارات",
+    mdFast:"سريع ومتوازن", mdDeep:"أعمق استدلال", mdQuick:"الأسرع والأرخص",
+    mdTitle:"حذف هذه المحادثة؟", mdBody:"ستُزال \"شرح محرك رباعي الأشواط\" ورسائلها. لا يمكن التراجع عن هذا.", mdCancel:"إبقاء المحادثة", mdOk:"حذف المحادثة", toastDeleted:"تم حذف المحادثة",
+    emTitle:"حالة فارغة", emH:"لا توجد محادثات بعد", emP:"ابدأ محادثة وستظهر في الشريط الجانبي.", emBtn:"ابدأ محادثة",
+    footNote:"هذا مرجع حي لاتجاه البوابة في OpenPortal. كل القيم معرّفة كمتغيرات CSS في أعلى هذا الملف، فيمكنك نسخ كتلة :root إلى أي صفحة لإعادة استخدام السمة.",
+    copy:"نسخ", copied:"تم النسخ", copiedVar:"تم النسخ", toastCopied:"تم النسخ"
   }
-  langBtn.addEventListener('click', () => { lang = lang === 'en' ? 'ar' : 'en'; applyLang(); });
+};
 
-  let dark = true;
-  function applyTheme() {
-    html.setAttribute('data-theme', dark ? 'dark' : 'light');
-    themeBtn.setAttribute('aria-pressed', !dark);
-    themeBtn2.setAttribute('aria-pressed', !dark);
-  }
-  function toggleTheme() { dark = !dark; applyTheme(); }
-  themeBtn.addEventListener('click', toggleTheme);
-  themeBtn2.addEventListener('click', toggleTheme);
+const html = document.documentElement;
+let lang = 'en';
+const tr = k => (T[lang][k] ?? T.en[k] ?? k);
 
-  menuBtn.addEventListener('click', () => { sidebar.classList.add('open'); scrim.classList.add('open'); });
-  scrim.addEventListener('click', () => { sidebar.classList.remove('open'); scrim.classList.remove('open'); });
+/* ═════════════ Language & theme ═════════════ */
+function applyLang() {
+  html.lang = lang; html.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(el => { const v = T[lang][el.dataset.i18n]; if (v !== undefined) el.textContent = v; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = tr(el.dataset.i18nPh); });
+  document.getElementById('langBtn').setAttribute('aria-pressed', lang === 'ar');
+  document.getElementById('copyCode').textContent = tr('copy');
+  document.getElementById('loadBtn').firstElementChild.textContent = tr('btnSave');
+  updateEmailHelp(); renderConvs(); syncTab(); refreshSwatches(); replayStream(true); buildDrawer();
+}
+let dark = true;
+function applyTheme() {
+  html.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.getElementById('themeBtn').setAttribute('aria-pressed', !dark);
+  requestAnimationFrame(refreshSwatches);
+}
+document.getElementById('langBtn').onclick = () => { lang = lang === 'en' ? 'ar' : 'en'; applyLang(); };
+const toggleTheme = () => { dark = !dark; applyTheme(); };
+document.getElementById('themeBtn').onclick = toggleTheme;
+document.getElementById('themeBtn2').onclick = toggleTheme;
 
-  applyLang(); applyTheme();
+/* ═════════════ Toasts ═════════════ */
+function toast(kind, msg) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  el.innerHTML = '<span class="dot"></span><span></span>';
+  el.lastChild.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, 3000);
+}
+document.querySelectorAll('[data-toast]').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.toast;
+  toast(k, tr('toast' + k[0].toUpperCase() + k.slice(1)));
+}));
+
+/* ═════════════ Color swatches ═════════════ */
+function refreshSwatches() {
+  const cs = getComputedStyle(html);
+  document.querySelectorAll('[data-swatches]').forEach(grid => {
+    grid.innerHTML = '';
+    grid.dataset.swatches.split(',').forEach(pair => {
+      const [v, label] = pair.split(':');
+      const val = cs.getPropertyValue(v).trim();
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'swatch';
+      b.innerHTML = '<div class="swatch-chip"></div><div class="swatch-meta"><div class="swatch-name"></div><div class="swatch-var"></div><div class="swatch-val"></div></div>';
+      b.querySelector('.swatch-chip').style.background = 'var(' + v + ')';
+      b.querySelector('.swatch-name').textContent = label;
+      b.querySelector('.swatch-var').textContent = v;
+      b.querySelector('.swatch-val').textContent = val;
+      b.onclick = () => {
+        navigator.clipboard?.writeText('var(' + v + ')').catch(() => {});
+        const el = b.querySelector('.swatch-var'); el.textContent = tr('copiedVar'); el.classList.add('swatch-copied');
+        setTimeout(() => { el.textContent = v; el.classList.remove('swatch-copied'); }, 1100);
+      };
+      grid.appendChild(b);
+    });
+  });
+}
+
+/* ═════════════ Buttons ═════════════ */
+const loadBtn = document.getElementById('loadBtn');
+loadBtn.onclick = () => {
+  if (loadBtn.classList.contains('btn-loading')) return;
+  loadBtn.classList.add('btn-loading');
+  loadBtn.innerHTML = '<span class="spinner"></span><span>' + tr('btnSaving') + '</span>';
+  setTimeout(() => {
+    loadBtn.classList.remove('btn-loading');
+    loadBtn.innerHTML = '<span data-i18n="btnSave">' + tr('btnSave') + '</span>';
+    toast('success', tr('toastSuccess'));
+  }, 2000);
+};
+document.getElementById('starBtn').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); };
+document.getElementById('likeBtn').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); };
+document.querySelectorAll('#seg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+/* ═════════════ Forms ═════════════ */
+const emailIn = document.getElementById('emailIn'), emailHelp = document.getElementById('emailHelp');
+function updateEmailHelp() {
+  const v = emailIn.value.trim();
+  emailIn.classList.remove('invalid', 'valid'); emailHelp.classList.remove('error', 'ok');
+  if (!v) { emailHelp.textContent = tr('fEmailHelp'); return; }
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) { emailIn.classList.add('valid'); emailHelp.classList.add('ok'); emailHelp.textContent = tr('fEmailOk'); }
+  else { emailIn.classList.add('invalid'); emailHelp.classList.add('error'); emailHelp.textContent = tr('fEmailBad'); }
+}
+emailIn.addEventListener('input', updateEmailHelp);
+document.querySelectorAll('.switch').forEach(s => s.onclick = () => s.setAttribute('aria-checked', s.getAttribute('aria-checked') !== 'true'));
+
+const tabs = [...document.querySelectorAll('#tabs .tab')];
+let tabIdx = 0;
+function syncTab() {
+  tabs.forEach((t, i) => t.setAttribute('aria-selected', i === tabIdx));
+  document.getElementById('tabPanel').textContent = tr('tabP' + (tabIdx + 1));
+}
+tabs.forEach((t, i) => t.onclick = () => { tabIdx = i; syncTab(); });
+document.getElementById('tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const dir = (e.key === 'ArrowRight' ? 1 : -1) * (lang === 'ar' ? -1 : 1);
+  tabIdx = (tabIdx + dir + tabs.length) % tabs.length; syncTab(); tabs[tabIdx].focus();
+});
+
+/* ═════════════ Chat: copy code, streaming, composer ═════════════ */
+document.getElementById('copyCode').onclick = e => {
+  const b = e.currentTarget;
+  navigator.clipboard?.writeText(document.getElementById('codeText').innerText).catch(() => {});
+  b.textContent = tr('copied'); b.classList.add('done');
+  setTimeout(() => { b.textContent = tr('copy'); b.classList.remove('done'); }, 1400);
+};
+let streamTimer;
+function replayStream(instant) {
+  clearInterval(streamTimer);
+  const el = document.getElementById('streamText'), full = tr('stream');
+  if (instant) { el.textContent = full; return; }
+  el.textContent = ''; let i = 0;
+  streamTimer = setInterval(() => { el.textContent = full.slice(0, ++i); if (i >= full.length) clearInterval(streamTimer); }, 22);
+}
+document.getElementById('replayStream').onclick = () => replayStream(false);
+
+const cText = document.getElementById('composerText'), cSend = document.getElementById('composerSend');
+function syncComposer() {
+  cText.style.height = 'auto'; cText.style.height = Math.min(cText.scrollHeight, 180) + 'px';
+  cSend.disabled = !cText.value.trim();
+  document.getElementById('charCount').textContent = cText.value.length;
+}
+cText.addEventListener('input', syncComposer);
+cText.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!cSend.disabled) cSend.click(); } });
+cSend.onclick = () => { cText.value = ''; syncComposer(); toast('success', tr('toastSuccess')); };
+
+/* ═════════════ Sidebar ═════════════ */
+let convs = [
+  { id: 1, key: 'c1', group: 'sbToday' }, { id: 2, key: 'c2', group: 'sbToday' }, { id: 3, key: 'c3', group: 'sbToday' },
+  { id: 4, key: 'c4', group: 'sbYesterday' }, { id: 5, key: 'c5', group: 'sbYesterday' }
+];
+let activeConv = 1, nextId = 6;
+const label = c => c.key ? tr(c.key) : tr('sbUntitled');
+function convHTML(list) {
+  const q = document.getElementById('sbSearch').value.trim().toLowerCase();
+  const shown = list.filter(c => label(c).toLowerCase().includes(q));
+  if (!shown.length) return '<div class="sidebar-empty">' + tr('sbNone') + '</div>';
+  let out = '', last = '';
+  shown.forEach(c => {
+    if (c.group !== last) { out += '<div class="group-label">' + tr(c.group) + '</div>'; last = c.group; }
+    out += '<div class="conv-item' + (c.id === activeConv ? ' active' : '') + '" data-id="' + c.id + '" tabindex="0" role="button">' +
+      '<span class="conv-label"></span>' +
+      '<button class="conv-del" type="button" aria-label="Delete" data-del="' + c.id + '"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>';
+  });
+  return out;
+}
+function renderConvs() {
+  const host = document.getElementById('convList');
+  host.innerHTML = convHTML(convs);
+  host.querySelectorAll('.conv-item').forEach(el => {
+    const c = convs.find(x => x.id === +el.dataset.id);
+    el.querySelector('.conv-label').textContent = label(c);
+  });
+}
+document.getElementById('convList').addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del) { e.stopPropagation(); convs = convs.filter(c => c.id !== +del.dataset.del); if (!convs.find(c => c.id === activeConv)) activeConv = convs[0]?.id; renderConvs(); toast('info', tr('toastDeleted')); return; }
+  const item = e.target.closest('.conv-item'); if (item) { activeConv = +item.dataset.id; renderConvs(); }
+});
+document.getElementById('convList').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('conv-item')) { e.preventDefault(); e.target.click(); }
+});
+document.getElementById('sbSearch').addEventListener('input', renderConvs);
+document.getElementById('newChat').onclick = () => {
+  convs.unshift({ id: nextId, key: null, group: 'sbToday' }); activeConv = nextId++; renderConvs();
+};
+
+/* Mobile drawer (mirrors the live sidebar markup) */
+function buildDrawer() {
+  const d = document.getElementById('drawer');
+  d.innerHTML = '<div class="sidebar-head"><svg class="gate-mark" width="22" height="22" viewBox="0 0 24 24" style="color:var(--gate-strong)"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg><span class="wordmark display">' + tr('brand') + '</span></div>' +
+    '<div class="sidebar-body"><div id="drawerList"></div></div>';
+  document.getElementById('drawerList').innerHTML = convHTML(convs);
+  document.querySelectorAll('#drawerList .conv-item').forEach(el => {
+    const c = convs.find(x => x.id === +el.dataset.id); el.querySelector('.conv-label').textContent = label(c);
+    el.onclick = () => { activeConv = c.id; renderConvs(); closeDrawer(); };
+  });
+  document.querySelectorAll('#drawerList .conv-del').forEach(x => x.remove());
+}
+const drawer = document.getElementById('drawer'), drawerScrim = document.getElementById('drawerScrim');
+function openDrawer() { buildDrawer(); drawer.classList.add('open'); drawerScrim.classList.add('open'); }
+function closeDrawer() { drawer.classList.remove('open'); drawerScrim.classList.remove('open'); }
+document.getElementById('openDrawer').onclick = openDrawer;
+drawerScrim.onclick = closeDrawer;
+
+/* ═════════════ Alerts, progress ═════════════ */
+document.querySelectorAll('.alert-close').forEach(b => b.onclick = () => b.closest('.alert').classList.add('hide'));
+document.getElementById('resetAlerts').onclick = () => document.querySelectorAll('.alert').forEach(a => a.classList.remove('hide'));
+let credits = 62;
+function drawCredits() {
+  const bar = document.getElementById('prBar');
+  bar.firstElementChild.style.width = credits + '%';
+  bar.classList.toggle('low', credits < 15);
+  document.getElementById('prVal').textContent = credits + '%';
+  document.getElementById('creditPill').textContent = '$' + (credits * 0.2).toFixed(2);
+}
+document.getElementById('prDown').onclick = () => { credits = Math.max(0, credits - 18); drawCredits(); if (credits < 15) toast('warning', tr('toastWarning')); };
+document.getElementById('prReset').onclick = () => { credits = 100; drawCredits(); };
+
+/* ═════════════ Cards, modal, menu ═════════════ */
+document.querySelectorAll('#packs .card').forEach(c => c.onclick = () => document.querySelectorAll('#packs .card').forEach(x => x.setAttribute('aria-pressed', x === c)));
+
+const modal = document.getElementById('modalScrim');
+const openModal = () => { modal.classList.add('open'); document.getElementById('modalCancel').focus(); };
+const closeModal = () => modal.classList.remove('open');
+document.getElementById('openModal').onclick = openModal;
+document.getElementById('modalCancel').onclick = closeModal;
+document.getElementById('modalOk').onclick = () => { closeModal(); toast('success', tr('toastDeleted')); };
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+const menu = document.getElementById('menu'), menuBtn = document.getElementById('menuBtn');
+function setMenu(open) { menu.classList.toggle('open', open); menuBtn.setAttribute('aria-expanded', open); }
+menuBtn.onclick = e => { e.stopPropagation(); setMenu(!menu.classList.contains('open')); };
+menu.querySelectorAll('.menu-item').forEach(it => it.onclick = () => {
+  menu.querySelectorAll('.menu-item').forEach(x => x.setAttribute('aria-checked', x === it));
+  document.getElementById('menuLabel').textContent = it.dataset.model; setMenu(false);
+});
+document.addEventListener('click', e => { if (!e.target.closest('.menu-anchor')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); setMenu(false); closeDrawer(); } });
+
+/* ═════════════ Init ═════════════ */
+applyTheme(); applyLang(); drawCredits(); syncComposer();
 </script>
 </body>
 </html>
