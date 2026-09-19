@@ -371,3 +371,14 @@ The value is untrusted everywhere: it only reaches a redirect via `sanitizeNext`
 
 ### Tracker
 2.1 → tick after CI green + preview checks below.
+
+### 2.1 CI fix — first push
+`Type-check & Lint` and `Web Build` failed with the same error (Lint never ran, it was
+skipped after Type check failed): `components/layout/nav-link-item.tsx:47` —
+`onClick={onNavigate}` passes `(() => void) | undefined` to `<Link>`, and
+`exactOptionalPropertyTypes: true` (tsconfig.base.json) forbids explicit `undefined` on an
+optional prop. Fix: `onClick={() => onNavigate?.()}` and a conditional spread for
+`aria-current`. My sandbox `tsc` only covered the pure `.ts` modules (no React/Next types
+installed), which is why this was missed. Everything else was green on that run:
+API tests, Web Unit Tests (incl. `middleware.test.ts` on real `next/server`) and i18n parity.
+Lint still unverified until the next run.

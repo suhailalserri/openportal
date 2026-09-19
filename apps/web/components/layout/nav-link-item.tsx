@@ -46,8 +46,11 @@ export function NavLinkItem({ item, onNavigate }: NavLinkItemProps) {
   return (
     <Link
       href={`/${locale}${item.href}`}
-      aria-current={active ? "page" : undefined}
-      onClick={onNavigate}
+      // exactOptionalPropertyTypes is on: never pass a possibly-undefined
+      // value to an optional prop. Always hand Link a real function, and
+      // only add aria-current when it applies.
+      onClick={() => onNavigate?.()}
+      {...(active ? { "aria-current": "page" as const } : {})}
       className={cn(
         ROW,
         "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring",
