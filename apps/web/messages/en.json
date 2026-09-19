@@ -10,7 +10,20 @@
     "settings": "Settings",
     "admin": "Admin Panel",
     "logout": "Sign Out",
-    "profile": "Profile"
+    "profile": "Profile",
+    "dashboard": "Dashboard",
+    "usage": "Usage",
+    "adminOverview": "Overview",
+    "adminUsers": "Users",
+    "adminCodes": "Redeem codes",
+    "adminPackages": "Packages",
+    "adminPaymentMethods": "Payment methods",
+    "adminManualPayments": "Manual payments",
+    "adminModels": "Models",
+    "adminChannels": "Channels",
+    "adminFraud": "Fraud",
+    "adminLogs": "Logs",
+    "adminAudit": "Audit log"
   },
   "chat": {
     "newChat": "New Chat",
@@ -276,5 +289,17 @@
     "dark": "Dark",
     "system": "System",
     "toggle": "Toggle theme"
+  },
+  "shell": {
+    "skipToContent": "Skip to content",
+    "mainNavigation": "Main navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "menuTitle": "Menu",
+    "comingSoon": "Soon",
+    "placeholder": {
+      "chat": "Chat is being rebuilt and will be back soon.",
+      "admin": "The admin area is under construction. Sections will appear as they are built."
+    }
   }
 }

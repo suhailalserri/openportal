@@ -10,7 +10,20 @@
     "settings": "الإعدادات",
     "admin": "لوحة الإدارة",
     "logout": "تسجيل الخروج",
-    "profile": "الملف الشخصي"
+    "profile": "الملف الشخصي",
+    "dashboard": "لوحة التحكم",
+    "usage": "الاستخدام",
+    "adminOverview": "نظرة عامة",
+    "adminUsers": "المستخدمون",
+    "adminCodes": "أكواد الشحن",
+    "adminPackages": "الباقات",
+    "adminPaymentMethods": "طرق الدفع",
+    "adminManualPayments": "طلبات التحويل",
+    "adminModels": "النماذج",
+    "adminChannels": "القنوات",
+    "adminFraud": "مكافحة الاحتيال",
+    "adminLogs": "السجلات",
+    "adminAudit": "سجل التدقيق"
   },
   "chat": {
     "newChat": "محادثة جديدة",
@@ -276,5 +289,17 @@
     "dark": "وضع داكن",
     "system": "حسب النظام",
     "toggle": "تبديل المظهر"
+  },
+  "shell": {
+    "skipToContent": "تخطَّ إلى المحتوى",
+    "mainNavigation": "التنقل الرئيسي",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "menuTitle": "القائمة",
+    "comingSoon": "قريبًا",
+    "placeholder": {
+      "chat": "المحادثة قيد إعادة البناء وستعود قريبًا.",
+      "admin": "لوحة الإدارة قيد الإنشاء. ستظهر الأقسام تباعًا عند اكتمالها."
+    }
   }
 }

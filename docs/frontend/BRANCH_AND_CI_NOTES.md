@@ -241,3 +241,133 @@ conflicting with whatever 1.1 designs).
   a real push + Action run.
 - That the `legacy-ui` tag (confirmed created on your end) points at the
   commit you intend as the pre-rebuild rollback point.
+
+
+
+---
+
+## Session 1.2 — Foundation code + kitchen-sink
+
+### CI table update (edit the two rows in the 0.2 table)
+| `web-unit` | Real (since 1.2) | vitest: `lib/format.test.ts` (formatCredits at 0, 1, 999_999, 1_000_000, 2_670_000_000) + `eslint-rules.test.ts` |
+| `i18n-parity` | Real (since 1.2) | `scripts/check-i18n.ts` — ar/en key parity + missing/unused keys |
+
+### 1.2 closed
+All 5 CI jobs green on `frontend-v2` (run #[___]). `/en/dev/kitchen-sink`
+loads on the Vercel preview. Tracker 1.2 ticked.
+
+### What landed (apps/web)
+- 20 shadcn primitives: the plan's 19 plus `label`, which `form.tsx` needs.
+- `providers/`: next-themes, Radix `DirectionProvider`, tRPC+Query, Sonner with `dir`.
+- `lib/format.ts`, `styles/index.css`, rewritten `layout.tsx` + placeholder `page.tsx`, `vitest.config.ts`, `scripts/check-i18n.ts`, `/dev/kitchen-sink`.
+- Legacy deleted (52 paths): `components/**`, `hooks/*`, old pages, `globals.css`, `tailwind.config.ts`.
+
+### Deviations / decisions
+- Extra deps beyond the plan: `@radix-ui/react-slot`, `@radix-ui/react-label`
+  (declared explicitly because pnpm strict linking ignores transitive copies),
+  `tw-animate-css` (dev; `animate-in`/`zoom-in-95` aren't in Tailwind v4 core).
+- `formatCredits`/`formatDate` now live only in `lib/format.ts` with
+  `numberingSystem: "latn"`. The old copies in `utils.ts` lacked it and would
+  have rendered Eastern Arabic-Indic digits in `ar-SA` (D6 violation). Removed.
+- Sheet slides from the correct physical edge in both directions via `useDirection()`.
+- Not ported from the old `globals.css` (deliberate, later phases): scrollbar
+  styling, noise texture, header glow, hljs theme.
+
+### Known gaps carried forward
+- ESLint Rule 2: a bare `left-1/2` passes (the exception doesn't require
+  `-translate-x-1/2`). `eslint-rules.test.ts` documents this. The 0.2 gap also
+  stands: `cn()`/`clsx()`/template-literal classes aren't caught.
+- Frozen `middleware.ts` redirects `/` → `/{locale}/chat`. Chat is deleted, so
+  bare `/` 404s until a chat route exists. Placeholder page is reachable at
+  `/ar` and `/en` only. [Confirm on preview.]
+- `tailwind.config.ts`: 0.3 asked 1.2 to re-check whether `@config` in
+  `globals.css` was loading it. [Fill in what you found; the delivery message didn't say.]
+
+### Not verified / confirm manually
+[Tick what you checked; leave the rest listed]
+- `/ar/dev/kitchen-sink`, light + dark
+- Tabs/DropdownMenu arrow-key nav mirrored in Arabic
+- Sheet direction in ar and en
+- Bare `/` behaviour (see above)
+
+### Reminder
+D1: previews use the production DB. Revisit before 5.1 and 8b.
+
+---
+
+## Session 2.1 — App shell + guards
+
+### Input zip was not the post-1.2 tree
+The attached zip had 1.2's ADDITIONS (providers, `components/ui`, `lib/format.ts`,
+vitest config, kitchen-sink) but none of 1.2's 52 DELETES: the legacy
+`components/**` (except `ui/`), `hooks/*`, `app/[locale]/{admin,auth,billing,chat,settings}/**`,
+`app/globals.css` and `tailwind.config.ts` were all still present (exactly the 52 paths
+in the 1.2 note). That tree cannot type-check (legacy files import `formatCredits` from
+`@/lib/utils`, which 1.2 removed). I built against the zip minus those 52 paths. If your
+repo still contains any of them, `app/[locale]/chat/page.tsx` collides with the new
+`(app)/chat/page.tsx` and the build fails — delete them first.
+
+### Decision A implemented (`middleware.ts`, frozen zone, explicit OK)
+One added `response.headers.set("x-pathname", pathname + search)` line (+ comment),
+placed right after the existing `x-next-intl-locale` line. **Deliberately a response
+header, not `NextResponse.next({ request: { headers } })`**: the locale header already
+reaches server components this way in production, so `x-pathname` rides the proven
+mechanism, and the locale line is untouched. The request-headers form would have added an
+`x-middleware-override-headers` code path whose interaction with the locale header I could
+not test. `middleware.test.ts` asserts both headers and the unchanged bare-`/` redirect.
+The value is untrusted everywhere: it only reaches a redirect via `sanitizeNext`.
+
+### What landed (apps/web)
+- `lib/`: `request-path.ts`, `roles.ts`, `safe-redirect.ts`, `guards.ts`, `session.ts`
+  (React-`cache`d `getServerSession`, `getRequestPath`) + tests.
+- `config/nav.ts` (+ test): role-filtered groups; unbuilt entries `enabled: false`
+  (render as disabled "Soon" rows). Test fails if an enabled entry has no page file.
+- `components/layout/`: `app-shell`, `app-sidebar`, `nav-group`, `nav-link-item`,
+  `nav-icon`, `mobile-drawer`, `main`, `section-page`, `use-is-mobile`.
+- Routes: `(public)/page.tsx`, `(auth)/auth/layout.tsx` (inert), `(app)/layout.tsx`,
+  `(app)/chat/page.tsx` (placeholder), `(admin)/layout.tsx`, `(admin)/admin/page.tsx` (placeholder).
+- Messages: `nav.*` +13 keys, new `shell.*` (8 keys), ar/en parity kept.
+- Deleted: `app/[locale]/page.tsx` (moved to `(public)`).
+
+### Deviations from the approved summary
+- Added `components/layout/app-shell.tsx` and `nav-icon.tsx` (not in the summary's file
+  list): the drawer state needs a client owner, and icons live outside `config/nav.ts`
+  so vitest can load it without React.
+- Also added `lib/roles.ts` (single admin-role list for guards + nav) and
+  `middleware.test.ts`.
+- The middleware change is 1 statement + comment, not "one line".
+- Guards use relative imports: `vitest.config.ts` has no `@/` alias.
+
+### Verified here (sandbox, no network)
+- The 108 cases in `safe-redirect`, `guards` and `nav` tests pass under a hand-written
+  vitest stand-in (real vitest not installed here). Strict `tsc`
+  (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`) is clean on
+  `lib/{roles,safe-redirect,guards}.ts` and `config/nav.ts`.
+- Rule 2 regex from `.eslintrc.json` run over every class-like string literal in the new
+  files: 0 hits.
+
+### Not verified (needs CI / preview)
+- `next build` with the new route groups; type-check of every `.tsx` and of the test
+  files against real vitest types.
+- `middleware.test.ts` (needs real `next/server`), and that `headers()` in a layout
+  actually sees `x-pathname` (inferred from the locale header working).
+- `session.user.role` populated at runtime (cookie cache means up to 5 min stale).
+- Drawer behaviour and start-edge slide on a real phone, ar + en.
+- Contrast of `text-sidebar-foreground/70` headings and disabled rows (1.1 checked
+  body/muted text, not sidebar).
+
+### Known gaps / carried forward
+- `/{locale}/auth/login` 404s until 3.1, so "returns after login" moves to 3.1's checklist
+  (`resolvePostLoginTarget` is ready and tested).
+- Layouts don't re-run on client navigation; an expired session is caught by API 401s
+  (2.2's `error.tsx`).
+- Moving between `(app)` and `(admin)` remounts the shell (separate layouts).
+- `sheet.tsx`'s built-in close button has a hard-coded English `sr-only` label; the drawer
+  uses its own translated close button. Worth fixing in the primitive later.
+- `/dev/kitchen-sink` is still publicly reachable on production/preview (default-open
+  gate, see its comment); with real content now behind the app, gate or delete it before 9.3.
+- 1.2's unresolved placeholders in this file (`run #[___]`, tailwind `@config` finding,
+  "confirm on preview" items) are still yours to fill in.
+
+### Tracker
+2.1 → tick after CI green + preview checks below.

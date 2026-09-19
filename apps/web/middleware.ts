@@ -44,6 +44,13 @@ export function middleware(request: NextRequest) {
   const segment  = pathname.split("/")[1] ?? DEFAULT_LOCALE;
   const response = NextResponse.next();
   response.headers.set("x-next-intl-locale", segment);
+  // Phase 2.1 (approved additive change to this frozen file): forward the
+  // request path + query so the (app)/(admin) layout guards can build a
+  // sanitised `?next=`. Same mechanism as the locale header above; the
+  // name is REQUEST_PATH_HEADER in lib/request-path.ts (middleware.test.ts
+  // asserts the two match). The value is untrusted either way: consumers
+  // pass it through sanitizeNext() before it can reach a redirect.
+  response.headers.set("x-pathname", `${pathname}${request.nextUrl.search}`);
   return response;
 }
 
