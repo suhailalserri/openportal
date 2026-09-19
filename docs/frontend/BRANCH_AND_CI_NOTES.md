@@ -163,3 +163,81 @@ turns out to be a real gap once real components exist, a stricter
 approach (e.g. `eslint-plugin-tailwindcss`'s class-order awareness, or a
 custom rule walking `cn()`/`clsx()` call arguments) can replace this in
 a later session — out of scope for 0.2.
+
+---
+
+## Session 0.3 — Contract freeze + cleanup
+
+### `runs-on: ubuntu-24.04`
+Pinned on all 5 jobs in `.github/workflows/deploy.yml` (`check`,
+`api-tests`, `web-build`, `web-unit`, `i18n-parity`). Carried over from
+the 0.2 note above — `ubuntu-latest` moves to Ubuntu 26 on 2026-10-19,
+mid-rebuild; pinning removes that variable entirely for the rest of the
+`frontend-v2` work.
+
+### `creditBalance > throws if the user has no balance row`
+Confirmed the message this actually throws (`balance.service.ts:123`:
+`` `Balance row not found for user ${userId}` ``) and tightened the
+assertion from a bare `.rejects.toThrow()` to
+`.rejects.toThrow("Balance row not found")`. The bare form is exactly
+what let this test read as "passing" during the TLS-failure period noted
+in the 0.2 section above — it would have passed on that unrelated
+connection error just as easily as on the real one. No production code
+touched.
+
+### `docs/frontend/API_CONTRACT.md` — new
+Full tRPC + REST + chat-stream + Better-Auth-client contract, verified
+directly against `apps/api/src/routers/*.ts` and every route file under
+`apps/web/app/api/**`. Supersedes the plan's Appendix C (a name list) as
+the thing later phases should build against. Additions found beyond
+Appendix C's list, all confirmed in code:
+- `DELETE /api/user/sessions` (collection route — "log out other
+  devices" — not just the `[id]` single-session route).
+- `GET|POST /api/auth/[...all]` and `GET|POST /api/trpc/[trpc]` as
+  explicit routes (previously implied, not listed).
+- `revokeSessions` (plural) in the Better Auth client export list.
+- One correctness discrepancy in the legacy REST surface:
+  `/api/admin/users/[id]/credits` does a raw
+  `sql\`credits + ${delta}\`` update with no floor check, unlike the
+  tRPC `admin.adjustCredits`, which uses `deductCreditsAtomic` and
+  returns a clean `BAD_REQUEST` instead of relying on the DB's
+  `credits >= 0` CHECK constraint to fail loudly. Flagged in the
+  contract doc's legacy-REST table for the 9.3 cleanup pass — not fixed
+  here, since `apps/api`/`apps/web/app/api` is the frozen zone and this
+  route works today, just less safely than its tRPC twin.
+- 46/46 tRPC procedure names checked 1:1 against the four router files;
+  none renamed or missing on either side.
+
+### `apps/web/public/.gitkeep`
+F15 lists `public/` as a junk/empty dir candidate, but
+`apps/web/Dockerfile:26` does `COPY --from=builder .../apps/web/public
+./apps/web/public` — deleting it would break that build step. Added
+`.gitkeep` instead so the directory survives in git while staying empty
+of real content. Not deleted.
+
+### F15 empty/junk directories — nothing to commit
+`auth/{login,register,verify,forgot,reset}`, `admin/codes/generate`,
+`billing/success`, `api/user/api-key`, `api/webhooks/status` are all
+genuinely empty directories in the reviewed zip (confirmed via `find
+-type d -empty`), and this zip has no `.git` — nothing was ever tracked
+here, so there is no commit-level delete to make. The "DELETE list" for
+this phase is informational only, for your own local copy or older zips
+that might have placeholder files inside these paths.
+
+### Discrepancy noticed, out of scope for 0.3
+F15 also states `tailwind.config.ts` "is v3-style and not loaded (no
+`@config` in `globals.css`, Tailwind v4)". The reviewed zip's
+`app/globals.css` line 4 **does** contain
+`@config "../tailwind.config.ts";` — so it is in fact being loaded by
+Tailwind v4's compatibility import, contradicting that line of the
+audit. This doesn't affect 0.3 (the plan defers actually deleting
+`tailwind.config.ts` to 1.2, not 0.3), so nothing here was changed — but
+1.2 should re-check F15's framing before assuming the old config is
+inert, since it may currently be doing something (or silently
+conflicting with whatever 1.1 designs).
+
+### Not verified (no network/build in this sandbox)
+- That CI is actually green on `frontend-v2` after these changes — needs
+  a real push + Action run.
+- That the `legacy-ui` tag (confirmed created on your end) points at the
+  commit you intend as the pre-rebuild rollback point.

@@ -1,0 +1,219 @@
+# API Contract — frozen zone (verified 2026-09-19, Phase 0.3)
+
+This documents the actual code in `apps/api/src` and `apps/web/app/api` +
+`apps/web/server` as of the zip reviewed in this session. It supersedes
+Appendix C of `docs/FRONTEND_REBUILD_PLAN.md`, which was a name list only.
+Anything in this file that contradicts the plan body (F1–F18) is the plan
+being imprecise, not the code being wrong — the code is ground truth.
+
+Do not hand-edit this file without re-reading the source; it is meant to be
+regenerated (or at least re-diffed) whenever the frozen zone changes.
+
+---
+
+## 1. tRPC (`appRouter`, `apps/api/src/routers/index.ts`)
+
+One router, shared by both hosts: `apps/api` (Fastify, mounted as the New
+API-adjacent service) and `apps/web` (`app/api/trpc/[trpc]/route.ts`, via
+`server/router.ts`'s re-export). There is exactly one implementation —
+nothing is duplicated between the two hosts.
+
+Access levels come from `routers/trpc.ts`:
+- **public** — `t.procedure`, no session required.
+- **protected** — throws `UNAUTHORIZED` if `ctx.user` is null.
+- **admin** — throws `UNAUTHORIZED` if no session, `FORBIDDEN` unless
+  `ctx.user.role` is `admin` or `superadmin`.
+
+`ctx.user` is resolved by reading the `sessions` table directly by
+**token** (not `id` — see the comment in `trpc.ts`), matched against the
+`better-auth.session_token` cookie or an `Authorization: Bearer` header.
+`ctx.ip` reads `cf-connecting-ip` → `x-forwarded-for` → `req.ip` → `"unknown"`.
+
+### `billing` (7 procedures)
+
+| Procedure | Access | Input (Zod) | Notes |
+|---|---|---|---|
+| `listPackages` | public | — | Active `creditPackages`, sorted by `sortOrder`. |
+| `listPaymentMethods` | public | — | Active `paymentMethods`, sorted by `sortOrder`. |
+| `submitManualPayment` | protected | `{ packageId: uuid, paymentMethodId: uuid, submittedTxRef?: string(≤150), senderPhone?: string(≤30), senderName?: string(≤100), screenshotUrl?: url(≤2048), notes?: string(≤1000) }` | Three in-process rate-limit gates before the DB call: per-user/hour, per-user/day, per-IP/hour (`FRAUD.MANUAL_PAYMENT_ATTEMPTS_*`, see §4). Each trip logs a `fraud_events` row (`SUSPICIOUS_PATTERN`) and throws `TOO_MANY_REQUESTS`. On business-logic failure throws `BAD_REQUEST` with the service's Arabic message. |
+| `myManualPayments` | protected | `{ limit?: 1–50, default 20 }` | User's own claims only. |
+| `getBalance` | protected | — | Returns `{ credits, totalSpent, totalRedeemed, displayCredits }`; zeros if no balance row exists yet. |
+| `getTransactions` | protected | `{ limit?: 1–100 default 20, offset?: number default 0 }` | Returns `{ items, hasMore }`. |
+| `redeemCode` | protected | `{ code: string(1–32) }` | **Not the live UI path** (see §3 `/api/redeem`). Runs `FraudService.checkRedeemAttempt` (Redis-backed) inside `redeemCode()` itself. Throws `BAD_REQUEST` on failure. |
+
+### `user` (6 procedures)
+
+| Procedure | Access | Input | Notes |
+|---|---|---|---|
+| `getProfile` | protected | — | Strips `passwordHash`, `apiKeyHash`, `twoFactorSecret` from the returned row. |
+| `updateProfile` | protected | `{ displayName?: string(1–100), locale?: "ar"\|"en" }` | Partial update. |
+| `generateApiKey` | protected | — | Rate-limited: `FRAUD.SENSITIVE_ACTION_PER_HOUR` (10/hr) via `checkLimit`. Key format `sk-aip-{72 hex chars}`, hashed with **SHA-256** (not bcrypt — see inline comment: the lookup is by-value equality, which bcrypt's salting makes impossible). Raw key returned once. |
+| `revokeApiKey` | protected | — | Clears hash + prefix. |
+| `getApiKeyInfo` | protected | — | `{ prefix, hasKey }`, no secret material. |
+| `getReferralStats` | protected | — | Delegates to `referral.service.ts`. |
+
+**Not present:** any password-change mutation here. Password changes go
+through `authClient.changePassword()` (Better Auth, §5) — a previous tRPC
+`changePassword` compared against `users.passwordHash`, which Better Auth's
+credential strategy never writes to (see `packages/db/src/schema/users.ts`
+comment); that mutation has been removed, not merely deprecated.
+
+### `models` (6 procedures)
+
+| Procedure | Access | Input | Notes |
+|---|---|---|---|
+| `list` | public | — | Only `status="published" AND isAvailable=true` rows. This table — not New API, not a static catalog — is the single source of truth for what the chat UI may render. Returns per-model `creditsPerKInput`/`creditsPerKOutput`, pre-computed server-side from wholesale cost × markup. |
+| `listAll` | admin | — | Every row, any status. |
+| `pending` | admin | — | `status="pending"` only — the sync-discovery queue. |
+| `sync` | admin | — | Mutation. Pulls the gateway's model list, diffs against this table, never auto-publishes. Throws `BAD_GATEWAY` on failure. |
+| `publish` | admin | `{ modelId, displayName(1–100), displayNameAr(1–100), badge?(≤10), tier: "standard"\|"premium" default "standard", markupMultiplier: positive default 2.0, contextWindow: positive int, maxOutputTokens: positive int, supportsVision: bool default false, wholesaleCostInputPerM?: ≥0 default 0, wholesaleCostOutputPerM?: ≥0 default 0, rateLimitPerUserDaily?: positive int }` | Sets `status="published", isAvailable=true`. `NOT_FOUND` if `modelId` doesn't exist. |
+| `toggleAvailability` | admin | `{ modelId, isAvailable: bool }` | `NOT_FOUND` if missing. |
+
+### `admin` (27 procedures)
+
+All `adminProcedure`. Money/state-changing ones write an `auditLogs` row
+(`adminId`, `action`, `targetType`, `targetId`, `before`/`after`, `ip`).
+
+**Dashboard / gateway**
+- `gatewayChannels` — query. Proxies New API's channel-list admin endpoint using `GATEWAY_ROOT_TOKEN`. Throws `BAD_GATEWAY` with the raw error string on failure (see inline comment: some New API deployments expect this token as a plain admin token for `/api/*`, not just the OpenAI-style key for `/v1/*` — a wrong token surfaces as unauthorized here).
+- `getDashboardStats` — query, no input.
+- `getRevenueTimeseries` — `{ days: 1–90 default 14 }`.
+- `getModelUsageBreakdown` — `{ days: 1–90 default 7 }`.
+- `getRecentTransactions` — `{ limit: 1–100 default 20 }`.
+  All four of the above wrap their service call and rethrow as `INTERNAL_SERVER_ERROR` **with the original driver/service error message inlined** — deliberate, so a Postgres error is visible client-side without needing server log access.
+
+**Users**
+- `listUsers` — `{ limit default 50, offset default 0, search?: string }`. Excludes `passwordHash`/`apiKeyHash`/`twoFactorSecret` columns at the query level.
+- `getUserDetail` — `{ userId: uuid }`. Returns `{ user, balance, recentTxns(20) }`. `NOT_FOUND` if missing.
+- `updateUserStatus` — `{ userId: uuid, status: "active"\|"suspended", reason?: string }`. Audit-logged.
+- `adjustCredits` — `{ userId: uuid, amount: int, type: "admin_credit"\|"admin_debit", reason: string(min 1) }`. `amount` is always treated as a positive magnitude via `Math.abs` — `type` alone decides direction (guards against a negative amount flipping the operation). Debit path uses `deductCreditsAtomic`; throws `BAD_REQUEST` if it would take the balance negative.
+
+**Redeem codes**
+- `generateCodes` — `{ count: 1–1000, creditValue: int ≥1, label: string(1–100), expiresAt?: ISO datetime, packageId?: uuid, paymentMethodId?: uuid }`. If `packageId` is given, `creditValue`/`faceValue` are **derived from the package** server-side (client-sent values for those fields are display/audit-snapshot only, never trusted for the actual credit amount). Returns `{ batchId, codes: string[], count }` — the plaintext codes, once.
+- `listCodeBatches` — query, no input. Aggregates (`total`, `used`, `expired`) grouped by batch.
+- `codeInventory` — `{ lowStockThreshold: int ≥0 default 20 }`. Grouped by `(paymentMethodId, packageId)`, only rows where both are non-null.
+- `revokeCodeBatch` — `{ batchId: uuid }`. Only flips `status="unused"` rows to `"revoked"` (already-used/expired codes are untouched).
+- `getBatchCodes` — `{ batchId: uuid }`. `NOT_FOUND` if the batch has zero rows.
+- `revokeCode` — `{ code: string }`. Same unused-only guard as the batch version.
+
+**Fraud**
+- `listFraudEvents` — `{ resolved: bool default false, limit default 50 }`.
+- `resolveFraudEvent` — `{ eventId: uuid }`.
+- `clearFraudFlag` — `{ userId: uuid }`. Clears `isFraudFlagged`/`fraudReason` on the user row; audit-logged.
+
+**Packages** (`PAYMENT_METHODS_PLAN.md` §7.3)
+- `listPackages` — query, all rows (admin view, unlike billing's active-only).
+- `createPackage` — `{ name(1–100), nameAr(1–100), priceYer: positive int, priceUsdEquivalent: positive, credits: positive int (display units — ×1,000,000 stored), description?(≤1000), descriptionAr?(≤1000), sortOrder default 0 }`.
+- `updatePackage` — same shape, all fields optional except `id: uuid`. `NOT_FOUND` if missing.
+
+**Payment methods** (§7.4)
+- `listPaymentMethods` — query, all rows.
+- `createPaymentMethod` — `{ name(1–100), nameAr(1–100), type: "jaib_voucher"\|"manual_transfer", logoUrl?(url≤2048), accountCode?(≤100), instructions?(≤2000), instructionsAr?(≤2000), sortOrder default 0 }`.
+- `updatePaymentMethod` — same shape, all optional except `id: uuid`. `NOT_FOUND` if missing.
+
+**Manual-payment approval queue** (§7.10)
+- `listManualPayments` — `{ status: "pending"\|"approved"\|"rejected" default "pending", limit: 1–100 default 50 }`. Left-joins user/package/method for display fields (no `relations()` config exists in this schema — every admin list does manual joins, not `with`).
+- `approveManualPayment` — `{ claimId: uuid }`. `BAD_REQUEST` on service failure; audit-logged on success.
+- `rejectManualPayment` — `{ claimId: uuid, reason: string(1–500) }`. Same pattern.
+
+**Total: 7 + 6 + 6 + 27 = 46 procedures**, matching the plan's Appendix C count. Every name above was checked 1:1 against the router source; none are renamed or missing on either side.
+
+---
+
+## 2. REST (`apps/web/app/api/**`, Next.js route handlers)
+
+All routes below call `auth.api.getSession({ headers })` directly (not
+tRPC's context) and return `401` inline if there's no session — they do
+**not** go through `middleware.ts`'s guard, so a route added here without
+its own session check is unauthenticated by default.
+
+| Route | Methods | Auth | Body / params | Notes |
+|---|---|---|---|---|
+| `/api/chat` | `POST` | session (401 if none) | `{ model, messages, conversationId? }` — **no Zod validation, a bare `as` cast** (F2, confirmed) | Proxies to `${INTERNAL_API_URL}/chat` with `Authorization: Bearer ${INTERNAL_SERVICE_TOKEN}`, `X-User-ID`, `X-User-Email`. Fails loudly (500 `CONFIG_ERROR`) if `INTERNAL_API_URL` unset, rather than defaulting to a Compose-internal hostname. 502 `UPSTREAM_UNREACHABLE` / `UPSTREAM_ROUTE_NOT_FOUND` on connect/404. Streams `upstream.body` through as-is; **response is `text/plain`, not SSE/JSON** — see §3. |
+| `/api/conversations` | `GET`, `POST` | session | — | `GET` returns the caller's non-deleted conversations, limit 50, `updatedAt DESC`. `POST` creates an empty conversation row and returns it. |
+| `/api/conversations/[id]` | `GET`, `PATCH`, `DELETE` | session | `PATCH: { title?, isPinned? }` | All three scope by `and(id, userId)` — cannot touch another user's conversation, returns `404`/no-op rather than leaking existence. `DELETE` is a soft-delete (`deletedAt`). |
+| `/api/redeem` | `POST` | session | `{ code: string(1–32), turnstileToken?: string }` (Zod) | **This is the live redeem path** the UI should call, not `billing.redeemCode`. Per-user hour/day `checkLimit` gates (`FRAUD.REDEEM_ATTEMPTS_PER_HOUR/DAY`) return `200` with `{ success:false, error:"TOO_MANY_ATTEMPTS"\|"DAILY_LIMIT_REACHED" }` (not a 4xx status) before Turnstile is even checked. Then Turnstile verification (`CAPTCHA_FAILED` on failure), then `redeemCode()` itself (which also runs the Redis-backed fraud check). |
+| `/api/balance` | `GET` | session | — | `{ credits }` only — no `totalSpent`/`totalRedeemed` (unlike `billing.getBalance`). |
+| `/api/transactions` | `GET` | session | query `?limit&offset` | `limit` capped to 100 server-side via `Math.min`; note `hasMore` compares against the **raw requested `limit`**, not the capped one — if `limit > 100` is requested, `hasMore` can be wrong. |
+| `/api/user/sessions` | `GET`, `DELETE` | session | — | Reads the `sessions` table **directly**, not `authClient.listSessions()` — deliberate, see inline comment: Better Auth's own `listSessions()` blanks the `token` field for every session except the current one, and `revokeSession` only accepts a token, making per-device revoke impossible to build on their client API alone. `GET` returns `{ sessions: [{ id, ip, userAgent, createdAt, updatedAt, expiresAt, current }] }`. `DELETE` (collection route) deletes every session **except** the caller's current one ("log out other devices"). |
+| `/api/user/sessions/[id]` | `DELETE` | session | — | Revokes one specific session by its **row id** (never the token). Refuses (`400 CANNOT_REVOKE_CURRENT_SESSION`) if `id` is the caller's own current session. `404 NOT_FOUND` if the row doesn't exist or belongs to someone else — same response either way, so this can't be used to probe other users' session ids. |
+| `/api/user/export-data` | `GET` | session | — | Rate-limited (`SENSITIVE_ACTION_PER_HOUR`, 429 on trip). Returns a downloadable JSON attachment: profile (safe columns only), balance, full transaction history, conversation **metadata** (no message bodies). |
+| `/api/user/delete-account` | `POST` | session | `{ password?: string, confirmed?: boolean }` (Zod, both optional — one or the other required depending on account type) | Rate-limited. **Anonymizes in place, does not hard-delete** — `transactions.userId` has no cascade, so a real `DELETE FROM users` would foreign-key-violate for any account that ever transacted. Password-auth accounts verify via `auth.api.verifyPassword` (`400 PASSWORD_REQUIRED`/`INCORRECT_PASSWORD`); OAuth-only accounts require `confirmed:true` instead (`400 CONFIRMATION_REQUIRED`). On success: email scrubbed to `deleted-{id}@deleted.invalid`, PII nulled, all `accounts`/`twoFactor`/`sessions` rows deleted, `status="suspended"`. Balances/transactions/conversations rows are untouched. |
+| `/api/status` | `GET` | none | — | **Stub** (F11, confirmed): always returns `{ overall: "healthy", services: [] }` regardless of actual state. `StatusBanner` reading this is decorative until B4. |
+| `/api/health` | `GET` | none | — | `{ status: "ok", timestamp }`. |
+| `/api/webhooks/payment` | `POST` | HMAC signature (`moyasar-signature` header vs `MOYASAR_WEBHOOK_SECRET`) | Moyasar event JSON | **Disabled via `FEATURE_FLAGS.MOYASAR_ENABLED`** — returns `410` immediately unless flipped on (ADR-007). Code path is otherwise intact (idempotent on `transactions.paymentId`) for a future Moyasar relaunch. Not the live payment flow — see `PAYMENT_METHODS_PLAN.md` / Jaib+manual-transfer via `submitManualPayment`. |
+| `/api/auth/[...all]` | `GET`, `POST` | n/a (Better Auth's own handler) | — | `toNextJsHandler(auth)` — every Better Auth endpoint (`sign-in`, `sign-up`, `verify-email`, `change-password`, `list-sessions`, `revoke-session`, 2FA, etc.) lives under this one catch-all. Not previously listed in Appendix C. |
+| `/api/trpc/[trpc]` | `GET`, `POST` | per-procedure (see §1) | — | `fetchRequestHandler` mount for `appRouter`. `onError` **always logs server-side now** (previously gated to non-production, which meant Vercel — always `NODE_ENV=production` — silently dropped every tRPC error from Runtime Logs). Not previously listed in Appendix C as an explicit route. |
+
+### Legacy admin REST (removal candidates, Phase 9.3)
+
+All eight below independently check `["admin","superadmin"].includes(session.user.role)` inline (not shared middleware) and return `403 Forbidden` otherwise. Verified present on every one — no gap found.
+
+| Route | Methods | Body | Notes |
+|---|---|---|---|
+| `/api/admin/users` | `GET` | — | Left-joins `balances`, limit 200, `createdAt DESC`. |
+| `/api/admin/users/[id]` | `GET`, `PATCH` | `PATCH: { status?: "active"\|"suspended" }` | Same safe-column exclusion as the tRPC equivalent. |
+| `/api/admin/users/[id]/credits` | `POST` | `{ amount: int ≥1, type: "admin_credit"\|"admin_debit", reason: string(min 1) }` | **Not atomic** — direct `sql\`credits + ${delta}\`` update with no `deductCreditsAtomic`/floor check, unlike the tRPC `admin.adjustCredits`. A debit here could take a balance negative; the DB's `credits >= 0` CHECK constraint (Phase 5.2) is the only thing stopping it, and would make this route 500 on that case rather than returning a clean `BAD_REQUEST` the way the tRPC path does. Worth flagging for the 9.3 cleanup rather than silently carrying the discrepancy forward. |
+| `/api/admin/fraud` | `GET` | query `?resolved` | Limit 100. |
+| `/api/admin/fraud/[id]/resolve` | `POST` | — | |
+| `/api/admin/stats` | `GET` | — | Coarse totals only (`totalUsers`, `totalRedeemed`, `totalSpent`) — much thinner than `admin.getDashboardStats`. |
+| `/api/admin/logs` | `GET` | — | `usage_debit` transactions only, limit 200, no filters (thinner than `admin.listUsageLogs`, which doesn't exist yet — see plan B3). |
+| `/api/admin/codes` | `POST` | `{ count: 1–1000, creditValue: int ≥1, label(1–100), expiresAt?: string }` | Duplicate of `admin.generateCodes` minus the package-derived-value logic and audit-log write. |
+
+---
+
+## 3. Chat stream contract (F2–F5, re-verified against `gateway.service.ts`)
+
+- **Request:** `POST /chat` (Fastify) body is read as `{ model, messages, conversationId? }` via a bare `as` cast — confirmed, no runtime validation exists today. `conversationId` defaults to a fresh UUID if omitted.
+- **Auth/gates before streaming starts:** Fastify `authMiddleware` → `rateLimitMiddleware` → balance check (`credits <= 0` → `402 INSUFFICIENT_BALANCE`) → model must be `status="published" AND isAvailable=true` (`404 MODEL_NOT_FOUND`) → token-estimate vs `contextWindow * 0.95` (`400 CONTEXT_TOO_LONG`).
+- **Response shape:** `Content-Type: text/plain; charset=utf-8`. **Not SSE, not JSON** — raw content-delta bytes only, nothing else reaches the client (no reasoning, sources, usage, or cost events). This is deliberate: the client's `useChat` is configured `streamProtocol: "text"`, so forwarding the gateway's raw OpenAI-format SSE (as an earlier version did) parses as nothing and looks like "connection interrupted" on every response, successful or not.
+- **Parsing on the server side:** upstream SSE (`data: {...}` lines) is buffered until a complete line is available before `JSON.parse`, specifically to avoid a chunk boundary splitting the `usage` object mid-JSON (confirmed as a real prior bug — see inline comment — that silently zeroed both token counts and skipped billing entirely).
+- **Billing fallback:** if `outputTokens` comes back `0` but content was streamed, tokens are estimated from the streamed text (`estimateTokenCount`) rather than billing `$0`. Same fallback applies to `inputTokens`.
+- **Idempotency (F4):** confirmed still present — `streamChat` inserts the last user message on every call with no dedup key. A retry/regenerate from the client creates a second identical row today. No `clientMessageId` field anywhere in the request shape. Deferred to plan's B1.
+- **Client abort (F5):** confirmed **not implemented** — no listener on client disconnect/abort anywhere in `gateway.service.ts`. If the browser aborts the fetch, the upstream provider call is not cancelled server-side; whatever tokens the provider generates before the reader loop notices are what gets billed (via the `isPartial` fallback path), not necessarily what the client actually rendered. Also deferred to B1.
+- **Known content-safety note:** the client renders whatever text arrives verbatim (per Rule 7 of the plan) — the stream contract itself does no sanitization; that's a rendering-layer concern, not a contract concern, but worth remembering when 4a builds the renderer.
+
+---
+
+## 4. Better Auth client (`apps/web/lib/auth-client.ts`)
+
+Exported from `createAuthClient` + `twoFactorClient()` plugin:
+
+```
+signIn, signUp, signOut, useSession,
+requestPasswordReset, resetPassword, verifyEmail, sendVerificationEmail,
+changePassword, listSessions, revokeSession, revokeOtherSessions, revokeSessions,
+twoFactor
+```
+
+`revokeSessions` (plural) is exported but was missing from the plan's
+Appendix C list — added here. Note the split responsibility: `listSessions`
+/ `revokeSession` / `revokeOtherSessions` / `revokeSessions` all exist on
+the client, but the actual Settings UI does **not** use them for the
+active-sessions feature — it uses the custom `/api/user/sessions*` REST
+routes instead, specifically because Better Auth's own `listSessions()`
+blanks every session's `token` except the current one (see §2). Only one
+in-repo call site for `authClient.listSessions` was found; treat the
+Better-Auth-native session methods as present-but-not-the-primary-path for
+that feature when building 7.1.
+
+Server side (`apps/web/lib/auth.ts`, frozen, not reproduced here): sign-up
+requires header `x-turnstile-token`; referral capture rides on header
+`x-referral-code`; password policy is min 8 chars + 1 uppercase + 1 digit,
+surfaced as error code `WEAK_PASSWORD`; captcha failure surfaces as
+`CAPTCHA_FAILED`.
+
+---
+
+## 5. Known quirks (read before building on top of any of these)
+
+1. **In-memory rate limiting, not Redis.** `utils/rate-limiter.ts`'s `checkLimit` is a plain in-process `Map`. It resets on redeploy and does **not** coordinate across multiple container replicas or between the Fastify (`apps/api`) and Next.js (`apps/web`) processes — each has its own counter state. Only `FraudService.checkRedeemAttempt` (used inside `redeemCode()`) is actually Redis-backed and coordinates across instances; everything else using `checkLimit` (`submitManualPayment`, `generateApiKey`, `/api/redeem`'s pre-check, export-data, delete-account) is best-effort per-instance only.
+2. **`/api/redeem`'s rate-limit responses are `200 OK` with `success:false`**, not `429` — a client that only checks HTTP status for throttling will miss this.
+3. **`/api/transactions`'s `hasMore` can be wrong for `limit > 100`** — it compares against the unclamped requested limit, not the actual (capped) query limit. `billing.getTransactions` (tRPC) does not have this bug — its Zod schema caps `limit` at the input-validation layer instead of after the fact.
+4. **`/api/admin/users/[id]/credits` is not atomic** — see the legacy-REST table above. The equivalent tRPC `admin.adjustCredits` is the safe one.
+5. **Session lookup is by `token`, not `id`**, everywhere in the tRPC context (`trpc.ts`). Any new code reading the `sessions` table must follow the same convention or auth will silently never match.
+6. **API keys are SHA-256, not bcrypt** — by design, because lookup is by-value equality, not a compare. Do not "fix" this to bcrypt.
+7. **Delete-account is anonymize-in-place, not a hard delete.** `balances`/`transactions`/`conversations` rows survive; only `users` PII, `accounts`, `twoFactor`, and `sessions` are removed/scrubbed.
+8. **`/api/status` is a stub.** Any UI wired to it today is decorative (F11); real status data doesn't exist until backend track item B4.
+9. **Chat stream is plain text, not JSON/SSE** — do not build a JSON parser or an EventSource against `/api/chat`; treat the body as a raw text delta stream.
+10. **`/chat`'s request body has zero runtime validation** today (F2) — a malformed `messages` array reaches `streamChat` unchecked. This is a real gap, not a documentation oversight; fixing it is scoped to plan item **B1**, not 0.3.

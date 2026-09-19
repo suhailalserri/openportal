@@ -22,7 +22,7 @@ jobs:
   # the new jobs below).
   check:
     name: Type-check & Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
   # Testcontainers requires.
   api-tests:
     name: API Tests (Testcontainers)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
   # DATABASE_URL is unset at all — see packages/db/src/index.ts) to pass.
   web-build:
     name: Web Build (next build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # NODE_ENV is deliberately NOT set here. pnpm treats NODE_ENV=production
     # as `--prod` and skips devDependencies (typescript, tailwindcss,
@@ -132,7 +132,7 @@ jobs:
   # anything to break.
   web-unit:
     name: Web Unit Tests (vitest)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -161,7 +161,7 @@ jobs:
   # Same no-op-until-it-exists pattern as web-unit above.
   i18n-parity:
     name: i18n Key Parity
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

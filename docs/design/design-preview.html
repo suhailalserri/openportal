@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenPortal — Gateway direction preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=El+Messiri:wght@400;500;600;700&family=Cairo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:            #15141B;
+    --bg-raised:     #1D1B24;
+    --bg-inset:      #100F15;
+    --hairline:      rgba(237,234,226,0.10);
+    --hairline-strong: rgba(237,234,226,0.18);
+    --text:          #EDEAE2;
+    --text-muted:    #9C97A6;
+    --text-faint:    #6B6675;
+    --gate:          #D9A441;
+    --gate-strong:   #F0B94E;
+    --gate-wash:     rgba(217,164,65,0.14);
+    --gate-wash-strong: rgba(217,164,65,0.22);
+    --signal:        #35B7A0;
+    --signal-wash:   rgba(53,183,160,0.14);
+    --danger:        #E0665A;
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
+    --shadow-2: 0 12px 28px -8px rgba(0,0,0,0.55);
+    --font-display-en: 'Fraunces', serif;
+    --font-display-ar: 'El Messiri', serif;
+    --font-body-en: 'Manrope', sans-serif;
+    --font-body-ar: 'Cairo', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #F7F4EC; --bg-raised: #FFFFFF; --bg-inset: #EFEBE0;
+      --hairline: rgba(21,20,27,0.10); --hairline-strong: rgba(21,20,27,0.18);
+      --text: #1B1A20; --text-muted: #63606B; --text-faint: #98939E;
+      --gate: #B9791F; --gate-strong: #9C6516; --gate-wash: rgba(185,121,31,0.10); --gate-wash-strong: rgba(185,121,31,0.18);
+      --signal: #147A69; --signal-wash: rgba(20,122,105,0.10);
+      --danger: #B8402F;
+      --shadow-1: 0 1px 2px rgba(21,20,27,0.08); --shadow-2: 0 12px 28px -8px rgba(21,20,27,0.16);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #F7F4EC; --bg-raised: #FFFFFF; --bg-inset: #EFEBE0;
+    --hairline: rgba(21,20,27,0.10); --hairline-strong: rgba(21,20,27,0.18);
+    --text: #1B1A20; --text-muted: #63606B; --text-faint: #98939E;
+    --gate: #B9791F; --gate-strong: #9C6516; --gate-wash: rgba(185,121,31,0.10); --gate-wash-strong: rgba(185,121,31,0.18);
+    --signal: #147A69; --signal-wash: rgba(20,122,105,0.10);
+    --danger: #B8402F;
+    --shadow-1: 0 1px 2px rgba(21,20,27,0.08); --shadow-2: 0 12px 28px -8px rgba(21,20,27,0.16);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body-en);
+    min-height: 100vh;
+    transition: background .2s ease, color .2s ease;
+  }
+  [dir="rtl"] body { font-family: var(--font-body-ar); }
+  .display { font-family: var(--font-display-en); }
+  [dir="rtl"] .display { font-family: var(--font-display-ar); }
+
+  :focus-visible { outline: 2px solid var(--gate); outline-offset: 2px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+  /* ── Reviewer toolbar (not part of the product itself) ─────────── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-inset);
+    border-bottom: 1px solid var(--hairline-strong);
+    font-size: 12.5px;
+  }
+  .toolbar-label { color: var(--text-faint); }
+  .toolbar-controls { display: flex; gap: 6px; }
+  .toolbar button {
+    font: inherit; font-size: 12.5px; cursor: pointer;
+    background: var(--bg-raised); color: var(--text-muted);
+    border: 1px solid var(--hairline-strong); border-radius: 8px;
+    padding: 6px 10px; transition: color .15s ease, border-color .15s ease;
+  }
+  .toolbar button[aria-pressed="true"] { color: var(--gate); border-color: var(--gate); }
+
+  /* ── Brand mark: abstract gate glyph, used as avatar + wordmark ── */
+  .gate-mark { display: block; }
+  .gate-mark path { stroke: currentColor; stroke-width: 1.6; fill: none; stroke-linecap: round; }
+
+  /* ── App shell ───────────────────────────────────────────────── */
+  .app { max-width: 720px; margin: 0 auto; position: relative; }
+
+  .app-header {
+    position: sticky; top: 37px; z-index: 20;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px;
+    background: transparent; border: none; color: var(--text-muted); cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .icon-btn:hover { background: var(--hairline); color: var(--text); }
+
+  .conv-title {
+    flex: 1; min-width: 0;
+    font-size: 15px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .model-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 10px; border-radius: 20px;
+    background: var(--bg-raised); border: 1px solid var(--hairline-strong);
+    font-size: 12.5px; color: var(--text-muted); cursor: pointer; white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .model-pill .name { display: none; }
+  @media (min-width: 480px) { .model-pill .name { display: inline; max-width: 90px; overflow: hidden; text-overflow: ellipsis; } }
+
+  /* ── Sidebar (overlay drawer) ───────────────────────────────── */
+  .sidebar-scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .sidebar-scrim.open { opacity: 1; pointer-events: auto; }
+  .sidebar {
+    position: fixed; inset-block: 0; inset-inline-start: 0;
+    width: min(300px, 84vw); z-index: 41;
+    background: var(--bg-inset);
+    border-inline-end: 1px solid var(--hairline-strong);
+    transform: translateX(-104%); transition: transform .25s cubic-bezier(.16,1,.3,1);
+    display: flex; flex-direction: column;
+  }
+  [dir="rtl"] .sidebar { transform: translateX(104%); }
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar-head { padding: 16px 14px 12px; display: flex; align-items: center; gap: 9px; }
+  .wordmark { font-size: 17px; font-weight: 600; color: var(--gate-strong); }
+  .sidebar-body { flex: 1; overflow-y: auto; padding: 0 10px 14px; }
+  .new-chat-btn {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 12px; margin: 4px 4px 14px;
+    border-radius: 11px; border: 1px solid var(--gate); color: var(--gate-strong);
+    background: transparent; font: inherit; font-weight: 500; font-size: 13.5px; cursor: pointer;
+    transition: background .15s ease;
+  }
+  .new-chat-btn:hover { background: var(--gate-wash); }
+  .group-label {
+    font-size: 11.5px; color: var(--text-faint); padding: 12px 8px 6px;
+    font-weight: 500;
+  }
+  .conv-item {
+    display: block; width: 100%; text-align: start;
+    padding: 9px 10px; border-radius: 9px; border: none; background: transparent;
+    color: var(--text-muted); font: inherit; font-size: 13.5px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: background .15s ease, color .15s ease;
+  }
+  .conv-item:hover { background: var(--hairline); color: var(--text); }
+  .conv-item.active { background: var(--gate-wash); color: var(--text); }
+
+  /* ── Thread ──────────────────────────────────────────────────── */
+  .thread { padding: 20px 16px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .msg-row { display: flex; gap: 10px; max-width: 100%; }
+  .msg-row.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--hairline-strong);
+  }
+  .avatar.assistant { background: var(--gate-wash); color: var(--gate-strong); }
+  .avatar.user { background: var(--bg-raised); color: var(--text-muted); }
+
+  .bubble-col { display: flex; flex-direction: column; gap: 6px; max-width: 86%; }
+  .msg-row.user .bubble-col { align-items: flex-end; }
+  .bubble {
+    padding: 13px 16px; border-radius: 18px; font-size: 15px; line-height: 1.65;
+  }
+  .bubble.assistant {
+    background: var(--bg-raised); border: 1px solid var(--hairline);
+    border-start-start-radius: 6px;
+  }
+  .bubble.user {
+    background: var(--gate-wash-strong); border: 1px solid var(--gate); color: var(--text);
+    border-end-end-radius: 6px;
+  }
+  .bubble code {
+    font-family: var(--font-mono); font-size: 13px;
+    background: var(--bg-inset); padding: 1px 5px; border-radius: 4px; color: var(--gate-strong);
+  }
+  .code-block {
+    margin-top: 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--hairline-strong);
+  }
+  .code-block-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 12px; background: var(--bg-inset); font-family: var(--font-mono);
+    font-size: 11.5px; color: var(--text-faint); border-bottom: 1px solid var(--hairline);
+  }
+  .code-block pre { padding: 12px; overflow-x: auto; background: var(--bg-inset); }
+  .code-block code { background: none; padding: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+  .tok-kw { color: var(--gate-strong); } .tok-str { color: var(--signal); }
+
+  /* ── Composer: the one deliberate "threshold" moment ────────── */
+  .composer-wrap { position: sticky; bottom: 0; padding: 10px 16px 16px; background: var(--bg); }
+  .composer {
+    position: relative;
+    border-radius: 26px 26px 14px 14px;
+    border: 1px solid var(--hairline-strong);
+    background: var(--bg-raised);
+    box-shadow: var(--shadow-1);
+    padding: 14px 14px 14px 18px;
+    display: flex; align-items: flex-end; gap: 10px;
+    transition: box-shadow .2s ease;
+  }
+  [dir="rtl"] .composer { padding: 14px 18px 14px 14px; }
+  .composer::before {
+    content: ""; position: absolute; inset-inline: 18px; top: -1px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gate), transparent);
+    opacity: .7;
+  }
+  .composer:focus-within { box-shadow: var(--shadow-1), 0 0 0 3px var(--gate-wash); border-color: var(--gate); }
+  .composer textarea {
+    flex: 1; background: transparent; border: none; resize: none; color: var(--text);
+    font: inherit; font-size: 15px; line-height: 1.6; min-height: 44px; max-height: 180px;
+  }
+  .composer textarea:focus { outline: none; }
+  .composer textarea::placeholder { color: var(--text-faint); }
+  .send-btn {
+    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+    background: var(--gate); color: var(--bg-inset); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: filter .15s ease, transform .1s ease;
+  }
+  .send-btn:hover { filter: brightness(1.08); }
+  .send-btn:active { transform: scale(.94); }
+  .disclaimer { text-align: center; font-size: 11.5px; color: var(--text-faint); margin-top: 8px; }
+
+  /* ── Section divider between chat demo and admin demo ─────────── */
+  .section-break {
+    max-width: 720px; margin: 40px auto 24px; padding: 0 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-break hr { flex: 1; border: none; border-top: 1px solid var(--hairline-strong); }
+  .section-break span { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+
+  /* ── Admin dashboard register: calmer, denser, data-forward ─── */
+  .admin { max-width: 720px; margin: 0 auto 48px; padding: 0 16px; }
+  .admin h3 { font-size: 20px; font-weight: 600; margin-bottom: 14px; }
+  .stat-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 22px; }
+  @media (min-width: 560px) { .stat-row { grid-template-columns: repeat(3, 1fr); } }
+  .stat-card {
+    padding: 16px; border-radius: 12px; background: var(--bg-raised); border: 1px solid var(--hairline);
+  }
+  .stat-label { font-size: 12px; color: var(--text-faint); margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 600; font-family: var(--font-display-en); }
+  [dir="rtl"] .stat-value { font-family: var(--font-display-ar); }
+  .stat-delta { font-size: 12px; margin-top: 4px; }
+  .stat-delta.up { color: var(--signal); }
+  .stat-delta.down { color: var(--danger); }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th {
+    text-align: start; font-weight: 500; color: var(--text-faint); font-size: 11.5px;
+    padding: 0 10px 8px; border-bottom: 1px solid var(--hairline-strong);
+  }
+  .data-table td { padding: 11px 10px; border-bottom: 1px solid var(--hairline); color: var(--text-muted); }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table td.primary { color: var(--text); font-weight: 500; }
+  .status-chip {
+    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500;
+  }
+  .status-chip.ok { background: var(--signal-wash); color: var(--signal); }
+  .status-chip.pending { background: var(--gate-wash); color: var(--gate-strong); }
+
+  .footer-note {
+    max-width: 720px; margin: 0 auto 40px; padding: 0 16px;
+    font-size: 12.5px; color: var(--text-faint); line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <span class="toolbar-label">Gateway — direction preview</span>
+    <div class="toolbar-controls">
+      <button id="langBtn" aria-pressed="false" type="button">AR / EN</button>
+      <button id="themeBtn" aria-pressed="false" type="button">☾ / ☀</button>
+    </div>
+  </div>
+
+  <div class="sidebar-scrim" id="scrim"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <svg class="gate-mark" width="22" height="22" viewBox="0 0 24 24" style="color:var(--gate-strong)">
+        <path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7" />
+      </svg>
+      <span class="wordmark display" id="wordmark">OpenPortal</span>
+    </div>
+    <div class="sidebar-body">
+      <button class="new-chat-btn" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        <span id="newChatLabel">New chat</span>
+      </button>
+      <div class="group-label" id="todayLabel">Today</div>
+      <button class="conv-item active" id="convActive">Four-stroke engine, explained</button>
+      <button class="conv-item">Comparing two job offers</button>
+      <button class="conv-item">Fixing a React hydration bug</button>
+      <div class="group-label" id="yesterdayLabel">Yesterday</div>
+      <button class="conv-item">Weekend trip to Alexandria</button>
+      <button class="conv-item">Summarizing a research paper</button>
+    </div>
+  </aside>
+
+  <main class="app">
+    <header class="app-header">
+      <button class="icon-btn" id="menuBtn" type="button" aria-label="Toggle sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="conv-title" id="threadTitle">Explain how a four-stroke engine works like I'm new to it</h2>
+      <button class="model-pill" type="button">
+        <span>⚡</span><span class="name">Sonnet 5</span>
+        <svg width="11" height="11" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn2" type="button" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <div class="thread">
+      <div class="msg-row user">
+        <div class="avatar user">
+          <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="bubble-col">
+          <div class="bubble user" id="userMsg">Explain how a four-stroke engine works like I'm new to it</div>
+        </div>
+      </div>
+
+      <div class="msg-row">
+        <div class="avatar assistant">
+          <svg class="gate-mark" width="15" height="15" viewBox="0 0 24 24"><path d="M5 20V7M19 20V7M4 7C7 4 17 4 20 7"/></svg>
+        </div>
+        <div class="bubble-col">
+          <div class="bubble assistant" id="assistantMsg">
+            A four-stroke engine turns fuel into motion in four steps: intake pulls in fuel and air, compression squeezes it tight, combustion ignites it for power, and exhaust clears the cylinder. One full cycle, two crankshaft rotations.
+            <div class="code-block">
+              <div class="code-block-head"><span>cycle.py</span><span>python</span></div>
+              <pre><code><span class="tok-kw">def</span> stroke_order():
+    <span class="tok-kw">return</span> [<span class="tok-str">"intake"</span>, <span class="tok-str">"compression"</span>, <span class="tok-str">"power"</span>, <span class="tok-str">"exhaust"</span>]</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea rows="1" id="composerText" placeholder="Ask anything…"></textarea>
+        <button class="send-btn" type="button" aria-label="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <p class="disclaimer" id="disclaimer">AI responses may be inaccurate. Verify important information.</p>
+    </div>
+  </main>
+
+  <div class="section-break"><hr><span id="adminBreakLabel">Admin dashboard register</span><hr></div>
+
+  <section class="admin">
+    <h3 class="display" id="adminTitle">Overview</h3>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label" id="statRevLabel">Revenue today</div>
+        <div class="stat-value">$1,284</div>
+        <div class="stat-delta up">↑ 12% vs yesterday</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label" id="statUsersLabel">Active users</div>
+        <div class="stat-value">342</div>
+        <div class="stat-delta up">↑ 4%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label" id="statFraudLabel">Open fraud flags</div>
+        <div class="stat-value">3</div>
+        <div class="stat-delta down">↑ 2 new</div>
+      </div>
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th id="thUser">User</th>
+          <th id="thAmount">Amount</th>
+          <th id="thStatus">Status</th>
+        </tr>
+      </thead>
+      <tbody id="txBody">
+        <tr><td class="primary">sara.k@mail.com</td><td>$20.00</td><td><span class="status-chip ok" id="s1">Settled</span></td></tr>
+        <tr><td class="primary">omar91@mail.com</td><td>$5.00</td><td><span class="status-chip pending" id="s2">Pending</span></td></tr>
+        <tr><td class="primary">layla_h@mail.com</td><td>$50.00</td><td><span class="status-chip ok" id="s3">Settled</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p class="footer-note" id="footerNote">This is a static preview of the new visual direction — colors, type, spacing, and the composer's "threshold" treatment. Not wired to real data.</p>
+
+<script>
+  const html = document.documentElement;
+  const langBtn = document.getElementById('langBtn');
+  const themeBtn = document.getElementById('themeBtn');
+  const themeBtn2 = document.getElementById('themeBtn2');
+  const menuBtn = document.getElementById('menuBtn');
+  const sidebar = document.getElementById('sidebar');
+  const scrim = document.getElementById('scrim');
+
+  const strings = {
+    en: {
+      wordmark: "OpenPortal", newChatLabel: "New chat", todayLabel: "Today", yesterdayLabel: "Yesterday",
+      convActive: "Four-stroke engine, explained",
+      threadTitle: "Explain how a four-stroke engine works like I'm new to it",
+      userMsg: "Explain how a four-stroke engine works like I'm new to it",
+      assistantMsg1: "A four-stroke engine turns fuel into motion in four steps: intake pulls in fuel and air, compression squeezes it tight, combustion ignites it for power, and exhaust clears the cylinder. One full cycle, two crankshaft rotations.",
+      disclaimer: "AI responses may be inaccurate. Verify important information.",
+      adminBreakLabel: "Admin dashboard register", adminTitle: "Overview",
+      statRevLabel: "Revenue today", statUsersLabel: "Active users", statFraudLabel: "Open fraud flags",
+      thUser: "User", thAmount: "Amount", thStatus: "Status",
+      s1: "Settled", s2: "Pending", s3: "Settled",
+      footerNote: "This is a static preview of the new visual direction — colors, type, spacing, and the composer's \"threshold\" treatment. Not wired to real data."
+    },
+    ar: {
+      wordmark: "البوابة", newChatLabel: "محادثة جديدة", todayLabel: "اليوم", yesterdayLabel: "أمس",
+      convActive: "شرح محرك رباعي الأشواط",
+      threadTitle: "اشرح لي كيف يعمل المحرك رباعي الأشواط وكأنني مبتدئ",
+      userMsg: "اشرح لي كيف يعمل المحرك رباعي الأشواط وكأنني مبتدئ",
+      assistantMsg1: "يحوّل المحرك رباعي الأشواط الوقود إلى حركة عبر أربع خطوات: السحب يدخل الوقود والهواء، والضغط يكثّفه، والاحتعال يشعله لإنتاج القوة، والعادم يُفرغ الأسطوانة. دورة كاملة تعادل دورتين لعمود المرفق.",
+      disclaimer: "قد تكون ردود الذكاء الاصطناعي غير دقيقة. تحقق من المعلومات المهمة.",
+      adminBreakLabel: "واجهة لوحة التحكم", adminTitle: "نظرة عامة",
+      statRevLabel: "إيرادات اليوم", statUsersLabel: "المستخدمون النشطون", statFraudLabel: "بلاغات احتيال مفتوحة",
+      thUser: "المستخدم", thAmount: "المبلغ", thStatus: "الحالة",
+      s1: "تمت التسوية", s2: "قيد الانتظار", s3: "تمت التسوية",
+      footerNote: "هذه معاينة ثابتة للاتجاه البصري الجديد — الألوان والخطوط والمسافات ومعالجة \"العتبة\" في صندوق الكتابة. غير مرتبطة ببيانات حقيقية."
+    }
+  };
+
+  let lang = 'en';
+  function applyLang() {
+    const s = strings[lang];
+    html.lang = lang; html.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    for (const key in s) { const el = document.getElementById(key); if (el) el.textContent = s[key]; }
+    langBtn.setAttribute('aria-pressed', lang === 'ar');
+  }
+  langBtn.addEventListener('click', () => { lang = lang === 'en' ? 'ar' : 'en'; applyLang(); });
+
+  let dark = true;
+  function applyTheme() {
+    html.setAttribute('data-theme', dark ? 'dark' : 'light');
+    themeBtn.setAttribute('aria-pressed', !dark);
+    themeBtn2.setAttribute('aria-pressed', !dark);
+  }
+  function toggleTheme() { dark = !dark; applyTheme(); }
+  themeBtn.addEventListener('click', toggleTheme);
+  themeBtn2.addEventListener('click', toggleTheme);
+
+  menuBtn.addEventListener('click', () => { sidebar.classList.add('open'); scrim.classList.add('open'); });
+  scrim.addEventListener('click', () => { sidebar.classList.remove('open'); scrim.classList.remove('open'); });
+
+  applyLang(); applyTheme();
+</script>
+</body>
+</html>

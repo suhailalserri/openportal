@@ -1,0 +1,116 @@
+/*
+ * openportal — theme presets
+ * Phase 1.1 (docs/FRONTEND_REBUILD_PLAN.md)
+ *
+ * D2 (brand/design direction) was answered directly with a supplied
+ * reference file rather than the plan's default of "Claude proposes 3,
+ * you pick" — so this phase ships exactly ONE preset ("gateway"), not
+ * three. Its values are identical to the :root / .dark defaults in
+ * theme.css; it's declared here too, keyed by [data-theme-preset], purely
+ * so the preset switcher built in Settings (7.2) has something to select
+ * against from day one and adding a 2nd/3rd preset later is additive —
+ * new [data-theme-preset="…"] blocks, nothing in theme.css changes.
+ *
+ * Ceiling per the plan is 3 presets. Nothing here is a design decision —
+ * every value is a duplicate of theme.css, kept in sync manually since
+ * there's only one preset to sync.
+ */
+
+[data-theme-preset="gateway"] {
+  --background:         #F7F4EC;
+  --foreground:         #1B1A20;
+  --card:                #FFFFFF;
+  --card-foreground:    #1B1A20;
+  --popover:             #FFFFFF;
+  --popover-foreground: #1B1A20;
+
+  --muted:               #EFEBE0;
+  --muted-foreground:   #63606B;
+  --faint-foreground:   #716D77;
+
+  --primary:             #B9791F;
+  --primary-foreground: #FFFFFF;
+  --accent:              rgba(185, 121, 31, 0.10);
+  --accent-foreground:  #9C6516;
+
+  --secondary:           #EFEBE0;
+  --secondary-foreground: #1B1A20;
+
+  --destructive:         #B8402F;
+  --destructive-foreground: #FFFFFF;
+  --success:             #147A69;
+  --success-foreground: #FFFFFF;
+  --warning:             #9E5E1F;
+  --warning-foreground: #FFFFFF;
+  --info:                #3F5F8F;
+  --info-foreground:    #FFFFFF;
+
+  --border:              rgba(21, 20, 27, 0.10);
+  --input:               rgba(21, 20, 27, 0.18);
+  --ring:                #B9791F;
+
+  --chart-1: #B9791F;
+  --chart-2: #147A69;
+  --chart-3: #3F5F8F;
+  --chart-4: #9E5E1F;
+  --chart-5: #B8402F;
+
+  --sidebar:                    #EFEBE0;
+  --sidebar-foreground:        #1B1A20;
+  --sidebar-primary:            #B9791F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:             rgba(185, 121, 31, 0.10);
+  --sidebar-accent-foreground: #1B1A20;
+  --sidebar-border:             rgba(21, 20, 27, 0.18);
+  --sidebar-ring:               #B9791F;
+}
+
+[data-theme-preset="gateway"].dark,
+.dark[data-theme-preset="gateway"] {
+  --background:         #15141B;
+  --foreground:         #EDEAE2;
+  --card:                #1D1B24;
+  --card-foreground:    #EDEAE2;
+  --popover:             #1D1B24;
+  --popover-foreground: #EDEAE2;
+
+  --muted:               #100F15;
+  --muted-foreground:   #9C97A6;
+  --faint-foreground:   #817C88;
+
+  --primary:             #D9A441;
+  --primary-foreground: #100F15;
+  --accent:              rgba(217, 164, 65, 0.14);
+  --accent-foreground:  #F0B94E;
+
+  --secondary:           #100F15;
+  --secondary-foreground: #EDEAE2;
+
+  --destructive:         #E0665A;
+  --destructive-foreground: #100F15;
+  --success:             #35B7A0;
+  --success-foreground: #100F15;
+  --warning:             #E0954B;
+  --warning-foreground: #100F15;
+  --info:                #6C90C4;
+  --info-foreground:    #100F15;
+
+  --border:              rgba(237, 234, 226, 0.10);
+  --input:               rgba(237, 234, 226, 0.18);
+  --ring:                #D9A441;
+
+  --chart-1: #D9A441;
+  --chart-2: #35B7A0;
+  --chart-3: #6C90C4;
+  --chart-4: #E0954B;
+  --chart-5: #E0665A;
+
+  --sidebar:                    #100F15;
+  --sidebar-foreground:        #EDEAE2;
+  --sidebar-primary:            #D9A441;
+  --sidebar-primary-foreground: #100F15;
+  --sidebar-accent:             rgba(217, 164, 65, 0.14);
+  --sidebar-accent-foreground: #EDEAE2;
+  --sidebar-border:             rgba(237, 234, 226, 0.18);
+  --sidebar-ring:               #D9A441;
+}

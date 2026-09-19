@@ -1,0 +1,223 @@
+/*
+ * openportal — design tokens
+ * Phase 1.1 (docs/FRONTEND_REBUILD_PLAN.md)
+ *
+ * Source of truth for color: docs/design/design-preview.html (approved
+ * "Gateway" direction — dark base #15141B, warm parchment light #F7F4EC,
+ * amber/gold "gate" primary, teal "signal" success, red "danger" destructive).
+ * `warning`, `info`, and `chart-1…5` are NOT in that file — they're this
+ * phase's extrapolation to satisfy the token list below; flagged in the
+ * phase summary for override.
+ *
+ * `text-faint` from the source file measured under WCAG AA (4.5:1) at the
+ * sizes it's actually used at (table headers, disclaimer, footer note —
+ * all ~12px, i.e. "normal text" under WCAG, not "large text"):
+ *   dark  #6B6675 on #15141B → 3.30:1  (fail)
+ *   light #98939E on #F7F4EC → 2.73:1  (fail)
+ * Nudged to the nearest values that clear 4.5:1 while staying the faintest
+ * tier: dark #817C88 (4.51:1), light #716D77 (4.60:1). Every other pairing
+ * below (foreground/muted-foreground against background and card, and each
+ * accent's paired -foreground) was checked the same way and already passed.
+ *
+ * Tailwind v4 token convention: raw values live on :root / .dark, then
+ * @theme inline re-exposes them as bg-*, text-*, border-* etc. utilities.
+ * next-themes toggles the `dark` class on <html> (see providers/theme in 1.2).
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: light;
+
+  /* ── Base surfaces ────────────────────────────────────────────── */
+  --background:        #F7F4EC;
+  --foreground:         #1B1A20;
+  --card:                #FFFFFF;
+  --card-foreground:    #1B1A20;
+  --popover:             #FFFFFF;
+  --popover-foreground: #1B1A20;
+
+  /* ── Neutral text tiers ───────────────────────────────────────── */
+  --muted:               #EFEBE0;
+  --muted-foreground:   #63606B;
+  --faint-foreground:   #716D77; /* adjusted for AA — see header note */
+
+  /* ── Brand / primary (the "gate") ─────────────────────────────── */
+  --primary:             #B9791F;
+  --primary-foreground: #FFFFFF;
+  --accent:              rgba(185, 121, 31, 0.10); /* gate-wash */
+  --accent-foreground:  #9C6516; /* gate-strong */
+
+  /* ── Secondary surface (one step up from muted, for secondary
+       buttons / chips that shouldn't compete with primary) ───────── */
+  --secondary:           #EFEBE0;
+  --secondary-foreground: #1B1A20;
+
+  /* ── Status ──────────────────────────────────────────────────── */
+  --destructive:         #B8402F;
+  --destructive-foreground: #FFFFFF;
+  --success:             #147A69;
+  --success-foreground: #FFFFFF;
+  --warning:             #9E5E1F; /* not in source file — see header note */
+  --warning-foreground: #FFFFFF;
+  --info:                #3F5F8F; /* not in source file — see header note */
+  --info-foreground:    #FFFFFF;
+
+  /* ── Structure ───────────────────────────────────────────────── */
+  --border:              rgba(21, 20, 27, 0.10);  /* hairline */
+  --input:               rgba(21, 20, 27, 0.18);  /* hairline-strong */
+  --ring:                #B9791F;                  /* = primary, matches :focus-visible in source */
+
+  /* ── Charts — reuse the semantic accents in a fixed order so any
+       chart stays on-brand without inventing new hues (Phase 6 wires
+       an actual chart lib; these are the categorical palette) ─────── */
+  --chart-1:             #B9791F; /* primary */
+  --chart-2:             #147A69; /* success */
+  --chart-3:             #3F5F8F; /* info */
+  --chart-4:             #9E5E1F; /* warning */
+  --chart-5:             #B8402F; /* destructive */
+
+  /* ── Sidebar (mapped 1:1 from design-preview.html's .sidebar /
+       .conv-item.active / .new-chat-btn rules) ─────────────────────── */
+  --sidebar:                    #EFEBE0; /* bg-inset */
+  --sidebar-foreground:        #1B1A20;
+  --sidebar-primary:            #B9791F; /* gate */
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:             rgba(185, 121, 31, 0.10); /* active conv-item bg */
+  --sidebar-accent-foreground: #1B1A20;                    /* active conv-item text */
+  --sidebar-border:             rgba(21, 20, 27, 0.18);    /* hairline-strong */
+  --sidebar-ring:               #B9791F;
+
+  /* ── Elevation (from source file, per-theme — not derived) ──────── */
+  --shadow-1: 0 1px 2px rgba(21, 20, 27, 0.08);
+  --shadow-2: 0 12px 28px -8px rgba(21, 20, 27, 0.16);
+
+  /* ── Radius scale (shadcn convention; base matches the source
+       file's stat-card / general surfaces at 12px) ─────────────────── */
+  --radius:    0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* ── Motion (durations already in use across the source file's
+       transitions: .15s hovers, .2s panels, .25s the sidebar drawer) ── */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 250ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background:         #15141B;
+  --foreground:         #EDEAE2;
+  --card:                #1D1B24;
+  --card-foreground:    #EDEAE2;
+  --popover:             #1D1B24;
+  --popover-foreground: #EDEAE2;
+
+  --muted:               #100F15;
+  --muted-foreground:   #9C97A6;
+  --faint-foreground:   #817C88; /* adjusted for AA — see header note */
+
+  --primary:             #D9A441;
+  --primary-foreground: #100F15; /* mirrors the source file's send-btn: dark icon on gold */
+  --accent:              rgba(217, 164, 65, 0.14); /* gate-wash */
+  --accent-foreground:  #F0B94E; /* gate-strong */
+
+  --secondary:           #100F15;
+  --secondary-foreground: #EDEAE2;
+
+  --destructive:         #E0665A;
+  --destructive-foreground: #100F15; /* white-on-danger only hits 3.38:1 here; dark-ink hits 5.65:1 */
+  --success:             #35B7A0;
+  --success-foreground: #100F15;
+  --warning:             #E0954B; /* not in source file — see header note */
+  --warning-foreground: #100F15;
+  --info:                #6C90C4; /* not in source file — see header note */
+  --info-foreground:    #100F15;
+
+  --border:              rgba(237, 234, 226, 0.10); /* hairline */
+  --input:               rgba(237, 234, 226, 0.18); /* hairline-strong */
+  --ring:                #D9A441;
+
+  --chart-1:             #D9A441;
+  --chart-2:             #35B7A0;
+  --chart-3:             #6C90C4;
+  --chart-4:             #E0954B;
+  --chart-5:             #E0665A;
+
+  --sidebar:                    #100F15;
+  --sidebar-foreground:        #EDEAE2;
+  --sidebar-primary:            #D9A441;
+  --sidebar-primary-foreground: #100F15;
+  --sidebar-accent:             rgba(217, 164, 65, 0.14);
+  --sidebar-accent-foreground: #EDEAE2;
+  --sidebar-border:             rgba(237, 234, 226, 0.18);
+  --sidebar-ring:               #D9A441;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 12px 28px -8px rgba(0, 0, 0, 0.55);
+}
+
+@theme inline {
+  --color-background:              var(--background);
+  --color-foreground:              var(--foreground);
+  --color-card:                    var(--card);
+  --color-card-foreground:        var(--card-foreground);
+  --color-popover:                 var(--popover);
+  --color-popover-foreground:     var(--popover-foreground);
+  --color-primary:                 var(--primary);
+  --color-primary-foreground:     var(--primary-foreground);
+  --color-secondary:               var(--secondary);
+  --color-secondary-foreground:   var(--secondary-foreground);
+  --color-muted:                   var(--muted);
+  --color-muted-foreground:       var(--muted-foreground);
+  --color-faint-foreground:       var(--faint-foreground);
+  --color-accent:                  var(--accent);
+  --color-accent-foreground:      var(--accent-foreground);
+  --color-destructive:             var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success:                 var(--success);
+  --color-success-foreground:     var(--success-foreground);
+  --color-warning:                 var(--warning);
+  --color-warning-foreground:     var(--warning-foreground);
+  --color-info:                    var(--info);
+  --color-info-foreground:        var(--info-foreground);
+  --color-border:                  var(--border);
+  --color-input:                   var(--input);
+  --color-ring:                    var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar:                     var(--sidebar);
+  --color-sidebar-foreground:         var(--sidebar-foreground);
+  --color-sidebar-primary:             var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:              var(--sidebar-accent);
+  --color-sidebar-accent-foreground:  var(--sidebar-accent-foreground);
+  --color-sidebar-border:              var(--sidebar-border);
+  --color-sidebar-ring:                var(--sidebar-ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
