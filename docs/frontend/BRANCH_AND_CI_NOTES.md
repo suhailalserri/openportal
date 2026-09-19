@@ -522,3 +522,139 @@ this metric — traced every optional callback prop (`onCopy`, `onRegenerate`,
 `onDeleteConversation`) across all 4 moved files; this was the only
 direct (unwrapped) pass-through of an optional value into a non-`undefined`-typed
 slot. No other files in this delivery touch JSX prop typing.
+
+---
+
+## Wiring recheck — Phase 1.1 through 2.1 (out-of-band, requested after the
+## "restyle" detour moved work back into 1.1 territory)
+
+Full static cross-check of every seam between 1.1 (tokens), 1.2 (foundation),
+2.1 (shell + guards) and the "restyle" session, since restyle went back into
+1.1's file (`theme.css`) after 2.1 had already shipped and consumed it.
+Checked, all consistent: `@theme inline` token mapping, `fonts.ts` ↔
+`layout.tsx` wiring, `middleware.ts` ↔ `request-path.ts` ↔ `session.ts` ↔
+`guards.ts` ↔ `(app)`/`(admin)` layouts, `config/nav.ts` ↔ actual page files
+(cross-checked against `nav.test.ts`'s own existence assertion), i18n parity
+(244/244, verified by parsing both message files, not just trusting the
+note), Rule 2 compliance (scanned all 45 non-test `.tsx` files for
+physical-direction classes by running the eslint rule's own pattern —
+zero hits), and that both previously-logged CI type-error fixes
+(`nav-link-item.tsx`, `message-actions.tsx`) are actually present in the
+files, not just described.
+
+### Bug found and fixed: `theme-presets.css` drift
+`styles/theme-presets.css` says its values are "kept in sync manually" with
+`theme.css`, but the restyle session's `--accent-strong` addition to
+`theme.css` (:root and .dark) never made it into the `[data-theme-preset="gateway"]`
+blocks. Not a live bug today — a property a more-specific/later rule doesn't
+redeclare still cascades from `:root`/`.dark` on the same element, so
+`switch.tsx`'s checked-track color rendered correctly regardless. It would
+have become a real bug the moment 7.2 added a 2nd/3rd preset (that preset's
+block would have had no `--accent-strong` at all and silently inherited
+gateway's value instead of its own). Fixed: added `--accent-strong` to both
+blocks, values copied verbatim from `theme.css` (`rgba(185, 121, 31, 0.18)`
+light / `rgba(217, 164, 65, 0.22)` dark). Re-diffed every token in both
+files programmatically after the fix — zero missing keys, zero value
+mismatches in either theme, light or dark. Header comment in
+`theme-presets.css` updated with a note explaining the drift for whoever
+adds the 2nd preset in 7.2.
+
+### Not verified (no network/build in this sandbox — standing gap)
+`next build`, `tsc`, real ESLint, vitest, `i18n-parity` script — none run
+for this recheck either. Everything above was verified by direct file
+inspection, and the i18n/Rule-2 checks were run as actual scripts against
+the real files (not spot-checked by eye), but nothing here compiles or
+executes the app. Push and confirm CI green as usual.
+
+---
+
+## Session 2.2 — Shell widgets + states
+
+### What landed
+`BalanceWidget`, `AccountMenu`, `LanguageSwitcher`, `ThemeToggle` (drafted
+elsewhere, checked and wired here) plus `RouteError`/`RouteLoading`/
+`RouteNotFound` and the six thin `error.tsx`/`loading.tsx`/`not-found.tsx`
+wrappers for `(app)` and `(admin)`. `trpc-query-provider.tsx` now sets
+`throwOnError: isUnauthorizedError` (+ a matching `retry` guard so a 401
+isn't retried 3× before it's rethrown) — closes 2.1's known gap (session
+expiring while the tab stays open). `app-shell.tsx`'s header is no longer
+`md:hidden`-only: it's now the permanent header on every breakpoint (the
+desktop sidebar has no footer/account area to put these in), with the
+menu-button + app-name pair staying mobile-only inside it.
+
+### Bugs found in the drafted files, fixed before wiring in
+- `trpc-error_test.ts` was named with an underscore.
+  `vitest.config.ts`'s `include` is `**/*.test.ts` — this test would have
+  silently never run in CI (green build, zero coverage of the auth-error
+  predicate). Renamed to `trpc-error.test.ts`, contents unchanged.
+- `balance-widget.tsx` declared a `compact` prop (doc comment: "drop the
+  unit label and the 'Soon' badge to stay narrow") but never read it in
+  the JSX — the unit label and badge always rendered regardless. Fixed:
+  both are now conditional on `!compact`, and compact mode also tightens
+  padding (`px-2 py-1` vs `px-3 py-1.5`) so it actually reads as a mobile
+  variant. Verified by inspection only (see "Not verified" below) — this
+  should be the first thing eyeballed on a real 360px preview.
+
+### Message keys added (`ar.json`/`en.json`, 244→251 keys each, parity
+verified by script — not just by eye)
+`shell.accountMenu`, `shell.signedInAs`, `shell.language`,
+`errors.notFoundTitle`, `errors.notFoundMessage`, `errors.backToChat`,
+`common.tryAgain`. Inserted after the existing last key in each touched
+object so the diff is a pure addition, nothing reordered.
+
+### Deviations from the plan (flagged in the phase summary, unchanged
+here)
+- Theme preset picker not built — 1.1 shipped exactly one preset; a
+  picker with one option is UI theatre. Becomes real in 7.2.
+  `ThemeToggle` ships light/dark/system only.
+- `BalanceWidget`'s implicit "Add credits" affordance and
+  `AccountMenu`'s "Settings" link both read `config/nav.ts`'s own
+  `enabled` flag (`billing`/`settings`) rather than a second "is this
+  built yet" flag — same pattern `nav-link-item.tsx` already uses.
+- `StatusBanner` not built, per the plan's own text (F11) — restore only
+  when `/api/status` is real.
+
+### Frozen zone
+Nothing in this delivery touches it. Every changed/added file is under
+`apps/web/{app,components,lib,providers,messages}`; `lib/trpc-error.ts`
+is a NEW file in `lib/` (allowed — the frozen list is specific named
+files: `auth`, `auth-client`, `trpc`, `redeem`, `generate-code`,
+`turnstile-server` — `trpc-error.ts` isn't one of them and doesn't touch
+any of them). `app/api/**`, `server/**`, `middleware.ts`, `i18n/request.ts`,
+`next.config.ts` — untouched.
+
+### Not verified (no network/build in this sandbox — standing gap)
+- `next build`, `tsc`, real ESLint, vitest, `i18n-parity` script — none
+  run. The i18n parity check above WAS run for real (a script diffing the
+  actual flattened key sets, not eyeballed), and the Rule 2
+  physical-direction-class grep was run against every touched file
+  (zero hits) — both call out explicitly above since most of this note's
+  other claims are inspection-only.
+- The `compact` fix and the new always-on desktop header — not rendered
+  anywhere. A 360px and a ≥768px preview pass is the real verification;
+  static reading only confirms it's *wired*, not that it *looks* right
+  (e.g. whether `ms-auto` actually pushes the widget cluster to the
+  inline-end on both a `md:hidden`-collapsed mobile header and a full
+  desktop one — plausible from the CSS, unconfirmed visually).
+- `DropdownMenuItem`'s `disabled={!settingsEnabled} asChild={settingsEnabled}`
+  pattern in `account-menu.tsx` (conditional `asChild` based on a runtime
+  flag) — Radix's `Slot` behavior here is assumed correct by reading the
+  primitive's source, not exercised in a real browser.
+- Whether react-query v5's `throwOnError` signature genuinely ignores the
+  second (`query`) argument when handed a plain `(error) => boolean)`
+  predicate like `isUnauthorizedError` — matches the documented type,
+  not run.
+- `getLocale`/`getTranslations` from `next-intl/server` in
+  `route-not-found.tsx` as an async Server Component default-exported
+  straight into `not-found.tsx` — pattern matches existing usage
+  elsewhere in the repo (`chat/page.tsx`, `admin/page.tsx` both import
+  `getTranslations` the same way), not independently compiled.
+
+### Carried forward, still open
+- Full preview pass owed: `/ar/` and `/en/`, both themes, 360px and
+  desktop — mobile drawer + new header coexisting, zero-balance state,
+  low-balance amber state, sign-out → login, forced-401 → session-expired
+  `error.tsx` branch (not the generic one), `/ar/chat/does-not-exist` →
+  in-shell 404.
+- `sheet.tsx`'s hard-coded English `sr-only` close label — 2.1's known
+  gap, still untouched (unrelated to this session).

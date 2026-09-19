@@ -172,7 +172,10 @@
     "forbidden": "You don't have permission for this action.",
     "modelUnavailable": "This model is currently unavailable. Try another.",
     "streamInterrupted": "Connection interrupted. You can retry.",
-    "insufficientBalance": "Insufficient balance. Add credits to continue."
+    "insufficientBalance": "Insufficient balance. Add credits to continue.",
+    "notFoundTitle": "Page not found",
+    "notFoundMessage": "The page you're looking for doesn't exist or has moved.",
+    "backToChat": "Back to chat"
   },
   "models": {
     "contextWindow": "Context Window",
@@ -222,6 +225,7 @@
     "export": "Export",
     "loading": "Loading...",
     "error": "Error",
+    "tryAgain": "Try again",
     "success": "Success",
     "warning": "Warning",
     "info": "Info",
@@ -297,6 +301,9 @@
     "closeMenu": "Close menu",
     "menuTitle": "Menu",
     "comingSoon": "Soon",
+    "accountMenu": "Account menu",
+    "signedInAs": "Signed in as {email}",
+    "language": "Language",
     "placeholder": {
       "chat": "Chat is being rebuilt and will be back soon.",
       "admin": "The admin area is under construction. Sections will appear as they are built."

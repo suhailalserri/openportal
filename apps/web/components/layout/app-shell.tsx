@@ -6,9 +6,13 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 
+import { AccountMenu } from "./account-menu";
 import { AppSidebar } from "./app-sidebar";
+import { BalanceWidget } from "./balance-widget";
+import { LanguageSwitcher } from "./language-switcher";
 import { Main } from "./main";
 import { MobileDrawer } from "./mobile-drawer";
+import { ThemeToggle } from "./theme-toggle";
 import { useIsMobile } from "./use-is-mobile";
 
 interface AppShellProps {
@@ -50,18 +54,38 @@ export function AppShell({ role, children }: AppShellProps) {
       <AppSidebar role={role} className="hidden md:flex" />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Plain button (not a Radix trigger), so CSS-hiding it on md+ is fine. */}
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 md:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("openMenu")}
-            aria-expanded={drawerOpen}
-            onClick={() => setDrawerOpen(true)}
-          >
-            <Menu aria-hidden="true" />
-          </Button>
-          <span className="text-base font-semibold">{tApp("name")}</span>
+        {/*
+          Always rendered (not md:hidden like before Phase 2.2): the
+          desktop sidebar has no footer/account area, so this is also
+          the desktop top bar for BalanceWidget/LanguageSwitcher/
+          ThemeToggle/AccountMenu. Only the leading menu-button + app-name
+          pair is mobile-only (the sidebar already shows the app name on
+          desktop). The menu button is a plain button (not a Radix
+          trigger), so CSS-hiding it on md+ is fine under Rule 3 — only
+          MobileDrawer itself (Radix Sheet) has to be conditionally
+          rendered, not this trigger.
+        */}
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
+          <div className="flex items-center gap-2 md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("openMenu")}
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
+            >
+              <Menu aria-hidden="true" />
+            </Button>
+            <span className="text-base font-semibold">{tApp("name")}</span>
+          </div>
+
+          {/* compact on mobile: drop the unit label / "Soon" badge to stay narrow. */}
+          <div className="ms-auto flex items-center gap-1">
+            <BalanceWidget compact={isMobile} />
+            <LanguageSwitcher />
+            <ThemeToggle />
+            <AccountMenu />
+          </div>
         </header>
 
         <Main>{children}</Main>
