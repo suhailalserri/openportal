@@ -42,7 +42,11 @@ function useFormField() {
   const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
   const { getFieldState } = useFormContext();
-  const formState = useFormState({ name: fieldContext?.name });
+  // With exactOptionalPropertyTypes: true, `{ name: possiblyUndefined }`
+  // is rejected — an optional prop must be OMITTED, not explicitly set to
+  // undefined. So the whole options object is conditional instead.
+  const fieldName = fieldContext?.name;
+  const formState = useFormState(fieldName === undefined ? undefined : { name: fieldName });
 
   if (!fieldContext) throw new Error("useFormField must be used within <FormField>");
   if (!itemContext) throw new Error("useFormField must be used within <FormItem>");
