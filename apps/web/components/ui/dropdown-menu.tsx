@@ -75,13 +75,16 @@ function DropdownMenuItem({
 function DropdownMenuCheckboxItem({
   className,
   children,
-  checked,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  // `checked` is intentionally left in `...props` rather than destructured
+  // and re-passed explicitly — with exactOptionalPropertyTypes: true,
+  // `checked={checked}` where checked is `CheckedState | undefined` sets
+  // the prop to undefined (disallowed), whereas leaving it in the spread
+  // omits it entirely when the caller didn't pass it (allowed).
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
-      checked={checked}
       className={cn(
         "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 ps-8 pe-2 text-sm outline-none select-none",
         "focus:bg-accent focus:text-accent-foreground",
