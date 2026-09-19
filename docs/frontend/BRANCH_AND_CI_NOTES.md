@@ -658,3 +658,29 @@ any of them). `app/api/**`, `server/**`, `middleware.ts`, `i18n/request.ts`,
   in-shell 404.
 - `sheet.tsx`'s hard-coded English `sr-only` close label — 2.1's known
   gap, still untouched (unrelated to this session).
+
+### Web Build — first CI run result and fix (2.2 continuation)
+Red on first push (`web-build`, real `next build`, not a sandbox-only
+prediction this time). Both `(app)/error.tsx` and `(admin)/error.tsx`
+failed: `must be a Client Component. Add the "use client" directive the
+top of the file to resolve this issue.` Root cause: Next's app-router
+compiler checks for the `"use client"` directive in the boundary file
+itself — `error.tsx` is special-cased to require it locally, regardless
+of whether the component it re-exports (`RouteError`, in
+`components/layout/route-error.tsx`) already has the directive one file
+up the import graph. `export default RouteError;` from a plain server
+module doesn't inherit it. `loading.tsx`/`not-found.tsx` didn't hit this
+— those wrap server components (`RouteLoading`, `RouteNotFound`), which
+`error.tsx` alone requires client-side.
+
+Fix: added `"use client";` as the first line of both `error.tsx` files
+(3 lines including the blank line before the doc comment). No change to
+`route-error.tsx` itself (already had the directive) or to either
+`loading.tsx`/`not-found.tsx` pair. This was flagged as an explicit "not
+verified" item in the previous note ("Whether react-query v5's
+`throwOnError`... not run" section didn't call this specific case out,
+but the broader "no `next build` run here" caveat did) — first real
+build catches exactly the class of error that sandbox inspection can't:
+this is a file-identity rule (Next reads THIS file's top, not the
+transitive graph), not something a static read of the import would
+surface without knowing that rule already.
