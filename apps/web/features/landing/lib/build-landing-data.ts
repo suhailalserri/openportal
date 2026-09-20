@@ -1,0 +1,215 @@
+import { tagsForModel } from "../config/model-tags";
+import type {
+  CalculatorModelView,
+  CalculatorView,
+  LandingData,
+  LandingModelRow,
+  LandingPackageView,
+  LandingPaymentMethodView,
+  TierFilterValue,
+} from "../types";
+import {
+  CALCULATOR_BUDGET_YER,
+  EXAMPLE_CHAT_TURNS,
+  MESSAGE_SIZES,
+  bestValuePackageIndex,
+  computeSizeResult,
+  conservativeYerPerCredit,
+  isFreeModel,
+  type MessageSizeId,
+  type SizeResult,
+} from "./pricing";
+import { formatInteger, formatYerPrecise, type LocaleTag } from "./format-price";
+import { safeLogoUrl } from "./safe-url";
+
+/**
+ * apps/web/features/landing/lib/build-landing-data.ts
+ *
+ * Turns the raw rows of the three public procedures (models.list,
+ * billing.listPackages, billing.listPaymentMethods) into the finished,
+ * serialisable view-models the landing page renders. PURE: no DB, no
+ * React, no `@/` imports, so build-landing-data.test.ts can run it in
+ * plain node against fixtures. The only impure step — calling the tRPC
+ * server caller — lives in landing-data.ts.
+ *
+ * Structural input types (not imported from the API) on purpose: the
+ * wrapper passes the real router output straight in, so a renamed or
+ * retyped field in a router fails `tsc` at that one call site.
+ */
+
+export interface RawModel {
+  id: string;
+  displayName: string;
+  displayNameAr: string;
+  badge: string;
+  provider: string;
+  tier: string;
+  contextWindow: number;
+  supportsVision: boolean;
+  avgResponseTimeMs: number | null;
+  creditsPerKInput: number;
+  creditsPerKOutput: number;
+}
+
+export interface RawPackage {
+  id: string;
+  name: string;
+  nameAr: string;
+  description: string | null;
+  descriptionAr: string | null;
+  priceYer: number;
+  /** Micro-credits. */
+  credits: number;
+}
+
+export interface RawPaymentMethod {
+  id: string;
+  name: string;
+  nameAr: string;
+  logoUrl: string | null;
+  // The raw row also carries accountCode/instructions — the builder never
+  // reads them, so they cannot reach the browser through this path.
+}
+
+export interface BuildDeps {
+  locale: LocaleTag;
+  microPerCredit: number;
+  /** lib/format.ts formatYer — whole rials (package prices). */
+  formatYer: (amount: number, locale: LocaleTag) => string;
+  /** lib/format.ts formatCredits — micro-credits -> display credits. */
+  formatCredits: (micro: number, locale: LocaleTag) => string;
+  /** The placeholder-or-real total users figure (null hides the stat). */
+  totalUsers: number | null;
+}
+
+function tierOf(m: RawModel, free: boolean): TierFilterValue {
+  if (free) return "free";
+  return m.tier === "premium" ? "premium" : "standard";
+}
+
+function toResultView(r: SizeResult, locale: LocaleTag) {
+  return {
+    messages: r.messages,
+    yerPerMessage: formatYerPrecise(r.yerPerMessage, locale),
+    chatYer: formatYerPrecise(r.chatYer, locale),
+    remainingYer: formatYerPrecise(r.remainingYer, locale),
+    remainingPercent: Math.round(r.remainingPercent * 10) / 10,
+  };
+}
+
+function buildCalculator(
+  models: readonly RawModel[],
+  yerPerCredit: number,
+  locale: LocaleTag,
+  nameOf: (m: RawModel) => string,
+): CalculatorView | null {
+  if (models.length === 0) return null;
+
+  const views: CalculatorModelView[] = [];
+  // Unrounded medium-message price per model, used only to pick a default.
+  const mediumPrice = new Map<string, number>();
+  const medium = MESSAGE_SIZES.find((s) => s.id === "medium") ?? MESSAGE_SIZES[0];
+
+  for (const m of models) {
+    const results = {} as CalculatorModelView["results"];
+    for (const size of MESSAGE_SIZES) {
+      const r = computeSizeResult(m, size, yerPerCredit);
+      results[size.id as MessageSizeId] = toResultView(r, locale);
+      if (size === medium) mediumPrice.set(m.id, r.yerPerMessage);
+    }
+    views.push({ id: m.id, name: nameOf(m), isFree: isFreeModel(m), results });
+  }
+
+  // Default = the MEDIAN-priced paid model (upper median). Defaulting to
+  // the cheapest would headline an over-rosy "12,000 messages".
+  const paid = models
+    .filter((m) => !isFreeModel(m))
+    .sort((a, b) => (mediumPrice.get(a.id) ?? 0) - (mediumPrice.get(b.id) ?? 0));
+  const fallback = models[0];
+  const pick = paid.length > 0 ? paid[Math.min(paid.length - 1, Math.floor(paid.length / 2))] : fallback;
+  if (!pick) return null;
+
+  return {
+    budgetLabel: formatInteger(CALCULATOR_BUDGET_YER, locale),
+    chatTurns: EXAMPLE_CHAT_TURNS,
+    sizes: MESSAGE_SIZES.map((s) => ({
+      id: s.id,
+      inputTokens: s.inputTokens,
+      outputTokens: s.outputTokens,
+    })),
+    models: views,
+    defaultModelId: pick.id,
+  };
+}
+
+export function buildLandingData(
+  rawModels: readonly RawModel[],
+  rawPackages: readonly RawPackage[],
+  rawMethods: readonly RawPaymentMethod[],
+  deps: BuildDeps,
+): LandingData {
+  const { locale, microPerCredit } = deps;
+  const nameOf = (m: RawModel) => (locale === "ar" ? m.displayNameAr : m.displayName);
+
+  const yerPerCredit = conservativeYerPerCredit(rawPackages, microPerCredit);
+  const priceUnit = yerPerCredit === null ? "credits" : "yer";
+
+  const price = (creditsPerK: number): string =>
+    yerPerCredit === null
+      ? formatInteger(creditsPerK, locale)
+      : formatYerPrecise(creditsPerK * yerPerCredit, locale);
+
+  const models: LandingModelRow[] = rawModels
+    .map((m) => {
+      const free = isFreeModel(m);
+      return {
+        id: m.id,
+        name: nameOf(m),
+        badge: m.badge ? m.badge : null,
+        provider: m.provider,
+        tier: tierOf(m, free),
+        contextWindow: m.contextWindow,
+        responseMs: m.avgResponseTimeMs,
+        tags: tagsForModel(m),
+        priceIn: free ? "0" : price(m.creditsPerKInput),
+        priceOut: free ? "0" : price(m.creditsPerKOutput),
+        priceUnit,
+      } satisfies LandingModelRow;
+    })
+    // models.list has no ORDER BY, so without this the table order would
+    // be whatever Postgres returns — and could reshuffle between visits.
+    .sort((a, b) => a.name.localeCompare(b.name, locale) || a.id.localeCompare(b.id));
+
+  const calculator =
+    yerPerCredit === null ? null : buildCalculator(rawModels, yerPerCredit, locale, nameOf);
+  // buildCalculator sorts a filtered copy only; keep the table order above
+  // independent of it.
+
+  const bestIdx = bestValuePackageIndex(rawPackages, microPerCredit);
+  const packages: LandingPackageView[] = rawPackages.map((p, i) => {
+    const description = locale === "ar" ? p.descriptionAr : p.description;
+    return {
+      id: p.id,
+      name: locale === "ar" ? p.nameAr : p.name,
+      description: description ? description : null,
+      priceYer: deps.formatYer(p.priceYer, locale),
+      credits: deps.formatCredits(p.credits, locale),
+      bestValue: i === bestIdx,
+    };
+  });
+
+  const paymentMethods: LandingPaymentMethodView[] = rawMethods.map((m) => ({
+    id: m.id,
+    name: locale === "ar" ? m.nameAr : m.name,
+    logoUrl: safeLogoUrl(m.logoUrl),
+  }));
+
+  return {
+    modelCount: rawModels.length,
+    models,
+    calculator,
+    packages,
+    paymentMethods,
+    totalUsers: deps.totalUsers,
+  };
+}

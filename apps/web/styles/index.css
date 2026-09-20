@@ -115,3 +115,69 @@ p {
     outline-offset: 2px;
   }
 }
+
+/*
+ * Phase 3.3 (docs/FRONTEND_REBUILD_PLAN.md) — landing page animation.
+ * Additions only; nothing above this block was changed.
+ *
+ * `shimmer-sweep` backs components/ui/shimmer-button.tsx. Written as a
+ * plain CSS @keyframes (not a framer-motion animate prop) because it
+ * needs to run continuously and independently of React re-renders —
+ * framer-motion is reserved in this phase for one-shot, state-driven
+ * motion (Reveal's whileInView), not infinite ambient loops.
+ *
+ * Direction is LTR-authored (`background-position: 250% 0` at the end)
+ * on purpose: `[dir="rtl"]` below flips it via `direction: rtl` on the
+ * element itself rather than a second keyframe, so the sweep always
+ * travels start-to-end in the reading direction instead of visually
+ * reversing regardless of locale.
+ */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -150% 0;
+  }
+  50%,
+  100% {
+    background-position: 250% 0;
+  }
+}
+
+[dir="rtl"] [data-shimmer-sweep] {
+  direction: rtl;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-shimmer-sweep] {
+    animation: none !important;
+  }
+}
+
+/*
+ * `animate-marquee` backs components/payment-marquee.tsx. Track content
+ * is duplicated once by the component so a 0% -> -50% translate loops
+ * seamlessly. RTL note: this uses `translateX`, which is a physical (not
+ * logical) transform — deliberately NOT flipped for [dir="rtl"], so the
+ * strip keeps scrolling the same screen-direction regardless of locale
+ * (a marquee reversing direction between locales reads as a bug, not
+ * localization, since it isn't reading text).
+ */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}

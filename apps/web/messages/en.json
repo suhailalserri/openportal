@@ -352,7 +352,109 @@
     "yer": "YER",
     "credits": "credits",
     "legalNav": "Legal links",
-    "footerCopyright": "© {year} OpenPortal. All rights reserved."
+    "footerCopyright": "© {year} OpenPortal. All rights reserved.",
+    "intro": {
+      "heading": "One platform, every model",
+      "body": "Instead of juggling several subscriptions, chat with the best AI models from a single account, and only pay for what you actually use — no monthly commitment, no technical setup."
+    },
+    "stats": {
+      "modelsAvailable": "models available",
+      "totalUsers": "active users",
+      "totalUsersApprox": "approximate figure"
+    },
+    "table": {
+      "searchPlaceholder": "Search for a model...",
+      "tierFilterLabel": "Tier",
+      "tierAll": "All tiers",
+      "tier": {
+        "free": "Free",
+        "standard": "Standard",
+        "premium": "Premium"
+      },
+      "colModel": "Model",
+      "colBestFor": "Best for",
+      "colTier": "Tier",
+      "colContext": "Context",
+      "colPrice": "Price per 1,000 tokens",
+      "colSpeed": "Response time",
+      "contextUnit": {
+        "K": "{value}K",
+        "M": "{value}M"
+      },
+      "priceYerPerK": "{in} / {out} YER",
+      "priceCreditsPerK": "{in} / {out} credits",
+      "speedSeconds": "{seconds}s",
+      "speedUnknown": "Unknown",
+      "noResults": "No models match your search",
+      "whatIsGoodFor": "What is each model good at? See the tags below, or explore the full LiveBench leaderboard beneath the table.",
+      "introLine": "Full independent comparison:"
+    },
+    "calculator": {
+      "heading": "How far does {budget} YER go?",
+      "subheading": "Pick a model and a message size to see a realistic estimate — you only pay for what the model reads and writes.",
+      "modelLabel": "Model",
+      "sizeLabel": "Message size",
+      "size": {
+        "short": "Short",
+        "medium": "Medium",
+        "long": "Long"
+      },
+      "free": "free",
+      "modelIsFree": "This model is completely free — no credits are deducted.",
+      "aboutNMessages": "About {count} messages",
+      "unlimited": "Unlimited",
+      "perMessageRate": "roughly {price} YER per message",
+      "chatCost": "A {turns}-turn chat ≈ {price} YER",
+      "remaining": "Left of your balance: {price} YER",
+      "remainingBalanceLabel": "Remaining balance percentage",
+      "reassuringLine": "One chat never takes your whole balance.",
+      "plainCostLine": "Note: a long chat with this model can use a large share of this amount — pick a smaller message size or a cheaper model to stretch your balance further.",
+      "estimateDisclaimer": "Figures above are estimates (based on assumed message sizes) and are always computed by our server, never by your browser."
+    },
+    "livebench": {
+      "title": "Live LiveBench leaderboard",
+      "description": "An independent AI model performance comparison, updated live via LiveBench.",
+      "showButton": "Show live leaderboard",
+      "openLink": "Open on livebench.ai",
+      "loading": "Loading..."
+    },
+    "payments": {
+      "heading": "Available payment methods"
+    },
+    "comparison": {
+      "heading": "Why this platform?",
+      "feature": "Feature",
+      "us": "Us",
+      "subscriptions": "Multiple subscriptions",
+      "singleProvider": "A single provider's app",
+      "rows": {
+        "payPerUse": "Pay only for what you use",
+        "multipleModels": "Access to multiple models",
+        "noSubscription": "No monthly subscription",
+        "arabicUi": "Full Arabic UI",
+        "oneAccount": "One account for everything"
+      }
+    },
+    "demo": {
+      "title": "Example conversation",
+      "simulatedBadge": "Simulated example",
+      "inputTokens": "{count} input tokens",
+      "outputTokens": "{count} output tokens",
+      "totalCost": "Cost: {price} YER"
+    },
+    "packages": {
+      "bestValue": "Best value"
+    },
+    "tags": {
+      "general": "General",
+      "coding": "Coding",
+      "reasoning": "Reasoning",
+      "writing": "Writing",
+      "math": "Math",
+      "vision": "Vision",
+      "fast": "Fast",
+      "longContext": "Long context"
+    }
   },
   "consent": {
     "bannerLabel": "Cookie notice",

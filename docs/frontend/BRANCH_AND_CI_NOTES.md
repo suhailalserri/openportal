@@ -1221,3 +1221,137 @@ with `/en/legal/terms` etc. listed); that nothing else in the tree reads
 request headers; Vercel behaviour itself. Standing gap: e2e runs on
 `next start`, so it cannot reproduce Vercel-only rendering failures;
 verification for those is the preview URL.
+
+### Phase 3.3 — Landing page polish (constellation, calculator, table, demo)
+
+**Scope.** Landing page rebuild per this phase's plan: constellation dot
+background in the hero, shimmer sign-up CTA, scroll-reveal on every
+section, animated stat counters (real model count + placeholder total
+users), a searchable/filterable models table (replaces card grid),
+LiveBench click-to-load embed, a "how far does 1,000 YER go" calculator,
+a payment-methods marquee, a comparison table, and a simulated demo
+section.
+
+**Files added** (all under `apps/web/`):
+- `components/ui/reveal.tsx`, `components/ui/animated-number.tsx`,
+  `components/ui/shimmer-button.tsx`
+- `features/landing/types.ts`
+- `features/landing/lib/{pricing,format-price,safe-url,constellation,
+  count-up,demo-content,build-landing-data,landing-data,
+  get-demo-content}.ts` (+ matching `.test.ts` for the pure modules)
+- `features/landing/config/{model-tags,placeholders}.ts` (+ tests)
+- `features/landing/components/{constellation-background,models-table,
+  models-section,stats-strip,pay-per-use-calculator,calculator-section,
+  livebench-embed,livebench-section,payment-marquee,comparison-table,
+  comparison-section,demo-section,demo-section-wrapper,
+  packages-section,landing-intro}.tsx`
+- `content/demo/simulated-chat.json` — **invented numbers**,
+  `simulated: true`. To go real: run one actual chat, copy its real
+  prompt/reply and the real input/output tokens + cost from the billing
+  usage log, then flip the flag. Until then the demo section always
+  shows a "Simulated example" badge (`demo-content.ts`'s own doc is the
+  source of truth for the exact contract).
+
+**Files deleted:** `features/landing/components/model-grid.tsx` and
+`package-grid.tsx` (3.2 card grids, superseded by `models-table.tsx` +
+`models-section.tsx` and `packages-section.tsx`). Confirmed no remaining
+imports of either before deleting.
+
+**`index.tsx` rewritten** as the composition root: one `getLandingData()`
+call per page load (was two independent tRPC calls in 3.2, one per
+grid), sections receive plain props, no section fetches its own data.
+
+**Messages:** 87 new `landing.*` keys added to both `ar.json` and
+`en.json`, verified at parity (script-checked key-set equality, not by
+eye). Pre-existing keys `modelsHeading` / `packagesHeading` /
+`noPackagesAvailable` were deliberately left byte-identical so
+`e2e/landing.spec.ts`'s existing string assertions keep passing
+unmodified.
+
+**Framer Motion decision.** A prior round of this phase had dropped
+framer-motion (declared but unused, v11 predated React 19). This round
+reverses that: `framer-motion@^11.11.0` (already in package.json) does
+support React 19, and `Reveal`/`ShimmerButton` both use it now
+(`useReducedMotion`, `whileInView`). `AnimatedNumber` and the
+constellation canvas stay hand-rolled (rAF + IntersectionObserver, no
+motion library) since neither needed anything framer-motion offers over
+plain JS. Not re-verified against a real `npm install` — declared
+compatibility, not measured here.
+
+**"Magic UI".** Not an installed dependency in this repo (no
+`magicui`/`magic-ui` reference anywhere, no `components.json`/shadcn
+registry config to add it through). Magic UI ships as copy-in source
+(React+Tailwind+Framer Motion), so "using" it here meant hand-porting
+the same techniques — `shimmer-button.tsx` mirrors their shimmer-button
+pattern, `reveal.tsx` mirrors their `blur-fade` — restyled against this
+repo's own theme tokens (`--primary`/`--foreground`, not Magic UI's
+default indigo/violet) rather than installed as-is.
+
+### Frozen-zone change: `middleware.ts` bare-`/` redirect (explicit sign-off)
+
+**Contradiction found before building further** (per this phase's own
+rule: stop and report before proceeding if the plan contradicts the
+code). An earlier round of this phase had asserted, and gotten sign-off
+on, "`middleware.ts` (frozen, approved): `/` redirects to `/{locale}`
+(landing)." This was **wrong** — the actual frozen file and its
+already-passing test both redirected bare `/` to `/{locale}/chat`, not
+`/{locale}`. Flagged before touching either file.
+
+**Resolution (explicit sign-off received this session):** bare `/` now
+redirects to `/{locale}` — the landing page — instead of
+`/{locale}/chat`. This is the intended behavior: the landing page is
+meant to be the first-touch surface for a logged-out visitor, and all of
+this phase's work (hero, table, calculator, etc.) would otherwise be
+unreachable dead code sitting behind a route nothing ever links to.
+
+**Diff, scoped to exactly one line + comment:**
+`middleware.ts`: `pathname === "/" ? \`/${locale}/chat\` : ...` →
+`pathname === "/" ? \`/${locale}\` : ...`. Every other line (locale
+detection, `x-next-intl-locale` / `x-pathname` header forwarding, the
+route matcher) is byte-identical to before.
+
+`middleware.test.ts`: only the two bare-`/` assertions changed
+(expected redirect target `/ar` and `/en` instead of `/ar/chat` and
+`/en/chat`). The other five tests in the file (locale-prefixed path
+header forwarding, the `//evil.com` client-header-spoofing guard, the
+`/api` skip) are untouched and still exercise unrelated, still-correct
+behavior.
+
+`e2e/landing.spec.ts` was NOT broken by this change — it already
+navigated straight to `page.goto("/en")`, never to `/`, so the routing
+change doesn't affect it. Its own doc comment was updated to note (a)
+the ModelGrid/PackageGrid → ModelsSection/PackagesSection rename, (b)
+that the routing change doesn't touch this spec, and (c) a new
+ambiguity: the models table can now also render the string "YER" per
+row (`table.priceYerPerK`), so the existing `text=YER` locator used to
+detect "some package exists" is looser than it used to be — still
+correct for what it currently asserts, flagged for whoever revisits it
+next.
+
+### Not done / not verified this round
+
+- **No `tsc`, vitest, `next build`, or Playwright run at all.** Nothing
+  in this phase's file set (new or edited) has been compiled or
+  executed. In particular: `index.tsx`'s prop shapes against the real
+  `LandingData`/`getLandingData` return type, whether `useTranslations`
+  keys with nested template interpolation (`{value}`, `{count}`,
+  `{price}` etc.) resolve correctly against next-intl's ICU parsing, and
+  whether `framer-motion`'s `motion[as]` dynamic-tag pattern in
+  `reveal.tsx` type-checks under this repo's strict flags.
+- **No tests written** for any component added this round (only the
+  pure `lib/`/`config/` modules that shipped with their own `.test.ts`
+  files already have coverage).
+- **LiveBench iframe embedding is unverified** — whether livebench.ai
+  sends `X-Frame-Options`/`frame-ancestors` that would blank the iframe
+  is not checkable without a real browser hitting the real site; the
+  "Open on livebench.ai" link is always visible specifically because of
+  this.
+- **Old `models.*` namespace keys** (`noneAvailable`, `contextWindow`,
+  `priceInput`, `priceOutput`, `premium`, `standard`, `perThousand`) used
+  only by the now-deleted `model-grid.tsx` were left in place, not
+  pruned — worth checking whether anything else still reads them before
+  removing as dead keys.
+- **CSP / `frame-src`**: confirmed no Content-Security-Policy exists
+  anywhere in this repo (checked `next.config.*` and `middleware.ts`),
+  so there is currently nothing to add a `livebench.ai` allowance to. If
+  a CSP is introduced later, this needs revisiting.

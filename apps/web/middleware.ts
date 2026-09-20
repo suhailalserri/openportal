@@ -32,7 +32,14 @@ export function middleware(request: NextRequest) {
 
   if (!hasLocale) {
     const locale  = getLocaleFromRequest(request);
-    const newPath = pathname === "/" ? `/${locale}/chat` : `/${locale}${pathname}`;
+    // Phase 3.3 (explicit sign-off to unfreeze this one line): bare "/"
+    // now lands on the localized landing page, not /chat directly. The
+    // landing page is the intended first-touch surface (marketing, model
+    // catalog, pricing) for a logged-out visitor; an authenticated user
+    // who wants /chat still reaches it via the header's "Get started" /
+    // normal in-app navigation once signed in. Every other path
+    // (already-locale-prefixed, /api, /_next, etc.) is unaffected.
+    const newPath = pathname === "/" ? `/${locale}` : `/${locale}${pathname}`;
     return NextResponse.redirect(new URL(newPath, request.url));
   }
 

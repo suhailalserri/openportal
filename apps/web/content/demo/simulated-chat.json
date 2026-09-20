@@ -1,0 +1,19 @@
+{
+  "_comment": "apps/web/content/demo/simulated-chat.json — Phase 3.3. Parsed by features/landing/lib/demo-content.ts (see parseDemoContent for the exact validated shape). ALL NUMBERS BELOW ARE INVENTED for display purposes only — no real chat was run and no real usage-log cost was recorded. `simulated: true` makes the landing page render a visible 'Simulated example' badge over this section. TO GO REAL: run one actual chat on the platform, copy its exact prompt/reply text and the real inputTokens/outputTokens/costYer from the billing usage log (transactions table — see Phase 9.1/9.2 in the master plan), paste them into `en` and `ar` below, and flip `simulated` to false. Until that happens this file must never be presented to a visitor as a real example.",
+  "enabled": true,
+  "simulated": true,
+  "en": {
+    "prompt": "Can you summarize the key differences between REST and GraphQL APIs in a few bullet points?",
+    "reply": "Sure — a few of the main differences:\n\n- **Data fetching**: REST exposes fixed endpoints per resource; GraphQL lets the client ask for exactly the fields it needs in one request.\n- **Over/under-fetching**: REST often returns more or less data than you need; GraphQL avoids this by design.\n- **Versioning**: REST APIs are commonly versioned (v1, v2...); GraphQL schemas typically evolve in place by adding fields.\n- **Tooling**: GraphQL ships with a strongly-typed schema and introspection out of the box, which REST doesn't standardize.\n\nBoth are widely used in production — the right choice depends on how your clients need to query data.",
+    "inputTokens": 24,
+    "outputTokens": 118,
+    "costYer": 0.86
+  },
+  "ar": {
+    "prompt": "هل يمكنك تلخيص الفروقات الأساسية بين REST وGraphQL في نقاط سريعة؟",
+    "reply": "بالتأكيد — من أبرز الفروقات:\n\n- **جلب البيانات**: تعتمد REST على نقاط وصول ثابتة لكل مورد، بينما تتيح GraphQL للعميل طلب الحقول التي يحتاجها فقط في طلب واحد.\n- **زيادة أو نقص البيانات**: كثيراً ما تُرجع REST بيانات أكثر أو أقل من الحاجة، بينما تتجنب GraphQL ذلك بتصميمها.\n- **إصدارات النسخ**: تُصدر واجهات REST عادة بنسخ (v1، v2...)، بينما يتطور مخطط GraphQL في مكانه بإضافة حقول جديدة.\n- **الأدوات**: توفر GraphQL مخططاً قوي النوع مع إمكانية الاستكشاف الذاتي مباشرة، وهو ما لا توحّده REST.\n\nكلاهما مستخدم بكثرة في الإنتاج — والاختيار الأنسب يعتمد على طريقة استعلام عملائك عن البيانات.",
+    "inputTokens": 22,
+    "outputTokens": 142,
+    "costYer": 0.97
+  }
+}

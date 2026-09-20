@@ -352,7 +352,109 @@
     "yer": "ريال يمني",
     "credits": "رصيد",
     "legalNav": "روابط قانونية",
-    "footerCopyright": "© {year} البوابة المفتوحة. جميع الحقوق محفوظة."
+    "footerCopyright": "© {year} البوابة المفتوحة. جميع الحقوق محفوظة.",
+    "intro": {
+      "heading": "منصة واحدة، كل النماذج",
+      "body": "بدل الاشتراك في عدة خدمات، تحدث مع أفضل نماذج الذكاء الاصطناعي من حساب واحد، وادفع فقط مقابل ما تستخدمه — بلا اشتراكات شهرية وبلا تعقيد تقني."
+    },
+    "stats": {
+      "modelsAvailable": "نموذج متاح",
+      "totalUsers": "مستخدم نشط",
+      "totalUsersApprox": "رقم تقريبي"
+    },
+    "table": {
+      "searchPlaceholder": "ابحث عن نموذج...",
+      "tierFilterLabel": "الفئة",
+      "tierAll": "كل الفئات",
+      "tier": {
+        "free": "مجاني",
+        "standard": "قياسي",
+        "premium": "مميز"
+      },
+      "colModel": "النموذج",
+      "colBestFor": "الأفضل لـ",
+      "colTier": "الفئة",
+      "colContext": "حجم السياق",
+      "colPrice": "السعر لكل 1000 رمز",
+      "colSpeed": "سرعة الاستجابة",
+      "contextUnit": {
+        "K": "{value} ألف",
+        "M": "{value} مليون"
+      },
+      "priceYerPerK": "{in} / {out} ريال",
+      "priceCreditsPerK": "{in} / {out} رصيد",
+      "speedSeconds": "{seconds} ثانية",
+      "speedUnknown": "غير معروف",
+      "noResults": "لا توجد نماذج مطابقة",
+      "whatIsGoodFor": "ما الذي يجيده كل نموذج؟ راجع التصنيفات أدناه، أو استكشف لوحة LiveBench الكاملة تحت الجدول.",
+      "introLine": "المصدر الكامل للمقارنات:"
+    },
+    "calculator": {
+      "heading": "كم رسالة تكفيها {budget} ريال؟",
+      "subheading": "اختر نموذجاً وحجم رسالة لترى تقديراً واقعياً — أنت تدفع فقط مقابل ما يقرأه النموذج ويكتبه.",
+      "modelLabel": "النموذج",
+      "sizeLabel": "حجم الرسالة",
+      "size": {
+        "short": "قصيرة",
+        "medium": "متوسطة",
+        "long": "طويلة"
+      },
+      "free": "مجاني",
+      "modelIsFree": "هذا النموذج مجاني بالكامل — لا يُخصم أي رصيد.",
+      "aboutNMessages": "حوالي {count} رسالة",
+      "unlimited": "غير محدود",
+      "perMessageRate": "بسعر تقريبي {price} ريال لكل رسالة",
+      "chatCost": "محادثة من {turns} ردود ≈ {price} ريال",
+      "remaining": "المتبقي من رصيدك: {price} ريال",
+      "remainingBalanceLabel": "نسبة الرصيد المتبقي",
+      "reassuringLine": "محادثة واحدة لا تستهلك رصيدك بالكامل أبداً.",
+      "plainCostLine": "لاحظ أن محادثة طويلة مع هذا النموذج قد تستهلك جزءاً كبيراً من هذا المبلغ — اختر حجم رسالة أصغر أو نموذجاً أوفر إذا أردت إطالة رصيدك.",
+      "estimateDisclaimer": "الأرقام أعلاه تقديرية (مبنية على أحجام رسائل افتراضية)، وتُحسب دائماً من خادمنا وليس من متصفحك."
+    },
+    "livebench": {
+      "title": "لوحة LiveBench المباشرة",
+      "description": "مقارنة مستقلة لأداء نماذج الذكاء الاصطناعي، محدثة عبر LiveBench مباشرة.",
+      "showButton": "عرض اللوحة المباشرة",
+      "openLink": "فتح على livebench.ai",
+      "loading": "جارٍ التحميل..."
+    },
+    "payments": {
+      "heading": "وسائل الدفع المتاحة"
+    },
+    "comparison": {
+      "heading": "لماذا هذه المنصة؟",
+      "feature": "الميزة",
+      "us": "منصتنا",
+      "subscriptions": "اشتراكات متعددة",
+      "singleProvider": "تطبيق مزود واحد",
+      "rows": {
+        "payPerUse": "ادفع مقابل الاستخدام فقط",
+        "multipleModels": "الوصول لعدة نماذج",
+        "noSubscription": "بلا اشتراك شهري",
+        "arabicUi": "واجهة عربية كاملة",
+        "oneAccount": "حساب واحد لكل شيء"
+      }
+    },
+    "demo": {
+      "title": "مثال محادثة",
+      "simulatedBadge": "مثال توضيحي (غير حقيقي)",
+      "inputTokens": "{count} رمز إدخال",
+      "outputTokens": "{count} رمز إخراج",
+      "totalCost": "التكلفة: {price} ريال"
+    },
+    "packages": {
+      "bestValue": "الأفضل قيمة"
+    },
+    "tags": {
+      "general": "عام",
+      "coding": "برمجة",
+      "reasoning": "استدلال",
+      "writing": "كتابة",
+      "math": "رياضيات",
+      "vision": "رؤية",
+      "fast": "سريع",
+      "longContext": "سياق طويل"
+    }
   },
   "consent": {
     "bannerLabel": "إشعار ملفات تعريف الارتباط",

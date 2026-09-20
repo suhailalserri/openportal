@@ -19,20 +19,49 @@ import { test, expect } from "@playwright/test";
  * a guessed model name. modelsRouter.list only returns
  * status="published" AND isAvailable=true rows, so this model appearing
  * on the page proves the full path (seed → DB → tRPC caller →
- * ModelGrid) works, not just that some hardcoded fallback rendered.
+ * ModelsSection/ModelsTable) works, not just that some hardcoded
+ * fallback rendered.
+ *
+ * PHASE 3.3 UPDATE: ModelGrid/PackageGrid (card grids) were replaced by
+ * ModelsSection (a searchable/filterable table, models-table.tsx) and
+ * PackagesSection respectively — components/model-grid.tsx and
+ * package-grid.tsx are deleted. The `landing.modelsHeading` /
+ * `landing.packagesHeading` / `landing.noPackagesAvailable` message
+ * strings this spec asserts against are UNCHANGED text (kept identical
+ * on purpose for this reason), so the assertions below still hold
+ * without edits to the strings themselves.
+ *
+ * ROUTING: bare "/" now redirects to "/{locale}" (the landing page)
+ * instead of "/{locale}/chat" (middleware.ts, this same phase) — this
+ * spec already navigated straight to "/en", not "/", so it is
+ * unaffected either way; noted here so the two aren't assumed connected
+ * if this file is revisited later.
  *
  * PACKAGES: deliberately NOT asserted as populated. There is no seed
  * script for the `packages` table anywhere in this repo (checked:
  * grepped packages/db/src for `creditPackages` — the only writes are
  * from admin.router.ts's runtime CRUD procedures, nothing at seed time).
  * A fresh CI database therefore has zero rows there, and
- * PackageGrid correctly renders its "no packages available" empty state
- * — this is the CORRECT behavior for that data state, not a bug to work
- * around. Asserting real package cards here would be testing against
- * data that doesn't exist in this environment and would be exactly the
- * kind of unverified assumption to avoid; this test instead asserts the
- * heading renders and the page does not error, which is true in both
- * the populated and empty states.
+ * PackagesSection correctly renders its "no packages available" empty
+ * state — this is the CORRECT behavior for that data state, not a bug
+ * to work around. Asserting real package cards here would be testing
+ * against data that doesn't exist in this environment and would be
+ * exactly the kind of unverified assumption to avoid; this test instead
+ * asserts the heading renders and the page does not error, which is
+ * true in both the populated and empty states.
+ *
+ * "text=YER" AMBIGUITY (Phase 3.3, unverified without a real run): the
+ * models table can ALSO render "YER" per row now (table.priceYerPerK,
+ * when a usable package exists to derive a rate) — previously only
+ * PackageGrid's cards could contain that string. `hasPackageCards`
+ * below therefore no longer proves a package card specifically exists;
+ * it only proves "YER" appears somewhere on the page, which is true
+ * whenever ANY package is seeded (via the calculator/price-per-model
+ * columns) even before PackagesSection's own cards are checked. This
+ * still correctly distinguishes "some package exists" from "none do"
+ * for the purposes of this assertion, so left as-is rather than
+ * over-fitted to a scenario (packages seeded but a broken PackagesSection)
+ * this repo has no seed data to actually exercise.
  */
 test.describe("landing page", () => {
   test("renders live model data from the database", async ({ page }) => {

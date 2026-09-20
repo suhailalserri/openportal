@@ -33,16 +33,16 @@ describe("middleware — Phase 2.1 x-pathname forwarding", () => {
     expect(res.headers.get(REQUEST_PATH_HEADER)).toBe("/en/chat");
   });
 
-  it("bare / still redirects to /{locale}/chat (unchanged) and forwards nothing", () => {
+  it("bare / redirects to /{locale} — the landing page (Phase 3.3: was /{locale}/chat) and forwards nothing", () => {
     const res = middleware(req("/"));
     expect(res.status).toBe(307);
-    expect(new URL(res.headers.get("location") ?? "").pathname).toBe("/ar/chat");
+    expect(new URL(res.headers.get("location") ?? "").pathname).toBe("/ar");
     expect(res.headers.get(REQUEST_PATH_HEADER)).toBeNull();
   });
 
-  it("honours Accept-Language for the bare-/ redirect (unchanged)", () => {
+  it("honours Accept-Language for the bare-/ redirect (Phase 3.3: was /{locale}/chat)", () => {
     const res = middleware(req("/", { "accept-language": "en-US,en;q=0.9" }));
-    expect(new URL(res.headers.get("location") ?? "").pathname).toBe("/en/chat");
+    expect(new URL(res.headers.get("location") ?? "").pathname).toBe("/en");
   });
 
   it("does not touch /api paths", () => {
