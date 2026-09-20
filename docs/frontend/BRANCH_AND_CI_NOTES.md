@@ -1355,3 +1355,137 @@ next.
   anywhere in this repo (checked `next.config.*` and `middleware.ts`),
   so there is currently nothing to add a `livebench.ai` allowance to. If
   a CSP is introduced later, this needs revisiting.
+
+---
+
+## B1 — Chat contract (backend track, §7) — lands on `main`, not `frontend-v2`
+
+Per plan rule L3, this is a backend PR to `main` (additive only), separate
+from the `frontend-v2` UI work everything else in this file tracks. Noted
+here anyway since §7 says every B session updates this file.
+
+### What shipped
+- `apps/api/src/schemas/chat.schema.ts` (new) — Zod validation for
+  `POST /chat`'s body, replacing the bare `as` cast (F2). Every field
+  beyond the original `{model, messages, conversationId}` trio
+  (`temperature`, `top_p`, `max_tokens`, `systemPrompt`,
+  `clientMessageId`, `regenerate`) is optional.
+- `apps/api/src/services/chat-idempotency.service.ts` (new) — Redis
+  `SET NX EX` claim for `(conversationId, clientMessageId)`, 24h TTL,
+  fails open on Redis error (same posture as `fraud.service.ts`'s
+  `fraudRedis`).
+- `apps/api/src/services/gateway.service.ts` (edited) — `streamChat` now:
+  forwards `temperature`/`top_p` as-is and `max_tokens` clamped to the
+  resolved model's own `maxOutputTokens`; prepends `systemPrompt` as a
+  leading system message to the gateway request and persists it on the
+  conversation's *initial* insert only (`onConflictDoNothing` means a
+  later `PATCH` is still the source of truth for changing it after
+  creation); skips the user-row insert unconditionally when
+  `regenerate` is true, or claims `clientMessageId` via
+  `chat-idempotency.service` first when present (F4); binds the upstream
+  `fetch` to an `abortSignal` combined with the existing 120s timeout via
+  a hand-rolled `combineAbortSignals` (F5).
+- `apps/api/src/index.ts` (edited) — parses the body with
+  `chatRequestSchema` (400 + Arabic message + English `details` on
+  failure), creates an `AbortController` bound to `reply.raw`'s `"close"`
+  event and passes its signal into `streamChat`, forwards all new
+  optional fields through.
+- `apps/api/src/test/fakeRedis.ts` (edited, additive) — added
+  `set(key, value, "EX", seconds, "NX")` with real NX semantics (TTL
+  accepted, not enforced — same posture as the existing `expire` no-op).
+  Throws on any other flag combination instead of silently misbehaving.
+- `apps/web/app/api/conversations/[id]/route.ts` (edited, sanctioned
+  frozen-zone touch per plan §4: backend changes to `app/api/**` happen
+  only in §7 sessions) — `PATCH` now accepts an optional `systemPrompt`
+  string; empty string clears it, `undefined` (field omitted) leaves it
+  untouched, matching the existing `title`/`isPinned` pattern.
+- Tests: `chat.schema.test.ts` (new — schema shape, edge cases, and a
+  100-random-malformed-body loop that only asserts non-throwing, since
+  Zod's `safeParse` never throws by design — the actual "don't hit the
+  DB on garbage" property lives in `redeemCode`'s checksum pre-check, not
+  here), `chat-idempotency.service.test.ts` (new — claim/duplicate/
+  cross-conversation/fail-open), and 9 new cases appended to
+  `gateway.service.test.ts` (param forwarding + clamping, systemPrompt
+  forwarding + persistence, regenerate skip, idempotent claim + duplicate
+  skip, client-disconnect abort with no reply sent, timeout still 504s
+  when only the safety timer fires).
+
+### Deviations from the plan text (flagged, not asked)
+- **No DB migration.** Idempotency uses Redis, not a `clientMessageId`
+  column — sidesteps a real migration-numbering collision with B2 (§7),
+  which explicitly claims migration `0009`; if B1 also needed one it
+  would have to take `0009` first (B1 lands before B2), silently
+  breaking B2's plan text. Matches this repo's existing style (fraud/
+  rate-limit state is Redis-based, not DB-based).
+- **Tracker-order note carried over from the Phase Summary:** the
+  tracker (§5) lists B1 immediately after `3.2`; §6's own B1 header says
+  "Do 4a and 4b first; B1 must land before 4c." These disagree with each
+  other on sequencing. Checked: `3.2`/`4a`/`4b` are not a *functional*
+  prerequisite for B1 (B1 touches only `apps/api` +
+  `apps/web/app/api/conversations/[id]`, nothing landing/legal/
+  message-rendering related), and no frontend code in this repo calls
+  `POST /api/chat` yet (Phase 4 chat UI hasn't been built), so "must not
+  break the legacy UI" is satisfied trivially for this endpoint. B1
+  proceeded on that reading.
+
+### Verification
+- `pnpm --filter @ai-platform/api test` — full suite must stay green
+  (regression + the new files above). This is the existing `api-tests`
+  CI job; no new job needed, B1 added test files, not a new test target.
+- Manual, once deployed to Render:
+  - `curl -X POST $API/chat -H "Authorization: ..." -d '{"model":123}'`
+    → expect `400 VALIDATION_ERROR`.
+  - Same conversation, two calls with an identical `clientMessageId` →
+    expect exactly one `messages` row with `role='user'` for that turn.
+  - Start a chat, abort the client request mid-stream (e.g. `curl
+    --max-time 1`) → expect the request logged as interrupted rather than
+    running to completion server-side (cannot confirm from this repo
+    alone whether the *New API* Go binary itself stops billing/
+    generating — see below).
+- `web-build` (existing job): unaffected — `gateway.service.ts` isn't
+  reachable from `appRouter`'s import graph, and the one `apps/web`
+  file touched (`conversations/[id]/route.ts`) only gained an additional
+  optional field on an existing, already-typed request body.
+
+### What breaks in production if this is wrong
+- If `claimUserMessage` didn't fail open, a Redis outage would silently
+  drop real user turns (no user-row insert, no error surfaced) — covered
+  by `chat-idempotency.service.test.ts`'s fail-open case.
+- If `combineAbortSignals` didn't actually propagate, Stop/tab-close
+  would keep paying the upstream provider for the full generation
+  (pre-B1 bug, F5) — covered by the new "stops silently on client
+  disconnect" test in `gateway.service.test.ts`.
+- If `max_tokens` clamping were skipped, a malicious/buggy client could
+  request more output than a model allows, wasting spend before the
+  provider itself rejects it — covered by the "clamped to the model's
+  ceiling" test.
+- If any new field were accidentally required instead of optional, every
+  existing raw-API-key caller (F17) would start getting 400s on a
+  previously-working integration — covered by
+  `chat.schema.test.ts`'s "accepts every new field omitted" case.
+
+### Gate check
+- Phase 0.1 (legal docs): done (see this file's earlier D1/0.2 entries).
+- No other `main`-track prerequisite phase exists for B1 to depend on —
+  it's the first backend-track (§7) session.
+
+### Not verifiable without running code
+- Whether aborting our fetch to the New API gateway makes **New API
+  itself** stop billing/generating upstream, vs. just closing our leg of
+  the HTTP connection — that logic is inside the Go binary, outside this
+  repo, and nothing here can confirm it either way. The abort DOES stop
+  us from continuing to read/relay/bill for tokens on our side either
+  way, which is the part actually in scope for F5.
+- Whether this CI runner's Node version supports `AbortSignal.any()`
+  (Node 20.3+) — sidestepped by hand-rolling `combineAbortSignals`
+  instead of depending on it, so this no longer blocks anything, but the
+  repo's actual Node version in CI was never confirmed.
+- Actual `tsc`/`eslint`/`vitest`/`next build` execution for any file in
+  this session — reasoned through against the existing code and test
+  patterns in this repo, not run (no network, Postgres, or Redis in this
+  sandbox).
+
+### Not done this round
+- B2 (user usage + `idx_transactions_type_date` migration), B3 (admin
+  logs/audit), B4 (Turnstile on manual payments + real `/api/status`) —
+  all still open, per §7.

@@ -5,6 +5,7 @@ import { db, messages, conversations, models } from "@ai-platform/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import { recordUpstreamCall, recordCreditsSpent, streamingConnectionsActive } from "../metrics";
+import { claimUserMessage, chatIdempotencyRedis, type IdempotencyRedis } from "./chat-idempotency.service";
 
 /**
  * Cost is computed from the `models` table now, not the static
@@ -33,6 +34,28 @@ const ERROR_MESSAGES: Record<number, string> = {
   504: "انتهت مهلة الطلب. حاول مجدداً.",
 };
 
+/**
+ * Combines any number of AbortSignals into one that aborts as soon as ANY
+ * input signal aborts. `AbortSignal.any()` (Node 20.3+) would do this
+ * directly, but this repo's engines field / CI runner version isn't
+ * confirmed here (unverifiable without running code — see phase summary),
+ * so this uses the manual listener form, which works on any Node 18+.
+ * Whichever signal fires first "wins" — its `reason` becomes the combined
+ * signal's abort reason, which is how the F5 fetch's catch block below
+ * tells a real client disconnect apart from the 120s safety timeout.
+ */
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
 export interface StreamChatOptions {
   userId:         string;
   model:          string;
@@ -42,6 +65,24 @@ export interface StreamChatOptions {
     raw:    { setHeader: Function; write: Function; end: Function };
     status: (code: number) => { send: (body: unknown) => void };
   };
+  /** F3 — optional generation params, forwarded to the gateway as-is
+   *  (temperature/top_p) or clamped against the resolved model (max_tokens). */
+  temperature?: number;
+  top_p?:       number;
+  max_tokens?:  number;
+  /** F3 — prepended as a system message to the gateway request AND persisted
+   *  onto the conversation row (also settable via PATCH /api/conversations/[id]). */
+  systemPrompt?: string;
+  /** F4 — idempotency. See chat-idempotency.service.ts. */
+  clientMessageId?: string;
+  regenerate?:      boolean;
+  /** F5 — aborts the upstream fetch when the client disconnects. Combined
+   *  with the existing 120s safety timeout below; either firing cancels the
+   *  request. Optional so existing callers/tests that don't wire this up
+   *  keep working unchanged (falls back to timeout-only behavior). */
+  abortSignal?: AbortSignal;
+  /** Test seam only — real callers get the shared Redis singleton. */
+  idempotencyRedis?: IdempotencyRedis;
 }
 
 export async function streamChat(opts: StreamChatOptions): Promise<void> {
@@ -66,30 +107,54 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   // stale/forged/missing conversationId to blow up message inserts with
   // a foreign-key violation (see: every "hi" from a fresh chat used to
   // fail here because no row existed for the id it generated).
+  //
+  // F3: systemPrompt is only set here on the INITIAL insert (a brand new
+  // conversation). onConflictDoNothing() means this never overwrites a
+  // systemPrompt a later PATCH /api/conversations/[id] call set on an
+  // existing conversation — that route is the source of truth for changing
+  // it after creation, this is only the "first write wins" path.
   await db.insert(conversations)
     .values({
       id:      opts.conversationId,
       userId,
       title:   opts.messages.at(-1)?.content?.slice(0, 80) ?? null,
       modelId,
+      systemPrompt: opts.systemPrompt ?? null,
     })
     .onConflictDoNothing();
 
   // Persist the user's turn. Only the assistant reply was ever saved
   // before (fire-and-forget, after the stream), so conversation history
   // was silently empty on reload even when the FK error didn't fire.
+  //
+  // F4 (idempotency): a `regenerate` call means the user's turn was already
+  // persisted by the original request — never insert a second copy. A
+  // `clientMessageId` claims the (conversationId, clientMessageId) pair via
+  // Redis SET NX; the insert only runs the first time that pair is seen, so
+  // a client retry (network blip, double-submit) can't create a duplicate
+  // row. No clientMessageId at all preserves the exact pre-B1 behavior
+  // (always insert) — that's the only path a raw API-key caller (F17) is on
+  // until it starts sending the new field.
   const lastUserMessage = opts.messages.at(-1);
-  if (lastUserMessage?.role === "user") {
-    db.insert(messages).values({
-      conversationId: opts.conversationId,
-      role:           "user",
-      content:        lastUserMessage.content,
-      modelId,
-    }).catch(console.error);
+  if (lastUserMessage?.role === "user" && !opts.regenerate) {
+    const shouldInsert = opts.clientMessageId
+      ? await claimUserMessage(opts.idempotencyRedis ?? chatIdempotencyRedis, opts.conversationId, opts.clientMessageId)
+      : true;
+    if (shouldInsert) {
+      db.insert(messages).values({
+        conversationId: opts.conversationId,
+        role:           "user",
+        content:        lastUserMessage.content,
+        modelId,
+      }).catch(console.error);
+    }
   }
 
-  // Estimate token count to pre-validate
-  const allText     = opts.messages.map((m) => m.content).join(" ");
+  // Estimate token count to pre-validate. Includes the system prompt, since
+  // it's real content sent to (and billed by) the provider on every turn.
+  const allText     = [opts.systemPrompt, ...opts.messages.map((m) => m.content)]
+    .filter((t): t is string => Boolean(t))
+    .join(" ");
   const estTokens   = estimateTokenCount(allText);
   const maxContext  = model.contextWindow * 0.95;
 
@@ -105,6 +170,32 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   let upstream: Response;
   const upstreamStartedAt = Date.now();
 
+  // F3: system prompt is sent to the provider as a leading system message,
+  // never merged into/mutating opts.messages (which is also what got
+  // persisted above and what the token estimate already accounted for).
+  const gatewayMessages = opts.systemPrompt
+    ? [{ role: "system", content: opts.systemPrompt }, ...opts.messages]
+    : opts.messages;
+
+  // Clamp to the resolved model's own ceiling — the schema layer (F2) only
+  // bounds this to a generic absolute max, since it doesn't know the model
+  // yet. Silently clamping (rather than 400ing) matches how a client would
+  // reasonably expect "give me at most N tokens" to degrade against a
+  // smaller model, instead of failing the whole request over it.
+  const maxTokens = opts.max_tokens !== undefined
+    ? Math.min(opts.max_tokens, model.maxOutputTokens)
+    : undefined;
+
+  // F5: the client-disconnect signal (bound to `reply.raw`'s "close" event
+  // by index.ts) and the 2-minute safety timeout both cancel this fetch —
+  // whichever fires first. Previously ONLY the timeout could cancel it, so
+  // hitting Stop / closing the tab left the upstream provider generating
+  // (and us paying for) the full response for up to 2 more minutes.
+  const timeoutSignal = AbortSignal.timeout(120_000);
+  const combinedSignal = opts.abortSignal
+    ? combineAbortSignals([timeoutSignal, opts.abortSignal])
+    : timeoutSignal;
+
   try {
     upstream = await fetch(`${config.GATEWAY_URL}/v1/chat/completions`, {
       method:  "POST",
@@ -116,14 +207,24 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
       },
       body: JSON.stringify({
         model:          modelId,
-        messages:       opts.messages,
+        messages:       gatewayMessages,
         stream:         true,
         stream_options: { include_usage: true },
+        ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+        ...(opts.top_p       !== undefined ? { top_p: opts.top_p }             : {}),
+        ...(maxTokens        !== undefined ? { max_tokens: maxTokens }         : {}),
       }),
-      signal: AbortSignal.timeout(120_000), // 2 minute max
+      signal: combinedSignal,
     });
   } catch (err: unknown) {
     recordUpstreamCall(model.provider, modelId, (Date.now() - upstreamStartedAt) / 1000, false);
+    // A client-disconnect abort is neither a timeout nor a gateway error —
+    // there's no reply to send (the connection is already gone), so just
+    // stop here without writing to `reply`. `err.name === "AbortError"` is
+    // what a DOMException-shaped abort reports; `TimeoutError` is what
+    // AbortSignal.timeout()'s own reason reports specifically.
+    const isClientDisconnect = opts.abortSignal?.aborted && !timeoutSignal.aborted;
+    if (isClientDisconnect) return;
     const isTimeout = err instanceof Error && err.name === "TimeoutError";
     reply.status(isTimeout ? 504 : 502).send({
       error:   isTimeout ? "TIMEOUT" : "GATEWAY_ERROR",

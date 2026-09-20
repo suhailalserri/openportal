@@ -21,30 +21,59 @@ vi.mock("../config", () => ({
 // (see the comment on the block below) — that includes MODEL_FIXTURES and
 // modelIdRef, not just deductCreditsAtomicMock/chainableNoop, since the
 // "@ai-platform/db" mock further down reads both.
-const { deductCreditsAtomicMock, chainableNoop, MODEL_FIXTURES, modelIdRef } = vi.hoisted(() => {
+const { deductCreditsAtomicMock, claimUserMessageMock, dbInsertMock, insertValuesCalls, chainableNoop, MODEL_FIXTURES, modelIdRef } = vi.hoisted(() => {
+  // A stand-in for Drizzle's fluent query builder. Some call sites just
+  // chain and `.catch()` (fire-and-forget message saves / timestamp
+  // updates), but streamChat also does
+  //   await db.insert(conversations).values(...).onConflictDoNothing()
+  // — and `await` treats any object with a callable `.then` as a thenable.
+  // A Proxy that returns itself for EVERY property (including "then") is
+  // therefore a thenable whose then() never calls resolve, so that await
+  // hangs forever (every test past the model lookup timed out at 60s).
+  // Answering `undefined` for "then" makes the awaited value resolve to
+  // the proxy itself, while all other chaining still returns the proxy.
+  const makeChainableNoop = (): any => {
+    const proxy: any = new Proxy(() => proxy, {
+      get: (_target, prop) => (prop === "then" ? undefined : proxy),
+      apply: () => proxy,
+    });
+    return proxy;
+  };
+
+  // B1: db.insert is now a purpose-built spy (not the generic chainableNoop
+  // proxy) so idempotency/regenerate/systemPrompt tests can assert both
+  // WHICH TABLE and WITH WHAT VALUES an insert was attempted. Every real
+  // call site in gateway.service.ts does exactly
+  // `db.insert(table).values(v).onConflictDoNothing()` (conversations) or
+  // `db.insert(table).values(v).catch(fn)` (messages) — never .set()/
+  // .where() on an insert chain (those only appear on db.update, which
+  // stays on the generic chainableNoop below) — so this narrower shape is
+  // sufficient and lets .values()'s argument be captured directly instead
+  // of reverse-engineered out of a Proxy.
+  const insertValuesCalls: Array<{ table: string | undefined; values: unknown }> = [];
+  const dbInsertMock = vi.fn((table: { __table?: string } | undefined) => ({
+    values: (v: unknown) => {
+      insertValuesCalls.push({ table: table?.__table, values: v });
+      return {
+        onConflictDoNothing: () => Promise.resolve(),
+        catch: (_fn: unknown) => Promise.resolve(),
+      };
+    },
+  }));
+
   return {
     // vi.fn() created INSIDE vi.hoisted so it's a real, call-trackable spy
     // that's still safely initialized before the vi.mock factory runs.
     // (Referencing `vi` itself here is safe — Vitest hoists the `import
     // { vi } from "vitest"` above vi.mock/vi.hoisted specifically so this works.)
     deductCreditsAtomicMock: vi.fn().mockResolvedValue({ success: true, newBalance: 999 }),
-    // A stand-in for Drizzle's fluent query builder. Some call sites just
-    // chain and `.catch()` (fire-and-forget message saves / timestamp
-    // updates), but streamChat also does
-    //   await db.insert(conversations).values(...).onConflictDoNothing()
-    // — and `await` treats any object with a callable `.then` as a thenable.
-    // A Proxy that returns itself for EVERY property (including "then") is
-    // therefore a thenable whose then() never calls resolve, so that await
-    // hangs forever (every test past the model lookup timed out at 60s).
-    // Answering `undefined` for "then" makes the awaited value resolve to
-    // the proxy itself, while all other chaining still returns the proxy.
-    chainableNoop: (): any => {
-      const proxy: any = new Proxy(() => proxy, {
-        get: (_target, prop) => (prop === "then" ? undefined : proxy),
-        apply: () => proxy,
-      });
-      return proxy;
-    },
+    // B1/F4: defaults to "first time seeing this pair" for every test that
+    // doesn't care about idempotency. Individual tests override this with
+    // .mockResolvedValueOnce(...) / .mockResolvedValue(false) as needed.
+    claimUserMessageMock: vi.fn().mockResolvedValue(true),
+    dbInsertMock,
+    insertValuesCalls,
+    chainableNoop: makeChainableNoop,
     // Fixture rows for the one model these tests actually route through.
     // gateway.service.ts's calcCreditCost() reads wholesaleCostInputPerM /
     // wholesaleCostOutputPerM / markupMultiplier as strings (numeric columns
@@ -84,22 +113,38 @@ vi.mock("./balance.service", () => ({
   deductCreditsAtomic: (...args: unknown[]) => deductCreditsAtomicMock(...args),
 }));
 
+// B1/F4: claimUserMessage is mocked separately from the Redis it normally
+// talks to (chat-idempotency.service.test.ts covers the real Redis-facing
+// logic and fail-open behavior in isolation). Here we only care whether
+// streamChat calls it with the right args and honors its return value.
+vi.mock("./chat-idempotency.service", () => ({
+  claimUserMessage: (...args: unknown[]) => claimUserMessageMock(...args),
+  chatIdempotencyRedis: {}, // never touched: streamChat always receives opts.idempotencyRedis in tests, or skips the claim call entirely when clientMessageId is absent
+}));
+
 vi.mock("@ai-platform/db", () => ({
   db: {
     // Only db.query.models.findFirst is used by streamChat's pre-flight
     // model lookup (see gateway.service.ts) — everything else (message/
     // conversation inserts, timestamp updates) is fire-and-forget writes
-    // this file doesn't assert on, so they fall through to chainableNoop.
+    // this file mostly doesn't assert on, so they fall through to
+    // chainableNoop via dbInsertMock — except call COUNT/table, which the
+    // B1 idempotency/regenerate tests do assert on.
     query: {
       models: {
         findFirst: vi.fn(async () => MODEL_FIXTURES[modelIdRef.current]),
       },
     },
-    insert: chainableNoop(),
+    insert: dbInsertMock,
     update: chainableNoop(),
   },
-  messages: {},
-  conversations: {},
+  // Distinguishable markers so dbInsertMock.mock.calls[i][0] tells a test
+  // which table a given insert() call targeted — real Drizzle table objects
+  // are far richer than this, but streamChat only ever uses these as opaque
+  // "which table" tokens (passed straight into db.insert(...)), never
+  // introspected.
+  messages: { __table: "messages" },
+  conversations: { __table: "conversations" },
   // Only ever used as `eq(models.id, x)` / `eq(models.status, x)` etc. —
   // findFirst above never evaluates the resulting SQL fragment, so these
   // just need to be stable, distinguishable values, not real columns.
@@ -157,6 +202,10 @@ const baseOpts = {
 
 beforeEach(() => {
   deductCreditsAtomicMock.mockClear();
+  claimUserMessageMock.mockClear();
+  claimUserMessageMock.mockResolvedValue(true);
+  dbInsertMock.mockClear();
+  insertValuesCalls.length = 0;
 });
 
 afterEach(() => {
@@ -270,5 +319,163 @@ describe("streamChat", () => {
     expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
     expect(sends).toEqual([{ code: 429, body: expect.objectContaining({ status: 429 }) }]);
     expect(reply.raw.end).not.toHaveBeenCalled();
+  });
+});
+
+// ── B1: generation params (F3), idempotency (F4), client disconnect (F5) ──
+describe("streamChat — B1 additions", () => {
+  it("forwards temperature, top_p, and max_tokens (clamped to the model's ceiling) to the gateway body", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    // deepseek-r2's maxOutputTokens fixture is 8192 — request more than
+    // that and confirm it gets clamped down, not passed through raw or
+    // rejected outright.
+    await callStreamChat({ ...baseOpts, temperature: 0.4, top_p: 0.8, max_tokens: 50_000, reply });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sentBody = JSON.parse((init as RequestInit).body as string);
+    expect(sentBody.temperature).toBe(0.4);
+    expect(sentBody.top_p).toBe(0.8);
+    expect(sentBody.max_tokens).toBe(8192); // clamped, not 50_000
+  });
+
+  it("omits temperature/top_p/max_tokens from the gateway body entirely when not provided (no false 0s/nulls)", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sentBody = JSON.parse((init as RequestInit).body as string);
+    expect(sentBody).not.toHaveProperty("temperature");
+    expect(sentBody).not.toHaveProperty("top_p");
+    expect(sentBody).not.toHaveProperty("max_tokens");
+  });
+
+  it("prepends systemPrompt as a leading system message to the gateway request", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, systemPrompt: "Be concise.", reply });
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sentBody = JSON.parse((init as RequestInit).body as string);
+    expect(sentBody.messages[0]).toEqual({ role: "system", content: "Be concise." });
+    expect(sentBody.messages.slice(1)).toEqual(baseOpts.messages);
+  });
+
+  it("persists systemPrompt onto the conversation row on the initial insert", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, systemPrompt: "Be concise.", reply });
+
+    const conversationInsert = insertValuesCalls.find((c) => c.table === "conversations");
+    expect(conversationInsert).toBeDefined();
+    expect((conversationInsert!.values as { systemPrompt?: string }).systemPrompt).toBe("Be concise.");
+  });
+
+  it("skips the user-message insert entirely when regenerate is true, and never calls claimUserMessage", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    }));
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, regenerate: true, clientMessageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6", reply });
+
+    expect(claimUserMessageMock).not.toHaveBeenCalled();
+    const userMessageInserts = dbInsertMock.mock.calls.filter(
+      (call) => (call[0] as { __table?: string })?.__table === "messages",
+    );
+    expect(userMessageInserts).toHaveLength(0);
+  });
+
+  it("claims clientMessageId before inserting the user row, and skips the insert when the claim reports a duplicate", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    }));
+    claimUserMessageMock.mockResolvedValueOnce(false); // simulate: already claimed (a retry)
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, clientMessageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6", reply });
+
+    expect(claimUserMessageMock).toHaveBeenCalledWith(
+      expect.anything(), baseOpts.conversationId, "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    );
+    const userMessageInserts = dbInsertMock.mock.calls.filter(
+      (call) => (call[0] as { __table?: string })?.__table === "messages",
+    );
+    expect(userMessageInserts).toHaveLength(0);
+  });
+
+  it("inserts the user row once when clientMessageId claims successfully (first time seeing it)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    }));
+    claimUserMessageMock.mockResolvedValueOnce(true);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, clientMessageId: "3fa85f64-5717-4562-b3fc-2c963f66afa6", reply });
+
+    const userMessageInserts = dbInsertMock.mock.calls.filter(
+      (call) => (call[0] as { __table?: string })?.__table === "messages",
+    );
+    expect(userMessageInserts).toHaveLength(1);
+  });
+
+  it("stops silently on client disconnect (aborted signal) without sending any reply", async () => {
+    // Real `fetch` rejects with a DOMException named "AbortError" when its
+    // signal is already aborted at call time — this mock reproduces that
+    // exact shape rather than a generic rejection, since streamChat's catch
+    // block distinguishes "client disconnect" from "gateway/timeout error"
+    // purely from signal state, not from the error itself.
+    const fetchSpy = vi.fn((_url: string, init: RequestInit) => {
+      if ((init.signal as AbortSignal)?.aborted) {
+        return Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+      }
+      return Promise.resolve({ ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const preAborted = new AbortController();
+    preAborted.abort(new DOMException("client disconnected", "AbortError"));
+
+    const { reply, sends } = makeReply();
+    await callStreamChat({ ...baseOpts, abortSignal: preAborted.signal, reply });
+
+    // No error response is sent — the client is already gone, there's
+    // nothing to send it to — and billing never fires (F5's whole point:
+    // a disconnect before/without streamed content must not be paid for).
+    expect(sends).toEqual([]);
+    expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
+    expect(reply.raw.end).not.toHaveBeenCalled();
+  });
+
+  it("still times out normally (504) when only the safety timeout fires, not the client's own signal", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(
+      Object.assign(new Error("The operation timed out."), { name: "TimeoutError" }),
+    ));
+
+    // A live, never-aborted client signal — proves the 504 path still works
+    // when abortSignal is wired up but isn't the one that fired.
+    const liveSignal = new AbortController().signal;
+    const { reply, sends } = makeReply();
+    await callStreamChat({ ...baseOpts, abortSignal: liveSignal, reply });
+
+    expect(sends).toEqual([{ code: 504, body: expect.objectContaining({ error: "TIMEOUT" }) }]);
   });
 });
