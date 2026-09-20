@@ -86,11 +86,23 @@ function RegisterForm() {
     // better-auth's real client types in this environment (no
     // node_modules/network) — flagged in BRANCH_AND_CI_NOTES.md; if
     // wrong, this is the one call site to fix.
+    //
+    // `values.email.split("@")[0]` types as `string | undefined`, not
+    // `string`, under this tsconfig's `noUncheckedIndexedAccess` (array
+    // index access is never assumed in-bounds) — confirmed by the
+    // second real build. `?? values.email` is the actual fallback that
+    // guarantees a plain `string`; `values.email.split("@")[0]` can only
+    // be undefined if `values.email` were empty, which zod's `.email()`
+    // already rules out, so this never falls through to the full email
+    // in practice — it exists to satisfy the type, not because the split
+    // is expected to fail.
+    const emailLocalPart = values.email.split("@")[0] ?? values.email;
+
     const { error } = await signUp.email(
       {
         email: values.email,
         password: values.password,
-        name: values.displayName || values.email.split("@")[0],
+        name: values.displayName || emailLocalPart,
       },
       {
         headers: {

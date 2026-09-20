@@ -868,3 +868,38 @@ NOT show up as a build error here — either that shape is actually
 correct, or it simply hasn't been exercised yet (only type-checked,
 never run against a live Turnstile submission). Still flagged as
 unverified until a real registration attempt goes through Turnstile.
+
+### Second real build result and fix (3.1 continuation, round 2)
+Red again after the first fix — different root cause this time, in a
+file the first round didn't touch. `register/page.tsx:93`:
+`values.displayName || values.email.split("@")[0]` — `Type 'string |
+undefined' is not assignable to type 'string'`. This tsconfig also has
+`noUncheckedIndexedAccess` on (confirmed by this error, not previously
+known): array/string index access is typed `T | undefined` regardless
+of how confident the code is that the index is in bounds, so
+`.split("@")[0]` is `string | undefined`, not `string` — the `||`
+fallback only handled `values.displayName` being undefined, not the
+split result also being (type-wise) possibly undefined.
+
+Fix: extracted `emailLocalPart = values.email.split("@")[0] ?? values.email`
+as its own step, so there's an explicit fallback guaranteeing a plain
+`string` before it ever reaches `signUp.email`'s `name` field. Runtime
+behavior is unchanged — zod's `.email()` already guarantees
+`values.email` is non-empty, so the `?? values.email` branch is there
+for the type checker, not because the split is expected to fail.
+
+Proactively grepped the rest of this delivery for the same pattern
+(`[0]`, `[1]`, `.split(`, and dynamic bracket-key access generally)
+before resubmitting — one other hit, in `guards.test.ts`'s
+`it.each([[...]])` table, which isn't index access into a typed array
+of my own (vitest consumes it via its own typed callback params), so it
+doesn't trip the same rule. Nothing else in this delivery indexes into
+an array or split result.
+
+Both `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` being
+on were not known going in — flagging for whoever next writes
+TypeScript against this repo: assume both strict flags are live rather
+than rediscovering them build-by-build. If a third strict flag surfaces
+the same way, it's likely `noImplicitOverride` or similar; worth asking
+to see the actual `tsconfig.json` directly next time rather than
+inferring it error-by-error.
