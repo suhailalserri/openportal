@@ -128,9 +128,13 @@ export function ConstellationBackground() {
 
       // Link lines first (under the dots).
       for (let i = 0; i < dots.length; i++) {
+        const a = dots[i];
+        if (!a) continue;
         for (let j = i + 1; j < dots.length; j++) {
-          const dx = dots[i].x - dots[j].x;
-          const dy = dots[i].y - dots[j].y;
+          const b = dots[j];
+          if (!b) continue;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
           const dist = Math.hypot(dx, dy);
           const alpha = linkAlpha(dist, linkDist);
           if (alpha <= 0) continue;
@@ -138,8 +142,8 @@ export function ConstellationBackground() {
           ctx.strokeStyle = border;
           ctx.globalAlpha = alpha;
           ctx.lineWidth = 1;
-          ctx.moveTo(dots[i].x, dots[i].y);
-          ctx.lineTo(dots[j].x, dots[j].y);
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
           ctx.stroke();
         }
       }
@@ -212,6 +216,7 @@ export function ConstellationBackground() {
 
     const io = new IntersectionObserver(
       ([entry]) => {
+        if (!entry) return;
         inView = entry.isIntersecting;
         if (inView && document.visibilityState === "visible") start();
         else stop();
