@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 
-import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { CtaButton } from "@/components/ui/cta-button";
 
 /**
  * apps/web/features/landing/components/livebench-embed.tsx
@@ -56,9 +56,9 @@ export function LiveBenchEmbed() {
       </div>
 
       {!shown ? (
-        <ShimmerButton type="button" size="default" onClick={() => setShown(true)}>
+        <CtaButton type="button" size="default" onClick={() => setShown(true)}>
           {t("livebench.showButton")}
-        </ShimmerButton>
+        </CtaButton>
       ) : (
         <div className="overflow-hidden rounded-[13px] border border-border bg-muted">
           <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">

@@ -3,7 +3,8 @@ import { getTranslations } from "next-intl/server";
 
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
-import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
+import { CtaButton } from "@/components/ui/cta-button";
 import { TextAnimate } from "@/components/ui/text-animate";
 
 import { ConstellationBackground } from "./constellation-background";
@@ -12,7 +13,7 @@ import { ConstellationBackground } from "./constellation-background";
  * apps/web/features/landing/components/landing-hero.tsx
  *
  * Phase 3.3. Adds the constellation canvas background and switches the
- * primary CTA from Button to ShimmerButton (Sign up only — Sign in stays
+ * primary CTA from Button to CtaButton (Sign up only — Sign in stays
  * a plain outline button, so the shimmer draws the eye to the one action
  * that matters here, not both equally).
  *
@@ -27,6 +28,11 @@ export async function LandingHero({ locale }: { locale: string }) {
     <section className="relative overflow-hidden">
       <ConstellationBackground />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
+        <Reveal direction="up">
+          <div className="mb-6 inline-flex rounded-full border border-border bg-card/70 backdrop-blur-sm">
+            <AnimatedShinyText className="px-4 py-1 text-[13px]">{t("heroPill")}</AnimatedShinyText>
+          </div>
+        </Reveal>
         <TextAnimate as="h1" className="t-h1 mx-auto block max-w-3xl text-balance text-foreground">
           {t("heroTitle")}
         </TextAnimate>
@@ -37,9 +43,9 @@ export async function LandingHero({ locale }: { locale: string }) {
         </Reveal>
         <Reveal direction="up" delay={0.2}>
           <div className="mt-8 flex items-center justify-center gap-3">
-            <ShimmerButton asChild size="lg">
+            <CtaButton asChild size="lg">
               <Link href={`/${locale}/auth/register`}>{t("heroCta")}</Link>
-            </ShimmerButton>
+            </CtaButton>
             <Button size="lg" variant="outline" asChild>
               <Link href={`/${locale}/auth/login`}>{t("signIn")}</Link>
             </Button>

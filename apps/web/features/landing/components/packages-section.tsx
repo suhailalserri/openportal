@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MagicCard } from "@/components/magicui/magic-card";
 import { Reveal } from "@/components/ui/reveal";
 import { staggerDelay } from "@/features/landing/lib/stagger-delay";
 import type { LandingPackageView } from "@/features/landing/types";
@@ -47,23 +47,23 @@ export async function PackagesSection({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {packages.map((pkg, i) => (
           <Reveal key={pkg.id} direction="up" delay={staggerDelay(i)}>
-            <Card className={pkg.bestValue ? "border-primary" : undefined}>
-              <CardHeader>
+            <MagicCard className="h-full rounded-[14px]">
+              <div className="flex flex-col gap-3 p-[18px]">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle>{pkg.name}</CardTitle>
+                  <h3 className="text-[15px] leading-none font-semibold text-foreground">{pkg.name}</h3>
                   {pkg.bestValue && <Badge variant="default">{t("packages.bestValue")}</Badge>}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                <p className="t-h3 text-foreground">
-                  {pkg.priceYer} {t("yer")}
-                </p>
-                <p className="t-small">
-                  {pkg.credits} {t("credits")}
-                </p>
-                {pkg.description ? <p className="t-caption">{pkg.description}</p> : null}
-              </CardContent>
-            </Card>
+                <div className="space-y-1">
+                  <p className="t-h3 text-foreground">
+                    {pkg.priceYer} {t("yer")}
+                  </p>
+                  <p className="t-small">
+                    {pkg.credits} {t("credits")}
+                  </p>
+                  {pkg.description ? <p className="t-caption">{pkg.description}</p> : null}
+                </div>
+              </div>
+            </MagicCard>
           </Reveal>
         ))}
       </div>

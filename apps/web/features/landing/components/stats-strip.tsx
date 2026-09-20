@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
+import { MagicCard } from "@/components/magicui/magic-card";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Reveal } from "@/components/ui/reveal";
 import { staggerDelay } from "@/features/landing/lib/stagger-delay";
@@ -42,13 +43,15 @@ export async function StatsStrip({
       <div className="mx-auto flex w-full max-w-6xl flex-wrap justify-center gap-10 px-4 py-10 sm:px-6">
         {stats.map((stat, i) => (
           <Reveal key={stat.key} delay={staggerDelay(i)} direction="up">
-            <div className="text-center">
-              <AnimatedNumber value={stat.value} className="t-h1 text-primary" />
-              <p className="t-small mt-1">{stat.label}</p>
-              {stat.key === "totalUsers" && (
-                <p className="t-caption mt-0.5">{t("stats.totalUsersApprox")}</p>
-              )}
-            </div>
+            <MagicCard className="min-w-[200px] rounded-[16px]">
+              <div className="px-8 py-6 text-center">
+                <AnimatedNumber value={stat.value} className="t-h1 text-primary" />
+                <p className="t-small mt-1">{stat.label}</p>
+                {stat.key === "totalUsers" && (
+                  <p className="t-caption mt-0.5">{t("stats.totalUsersApprox")}</p>
+                )}
+              </div>
+            </MagicCard>
           </Reveal>
         ))}
       </div>

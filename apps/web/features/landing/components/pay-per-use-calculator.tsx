@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { BorderBeam } from "@/components/magicui/border-beam";
 import type { CalculatorView, MessageSizeId } from "@/features/landing/types";
 
 /**
@@ -49,7 +50,8 @@ export function PayPerUseCalculator({ view }: { view: CalculatorView }) {
   if (!model || !result) return null;
 
   return (
-    <div className="rounded-[16px] border border-border bg-card p-5 sm:p-7">
+    <div className="relative overflow-hidden rounded-[16px] border border-border bg-card p-5 sm:p-7">
+      <BorderBeam size={140} duration={10} colorFrom="var(--primary)" colorTo="var(--chart-2)" />
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex-1">
           <label className="t-small mb-1.5 block">{t("calculator.modelLabel")}</label>

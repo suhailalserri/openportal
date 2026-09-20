@@ -120,34 +120,57 @@ p {
  * Phase 3.3 (docs/FRONTEND_REBUILD_PLAN.md) — landing page animation.
  * Additions only; nothing above this block was changed.
  *
- * `shimmer-sweep` backs components/ui/shimmer-button.tsx. Written as a
- * plain CSS @keyframes (not a framer-motion animate prop) because it
- * needs to run continuously and independently of React re-renders —
- * framer-motion is reserved in this phase for one-shot, state-driven
- * motion (Reveal's whileInView), not infinite ambient loops.
- *
- * Direction is LTR-authored (`background-position: 250% 0` at the end)
- * on purpose: `[dir="rtl"]` below flips it via `direction: rtl` on the
- * element itself rather than a second keyframe, so the sweep always
- * travels start-to-end in the reading direction instead of visually
- * reversing regardless of locale.
+ * Magic UI animations (components/magicui/*). Copied from the official
+ * registry items' `cssVars` / `css` (magicui.design/r/shimmer-button,
+ * /r/animated-shiny-text): the `animate-*` names are what the components'
+ * class lists use; the @keyframes are exactly Magic UI's.
  */
-@keyframes shimmer-sweep {
+@theme inline {
+  --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite alternate;
+  --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
+  --animate-shiny-text: shiny-text 8s infinite;
+}
+
+@keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+  }
+}
+
+@keyframes spin-around {
   0% {
-    background-position: -150% 0;
+    transform: translateZ(0) rotate(0);
   }
-  50%,
+  15%,
+  35% {
+    transform: translateZ(0) rotate(90deg);
+  }
+  65%,
+  85% {
+    transform: translateZ(0) rotate(270deg);
+  }
   100% {
-    background-position: 250% 0;
+    transform: translateZ(0) rotate(360deg);
   }
 }
 
-[dir="rtl"] [data-shimmer-sweep] {
-  direction: rtl;
+@keyframes shiny-text {
+  0%,
+  90%,
+  100% {
+    background-position: calc(-100% - var(--shiny-width)) 0;
+  }
+  30%,
+  60% {
+    background-position: calc(100% + var(--shiny-width)) 0;
+  }
 }
 
+/* Reduced motion: drop the ambient loops (spark, shine). */
 @media (prefers-reduced-motion: reduce) {
-  [data-shimmer-sweep] {
+  .animate-shimmer-slide,
+  .animate-spin-around,
+  .animate-shiny-text {
     animation: none !important;
   }
 }

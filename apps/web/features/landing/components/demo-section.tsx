@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
+import { BorderBeam } from "@/components/magicui/border-beam";
 import type { DemoContent } from "@/features/landing/lib/demo-content";
 import { balanceMarkdown, chunkForStream, delayAfter } from "@/features/landing/lib/stream-demo";
 
@@ -115,7 +116,8 @@ export function DemoSection({ locale, content }: { locale: string; content: Demo
   const streaming = phase === "thinking" || phase === "streaming";
 
   return (
-    <div ref={rootRef} className="rounded-[16px] border border-border bg-card p-5 sm:p-7">
+    <div ref={rootRef} className="relative overflow-hidden rounded-[16px] border border-border bg-card p-5 sm:p-7">
+      <BorderBeam size={140} duration={10} colorFrom="var(--primary)" colorTo="var(--chart-2)" />
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="t-h3 text-foreground">{t("demo.title")}</h3>
         {content.simulated && <Badge variant="warning">{t("demo.simulatedBadge")}</Badge>}
