@@ -187,21 +187,48 @@ export function ConstellationBackground() {
       rafId = 0;
     }
 
-    function onPointerMove(e: PointerEvent) {
+    // WHY window listeners, not canvas listeners: the hero's text block
+    // (`relative z-10`) covers the whole section, so the canvas underneath
+    // never receives a pointer event. Listening on `window` and testing
+    // against the canvas rect works no matter what sits on top, and does
+    // not block clicks on the buttons above it.
+    function localPoint(e: PointerEvent) {
       const rect = canvas!.getBoundingClientRect();
-      pointer.x = e.clientX - rect.left;
-      pointer.y = e.clientY - rect.top;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
+      return { x, y, inside };
+    }
+
+    function onPointerMove(e: PointerEvent) {
+      const p = localPoint(e);
+      if (!p.inside) {
+        if (pointerActive) onPointerLeave();
+        return;
+      }
+      pointer.x = p.x;
+      pointer.y = p.y;
       pointerActive = true;
       pointer.target = e.pointerType === "touch" ? POINTER_TARGET_PRESSED : POINTER_TARGET_HOVER;
     }
 
     function onPointerDown(e: PointerEvent) {
-      onPointerMove(e);
+      const p = localPoint(e);
+      if (!p.inside) return;
+      pointer.x = p.x;
+      pointer.y = p.y;
+      pointerActive = true;
       pointer.target = POINTER_TARGET_PRESSED;
     }
 
-    function onPointerUp() {
-      pointer.target = 0;
+    function onPointerUp(e: PointerEvent) {
+      // Touch has no hover: release fully. Mouse falls back to hover.
+      if (e.pointerType === "touch") {
+        pointer.target = 0;
+        pointerActive = false;
+      } else if (pointerActive) {
+        pointer.target = POINTER_TARGET_HOVER;
+      }
     }
 
     function onPointerLeave() {
@@ -231,28 +258,28 @@ export function ConstellationBackground() {
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
 
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointerup", onPointerUp);
-    canvas.addEventListener("pointercancel", onPointerUp);
-    canvas.addEventListener("pointerleave", onPointerLeave);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    window.addEventListener("pointercancel", onPointerUp, { passive: true });
+    document.documentElement.addEventListener("pointerleave", onPointerLeave);
 
     return () => {
       stop();
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointerup", onPointerUp);
-      canvas.removeEventListener("pointercancel", onPointerUp);
-      canvas.removeEventListener("pointerleave", onPointerLeave);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
     };
   }, []);
 
   return (
     <div ref={containerRef} aria-hidden className="absolute inset-0 overflow-hidden">
-      <canvas ref={canvasRef} className="block h-full w-full touch-none" />
+      <canvas ref={canvasRef} className="block h-full w-full" />
     </div>
   );
 }

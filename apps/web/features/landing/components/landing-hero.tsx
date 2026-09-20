@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { TextAnimate } from "@/components/ui/text-animate";
 
 import { ConstellationBackground } from "./constellation-background";
 
@@ -26,9 +27,9 @@ export async function LandingHero({ locale }: { locale: string }) {
     <section className="relative overflow-hidden">
       <ConstellationBackground />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-        <Reveal direction="up">
-          <h1 className="t-h1 mx-auto max-w-3xl text-balance text-foreground">{t("heroTitle")}</h1>
-        </Reveal>
+        <TextAnimate as="h1" className="t-h1 mx-auto block max-w-3xl text-balance text-foreground">
+          {t("heroTitle")}
+        </TextAnimate>
         <Reveal direction="up" delay={0.1}>
           <p className="t-body mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
             {t("heroSubtitle")}

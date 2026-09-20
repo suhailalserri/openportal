@@ -109,12 +109,37 @@ export interface CalculatorView {
   defaultModelId: string;
 }
 
+/** One bar of the "cost, ranked" chart. All strings/numbers are finished
+ *  server-side (Rule 1): the client only picks a size and draws the bar. */
+export interface CostRankRow {
+  id: string;
+  name: string;
+  provider: string;
+  /** Stable 0-based index per provider; the client maps it to a colour. */
+  colorIndex: number;
+  isFree: boolean;
+  /** Formatted cost of ONE message (prompt + reply) at this size. */
+  priceLabel: string;
+  /** 0-100 bar width relative to the priciest model at this size. */
+  percent: number;
+}
+
+export interface CostRankingView {
+  /** `credits` is the fallback when no package gives a YER rate. */
+  unit: PriceUnit;
+  sizes: CalculatorSizeView[];
+  /** Cheapest first, per message size. */
+  rows: Record<MessageSizeId, CostRankRow[]>;
+}
+
 export interface LandingData {
   /** REAL: the length of models.list. */
   modelCount: number;
   models: LandingModelRow[];
   /** null when there is no usable package to derive a YER rate from. */
   calculator: CalculatorView | null;
+  /** null when there are no models. */
+  costRanking: CostRankingView | null;
   packages: LandingPackageView[];
   paymentMethods: LandingPaymentMethodView[];
   /** PLACEHOLDER until a public counter exists; null hides the stat. */

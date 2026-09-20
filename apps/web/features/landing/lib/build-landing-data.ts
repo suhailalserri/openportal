@@ -1,6 +1,8 @@
 import { tagsForModel } from "../config/model-tags";
 import type {
   CalculatorModelView,
+  CostRankRow,
+  CostRankingView,
   CalculatorView,
   LandingData,
   LandingModelRow,
@@ -100,6 +102,53 @@ function toResultView(r: SizeResult, locale: LocaleTag) {
   };
 }
 
+/**
+ * "Cost, ranked": what ONE message costs on every model, cheapest
+ * first, for each message size. Uses the same conservative YER-per-credit
+ * rate as the calculator; with no usable package it falls back to raw
+ * credits (unit "credits") instead of hiding the chart.
+ */
+function buildCostRanking(
+  models: readonly RawModel[],
+  yerPerCredit: number | null,
+  locale: LocaleTag,
+  nameOf: (m: RawModel) => string,
+): CostRankingView | null {
+  if (models.length === 0) return null;
+
+  const rate = yerPerCredit ?? 1;
+  const providers = [...new Set(models.map((m) => m.provider))].sort((a, b) => a.localeCompare(b));
+  const colorIndexOf = (provider: string) => providers.indexOf(provider);
+
+  const rows = {} as CostRankingView["rows"];
+  for (const size of MESSAGE_SIZES) {
+    const priced = models.map((m) => {
+      const value = computeSizeResult(m, size, rate).yerPerMessage;
+      return { m, value, free: isFreeModel(m) };
+    });
+    const max = Math.max(0, ...priced.map((p) => p.value));
+    const sorted = priced.sort(
+      (a, b) => a.value - b.value || nameOf(a.m).localeCompare(nameOf(b.m), locale) || a.m.id.localeCompare(b.m.id),
+    );
+    rows[size.id] = sorted.map(({ m, value, free }): CostRankRow => ({
+      id: m.id,
+      name: nameOf(m),
+      provider: m.provider,
+      colorIndex: colorIndexOf(m.provider),
+      isFree: free,
+      priceLabel: free ? "0" : formatYerPrecise(value, locale),
+      // A paying model never renders as an empty bar; a free one does.
+      percent: free || max <= 0 ? 0 : Math.max(2, Math.round((value / max) * 1000) / 10),
+    }));
+  }
+
+  return {
+    unit: yerPerCredit === null ? "credits" : "yer",
+    sizes: MESSAGE_SIZES.map((s) => ({ id: s.id, inputTokens: s.inputTokens, outputTokens: s.outputTokens })),
+    rows,
+  };
+}
+
 function buildCalculator(
   models: readonly RawModel[],
   yerPerCredit: number,
@@ -188,6 +237,8 @@ export function buildLandingData(
   // buildCalculator sorts a filtered copy only; keep the table order above
   // independent of it.
 
+  const costRanking = buildCostRanking(rawModels, yerPerCredit, locale, nameOf);
+
   const bestIdx = bestValuePackageIndex(rawPackages, microPerCredit);
   const packages: LandingPackageView[] = rawPackages.map((p, i) => {
     const description = locale === "ar" ? p.descriptionAr : p.description;
@@ -211,6 +262,7 @@ export function buildLandingData(
     modelCount: rawModels.length,
     models,
     calculator,
+    costRanking,
     packages,
     paymentMethods,
     totalUsers: deps.totalUsers,

@@ -3,6 +3,7 @@ import { LandingHero } from "./components/landing-hero";
 import { LandingIntro } from "./components/landing-intro";
 import { StatsStrip } from "./components/stats-strip";
 import { ModelsSection } from "./components/models-section";
+import { CostRankingSection } from "./components/cost-ranking-section";
 import { LiveBenchSection } from "./components/livebench-section";
 import { CalculatorSection } from "./components/calculator-section";
 import { PackagesSection } from "./components/packages-section";
@@ -55,6 +56,7 @@ export async function LandingPage({ locale }: { locale: string }) {
         <LandingIntro locale={locale} />
         <StatsStrip locale={locale} modelCount={data.modelCount} totalUsers={data.totalUsers} />
         <ModelsSection locale={locale} models={data.models} />
+        <CostRankingSection locale={locale} view={data.costRanking} />
         <LiveBenchSection />
         <CalculatorSection locale={locale} calculator={data.calculator} />
         <PackagesSection locale={locale} packages={data.packages} />

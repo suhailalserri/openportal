@@ -411,6 +411,15 @@
       "plainCostLine": "Note: a long chat with this model can use a large share of this amount — pick a smaller message size or a cheaper model to stretch your balance further.",
       "estimateDisclaimer": "Figures above are estimates (based on assumed message sizes) and are always computed by our server, never by your browser."
     },
+    "costRank": {
+      "heading": "What every model costs",
+      "subheading": "The estimated cost of one message on each model we offer, cheapest first. Pick a message size.",
+      "perMessageYer": "{price} YER",
+      "perMessageCredits": "{price} credits",
+      "showAll": "Show all {count} models",
+      "showLess": "Show less",
+      "disclaimer": "Estimates for one message (your prompt plus the reply) using assumed sizes, always computed by our server. Your real cost depends on the text you send."
+    },
     "livebench": {
       "title": "Live LiveBench leaderboard",
       "description": "An independent AI model performance comparison, updated live via LiveBench.",
@@ -440,7 +449,9 @@
       "simulatedBadge": "Simulated example",
       "inputTokens": "{count} input tokens",
       "outputTokens": "{count} output tokens",
-      "totalCost": "Cost: {price} YER"
+      "totalCost": "Cost: {price} YER",
+      "replay": "Replay",
+      "thinking": "Assistant is typing"
     },
     "packages": {
       "bestValue": "Best value"

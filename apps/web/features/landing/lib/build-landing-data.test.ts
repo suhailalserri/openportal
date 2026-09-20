@@ -344,3 +344,52 @@ describe("buildLandingData — empty and pass-through states", () => {
     expect(JSON.stringify(models)).toBe(snap);
   });
 });
+
+describe("buildLandingData — costRanking (the 'what every model costs' chart)", () => {
+  const rank = (over: Partial<BuildDeps> = {}, pkgs = PKGS, models = MODELS) =>
+    buildLandingData(models, pkgs, [], deps(over)).costRanking!;
+
+  it("lists EVERY model for every message size, cheapest first", () => {
+    const r = rank();
+    for (const size of ["short", "medium", "long"] as const) {
+      expect(r.rows[size].map((x) => x.id)).toEqual(["f", "a", "m", "b"]);
+    }
+  });
+
+  it("bars are relative to the priciest model; free is empty; paid is never empty", () => {
+    const rows = rank().rows.medium;
+    expect(rows.find((x) => x.id === "b")!.percent).toBe(100);
+    expect(rows.find((x) => x.id === "f")!.percent).toBe(0);
+    expect(rows.find((x) => x.id === "f")!.isFree).toBe(true);
+    for (const x of rows.filter((y) => !y.isFree)) expect(x.percent).toBeGreaterThanOrEqual(2);
+    const pcts = rows.map((x) => x.percent);
+    expect([...pcts].sort((p, q) => p - q)).toEqual(pcts); // ascending like the price order
+  });
+
+  it("uses the same conservative rate as the calculator (medium 'Mid' = 3*0.25+15*0.25 credits * 2.5 YER)", () => {
+    // (250/1000)*3 + (250/1000)*15 = 4.5 credits * 2.5 = 11.25 YER -> "11.3" (1 dp above 10)
+    expect(rank().rows.medium.find((x) => x.id === "m")!.priceLabel).toBe("11.3");
+  });
+
+  it("gives each provider a stable colour index (same provider, same colour)", () => {
+    const models = [
+      model({ id: "x1", provider: "zeta" }),
+      model({ id: "x2", provider: "alpha" }),
+      model({ id: "x3", provider: "zeta" }),
+    ];
+    const rows = rank({}, PKGS, models).rows.short;
+    const byId = (id: string) => rows.find((x) => x.id === id)!.colorIndex;
+    expect(byId("x1")).toBe(byId("x3"));
+    expect(byId("x2")).not.toBe(byId("x1"));
+  });
+
+  it("falls back to credits (unit 'credits') instead of hiding when there is no package", () => {
+    const r = rank({}, []);
+    expect(r.unit).toBe("credits");
+    expect(r.rows.medium.length).toBe(MODELS.length);
+  });
+
+  it("is null when there are no models", () => {
+    expect(buildLandingData([], PKGS, [], deps()).costRanking).toBeNull();
+  });
+});

@@ -70,7 +70,7 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
           "pointer-events-none absolute inset-0 rounded-[inherit]",
           prefersReducedMotion
             ? "hidden"
-            : "[background:linear-gradient(75deg,transparent_35%,color-mix(in_oklab,var(--primary-foreground)_55%,transparent)_50%,transparent_65%)] [background-size:250%_100%] [animation:shimmer-sweep_3.2s_ease-in-out_infinite]",
+            : "[background-image:linear-gradient(75deg,transparent_35%,color-mix(in_oklab,var(--primary-foreground)_55%,transparent)_50%,transparent_65%)] [background-size:250%_100%] [animation:shimmer-sweep_3.2s_ease-in-out_infinite]",
         )}
         style={{ mixBlendMode: "overlay" }}
       />
