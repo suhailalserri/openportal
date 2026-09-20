@@ -11,6 +11,13 @@
  * against from day one and adding a 2nd/3rd preset later is additive —
  * new [data-theme-preset="…"] blocks, nothing in theme.css changes.
  *
+ * Drift note: the "restyle" session added --accent-strong to theme.css
+ * (:root/.dark) but missed it here, since this file's own "kept in sync
+ * manually" promise has no automated check. It was inert (the preset
+ * block just left the property to cascade from :root/.dark on the same
+ * element) until a 2nd/3rd preset would have made it a real bug — fixed
+ * as part of the 1.1-through-2.1 wiring recheck, before 7.2 needed it.
+ *
  * Ceiling per the plan is 3 presets. Nothing here is a design decision —
  * every value is a duplicate of theme.css, kept in sync manually since
  * there's only one preset to sync.
@@ -32,6 +39,7 @@
   --primary-foreground: #FFFFFF;
   --accent:              rgba(185, 121, 31, 0.10);
   --accent-foreground:  #9C6516;
+  --accent-strong:       rgba(185, 121, 31, 0.18);
 
   --secondary:           #EFEBE0;
   --secondary-foreground: #1B1A20;
@@ -82,6 +90,7 @@
   --primary-foreground: #100F15;
   --accent:              rgba(217, 164, 65, 0.14);
   --accent-foreground:  #F0B94E;
+  --accent-strong:       rgba(217, 164, 65, 0.22);
 
   --secondary:           #100F15;
   --secondary-foreground: #EDEAE2;

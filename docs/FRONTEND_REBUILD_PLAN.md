@@ -125,10 +125,10 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 |---|---|---|
 | 0.1 | Legal gate fix | [x] |
 | 0.2 | Branch, CI, preview | [x] |
-| 0.3 | Contract freeze + cleanup | [ ] |
-| 1.1 | Design direction + tokens | [ ] |
-| 1.2 | Foundation code + kitchen-sink | [ ] |
-| 2.1 | App shell + guards | [ ] |
+| 0.3 | Contract freeze + cleanup | [x] |
+| 1.1 | Design direction + tokens | [x] |
+| 1.2 | Foundation code + kitchen-sink | [x] |
+| 2.1 | App shell + guards | [x] |
 | 2.2 | Shell widgets + states | [ ] |
 | 3.1 | Auth pages | [ ] |
 | 3.2 | Legal, landing, consent, e2e harness | [ ] |
@@ -237,6 +237,13 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
   - Arabic copy for `WEAK_PASSWORD`, `CAPTCHA_FAILED`, rate limit (Better Auth: 5/min), suspended account
 - **Verify first:** `lib/auth.ts` in this zip has `requireEmailVerification: true` unconditionally. Confirm what your deployed version does when `RESEND_API_KEY` is unset.
 - **Done when:** preview: register → verify screen → (seeded user) login → logout · TOTP step appears for a 2FA user · unit tests for the password-rule helper.
+- **Carried over from 2.1 (needs a real session, so it could not be checked earlier):**
+  · preview: signed-out `/ar/chat` → login → after sign-in returns to `/ar/chat` (`resolvePostLoginTarget`)
+  · admin session: `/en/admin` renders the shell; the admin group shows in the sidebar
+  · non-admin session: `/en/admin` redirects to `/en/chat`; no admin group in the nav
+  · 360px: the drawer opens from the start edge in ar and en, and closes on link tap and on the close button
+  · `session.user.role` is populated at runtime (cookie cache can lag a role change by up to 5 min)
+  · sidebar heading and "Soon" row contrast checked in both themes
 - **Breaks if wrong:** client rules weaker than server rules just move the error to after Turnstile is spent; mirroring them (and keeping the server authoritative) avoids wasted captcha verifications.
 
 **3.2 Legal, landing, consent, e2e harness**

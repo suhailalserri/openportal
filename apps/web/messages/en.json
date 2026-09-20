@@ -10,7 +10,20 @@
     "settings": "Settings",
     "admin": "Admin Panel",
     "logout": "Sign Out",
-    "profile": "Profile"
+    "profile": "Profile",
+    "dashboard": "Dashboard",
+    "usage": "Usage",
+    "adminOverview": "Overview",
+    "adminUsers": "Users",
+    "adminCodes": "Redeem codes",
+    "adminPackages": "Packages",
+    "adminPaymentMethods": "Payment methods",
+    "adminManualPayments": "Manual payments",
+    "adminModels": "Models",
+    "adminChannels": "Channels",
+    "adminFraud": "Fraud",
+    "adminLogs": "Logs",
+    "adminAudit": "Audit log"
   },
   "chat": {
     "newChat": "New Chat",
@@ -130,10 +143,32 @@
     "verifyEmail": "Verify your email",
     "verifyMessage": "We sent a verification link to {email}.",
     "resendVerification": "Resend verification email",
+    "verifyResendIn": "Resend available in {seconds}s",
+    "verificationSent": "Verification email sent.",
     "resetPassword": "Reset Password",
     "resetSent": "Password reset link sent to your email.",
     "newPassword": "New password",
-    "agreeToTerms": "I agree to the Terms of Service and Privacy Policy",
+    "forgotTitle": "Reset your password",
+    "forgotMessage": "Enter your email and we'll send you a reset link.",
+    "sendResetLink": "Send reset link",
+    "resetTitle": "Choose a new password",
+    "resetMessage": "Enter a new password for your account.",
+    "resetButton": "Reset password",
+    "resetInvalidToken": "This reset link is invalid or has expired. Request a new one.",
+    "agreeToTerms": "I agree to the <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
+    "totpTitle": "Two-factor authentication",
+    "totpMessage": "Enter the 6-digit code from your authenticator app.",
+    "totpCode": "Authentication code",
+    "backupCode": "Backup code",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorApp": "Use authenticator app instead",
+    "verifyButton": "Verify",
+    "backToLogin": "Back to sign in",
+    "passwordRules": {
+      "minLength": "At least 8 characters",
+      "uppercase": "One uppercase letter",
+      "digit": "One number"
+    },
     "passwordStrength": {
       "weak": "Weak",
       "medium": "Medium",
@@ -147,7 +182,8 @@
       "tooManyAttempts": "Too many attempts. Try again in a minute.",
       "captchaRequired": "Please complete the verification challenge.",
       "captchaFailed": "Verification failed. Please try again.",
-      "generic": "Authentication error. Please try again."
+      "generic": "Authentication error. Please try again.",
+      "suspended": "Your account has been suspended. Contact support."
     }
   },
   "errors": {
@@ -159,7 +195,10 @@
     "forbidden": "You don't have permission for this action.",
     "modelUnavailable": "This model is currently unavailable. Try another.",
     "streamInterrupted": "Connection interrupted. You can retry.",
-    "insufficientBalance": "Insufficient balance. Add credits to continue."
+    "insufficientBalance": "Insufficient balance. Add credits to continue.",
+    "notFoundTitle": "Page not found",
+    "notFoundMessage": "The page you're looking for doesn't exist or has moved.",
+    "backToChat": "Back to chat"
   },
   "models": {
     "contextWindow": "Context Window",
@@ -209,6 +248,7 @@
     "export": "Export",
     "loading": "Loading...",
     "error": "Error",
+    "tryAgain": "Try again",
     "success": "Success",
     "warning": "Warning",
     "info": "Info",
@@ -276,5 +316,48 @@
     "dark": "Dark",
     "system": "System",
     "toggle": "Toggle theme"
+  },
+  "shell": {
+    "skipToContent": "Skip to content",
+    "mainNavigation": "Main navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "menuTitle": "Menu",
+    "comingSoon": "Soon",
+    "accountMenu": "Account menu",
+    "signedInAs": "Signed in as {email}",
+    "language": "Language",
+    "placeholder": {
+      "chat": "Chat is being rebuilt and will be back soon.",
+      "admin": "The admin area is under construction. Sections will appear as they are built."
+    }
+  },
+  "legal": {
+    "termsTitle": "Terms of Service",
+    "privacyTitle": "Privacy Policy",
+    "acceptableUseTitle": "Acceptable Use Policy",
+    "englishOnlyNotice": "This document is currently available in English only. An Arabic version is in progress.",
+    "unavailable": "This document is not currently available."
+  },
+  "landing": {
+    "primaryNav": "Primary navigation",
+    "signIn": "Sign in",
+    "getStarted": "Get started",
+    "heroTitle": "Advanced AI, fair pricing, zero complexity",
+    "heroSubtitle": "Chat with the best AI models from one place — no juggling subscriptions, no technical setup.",
+    "heroCta": "Create your free account",
+    "modelsHeading": "Available models",
+    "packagesHeading": "Top-up packages",
+    "noPackagesAvailable": "No packages are available right now — please check back later",
+    "yer": "YER",
+    "credits": "credits",
+    "legalNav": "Legal links",
+    "footerCopyright": "© {year} OpenPortal. All rights reserved."
+  },
+  "consent": {
+    "bannerLabel": "Cookie notice",
+    "message": "We only use essential cookies needed for sign-in and to run the platform.",
+    "learnMore": "Learn more",
+    "accept": "Got it"
   }
 }

@@ -16,6 +16,11 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/**
+ * Trigger only restyled to match `.select` (same box as `.input`) in the
+ * theme HTML. `SelectContent`/`SelectItem` below are untouched — carved
+ * out of this restyle per the approved phase summary.
+ */
 function SelectTrigger({
   className,
   children,
@@ -27,9 +32,9 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none",
-        "data-[size=default]:h-9 data-[size=sm]:h-8",
-        "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+        "flex w-fit items-center justify-between gap-2 rounded-[11px] border border-input bg-secondary px-[13px] py-[11px] text-sm text-foreground outline-none",
+        "data-[size=default]:h-auto data-[size=sm]:h-auto",
+        "focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-accent",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "[&>span]:line-clamp-1",
         className
@@ -38,7 +43,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="size-4 shrink-0 opacity-50" />
+        <ChevronDown className="size-3 shrink-0 text-faint-foreground" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );

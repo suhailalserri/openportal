@@ -51,18 +51,25 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Dialo
  * so an "end" sheet genuinely slides in from the edge it's docked to in
  * both directions.
  */
+/**
+ * start/end sizing + surface ported from `.drawer` (300px, or 84vw on
+ * narrow screens, `--bg-inset` background, `--hairline-strong` border,
+ * 250ms cubic-bezier(.16,1,.3,1) slide). top/bottom aren't in the theme
+ * HTML (no source data) — left at their prior shadcn defaults.
+ */
 const sheetVariants = cva(
-  "fixed z-50 flex flex-col gap-4 bg-card text-card-foreground shadow-2 transition ease-in-out " +
+  "fixed z-50 flex flex-col gap-4 bg-secondary text-secondary-foreground shadow-2 transition ease-in-out " +
     "data-[state=open]:animate-in data-[state=closed]:animate-out " +
-    "data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    "data-[state=closed]:duration-[250ms] data-[state=open]:duration-[250ms] " +
+    "data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]",
   {
     variants: {
       side: {
         top: "inset-x-0 top-0 h-auto max-h-[80vh] border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
           "inset-x-0 bottom-0 h-auto max-h-[80vh] border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        start: "inset-y-0 start-0 h-full w-3/4 border-e sm:max-w-sm",
-        end: "inset-y-0 end-0 h-full w-3/4 border-s sm:max-w-sm",
+        start: "inset-y-0 start-0 h-full w-[min(300px,84vw)] border-e border-input",
+        end: "inset-y-0 end-0 h-full w-[min(300px,84vw)] border-s border-input",
       },
     },
     defaultVariants: { side: "end" },

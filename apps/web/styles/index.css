@@ -3,6 +3,15 @@
 @import "./theme.css";
 @import "./theme-presets.css";
 
+/*
+ * @tailwindcss/typography has been a devDependency since 1.2 but was
+ * never registered — nothing used `prose` until Phase 3.2's legal-doc
+ * renderer (features/legal/components/legal-doc-view.tsx). Tailwind v4
+ * plugins load via `@plugin` in CSS, not `tailwind.config.ts` (that file
+ * was already deleted in 1.2 — see F15/1.2's own delete list).
+ */
+@plugin "@tailwindcss/typography";
+
 @theme inline {
   /*
    * Bridges next/font's runtime CSS variables (set via the `variable`
@@ -39,6 +48,53 @@ kbd,
 .message-content,
 p {
   unicode-bidi: plaintext;
+}
+
+/*
+ * Typography base — ported from `.t-h1…t-caption`/`.t-mono` in
+ * docs/design/design-preview.html (added to that file this session;
+ * sizes/weights/line-heights are copied 1:1, colors point at the
+ * existing semantic tokens rather than the source's raw
+ * `--text-muted`/`--text-faint`/`--gate-strong` names).
+ * `.t-mono` intentionally does not set `direction`/`unicode-bidi` — the
+ * `pre, code, kbd, .code-block` rule above already owns that.
+ */
+.t-h1 {
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.t-h2 {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.t-h3 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.t-body {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.t-small {
+  font-size: 13.5px;
+  color: var(--muted-foreground);
+}
+
+.t-caption {
+  font-size: 11.5px;
+  color: var(--faint-foreground);
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent-foreground);
 }
 
 @layer base {
