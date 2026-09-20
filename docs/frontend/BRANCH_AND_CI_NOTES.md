@@ -1155,3 +1155,34 @@ New CI jobs added to `.github/workflows/deploy.yml`:
   CI env block needing the same list, which was presumably set that way
   because production needs it, but that inference should be confirmed
   against the real Vercel project settings before relying on it further.
+
+### Web Build — first real result and fix (3.2 continuation)
+Vercel build red, one error: `playwright.config.ts:35` TS2769, `workers:
+number | undefined` not assignable to `string | number`. Cause:
+`workers: process.env.CI ? 1 : undefined` under `exactOptionalPropertyTypes:
+true` (inherited from `tsconfig.base.json`). Same class as the 3.1 round-1
+fixes: an explicit `undefined` is not allowed for an optional key. The CI
+`check` (`pnpm type-check`) and `web-build` jobs hit the same file/error;
+Vercel was just where it surfaced. Next's build only prints the first type
+error.
+
+Fix: `...(process.env.CI ? { workers: 1 } : {})`, so the key is omitted
+locally and Playwright uses its default. Added `apps/web/.gitignore`
+(`playwright-report/`, `test-results/`, `blob-report/`) so local e2e runs
+don't dirty the tree.
+
+Verified here: reproduced the exact error, then confirmed
+`playwright.config.ts` + `e2e/*.spec.ts` type-check clean, using the repo's
+strict flags (`strict`, `exactOptionalPropertyTypes`,
+`noUncheckedIndexedAccess`) against Playwright **1.56** types.
+
+Not verified: Playwright 1.63.0 types (what Vercel resolved); the rest of
+apps/web under `tsc` (no node_modules/network); whether `next start` with
+`output: "standalone"` serves correctly in the `e2e` job (Next warns for
+this pairing; left as is unless it fails). The `e2e` job has never run: it
+failed at its own `next build` step on this error, so its first real result
+is still pending.
+
+Plan copies: the uploaded plan (2.2/3.1 checked) was treated as canonical.
+The repo's `docs/FRONTEND_REBUILD_PLAN.md` differs (2.2/3.1 unchecked, D1
+decided, 2.1 carry-over list) and was not edited; reconcile the two.
