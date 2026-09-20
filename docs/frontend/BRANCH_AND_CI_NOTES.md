@@ -903,3 +903,41 @@ than rediscovering them build-by-build. If a third strict flag surfaces
 the same way, it's likely `noImplicitOverride` or similar; worth asking
 to see the actual `tsconfig.json` directly next time rather than
 inferring it error-by-error.
+
+### Third real build result and fix (3.1 continuation, round 3)
+Red again, one file: `components/auth/turnstile-widget.tsx:56`, same
+`'string | undefined' is not assignable to 'string'` shape as round 2,
+but a different mechanism. `const siteKey = process.env.NEXT_PUBLIC_...`
+is `string | undefined`; the early `if (!siteKey) return null;` narrows
+it for the rest of that render pass, but `renderWidget` is a *nested
+function* declared afterward — TypeScript doesn't carry an outer
+narrowing into a closure, because the closure could in principle be
+invoked later (e.g. from an async callback) after something else has
+changed. This is conceptually the same class of issue as round 2's
+`noUncheckedIndexedAccess` fix (the compiler won't let control flow in
+one place imply safety somewhere control flow can't prove is still
+covered by it) but a different specific rule — closures vs. array
+access — so grepping for `[0]`/`.split(` again wouldn't have caught it.
+
+Fix: capture `const resolvedSiteKey: string = siteKey` immediately after
+the guard, and reference that inside `renderWidget` instead of the
+original `siteKey`. A `const` binding's narrowed type is permanent (it
+can't be reassigned), so it survives into a closure where a `let` or a
+plain parameter wouldn't.
+
+Proactively grepped this delivery for the same closure pattern (any
+nested `function` declaration referencing an outer guarded variable)
+before resubmitting: two other nested functions exist
+(`login/page.tsx`'s `finishLogin`, `verify/page.tsx`'s `startCooldown`)
+— neither reads a variable that depends on a preceding narrowing guard,
+so neither is at risk the same way.
+
+Three real build failures in a row now, each a genuine type-safety gap
+this environment's strict tsconfig catches and a plain read-through
+review didn't — not repeats of the same mistake, but the same underlying
+lesson: this tsconfig is stricter than base `strict: true` in ways that
+aren't guessable from the code alone (`exactOptionalPropertyTypes`,
+`noUncheckedIndexedAccess`, and ordinary closure-narrowing limits all
+surfaced only once each hit a real `tsc` run). Repeating the standing
+ask: the actual `tsconfig.json` would let this get caught before a push
+rather than after.

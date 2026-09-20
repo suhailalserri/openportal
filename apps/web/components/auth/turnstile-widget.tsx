@@ -49,11 +49,25 @@ export function TurnstileWidget({ onToken }: TurnstileWidgetProps) {
 
   if (!siteKey) return null;
 
+  // `siteKey` itself is `string | undefined` at the declaration above;
+  // the `if (!siteKey) return null` narrows it for the rest of THIS
+  // function body, but not inside `renderWidget` below — a nested
+  // function is a closure that could in principle be invoked later
+  // (after further renders), so TypeScript can't carry a narrowing of
+  // an outer `let`/param through it. Capturing it into a `const` here
+  // does survive into the closure (a `const` can't be reassigned, so TS
+  // treats its narrowed type as permanent) — confirmed by the third real
+  // build, same underlying rule as the `noUncheckedIndexedAccess` fix in
+  // register/page.tsx, different manifestation (closures vs. array
+  // access) of "the compiler won't let outer control flow imply safety
+  // inside a function that outlives it."
+  const resolvedSiteKey: string = siteKey;
+
   function renderWidget() {
     if (rendered.current || !containerRef.current || !window.turnstile) return;
     rendered.current = true;
     window.turnstile.render(containerRef.current, {
-      sitekey: siteKey,
+      sitekey: resolvedSiteKey,
       callback: (token) => onToken(token),
       "expired-callback": () => onToken(null),
       "error-callback": () => onToken(null),
