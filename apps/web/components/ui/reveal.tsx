@@ -101,16 +101,3 @@ export function Reveal({
     </MotionTag>
   );
 }
-
-/**
- * Wrap a list's items with staggered delays without each item needing
- * its own `delay` math. Children should be `<Reveal>` themselves is NOT
- * required — this only supplies the CSS custom stagger via a data
- * attribute consumed by `<Reveal delay>` callers; simplest correct use
- * is just passing incrementing `delay` props directly (see models
- * table / stats strip), so this helper is a thin convenience, not a
- * requirement.
- */
-export function staggerDelay(index: number, step = 0.08, max = 0.4): number {
-  return Math.min(index * step, max);
-}

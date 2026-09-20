@@ -52,35 +52,50 @@ interface ShimmerButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
   ({ className, asChild = false, size = "lg", children, ...props }, ref) => {
     const prefersReducedMotion = useReducedMotion();
-    const Comp = asChild ? Slot : "button";
+
+    const classes = cn(
+      "group relative inline-flex items-center justify-center gap-[7px] overflow-hidden whitespace-nowrap rounded-[13px] border border-transparent font-semibold leading-tight text-primary-foreground outline-none transition-[filter,transform] duration-150 disabled:pointer-events-none disabled:opacity-45 active:not-disabled:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      size === "lg" ? "h-auto px-[22px] py-[13px] text-[15px]" : "h-auto px-4 py-2.5 text-[13.5px]",
+      "bg-primary hover:not-disabled:brightness-[1.05]",
+      className,
+    );
+
+    // Base fill sits below; the sweep is a second layer clipped to the
+    // same rounded rect so it can never bleed past the border.
+    const sweep = (
+      <span
+        aria-hidden
+        data-shimmer-sweep=""
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-[inherit]",
+          prefersReducedMotion
+            ? "hidden"
+            : "[background:linear-gradient(75deg,transparent_35%,color-mix(in_oklab,var(--primary-foreground)_55%,transparent)_50%,transparent_65%)] [background-size:250%_100%] [animation:shimmer-sweep_3.2s_ease-in-out_infinite]",
+        )}
+        style={{ mixBlendMode: "overlay" }}
+      />
+    );
+    const wrap = (inner: React.ReactNode) => (
+      <span className="relative z-10 inline-flex items-center gap-[7px]">{inner}</span>
+    );
+
+    // asChild: Radix Slot requires EXACTLY ONE React element child (it
+    // throws "Slot failed to slot onto its children" otherwise). So the
+    // sweep + wrapper go INSIDE the caller's element (e.g. the <Link>),
+    // and Slot receives that single element.
+    if (asChild && React.isValidElement<{ children?: React.ReactNode }>(children)) {
+      return (
+        <Slot ref={ref} data-shimmer={prefersReducedMotion ? "off" : "on"} className={classes} {...props}>
+          {React.cloneElement(children, undefined, sweep, wrap(children.props.children))}
+        </Slot>
+      );
+    }
 
     return (
-      <Comp
-        ref={ref}
-        data-shimmer={prefersReducedMotion ? "off" : "on"}
-        className={cn(
-          "group relative inline-flex items-center justify-center gap-[7px] overflow-hidden whitespace-nowrap rounded-[13px] border border-transparent font-semibold leading-tight text-primary-foreground outline-none transition-[filter,transform] duration-150 disabled:pointer-events-none disabled:opacity-45 active:not-disabled:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          size === "lg" ? "h-auto px-[22px] py-[13px] text-[15px]" : "h-auto px-4 py-2.5 text-[13.5px]",
-          "bg-primary hover:not-disabled:brightness-[1.05]",
-          className,
-        )}
-        {...props}
-      >
-        {/* Base fill sits below; the sweep is a second layer clipped to
-            the same rounded rect so it can never bleed past the border. */}
-        <span
-          aria-hidden
-          data-shimmer-sweep=""
-          className={cn(
-            "pointer-events-none absolute inset-0 rounded-[inherit]",
-            prefersReducedMotion
-              ? "hidden"
-              : "[background:linear-gradient(75deg,transparent_35%,color-mix(in_oklab,var(--primary-foreground)_55%,transparent)_50%,transparent_65%)] [background-size:250%_100%] [animation:shimmer-sweep_3.2s_ease-in-out_infinite]",
-          )}
-          style={{ mixBlendMode: "overlay" }}
-        />
-        <span className="relative z-10 inline-flex items-center gap-[7px]">{children}</span>
-      </Comp>
+      <button ref={ref} data-shimmer={prefersReducedMotion ? "off" : "on"} className={classes} {...props}>
+        {sweep}
+        {wrap(children)}
+      </button>
     );
   },
 );

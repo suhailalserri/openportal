@@ -1,7 +1,8 @@
 import { getTranslations } from "next-intl/server";
 
 import { AnimatedNumber } from "@/components/ui/animated-number";
-import { Reveal, staggerDelay } from "@/components/ui/reveal";
+import { Reveal } from "@/components/ui/reveal";
+import { staggerDelay } from "@/features/landing/lib/stagger-delay";
 
 /**
  * apps/web/features/landing/components/stats-strip.tsx

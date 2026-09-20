@@ -2,7 +2,8 @@ import { getTranslations } from "next-intl/server";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Reveal, staggerDelay } from "@/components/ui/reveal";
+import { Reveal } from "@/components/ui/reveal";
+import { staggerDelay } from "@/features/landing/lib/stagger-delay";
 import type { LandingPackageView } from "@/features/landing/types";
 
 /**
