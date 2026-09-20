@@ -941,3 +941,217 @@ aren't guessable from the code alone (`exactOptionalPropertyTypes`,
 surfaced only once each hit a real `tsc` run). Repeating the standing
 ask: the actual `tsconfig.json` would let this get caught before a push
 rather than after.
+
+## Session 3.2 — Legal, landing, consent, e2e harness
+
+### What landed
+`features/legal/` (registry + read-doc + LegalDocView markdown renderer)
+and `app/[locale]/(public)/legal/[doc]/page.tsx` — static (`generateStaticParams`)
+English-only pages for the three documents named in the master plan's
+Launch Checklist (terms, privacy, acceptable-use). `scripts/sync-legal.ts`
+copies them in from `docs/legal/*.md` at build time, with a `--check`
+mode wired into a new `legal-docs-sync` CI job so a stale copy fails the
+build rather than silently shipping. `content/legal/*.md` are the real
+copied files, not placeholders.
+
+`features/landing/` replaces the placeholder `(public)/page.tsx` left by
+2.1: header (reuses 2.2's LanguageSwitcher/ThemeToggle), hero, a live
+model grid, a live package-pricing grid, and a footer that iterates
+`LEGAL_DOCS` for its links. `features/consent/` adds a minimal
+localStorage-backed cookie-notice banner — there are no non-essential
+cookies anywhere in this codebase yet (grepped: no analytics/pixel
+import exists), so it has nothing to ask consent for today; it exists so
+turning on real analytics later is a copy change, not new banner
+plumbing.
+
+`register/page.tsx`'s `agreeToTerms` checkbox now links to the real
+`/legal/terms` and `/legal/privacy` pages (`t.rich`, next-intl v4) — it
+previously rendered plain unlinked text. Caught and fixed a real bug
+while wiring this: both links sit inside a native implicit `<label>`
+(no `htmlFor`/`id` pairing) that toggles the checkbox, so without
+`stopPropagation()` on each link, clicking "Terms of Service" to *read*
+it would have also silently checked the consent box. Fixed with
+`e.stopPropagation()` on each `<Link>`'s `onClick` (not
+`preventDefault` — the link still navigates normally).
+
+`apps/web/styles/index.css` now registers `@plugin "@tailwindcss/typography"`
+(Tailwind v4 CSS-based plugin loading — `tailwind.config.ts` doesn't
+exist in this repo, deleted in 1.2). `@tailwindcss/typography` had been a
+devDependency since 1.2 but nothing had ever used `prose` classes until
+`LegalDocView` — found by checking, not assumed.
+
+### The tRPC-server-caller correction (mid-session, on explicit instruction)
+First draft of the landing page's data access (`lib/public-data.ts`) was
+a hand-written mirror of `modelsRouter.list`/`billingRouter.listPackages`
+directly against `@ai-platform/db` — flagged as a deviation in that
+session's Phase Summary and initially approved, but on later explicit
+instruction ("no hallucinations or hardcoded variables") this was
+replaced with a REAL tRPC server caller instead, so the landing page can
+never silently drift from what the actual router returns:
+
+- `apps/api/src/routers/trpc.ts`: additive `export const
+  createCallerFactory = t.createCallerFactory` — a stock tRPC v11 API,
+  nothing else in the file changed.
+- `apps/api/src/routers/index.ts`: additively re-exports
+  `createCallerFactory` and `Context` alongside the existing `appRouter`.
+- `apps/web/lib/trpc-server.ts` (new): `publicCaller`, built from
+  `createCallerFactory(appRouter)` with a synthetic
+  `{ db, user: null, ip: "server" }` context. `user: null` is not a
+  stand-in for "figure out who's signed in" — every call site is
+  `publicProcedure` and genuinely anonymous, so asserting that honestly
+  is correct, not a shortcut. Do not reuse `publicCaller` for a
+  `protectedProcedure` call — it will always throw `UNAUTHORIZED`, by
+  design.
+- `lib/public-data.ts` deleted entirely; `model-grid.tsx`/`package-grid.tsx`
+  now call `publicCaller.models.list()` / `publicCaller.billing.listPackages()`.
+
+Every field access in `model-grid.tsx`/`package-grid.tsx` was checked
+against the actual router source line-by-line (not memory) before this
+was called done — `models.router.ts`'s `list` procedure's `.map()`
+shape and `billing.router.ts`'s `listPackages`' raw-row return were both
+re-read in full during this pass.
+
+Caught two things this change would otherwise have shipped broken:
+
+1. **Build-breaking.** The landing page now reads live DB data via a
+   Server Component with no `cookies()`/`headers()`/`searchParams` call
+   anywhere in its render path — nothing signals Next.js the route is
+   request-dependent, so its default static-rendering heuristic would
+   try to prerender `/` at `next build` time. CI's `web-build` job uses
+   a deliberately unreachable placeholder `DATABASE_URL`
+   (`postgres://placeholder:placeholder@localhost:1/unused`), so this
+   would either bake a stale build-time price/model snapshot into the
+   deploy or fail the build outright depending on timing. Fixed with
+   `export const dynamic = "force-dynamic"` on `(public)/page.tsx` —
+   which is also just the *correct* choice independent of the CI
+   concern: a page showing live prices shouldn't be statically cached
+   across deploys.
+2. **Unverified dependency.** First draft of `lib/trpc-server.ts`
+   imported `"server-only"` on the assumption Next.js vendors it
+   transitively. Checked: it's not a declared dependency anywhere in
+   this repo (`package.json`/`pnpm-lock.yaml`), and no existing file
+   imports it — `lib/session.ts`, the closest analogous "server-only,
+   opens DB" file, relies on a doc comment instead
+   ("Server components only... importing ./auth pulls in the database
+   client"). Removed the import; `trpc-server.ts` follows that same
+   existing convention instead of adding an unverified new package.
+
+### A real, pre-existing architectural characteristic this surfaces (not a new bug, but a new blast radius)
+`apps/web/server/router.ts` (frozen, pre-existing, unrelated to this
+session) already does `export { appRouter } from "@ai-platform/api/routers"`
+— meaning production already, today, before this session touched
+anything, requires the *entire* `apps/api/src/config.ts` env-var surface
+(`REDIS_URL`, `GATEWAY_URL`, `GATEWAY_MASTER_KEY`, `GATEWAY_ROOT_TOKEN`,
+`INTERNAL_SERVICE_TOKEN`, `RESEND_API_KEY`, `CODE_SALT`, etc.) just to
+serve `/api/trpc/*`, because `modelsRouter.list`'s router file
+(`models.router.ts`) imports `model-sync.service.ts`, and
+`adminRouter`'s file imports `gateway-channels.service.ts` — both of
+which import `apps/api/src/config.ts` at module scope (confirmed by
+direct grep + read, not assumed), and that module `throw`s at import
+time if `envSchema.safeParse(process.env)` fails.
+
+What Phase 3.2 changes: `lib/trpc-server.ts` is now imported by
+`ModelGrid`/`PackageGrid`, which render on the **public landing page**.
+Before this session, only requests that actually hit `/api/trpc/*`
+(client-side calls, all behind some page needing tRPC) triggered that
+env validation. Now the landing page — the one surface a signed-out,
+first-time visitor sees — transitively requires it too. A misconfigured
+`RESEND_API_KEY` or `CODE_SALT` in Vercel's env, today, would only break
+authenticated/tRPC-dependent features; after this change, it would 500
+the marketing homepage as well.
+
+This is flagged here rather than silently patched because a real fix
+(splitting `models`/`billing`'s public procedures into a router with a
+narrower import graph than `apps/api/src/config.ts`, or making that
+config's schema tolerant of a "public-read-only" mode) means editing
+`apps/api/src/config.ts` and/or the router file boundaries — a shared,
+sensitive backend file, out of a frontend session's remit to change
+unilaterally. Recommending this as a scoped follow-up for whichever
+session next touches `apps/api`'s router structure. Until then: **the
+`e2e` CI job below supplies the full placeholder env surface (same list
+as `web-build`) specifically because of this**, not because
+`apps/web`'s own code needs any of those values.
+
+### e2e harness — what it does and, importantly, does NOT boot
+First Playwright harness in this repo: `playwright.config.ts`,
+`e2e/login.spec.ts` (sign-in happy path + wrong-password path),
+`e2e/landing.spec.ts` (live model data renders; packages section
+handles the empty-seed-data case without erroring; legal footer link
+navigates correctly).
+
+Confirmed by reading the actual code, not assumed: **only `apps/web`
+needs to boot for these specs — not the separate `apps/api` Fastify
+server on `:4000`.** `apps/web/app/api/trpc/[trpc]/route.ts` calls the
+shared `appRouter` in-process via `fetchRequestHandler` (no HTTP call
+out to `:4000`), and `apps/web/lib/auth.ts`'s `betterAuth()` instance
+talks to Postgres directly via `drizzleAdapter(db, ...)` — also
+in-process. Login and the landing page (this phase's two new surfaces)
+never exercise anything that lives only in `apps/api`'s standalone
+process (chat streaming, the New API gateway proxy, BullMQ jobs). A
+later phase adding an e2e spec for chat itself would need to add
+`apps/api` back into this harness.
+
+Seed data used: `packages/db/src/seed.ts`'s `user@localhost.dev` /
+`User123!` (confirmed `emailVerified: true` in that file, so login isn't
+blocked on verification) for `login.spec.ts`; `seed-models.ts` (a
+**separate** script from `seed.ts` — not run by it) for
+`landing.spec.ts`'s model-grid assertion, seeding
+`@ai-platform/config`'s `MODEL_CATALOG` with `status="published"` (the
+`models` table's column default) and `isAvailable=true` on first insert.
+Asserted model: "GPT-4o", `MODEL_CATALOG`'s first entry's `displayName`
+— read verbatim from `packages/config/src/models.config.ts`, not
+guessed.
+
+**No seed script for the `packages` (credit packages) table exists
+anywhere in this repo** — checked directly, the only writes to
+`creditPackages` are `admin.router.ts`'s runtime CRUD procedures, none
+at seed time. A fresh CI database therefore has zero rows there, and
+`PackageGrid` correctly renders its empty-state message. `landing.spec.ts`
+asserts that either real package cards OR the empty-state message is
+present — asserting real cards would have been testing against data
+that provably does not exist in this environment, exactly the kind of
+unverified assumption this correction round was asked to eliminate.
+Flagging this as a gap worth a small seed addition (or an admin-UI-driven
+fixture) in whichever phase builds `/admin/packages`.
+
+New CI jobs added to `.github/workflows/deploy.yml`:
+- `legal-docs-sync` — runs `sync-legal.ts --check`.
+- `e2e` — `postgres:16-alpine` service container (not Testcontainers,
+  unlike `api-tests` — this job needs the DB reachable from the actual
+  `next start` process, not from inside a single test runner process),
+  `DATABASE_SSL=disable` (same precedent already established in
+  `apps/api/src/test/testDb.ts`'s own comment: "packages/db forces TLS
+  unless DATABASE_SSL=disable; the container has [no TLS]"), migrate →
+  seed → seed:models → `next build` → `playwright test`. Uploads the
+  Playwright HTML report as a build artifact on failure.
+
+### What I could not verify without running the code
+- Nothing in this session's build was run through actual `tsc`,
+  `next build`, `vitest`, or `playwright test` — no `node_modules` are
+  installed in this sandbox and no network access is available to
+  install them. Every claim above about what compiles, what a router
+  returns, what a schema column defaults to, and what CI job env vars
+  are required was checked by reading the actual source files directly
+  (cited inline above), not inferred from memory or convention — but
+  "checked by reading source" is not the same guarantee as "checked by
+  running the code," and the standing ask from earlier sessions (get a
+  real `tsc`/`next build` pass and report back what breaks) still
+  applies here as much as it did in 3.1.
+- `@playwright/test`'s pinned version (`^1.48.0`) is a reasonable, widely
+  current version at the time of writing but was not checked against
+  the npm registry (no network access) — verify this resolves to a real,
+  current version before merging, and bump if a newer one is preferred.
+- The `e2e` job's full placeholder-env-var list is copied from
+  `web-build`'s existing block on the reasoning documented above (the
+  `appRouter` import graph needs them to be syntactically valid, not
+  reachable) — this reasoning was checked by reading `config.ts`'s Zod
+  schema and every transitively-imported service file's own imports,
+  but was not confirmed by actually booting `apps/web` against them in
+  this sandbox.
+- Whether Vercel's ACTUAL production/preview env for `apps/web` already
+  has every one of `apps/api/src/config.ts`'s required vars set (as the
+  "pre-existing, not new" argument above assumes) was not independently
+  re-verified this session — it's inferred from `web-build`'s existing
+  CI env block needing the same list, which was presumably set that way
+  because production needs it, but that inference should be confirmed
+  against the real Vercel project settings before relying on it further.

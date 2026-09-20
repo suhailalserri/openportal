@@ -3,6 +3,15 @@
 @import "./theme.css";
 @import "./theme-presets.css";
 
+/*
+ * @tailwindcss/typography has been a devDependency since 1.2 but was
+ * never registered — nothing used `prose` until Phase 3.2's legal-doc
+ * renderer (features/legal/components/legal-doc-view.tsx). Tailwind v4
+ * plugins load via `@plugin` in CSS, not `tailwind.config.ts` (that file
+ * was already deleted in 1.2 — see F15/1.2's own delete list).
+ */
+@plugin "@tailwindcss/typography";
+
 @theme inline {
   /*
    * Bridges next/font's runtime CSS variables (set via the `variable`

@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { LogOut, Settings, User } from "lucide-react";
 
 import { useSession, signOut } from "@/lib/auth-client";
+import { clearAllClientCaches } from "@/lib/client-cache";
 import { NAV_GROUPS } from "@/config/nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,13 @@ import {
  * any of the unbuilt pages. `router.push` (not router.replace) so the
  * browser back button doesn't return to a page that immediately
  * redirects back to login anyway.
+ *
+ * Phase 3.2 addition: clearAllClientCaches() (lib/client-cache.ts) runs
+ * before signOut() — Rule 9 (FRONTEND_REBUILD_PLAN.md §3), "clear
+ * per-user client caches on sign-out... shared-device privacy." Today
+ * that only clears the consent-banner dismissal flag (its only
+ * registrant so far); Phase 4d's IndexedDB conversation cache registers
+ * here too once it exists, with no further change needed in this file.
  */
 export function AccountMenu() {
   const t = useTranslations("shell");
@@ -50,6 +58,7 @@ export function AccountMenu() {
   async function handleSignOut() {
     setSigningOut(true);
     try {
+      await clearAllClientCaches();
       await signOut();
     } finally {
       router.push(`/${locale}/auth/login`);

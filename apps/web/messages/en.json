@@ -155,7 +155,7 @@
     "resetMessage": "Enter a new password for your account.",
     "resetButton": "Reset password",
     "resetInvalidToken": "This reset link is invalid or has expired. Request a new one.",
-    "agreeToTerms": "I agree to the Terms of Service and Privacy Policy",
+    "agreeToTerms": "I agree to the <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
     "totpTitle": "Two-factor authentication",
     "totpMessage": "Enter the 6-digit code from your authenticator app.",
     "totpCode": "Authentication code",
@@ -331,5 +331,33 @@
       "chat": "Chat is being rebuilt and will be back soon.",
       "admin": "The admin area is under construction. Sections will appear as they are built."
     }
+  },
+  "legal": {
+    "termsTitle": "Terms of Service",
+    "privacyTitle": "Privacy Policy",
+    "acceptableUseTitle": "Acceptable Use Policy",
+    "englishOnlyNotice": "This document is currently available in English only. An Arabic version is in progress.",
+    "unavailable": "This document is not currently available."
+  },
+  "landing": {
+    "primaryNav": "Primary navigation",
+    "signIn": "Sign in",
+    "getStarted": "Get started",
+    "heroTitle": "Advanced AI, fair pricing, zero complexity",
+    "heroSubtitle": "Chat with the best AI models from one place — no juggling subscriptions, no technical setup.",
+    "heroCta": "Create your free account",
+    "modelsHeading": "Available models",
+    "packagesHeading": "Top-up packages",
+    "noPackagesAvailable": "No packages are available right now — please check back later",
+    "yer": "YER",
+    "credits": "credits",
+    "legalNav": "Legal links",
+    "footerCopyright": "© {year} OpenPortal. All rights reserved."
+  },
+  "consent": {
+    "bannerLabel": "Cookie notice",
+    "message": "We only use essential cookies needed for sign-in and to run the platform.",
+    "learnMore": "Learn more",
+    "accept": "Got it"
   }
 }

@@ -185,6 +185,162 @@ jobs:
             echo "scripts/check-i18n.ts doesn't exist yet (expected until session 1.2) — skipping."
           fi
 
+  # ─── SYNC LEGAL DOCS ─────────────────────────────────────────────────
+  # Phase 3.2. Fails loud if apps/web/content/legal/*.md ever drifts from
+  # docs/legal/*.md — see apps/web/scripts/sync-legal.ts's own header for
+  # the full rationale (a stale copy of the ToS/Privacy Policy shipping
+  # to production is a legal-accuracy problem, not just a build nit).
+  legal-docs-sync:
+    name: Legal Docs In Sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify content/legal matches docs/legal
+        working-directory: apps/web
+        run: pnpm run sync-legal:check
+
+  # ─── E2E (Playwright) ────────────────────────────────────────────────
+  # Phase 3.2, first e2e job in this repo. Only boots apps/web — NOT
+  # apps/api's standalone Fastify server. Confirmed by reading the actual
+  # code (see apps/web/playwright.config.ts's own comment for the full
+  # trace): apps/web/app/api/trpc/[trpc]/route.ts calls the shared
+  # appRouter in-process, and apps/web/lib/auth.ts's betterAuth() talks to
+  # Postgres directly — neither one makes an HTTP call to apps/api on
+  # :4000. Login and the landing page (this phase's two new e2e specs)
+  # only exercise apps/web, so a real apps/api process would add CI time
+  # and failure surface for zero coverage gained.
+  #
+  # ENV VARS: this job needs the SAME full set web-build already declares
+  # (see that job's own comment for INTERNAL_SERVICE_TOKEN etc.) — NOT
+  # because apps/web's OWN code needs them, but because
+  # apps/web/server/router.ts (frozen, pre-existing — unrelated to this
+  # phase) already re-exports @ai-platform/api/routers's appRouter, whose
+  # import graph eagerly loads apps/api/src/config.ts (models.router.ts →
+  # model-sync.service.ts → "../config"; admin.router.ts →
+  # gateway-channels.service.ts → "../config" — both confirmed by direct
+  # source read, both imported at module scope, not lazily). That
+  # module throws on missing/invalid env vars at *import* time. This was
+  # already true in production before Phase 3.2 touched anything — any
+  # request to /api/trpc/* already required this full env surface. What
+  # Phase 3.2 changes is the BLAST RADIUS: apps/web/lib/trpc-server.ts
+  # (new) is imported by the landing page's Server Components
+  # (ModelGrid/PackageGrid), so now a misconfigured env var breaks the
+  # public landing page too, not just authenticated tRPC calls. This is
+  # flagged prominently in docs/frontend/BRANCH_AND_CI_NOTES.md as a
+  # known trade-off worth a future phase's attention (splitting the
+  # public-only procedures out of the router that needs
+  # apps/api/src/config.ts at all) — not silently worked around here.
+  #
+  # DATABASE_URL/DATABASE_SSL: unlike web-build (compile-only, placeholder
+  # DB), this job actually boots the app and hits a real Postgres, so it
+  # needs a real, reachable connection — the `postgres:16-alpine` service
+  # container below, on the default port GitHub exposes it on.
+  # DATABASE_SSL=disable follows the exact precedent already established
+  # in apps/api/src/test/testDb.ts ("packages/db forces TLS unless
+  # DATABASE_SSL=disable; the container has [no TLS]").
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgres://e2e:e2e@localhost:5432/e2e"
+      DATABASE_SSL: "disable"
+      # Same placeholder values as web-build for everything apps/web's own
+      # runtime code doesn't actually call (Redis, the gateway, Resend,
+      # Telegram) — this job's specs (login, landing) never exercise
+      # those paths, so these only need to be VALID per apps/api/src/
+      # config.ts's schema (min length / url format), not real/reachable.
+      REDIS_URL: "redis://localhost:1/0"
+      GATEWAY_URL: "http://localhost:1"
+      GATEWAY_MASTER_KEY: "ci-placeholder"
+      GATEWAY_ROOT_TOKEN: "ci-placeholder"
+      BETTER_AUTH_SECRET: "ci-placeholder-32-bytes-minimum-xxxxxxxx"
+      BETTER_AUTH_URL: "http://localhost:3100"
+      INTERNAL_SERVICE_TOKEN: "ci-placeholder-internal-service-token-32plus"
+      INTERNAL_API_URL: "http://localhost:1"
+      RESEND_API_KEY: "ci-placeholder"
+      RESEND_FROM_EMAIL: "noreply@openportal.site"
+      RESEND_FROM_NAME: "OpenPortal"
+      CODE_SALT: "ci-placeholder-salt"
+      TURNSTILE_SECRET_KEY: "ci-placeholder"
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "ci-placeholder"
+      FRONTEND_URL: "http://localhost:3100"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3100"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run DB migrations
+        run: pnpm --filter @ai-platform/db db:migrate
+
+      - name: Seed test users (admin@localhost.dev / user@localhost.dev)
+        run: pnpm --filter @ai-platform/db seed
+
+      - name: Seed models (MODEL_CATALOG → models table)
+        run: pnpm --filter @ai-platform/db seed:models
+
+      # NOTE: no `packages` (credit packages) seed step exists — there is
+      # no seed script for that table anywhere in this repo today (see
+      # e2e/landing.spec.ts's own comment). The landing page's package
+      # section is therefore expected to render its empty state in this
+      # job, and the spec asserts exactly that rather than assuming data
+      # that was never seeded.
+
+      - name: Build apps/web
+        working-directory: apps/web
+        run: pnpm run build
+
+      - name: Run Playwright tests
+        working-directory: apps/web
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
 # ─── NOTE ON DEPLOYMENT ────────────────────────────────────────────────
 # This workflow is CI (checks) only. Actual deploys are handled outside
 # GitHub Actions:

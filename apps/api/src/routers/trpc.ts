@@ -68,6 +68,26 @@ const t = initTRPC.context<Context>().create();
 export const router          = t.router;
 export const publicProcedure = t.procedure;
 
+/**
+ * Additive export (Phase 3.2 backend addition, docs/FRONTEND_REBUILD_PLAN.md
+ * — see docs/frontend/BRANCH_AND_CI_NOTES.md for the full rationale).
+ *
+ * Lets any consumer of appRouter build a server-side "caller" — invoke a
+ * procedure as a plain async function, in-process, with no HTTP
+ * round-trip and no Fastify request object required. This is what lets
+ * a Next.js Server Component (apps/web/lib/trpc-server.ts) call
+ * `models.list` / `billing.listPackages` directly instead of either (a)
+ * duplicating each router's query logic by hand, or (b) fetching its own
+ * /api/trpc route over HTTP from the server (a needless loopback).
+ *
+ * Purely additive: nothing above this line changes, `router` and
+ * `publicProcedure`/`protectedProcedure`/`adminProcedure` keep their
+ * existing behavior for the Fastify server and the Next.js HTTP tRPC
+ * handler exactly as before. This only adds a second way to invoke the
+ * same procedures.
+ */
+export const createCallerFactory = t.createCallerFactory;
+
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, user: ctx.user } });

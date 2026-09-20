@@ -214,7 +214,40 @@ function RegisterForm() {
                       checked={field.value}
                       onChange={(e) => field.onChange(e.target.checked)}
                     />
-                    <span>{t("agreeToTerms")}</span>
+                    <span>
+                      {/* stopPropagation: both links sit inside the native
+                          <label> that toggles the checkbox (no htmlFor/id
+                          pairing — an implicit label), so without this a
+                          click on "Terms of Service" would also silently
+                          check the box. Reading the terms must never itself
+                          grant consent to them. preventDefault is NOT
+                          called, so the link's own navigation still fires
+                          normally. */}
+                      {t.rich("agreeToTerms", {
+                        terms: (chunks) => (
+                          <Link
+                            href={`/${locale}/legal/terms`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary underline underline-offset-2"
+                          >
+                            {chunks}
+                          </Link>
+                        ),
+                        privacy: (chunks) => (
+                          <Link
+                            href={`/${locale}/legal/privacy`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary underline underline-offset-2"
+                          >
+                            {chunks}
+                          </Link>
+                        ),
+                      })}
+                    </span>
                   </label>
                   <FormMessage />
                 </FormItem>
