@@ -16,6 +16,7 @@ import {
   computeSizeResult,
   conservativeYerPerCredit,
   isFreeModel,
+  isReassuring,
   type MessageSizeId,
   type SizeResult,
 } from "./pricing";
@@ -94,6 +95,8 @@ function toResultView(r: SizeResult, locale: LocaleTag) {
     chatYer: formatYerPrecise(r.chatYer, locale),
     remainingYer: formatYerPrecise(r.remainingYer, locale),
     remainingPercent: Math.round(r.remainingPercent * 10) / 10,
+    // Decided on the UNROUNDED share (49.96 displays as 50 but is not >= 50).
+    reassuring: isReassuring(r.remainingPercent),
   };
 }
 

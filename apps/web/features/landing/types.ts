@@ -15,6 +15,10 @@
 import type { ModelTag } from "./config/model-tags";
 import type { MessageSizeId } from "./lib/pricing";
 
+/** Re-exported so client components can import the type from here without
+ *  importing lib/pricing.ts (which must stay server-only, Rule 1). */
+export type { MessageSizeId };
+
 /** The filter values of the models table's tier dropdown. */
 export type TierFilterValue = "free" | "standard" | "premium";
 

@@ -164,6 +164,22 @@ export function messagesForBudget(budgetYer: number, yerPerMessage: number): num
   return Math.min(MAX_DISPLAY_MESSAGES, Math.floor(budgetYer / yerPerMessage));
 }
 
+/**
+ * The honesty gate for "one chat never takes your whole balance". The UI
+ * may only say that line when the worked-example chat leaves at least
+ * this share of the budget. Judged on the UNROUNDED percentage.
+ */
+export const REASSURING_MIN_REMAINING_PERCENT = 50;
+
+/**
+ * True only when the share of the budget left is finite and at or above
+ * REASSURING_MIN_REMAINING_PERCENT. Non-finite input fails toward false
+ * (i.e. toward the plain-cost line, never the reassuring one).
+ */
+export function isReassuring(remainingPercent: number): boolean {
+  return Number.isFinite(remainingPercent) && remainingPercent >= REASSURING_MIN_REMAINING_PERCENT;
+}
+
 export interface SizeResult {
   /** Whole messages the budget buys; null when the model is free. */
   messages: number | null;
