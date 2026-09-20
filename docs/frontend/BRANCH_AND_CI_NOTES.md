@@ -684,3 +684,146 @@ build catches exactly the class of error that sandbox inspection can't:
 this is a file-identity rule (Next reads THIS file's top, not the
 transitive graph), not something a static read of the import would
 surface without knowing that rule already.
+
+---
+
+## Session 3.1 — Auth pages
+
+### What landed
+`login`, `register`, `verify`, `forgot`, `reset` as real pages under
+`app/[locale]/(auth)/auth/`. `login`: email/password, inline TOTP/
+backup-code step on `data?.twoFactorRedirect` (no separate route, per
+`lib/auth-client.ts`'s own comment), `?next=` respected via
+`resolvePostLoginTarget`. `register`: email/displayName/password/
+confirm/terms-checkbox, live password-rule checklist, Cloudflare
+Turnstile (script-tag widget, no new npm dependency —
+`components/auth/turnstile-widget.tsx`), `?ref=` capture forwarded as
+`x-referral-code`. `verify`: waiting screen + resend with a 60s
+client-side cooldown (the actual verification happens when the emailed
+link hits better-auth's own `/api/auth/verify-email` route directly —
+this page never calls a "verify" method itself). `forgot`/`reset`: email
+→ token-bearing link → new password, with the same enumeration-safe
+"we sent it" copy regardless of whether the email exists.
+
+New shared, non-page files: `lib/password-rules.ts` (+ test) mirroring
+the server's 3 password rules; `lib/map-auth-error.ts` (better-auth
+error → `auth.errors.*` key); `components/auth/{form-error-banner,
+password-rule-row,turnstile-widget}.tsx`.
+
+`lib/guards.ts` gained `decideAuthGuard` (+ tests appended to
+`guards.test.ts`, existing tests untouched): a signed-in visitor to any
+`/auth/*` page is bounced to `/{locale}/chat` — closes the "no session
+check here — 3.1 decision" gap `(auth)/auth/layout.tsx`'s own comment
+flagged back in 2.1/2.2. `guards.ts` is NOT on the frozen list (only
+`auth`/`auth-client`/`trpc`/`redeem`/`generate-code`/`turnstile-server`
+are), so this is an in-bounds edit, not a frozen-zone violation.
+
+### Deliberate scope cuts, flagged rather than silently dropped
+- No password show/hide toggle — no such primitive exists in
+  `components/ui`, and building one wasn't worth it for this phase.
+  Plain `<Input type="password">`.
+- No `Checkbox` UI primitive exists either — the terms checkbox on
+  `register` is a native `<input type="checkbox">` with `accent-primary`
+  styling instead of a new shadcn component.
+- `decideAuthGuard` does NOT preserve `?next=` when bouncing an
+  already-signed-in visitor away from `/auth/*` (unlike
+  `decideAppGuard`/`decideAdminGuard`, which do). Route-group layouts
+  don't receive `searchParams` in the App Router — only `page.tsx` does
+  — so preserving it here would need restructuring where the guard runs.
+  Landing on `/auth/*` while already signed in is an edge case (stale
+  tab, back button), not the common path; the common
+  "signed-out-hits-protected-page" path still preserves `next` correctly.
+  Full reasoning is in `decideAuthGuard`'s own doc comment.
+- zod's built-in validation messages (`"Invalid email"`, `"String must
+  contain at least 1 character(s)"`) are NOT translated — they'd show in
+  English even on the Arabic form. This matches the existing precedent
+  already in the codebase (`kitchen-sink-client.tsx`'s `DemoForm` does
+  the same — hardcoded English zod messages, never localized), so it's
+  consistent with current practice rather than a regression, but it IS a
+  real Arabic-locale rough edge worth fixing at some point: building
+  translated zod schemas needs a schema *factory* function called with
+  `t` inside the component (schemas can't call `useTranslations` at
+  module scope), which no page here does. Only shows up on genuinely
+  invalid input (empty email, malformed email) — the common "wrong
+  password" / "weak password" / "emails don't match" paths all use
+  hand-written `form.setError(...)` calls with real translated copy, not
+  zod's defaults.
+
+### Not verified (no network/node_modules in this sandbox — standing gap)
+- **Highest-risk item**: `signUp.email(body, { headers: {...} })` — the
+  second-argument shape for attaching `x-turnstile-token`/
+  `x-referral-code` to a better-auth client call. This is the documented
+  better-auth pattern from training knowledge, and `lib/auth.ts`'s own
+  comment ("see the client call in auth/register/page.tsx for the
+  matching side of this") implies whoever wrote the server hook expected
+  exactly this shape — but it was not checked against this pinned
+  version's actual TypeScript types (no `node_modules` here). If wrong,
+  it is a single call site (`register/page.tsx`'s `onSubmit`) to fix,
+  and it would fail loud (registration errors visibly) rather than fail
+  silent (never passes as a security bypass — worst case Turnstile/
+  referral just don't get attached and the server-side Turnstile check
+  fails closed if `TURNSTILE_SECRET_KEY` is set).
+- `data?.twoFactorRedirect` on `signIn.email`'s return type, and
+  `twoFactor.verifyTotp`/`twoFactor.verifyBackupCode` method names —
+  matches `lib/auth-client.ts`'s own comment closely, not independently
+  compiled.
+- `error.code === "USER_ALREADY_EXISTS"` — plausible better-auth code
+  for a duplicate-email sign-up, not confirmed. Falls through to the
+  generic error message if wrong; doesn't break the flow.
+- `requestPasswordReset`/`resetPassword` argument shapes
+  (`{email, redirectTo}` / `{newPassword, token}`) and whether
+  `requestPasswordReset` really is enumeration-safe (returns success
+  whether or not the email exists) on this pinned version — assumed from
+  standard better-auth behavior, not confirmed.
+- `next build`/`tsc`/real ESLint/vitest — not run. The i18n parity check
+  (script, not eyeballed: 251→272 keys, both locales, diffed
+  programmatically) and the Rule 2 physical-direction-class grep (zero
+  hits across every new file) WERE run for real.
+- Turnstile widget rendering itself (`components/auth/turnstile-widget.tsx`)
+  — the `window.turnstile.render()` call shape is standard Cloudflare
+  docs, not exercised against a real site key in this sandbox (no
+  network). Its no-site-key fallback path (skip rendering, report a
+  placeholder token) is what a preview without `TURNSTILE_SECRET_KEY`
+  configured will actually exercise — untested end-to-end either way.
+
+### Message keys added (`ar.json`/`en.json`, 251→272 keys each on top of
+2.2's already-delivered files — NOT the pre-2.2 repo snapshot; parity
+verified by script)
+`auth.verifyResendIn`, `auth.verificationSent`,
+`auth.{forgotTitle,forgotMessage,sendResetLink,resetTitle,resetMessage,
+resetButton,resetInvalidToken}`,
+`auth.{totpTitle,totpMessage,totpCode,backupCode,useBackupCode,
+useAuthenticatorApp,verifyButton,backToLogin}`,
+`auth.passwordRules.{minLength,uppercase,digit}`, `auth.errors.suspended`
+(currently unused by any page — better-auth's sign-in doesn't itself
+block a suspended account, `users.status` suspension is enforced later
+by the API's chat middleware per `lib/auth.ts`'s own comment — added
+per the plan's error-copy list, will get a real caller once that surface
+exists, e.g. Phase 3.2's chat error handling).
+
+### Frozen zone
+Untouched: `app/api/**`, `server/**`, `middleware.ts`, `i18n/request.ts`,
+`next.config.ts`, and all six named frozen `lib/*.ts` files
+(`auth.ts`, `auth-client.ts`, `trpc.ts`, `redeem.ts`, `generate-code.ts`,
+`turnstile-server.ts`) — read for reference, never edited. `guards.ts` is
+edited (in-bounds, see above). All new `lib/` files
+(`password-rules.ts`, `map-auth-error.ts`, plus their tests) are new
+files, not edits to a frozen one.
+
+### Carried forward, still open
+- Full preview pass owed once this deploys: register → Turnstile widget
+  renders (or gracefully no-ops without a site key) → verify screen
+  shows the right email → click the real emailed link → lands
+  auto-signed-in per `autoSignInAfterVerification: true` → login with
+  that seeded account → logout (closes the loop 2.2 couldn't verify
+  without this phase). Separately: a 2FA-enabled test account through
+  login → TOTP step appears → correct code succeeds, wrong code shows
+  `errors.invalidCredentials`-mapped copy, "use backup code" swaps the
+  input without losing the entered value's field label. Forgot → check
+  inbox → reset link → new password → redirected to login → sign in
+  with the new password.
+- zod default-message localization (see "Deliberate scope cuts" above)
+  — not this phase, flagged for whoever picks up form-validation
+  polish, `kitchen-sink-client.tsx`'s `DemoForm` has the same gap.
+- `sheet.tsx`'s hard-coded English `sr-only` close label — 2.1's known
+  gap, still untouched (unrelated to this session).

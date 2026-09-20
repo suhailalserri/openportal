@@ -143,10 +143,32 @@
     "verifyEmail": "Verify your email",
     "verifyMessage": "We sent a verification link to {email}.",
     "resendVerification": "Resend verification email",
+    "verifyResendIn": "Resend available in {seconds}s",
+    "verificationSent": "Verification email sent.",
     "resetPassword": "Reset Password",
     "resetSent": "Password reset link sent to your email.",
     "newPassword": "New password",
+    "forgotTitle": "Reset your password",
+    "forgotMessage": "Enter your email and we'll send you a reset link.",
+    "sendResetLink": "Send reset link",
+    "resetTitle": "Choose a new password",
+    "resetMessage": "Enter a new password for your account.",
+    "resetButton": "Reset password",
+    "resetInvalidToken": "This reset link is invalid or has expired. Request a new one.",
     "agreeToTerms": "I agree to the Terms of Service and Privacy Policy",
+    "totpTitle": "Two-factor authentication",
+    "totpMessage": "Enter the 6-digit code from your authenticator app.",
+    "totpCode": "Authentication code",
+    "backupCode": "Backup code",
+    "useBackupCode": "Use a backup code instead",
+    "useAuthenticatorApp": "Use authenticator app instead",
+    "verifyButton": "Verify",
+    "backToLogin": "Back to sign in",
+    "passwordRules": {
+      "minLength": "At least 8 characters",
+      "uppercase": "One uppercase letter",
+      "digit": "One number"
+    },
     "passwordStrength": {
       "weak": "Weak",
       "medium": "Medium",
@@ -160,7 +182,8 @@
       "tooManyAttempts": "Too many attempts. Try again in a minute.",
       "captchaRequired": "Please complete the verification challenge.",
       "captchaFailed": "Verification failed. Please try again.",
-      "generic": "Authentication error. Please try again."
+      "generic": "Authentication error. Please try again.",
+      "suspended": "Your account has been suspended. Contact support."
     }
   },
   "errors": {

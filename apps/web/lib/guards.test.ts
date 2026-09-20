@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { decideAdminGuard, decideAppGuard, getSessionRole } from "./guards";
+import { decideAdminGuard, decideAppGuard, decideAuthGuard, getSessionRole } from "./guards";
 
 const signedIn = (role?: unknown) => ({ user: role === undefined ? { id: "u1" } : { id: "u1", role } });
 
@@ -94,6 +94,31 @@ describe("decideAdminGuard — (admin) group", () => {
 
   it("cannot be steered off-site through the locale param", () => {
     expect(decideAdminGuard({ locale: "//evil.com", session: signedIn("user") })).toEqual({
+      action: "redirect",
+      to: "/ar/chat",
+    });
+  });
+});
+
+describe("decideAuthGuard — (auth) group", () => {
+  it("allows a signed-out visitor", () => {
+    expect(decideAuthGuard({ locale: "en", session: null })).toEqual({ action: "allow" });
+    expect(decideAuthGuard({ locale: "en", session: { user: null } })).toEqual({ action: "allow" });
+  });
+
+  it("bounces a signed-in visitor to /{locale}/chat", () => {
+    expect(decideAuthGuard({ locale: "en", session: signedIn() })).toEqual({
+      action: "redirect",
+      to: "/en/chat",
+    });
+    expect(decideAuthGuard({ locale: "ar", session: signedIn("admin") })).toEqual({
+      action: "redirect",
+      to: "/ar/chat",
+    });
+  });
+
+  it("cannot be steered off-site through the locale param", () => {
+    expect(decideAuthGuard({ locale: "//evil.com", session: signedIn() })).toEqual({
       action: "redirect",
       to: "/ar/chat",
     });
