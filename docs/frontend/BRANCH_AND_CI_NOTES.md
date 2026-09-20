@@ -827,3 +827,44 @@ files, not edits to a frozen one.
   polish, `kitchen-sink-client.tsx`'s `DemoForm` has the same gap.
 - `sheet.tsx`'s hard-coded English `sr-only` close label — 2.1's known
   gap, still untouched (unrelated to this session).
+
+### First real build result and fixes (3.1 continuation)
+Red on push (`Type-check & Lint`, real `tsc`, plus `next build`'s own
+type-check step failing the same way): 11 errors, all from two root
+causes — both were explicitly called out as "not verified" in the
+original 3.1 delivery note above, now confirmed for real by the compiler
+rather than left as a guess.
+
+1. **`mapAuthError`'s parameter type was too strict under
+   `exactOptionalPropertyTypes: true`** (this repo's tsconfig has it on).
+   better-auth's real error type is
+   `{ code?: string | undefined; message?: string | undefined; status:
+   number; statusText: string }` — under that flag, an optional property
+   typed as exactly `string | undefined` is NOT assignable to a
+   parameter typed `code?: string`, even though every actual runtime
+   value is fine; the flag is about the *type*, not the *value*. Hit all
+   6 call sites (`login` ×2, `register`, `verify`, `forgot`, `reset`).
+   Fix: `mapAuthError`'s parameter is now `unknown`, cast internally —
+   sidesteps needing to guess the exact optional-field shape a second
+   time; a future shape change fails soft (generic message) instead of
+   failing the build again.
+2. **`data?.twoFactorRedirect` on `signIn.email`'s return type doesn't
+   exist** — confirmed the real inferred success type has no
+   `twoFactorRedirect` branch (`Omit<{ redirect, token, ... }>`).
+   `lib/auth-client.ts`'s own comment describing this exact check was
+   evidently either aspirational or matches a different better-auth
+   version than what's actually installed. Fix: read it through an
+   explicit `as unknown as {twoFactorRedirect?: boolean}` cast in
+   `login/page.tsx` — changes nothing about the runtime check (the
+   frozen file's comment is still the source of truth for the actual
+   2FA response shape), only satisfies the type checker, since `"x" in
+   data` narrowing can't add a property no branch of the real type has.
+
+No other files touched for this fix — both root causes were isolated to
+`lib/map-auth-error.ts` (1 file) and `login/page.tsx` (1 check). This is
+exactly the "fails loud, one call site to fix" outcome the original note
+predicted for the `signUp.email(body, {headers})` risk too, which did
+NOT show up as a build error here — either that shape is actually
+correct, or it simply hasn't been exercised yet (only type-checked,
+never run against a live Turnstile submission). Still flagged as
+unverified until a real registration attempt goes through Turnstile.

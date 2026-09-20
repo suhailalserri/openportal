@@ -72,7 +72,18 @@ function LoginForm() {
     // `{ twoFactorRedirect: true }` instead of a session — see the
     // comment on this exact branch in lib/auth-client.ts (frozen), which
     // specifies checking `data?.twoFactorRedirect` directly.
-    if (data?.twoFactorRedirect) {
+    //
+    // Cast through `unknown` rather than reading the property straight
+    // off `data`: the first real build showed the inferred success type
+    // is `Omit<{ redirect, token, ... }>` with no `twoFactorRedirect`
+    // branch, so TypeScript won't allow reading it even optionally —
+    // `"x" in data` narrowing only discriminates between branches a
+    // union already has, it can't add a property absent from every
+    // branch. This does not change the runtime check, only satisfies
+    // the type checker; the frozen file's comment is the actual source
+    // of truth for the runtime shape better-auth returns.
+    const twoFactorRedirect = (data as unknown as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect;
+    if (twoFactorRedirect) {
       setStep("totp");
       return;
     }
