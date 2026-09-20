@@ -1186,3 +1186,38 @@ is still pending.
 Plan copies: the uploaded plan (2.2/3.1 checked) was treated as canonical.
 The repo's `docs/FRONTEND_REBUILD_PLAN.md` differs (2.2/3.1 unchecked, D1
 decided, 2.1 carry-over list) and was not edited; reconcile the two.
+
+### Legal pages 500 on preview — `DYNAMIC_SERVER_USAGE` (3.2 continuation, round 2)
+Build and CI green, but `/{en,ar}/legal/{terms,privacy,acceptable-use}`
+returned 500. Vercel runtime log (all six URLs, function
+`/[locale]/legal/[doc]`): `digest: 'DYNAMIC_SERVER_USAGE'`.
+
+Cause: `middleware.ts` (custom, not next-intl's) hands the locale to
+next-intl via the `x-next-intl-locale` header, so `requestLocale`
+(`i18n/request.ts`, frozen) calls `headers()` unless `setRequestLocale()`
+ran first. `LocaleLayout` calls `getMessages()` without it, and the page's
+`generateStaticParams` returned only `{ doc }` (no `locale`), so nothing was
+prerendered at build; the first request then rendered the route as
+static-on-demand, where `headers()` throws. It passed `next build` and the
+`e2e` job (which uses `next start`, a different runtime path than Vercel),
+so neither could catch it.
+
+Fix (no frozen file touched):
+- `legal/[doc]/page.tsx`: `generateStaticParams` emits locale × doc (6
+  pages), `setRequestLocale(locale)` at the top of the page,
+  `dynamicParams = false` (no on-demand render path can exist).
+- `app/[locale]/layout.tsx`: `setRequestLocale(locale)` before
+  `getMessages()` (next-intl's documented static-rendering requirement).
+
+Guard: the six pages are now prerendered during `next build`, so any other
+`headers()`/`cookies()` use in that tree fails the `web-build` job with the
+offending route named, not a production 500. `content/legal` is read at
+build time (cwd = apps/web) instead of by a function at request time, which
+also removes a Vercel file-tracing risk for `readFileSync`.
+
+Not verified (no node_modules here): that the build now prerenders all six
+pages (check the `next build` route table shows `● /[locale]/legal/[doc]`
+with `/en/legal/terms` etc. listed); that nothing else in the tree reads
+request headers; Vercel behaviour itself. Standing gap: e2e runs on
+`next start`, so it cannot reproduce Vercel-only rendering failures;
+verification for those is the preview URL.
