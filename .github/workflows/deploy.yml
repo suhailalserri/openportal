@@ -312,6 +312,21 @@ jobs:
       - name: Run DB migrations
         run: pnpm --filter @ai-platform/db db:migrate
 
+      # drizzle-kit only applies what is in meta/_journal.json (0000).
+      # 0001-0006 are hand-written idempotent SQL, applied by hand in
+      # production (see db-ops.yml), so a fresh CI database is missing
+      # e.g. users.referral_bonus_awarded_at (0005) and the payment /
+      # model-sync tables and columns. Apply them in order. 0007/0008 are
+      # Supabase hardening (RLS, function search_path) and irrelevant on
+      # this throwaway database. 0001's pg_cron block is wrapped in an
+      # exception handler and is skipped on plain Postgres.
+      - name: Apply raw SQL migrations (0001-0006)
+        run: |
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency; do
+            echo "== $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "packages/db/src/migrations/$f.sql"
+          done
+
       - name: Seed test users (admin@localhost.dev / user@localhost.dev)
         run: pnpm --filter @ai-platform/db seed
 
