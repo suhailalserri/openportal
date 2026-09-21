@@ -1,0 +1,219 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+
+import { runChatStream, type StreamCallbacks } from "./stream-reader";
+
+/**
+ * apps/web/features/chat/lib/stream-reader.test.ts
+ *
+ * Phase 4b. Node's global `fetch`/`Response`/`TextEncoder`/`TextDecoder`
+ * /`AbortController` are all real (Node 18+, `environment: "node"` in
+ * vitest.config.ts — no jsdom needed, same reasoning as
+ * safe-markdown.test.tsx's own header comment on why this sandbox
+ * avoids adding new deps). Only `global.fetch` itself is stubbed, per
+ * test, with a fake `Response`-shaped object whose `body.getReader()`
+ * returns a hand-built reader — this drives the exact byte sequences
+ * each test needs without any real network or a real ReadableStream.
+ */
+
+function fakeReader(
+  chunks: Uint8Array[],
+  opts?: { throwAfter?: number; throwAsAbort?: boolean },
+): { getReader: () => { read: () => Promise<{ done: boolean; value?: Uint8Array }> } } {
+  let i = 0;
+  return {
+    getReader: () => ({
+      read: async () => {
+        if (opts?.throwAfter !== undefined && i === opts.throwAfter) {
+          if (opts.throwAsAbort) {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            throw err;
+          }
+          throw new Error("network drop");
+        }
+        if (i >= chunks.length) return { done: true };
+        const value = chunks[i];
+        i += 1;
+        return { done: false, value };
+      },
+    }),
+  };
+}
+
+function collectingCallbacks(): StreamCallbacks & {
+  chunks: string[];
+  calls: string[];
+} {
+  const chunks: string[] = [];
+  const calls: string[] = [];
+  return {
+    chunks,
+    calls,
+    onChunk: (delta) => {
+      chunks.push(delta);
+      calls.push("chunk");
+    },
+    onDone: () => calls.push("done"),
+    onStopped: () => calls.push("stopped"),
+    onPartial: () => calls.push("partial"),
+    onError: () => calls.push("error"),
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("runChatStream — chunk delivery", () => {
+  it("delivers each chunk in order via a separate onChunk call, never buffered to the end", async () => {
+    const encoder = new TextEncoder();
+    const reader = fakeReader([encoder.encode("Hello"), encoder.encode(", "), encoder.encode("world")]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, body: reader }) as unknown as Response),
+    );
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb);
+
+    expect(cb.chunks).toEqual(["Hello", ", ", "world"]);
+    expect(cb.calls).toEqual(["chunk", "chunk", "chunk", "done"]);
+  });
+
+  it("decodes a multi-byte Arabic character split across two chunks correctly", async () => {
+    const original = "مرحبا بك"; // every Arabic letter here is a 2-byte UTF-8 sequence
+    const bytes = new TextEncoder().encode(original);
+    // Split inside the FIRST character's 2-byte sequence — the worst case.
+    const splitAt = 1;
+    const reader = fakeReader([bytes.slice(0, splitAt), bytes.slice(splitAt)]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, body: reader }) as unknown as Response),
+    );
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb);
+
+    // The first (1-byte) chunk decodes to nothing yet (incomplete
+    // sequence, correctly buffered inside TextDecoder); everything
+    // appears once the second chunk completes it. Either way, the
+    // concatenation must exactly equal the original string — no
+    // replacement characters (U+FFFD), no corruption.
+    expect(cb.chunks.join("")).toBe(original);
+    expect(cb.chunks.join("")).not.toContain("\uFFFD");
+  });
+});
+
+describe("runChatStream — Stop", () => {
+  it("calls onStopped, not onError or onPartial, when the read loop aborts", async () => {
+    const encoder = new TextEncoder();
+    const reader = fakeReader([encoder.encode("partial answer")], {
+      throwAfter: 1,
+      throwAsAbort: true,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, body: reader }) as unknown as Response),
+    );
+
+    const controller = new AbortController();
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, controller.signal, cb);
+
+    expect(cb.calls).toEqual(["chunk", "stopped"]);
+  });
+
+  it("calls onStopped, not onError, when fetch itself rejects with AbortError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        throw err;
+      }),
+    );
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb);
+
+    expect(cb.calls).toEqual(["stopped"]);
+  });
+});
+
+describe("runChatStream — network drop mid-stream", () => {
+  it("reports partial (not error) when the connection drops after some content arrived", async () => {
+    const encoder = new TextEncoder();
+    const reader = fakeReader([encoder.encode("Some content already ")], { throwAfter: 1 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, body: reader }) as unknown as Response),
+    );
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb);
+
+    expect(cb.chunks).toEqual(["Some content already "]);
+    expect(cb.calls).toEqual(["chunk", "partial"]);
+  });
+
+  it("reports error (not partial) when the connection drops before any content arrived", async () => {
+    const reader = fakeReader([], { throwAfter: 0 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, body: reader }) as unknown as Response),
+    );
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb);
+
+    expect(cb.calls).toEqual(["error"]);
+  });
+});
+
+describe("runChatStream — HTTP error responses", () => {
+  it("maps a JSON gateway error body to onError with the server's own message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 402,
+            json: async () => ({ error: "INSUFFICIENT_BALANCE", message: "رصيدك صفر." }),
+          }) as unknown as Response,
+      ),
+    );
+
+    const cb = collectingCallbacks();
+    const errors: { message: string; retryable: boolean }[] = [];
+    await runChatStream(
+      { model: "gpt-4o", messages: [] },
+      new AbortController().signal,
+      { ...cb, onError: (e) => errors.push(e) },
+    );
+
+    expect(errors).toEqual([{ message: "رصيدك صفر.", retryable: false }]);
+  });
+
+  it("treats an unrecognized error code as retryable by default", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 503,
+            json: async () => ({ error: "MODEL_UNAVAILABLE", message: "النموذج غير متاح." }),
+          }) as unknown as Response,
+      ),
+    );
+
+    const errors: { message: string; retryable: boolean }[] = [];
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, {
+      ...collectingCallbacks(),
+      onError: (e) => errors.push(e),
+    });
+
+    expect(errors[0]?.retryable).toBe(true);
+  });
+});

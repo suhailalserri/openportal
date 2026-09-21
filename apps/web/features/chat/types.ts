@@ -67,4 +67,13 @@ export interface ChatError {
   id: string;
   message: string;
   retryable: boolean;
+  /** Set only for a 401 mid-stream (stream-reader.ts maps it to
+   *  retryable: false + this field, per the chat contract's `redirectTo`
+   *  on the JSON error body). The caller — not this type, not the
+   *  reducer, not ErrorMessage — is responsible for sanitizing this
+   *  through lib/safe-redirect.ts's sanitizeNext() before navigating;
+   *  it is untrusted the same way any server-supplied redirect target
+   *  is (Rule 4). Added in 4b, additive/optional — does not change
+   *  4a's ErrorMessage, which simply doesn't read it. */
+  redirectTo?: string | undefined;
 }
