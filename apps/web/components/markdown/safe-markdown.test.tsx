@@ -1,4 +1,3 @@
-import React from "react";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -77,12 +76,17 @@ describe("SafeMarkdown — XSS fixtures render inert", () => {
 
   it("never turns other embedded raw HTML into a real, attribute-bearing element", () => {
     const html = renderMarkdown('Before <div onclick="alert(1)">click me</div> after.');
-    // Checks for a REAL <div ...> element specifically (not just the
-    // word "onclick", which could legitimately survive as harmless
-    // escaped text) — a real element would appear as literal "<div"
-    // followed by a space or ">"; escaped text starts with "&lt;div"
-    // instead, which this regex does not match.
-    expect(html).not.toMatch(/<div[\s>]/);
+    // Checks for a REAL <div onclick=...> element specifically, not just
+    // any "<div" — SafeMarkdown always wraps its own output in a
+    // legitimate <div class="text-[15px] leading-[1.65] ..."> (see
+    // safe-markdown.tsx), so a bare /<div[\s>]/ regex false-positives on
+    // that wrapper itself regardless of what the payload did. Matching
+    // the payload's own "onclick" attribute specifically still proves
+    // the same thing (a real, attribute-bearing element was NOT
+    // produced from the raw HTML) without tripping on the component's
+    // always-present, harmless wrapper. Escaped text renders as
+    // "&lt;div onclick=" instead, which this does not match.
+    expect(html).not.toMatch(/<div\s+onclick=/i);
   });
 });
 
@@ -91,7 +95,17 @@ describe("SafeMarkdown — trusted rendering (Arabic + code, sanity check)", () 
     const html = renderMarkdown("شرح قصير مع كود:\n\n```python\ndef f():\n    return 1\n```");
     expect(html).toContain("شرح قصير مع كود");
     expect(html).toContain('dir="ltr"');
-    expect(html).toContain("def f():");
+    // rehype-highlight tokenizes "def f():" into separate
+    // <span class="hljs-keyword">def</span> <span class="hljs-title
+    // function_">f</span>(): — correct, intended syntax highlighting —
+    // so the literal substring "def f():" no longer appears in the raw
+    // HTML even though it's exactly what a reader (or a screen reader,
+    // or copy-paste) sees. Strip tags before asserting on the rendered
+    // TEXT, which is what this "sanity check" is actually meant to
+    // confirm — that the code content came through, not the specific
+    // markup rehype-highlight happens to produce for it.
+    const text = html.replace(/<[^>]+>/g, "");
+    expect(text).toContain("def f():");
   });
 
   it("forces rel=noopener noreferrer on a legitimate link, href intact", () => {

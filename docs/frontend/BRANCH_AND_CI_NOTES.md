@@ -1696,3 +1696,69 @@ confirmed here.
   banner since they don't scroll to/click the footer).
 - If green: Phase 4a closes — all 7 `deploy.yml` jobs green, tracker
   §5 ticked, matching plan rule 0.4's phase-done definition.
+
+## Phase 4a — CI green-up round 2 (from actual failing-job logs)
+
+The round-1 fixes above landed and the `React is not defined` /
+consent-banner-overlap failures are gone. Re-run came back 6 green / 2
+red — `web-unit` and `E2E (Playwright)` again, but different failures
+this time, root-caused directly from the real GitHub Actions log text
+(screenshots), not speculation. Both are test-only fixes again; no app
+code touched.
+
+**`web-unit` — `safe-markdown.test.tsx`, 2 of 7 assertions failing:**
+1. The `<div onclick>` XSS test's own regex, `/<div[\s>]/`, is too
+   broad: `SafeMarkdown` always wraps its output in its own legitimate
+   `<div class="text-[15px] leading-[1.65] ...">` (see
+   `safe-markdown.tsx`), which the regex matches regardless of whether
+   the payload itself became real markup. The log confirms the payload
+   *was* correctly escaped (`&lt;div onclick=...&gt;`) — this was a
+   test false-positive, not an XSS regression. **Fix:** narrowed to
+   `/<div\s+onclick=/i`, which targets the payload's own attribute and
+   ignores the always-present wrapper.
+2. The code-highlighting sanity check asserted `toContain("def f():")`
+   against raw HTML, but `rehype-highlight` tokenizes it into
+   `<span class="hljs-keyword">def</span> <span class="hljs-title
+   function_">f</span>():` — correct, intended output — so the literal
+   substring no longer exists in the markup even though it's exactly
+   what a reader sees. **Fix:** strip tags (`html.replace(/<[^>]+>/g,
+   "")`) before this one assertion; the other two assertions in that
+   test (Arabic prose, `dir="ltr"`) are unaffected and still assert on
+   raw HTML.
+
+**`E2E (Playwright)` — `landing.spec.ts`, 2 of 3 tests failing, both
+strict-mode violations (`getByRole`/`getByText` resolving to 2
+elements), not timeouts:**
+1. `"renders live model data from the database"` — unscoped
+   `page.getByText("GPT-4o", { exact: true })` also matches
+   `features/landing/components/cost-ranking.tsx`'s own model-name span
+   (the "Cost, ranked" calculator independently lists every model,
+   including GPT-4o, elsewhere on the same landing page — correct
+   content, not a duplicate bug). **Fix:** scoped to
+   `page.locator("#models").getByText("GPT-4o", { exact: true })`,
+   `#models` being `models-section.tsx`'s own section id.
+2. `"legal footer links navigate to the correct documents"` — unscoped
+   `page.getByRole("heading", { name: "Terms of Service" })` substring-
+   matches both the page chrome's own `<h1>Terms of Service</h1>`
+   (`legal/[doc]/page.tsx`) and the TOS markdown's own first heading,
+   `"Terms of Service — AI Platform / منصة الذكاء الاصطناعي"`
+   (`docs/legal/TERMS_OF_SERVICE.md`'s first line, rendered by
+   `LegalDocView`) — both headings are correct, intended content.
+   **Fix:** added `exact: true` so the assertion only targets the page
+   chrome's own heading.
+
+**Not verifiable without running code:** same sandbox constraint as
+every other entry in this file. Unlike round 1, though, both e2e root
+causes here were read directly off the Playwright "strict mode
+violation" error text (which lists every matching element verbatim),
+not inferred — residual risk is limited to whether `#models` still
+wraps only the models table and nothing else that also contains
+"GPT-4o" verbatim, which the codebase confirms as of this write.
+
+**Verification (next CI run):**
+- `web-unit` job: `safe-markdown.test.tsx`'s remaining 2 assertions
+  pass (was 5/7 passing, 2 failing).
+- `E2E (Playwright)` job: `landing.spec.ts`'s 3 tests all pass with no
+  retries needed (was 1/3 passing outright, 2 needing/failing retries).
+- If green: Phase 4a closes — all 7 `deploy.yml` jobs green, tracker
+  §5 ticked, matching plan rule 0.4's phase-done definition.

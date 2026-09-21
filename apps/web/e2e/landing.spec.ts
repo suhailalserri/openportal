@@ -89,7 +89,14 @@ test.describe("landing page", () => {
     await page.goto("/en");
 
     await expect(page.getByRole("heading", { name: "Available models" })).toBeVisible();
-    await expect(page.getByText("GPT-4o", { exact: true })).toBeVisible();
+    // Scoped to the models table (#models, models-section.tsx) specifically.
+    // Unscoped, "GPT-4o" also matches features/landing/components/
+    // cost-ranking.tsx's own model-name span (the "Cost, ranked"
+    // calculator independently lists every model, GPT-4o included) —
+    // that's a second, correctly-rendered "GPT-4o" elsewhere on the same
+    // page, not a bug, so the locator needs to say which one this test
+    // means rather than "any element with this text on the page."
+    await expect(page.locator("#models").getByText("GPT-4o", { exact: true })).toBeVisible();
   });
 
   test("renders the packages section without erroring, even with none seeded", async ({ page }) => {
@@ -108,6 +115,15 @@ test.describe("landing page", () => {
 
     await page.getByRole("link", { name: "Terms of Service" }).click();
     await expect(page).toHaveURL(/\/en\/legal\/terms$/);
-    await expect(page.getByRole("heading", { name: "Terms of Service" })).toBeVisible();
+    // exact: true — unscoped/substring this also matches the TOS
+    // markdown's own first heading (read-doc.ts's rendered h1, "Terms of
+    // Service — AI Platform / منصة الذكاء الاصطناعي", from
+    // docs/legal/TERMS_OF_SERVICE.md's first line), which contains "Terms
+    // of Service" as a substring. Both headings are correct content —
+    // the page chrome's own <h1> (legal/[doc]/page.tsx) plus the
+    // document's own title inside it — this just needs to say which one.
+    await expect(
+      page.getByRole("heading", { name: "Terms of Service", exact: true }),
+    ).toBeVisible();
   });
 });
