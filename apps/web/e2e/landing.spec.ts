@@ -62,8 +62,29 @@ import { test, expect } from "@playwright/test";
  * for the purposes of this assertion, so left as-is rather than
  * over-fitted to a scenario (packages seeded but a broken PackagesSection)
  * this repo has no seed data to actually exercise.
+ *
+ * CONSENT BANNER (added post-first-CI-run, fixing the "legal footer
+ * links" failure): features/consent/components/consent-banner.tsx
+ * renders `fixed inset-x-0 bottom-0` once mounted, in the exact same
+ * viewport region as this page's footer (landing-footer.tsx, also at
+ * the bottom of the document). On a fresh CI browser context (no prior
+ * visit, so features/consent/lib/consent-storage.ts's
+ * `op.consent.dismissedAt` localStorage key is unset) the banner is
+ * showing, and Playwright's actionability check correctly refuses to
+ * click a footer link the banner's subtree is covering — this was not a
+ * flaky timing issue, the link genuinely was obstructed. `addInitScript`
+ * below sets that same key before any page script runs, in every test
+ * in this file, exactly mimicking a returning visitor who already
+ * dismissed it (dismissConsent()'s own value shape), so the banner never
+ * mounts and never has an opportunity to overlap the footer.
  */
 test.describe("landing page", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("op.consent.dismissedAt", new Date().toISOString());
+    });
+  });
+
   test("renders live model data from the database", async ({ page }) => {
     await page.goto("/en");
 
@@ -84,15 +105,6 @@ test.describe("landing page", () => {
 
   test("legal footer links navigate to the correct documents", async ({ page }) => {
     await page.goto("/en");
-
-    // The consent banner is intentionally fixed above the page content.
-    // Dismiss it before clicking footer links so Playwright does not report
-    // that the banner intercepted the pointer event on the Terms link.
-    const consentBanner = page.getByRole("region", { name: "Cookie notice" });
-    if (await consentBanner.isVisible()) {
-      await consentBanner.getByRole("button", { name: "Got it" }).click();
-      await expect(consentBanner).toBeHidden();
-    }
 
     await page.getByRole("link", { name: "Terms of Service" }).click();
     await expect(page).toHaveURL(/\/en\/legal\/terms$/);

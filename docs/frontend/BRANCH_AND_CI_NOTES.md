@@ -1643,41 +1643,56 @@ run:
    elsewhere in this codebase and carries substantially lower risk than
    points 1–2 above.
 
-## Phase 4a — CI closure fixes (2026-09-21)
+## Phase 4a — CI green-up (post-build fixes, closing the phase)
 
-**CI failures reproduced from the supplied GitHub Actions logs and fixed:**
+First real CI run on `frontend-v2` (screenshots reviewed, not re-run
+here — same no-network-sandbox caveat as everywhere above) came back
+5 green / 2 red: `web-unit` and `E2E (Playwright)`. Both root-caused
+from the log text alone; both are test-only fixes, no app code touched.
 
-1. **Web Unit Tests — `ReferenceError: React is not defined`**
-   `apps/web/components/markdown/safe-markdown.test.tsx` renders JSX with
-   `renderToStaticMarkup`. The Vitest transform used by this repo emitted a
-   runtime reference to `React`, but the test file only imported named
-   bindings from React/Vitest dependencies. Added an explicit default React
-   import so the JSX runtime reference is defined. Production markdown code
-   was not changed.
+**`web-unit` — `ReferenceError: React is not defined` (7/7 tests in
+`safe-markdown.test.tsx`):** `tsconfig.json` sets `"jsx": "preserve"`
+because in a normal Next.js build it's Next's own compiler that lowers
+JSX, using the automatic runtime (no `React` identifier needed in
+scope — this is why the test file never imported React just to write
+JSX). Vitest doesn't go through Next's compiler; it transforms `.tsx`
+via esbuild directly, which defaults to the classic runtime
+(`React.createElement`, requiring `React` in scope) unless told
+otherwise. **Fix:** `vitest.config.ts` gained `esbuild: { jsx:
+"automatic" }`. No new dependency (React 19 already ships
+`react/jsx-runtime`), no lockfile change.
 
-2. **E2E Playwright — Terms of Service click intercepted**
-   `apps/web/features/consent/components/consent-banner.tsx` intentionally
-   renders the cookie notice as `fixed ... bottom-0 z-40`. The existing
-   landing E2E test clicked the footer Terms link without dismissing that
-   banner first. Playwright therefore reported that the consent-banner
-   subtree intercepted the pointer event. Updated the legal-footer test to
-   dismiss the visible `Cookie notice` via its `Got it` button before clicking
-   the Terms link. The consent component itself was not changed.
+**`E2E (Playwright)` — "legal footer links navigate to the correct
+documents" timing out, log shows the click retrying against a `Cookie
+notice` region that "subtree intercepts pointer events":**
+`features/consent/components/consent-banner.tsx` renders `fixed
+inset-x-0 bottom-0` once mounted, directly over `landing-footer.tsx`'s
+region (also bottom-of-page) whenever `op.consent.dismissedAt` isn't
+yet in `localStorage` — true on every fresh CI browser context. This
+was a genuine obstruction, not flakiness: the footer link really was
+covered. **Fix:** `e2e/landing.spec.ts` gained a `test.beforeEach` that
+`page.addInitScript`s the same `op.consent.dismissedAt` key
+`dismissConsent()` writes, before any page script runs — mimics a
+returning visitor who already dismissed the banner, so it never mounts.
+Applied to the whole `describe` block (not just the failing test) since
+it's a correct precondition for all three landing tests, not a
+workaround for one.
 
-**Files changed for this CI closure:**
-- `apps/web/components/markdown/safe-markdown.test.tsx`
-- `apps/web/e2e/landing.spec.ts`
-- `docs/frontend/BRANCH_AND_CI_NOTES.md`
+**Not verifiable without running code:** same sandbox constraint as
+every other entry in this file — neither fix was run against a live
+`vitest`/`playwright`. The vitest fix is a one-line, well-documented
+esbuild option with no ambiguity in its semantics, so residual risk is
+low. The e2e fix depends on `ConsentBanner`'s `mounted`-guard `useEffect`
+actually re-reading `localStorage` (via `isConsentDismissed()`) on the
+client before first paint in a Playwright-driven Chromium the same way
+it does in a real browser — plausible from the code, not independently
+confirmed here.
 
-**Frozen zone:** untouched. No files under `apps/web/app/api/**`,
-`apps/web/server/**`, the frozen `apps/web/lib/*` list, `middleware.ts`,
-`i18n/request.ts`, `next.config.ts`, `Dockerfile`, or anything outside
-`apps/web` were modified.
-
-**Not verifiable in this sandbox:** the supplied repository archive contains
-no `node_modules`, and this environment has no network access for installing
-its pnpm dependencies. Therefore Vitest, Next build, and Playwright were not
-executed here. The fixes are based on the exact CI stack traces and the
-corresponding source code. The final confirmation still requires a GitHub
-Actions run on `frontend-v2` (or the relevant PR) with the repository's normal
-`pnpm install --frozen-lockfile` step.
+**Verification (next CI run on `frontend-v2`):**
+- `web-unit` job: all 18 test files / 366+7=373 tests pass (was 359
+  passed, 7 failed).
+- `E2E (Playwright)` job: `landing.spec.ts`'s 3 tests all pass (was 2
+  passed, 1 failed — the other two landing tests were unaffected by the
+  banner since they don't scroll to/click the footer).
+- If green: Phase 4a closes — all 7 `deploy.yml` jobs green, tracker
+  §5 ticked, matching plan rule 0.4's phase-done definition.
