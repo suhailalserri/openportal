@@ -66,16 +66,21 @@ export interface StreamChatOptions {
     status: (code: number) => { send: (body: unknown) => void };
   };
   /** F3 — optional generation params, forwarded to the gateway as-is
-   *  (temperature/top_p) or clamped against the resolved model (max_tokens). */
-  temperature?: number;
-  top_p?:       number;
-  max_tokens?:  number;
+   *  (temperature/top_p) or clamped against the resolved model (max_tokens).
+   *  `| undefined` is required (not just `?`) because callers such as
+   *  index.ts spread a parsed Zod object through — those fields are typed
+   *  `number | undefined`, and with `exactOptionalPropertyTypes: true`
+   *  assigning an explicit `undefined` to a bare `foo?: number` property is
+   *  a type error (missing vs. present-but-undefined are distinct). */
+  temperature?: number | undefined;
+  top_p?:       number | undefined;
+  max_tokens?:  number | undefined;
   /** F3 — prepended as a system message to the gateway request AND persisted
    *  onto the conversation row (also settable via PATCH /api/conversations/[id]). */
-  systemPrompt?: string;
+  systemPrompt?: string | undefined;
   /** F4 — idempotency. See chat-idempotency.service.ts. */
-  clientMessageId?: string;
-  regenerate?:      boolean;
+  clientMessageId?: string | undefined;
+  regenerate?:      boolean | undefined;
   /** F5 — aborts the upstream fetch when the client disconnects. Combined
    *  with the existing 120s safety timeout below; either firing cancels the
    *  request. Optional so existing callers/tests that don't wire this up

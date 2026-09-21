@@ -1489,3 +1489,37 @@ here anyway since §7 says every B session updates this file.
 - B2 (user usage + `idx_transactions_type_date` migration), B3 (admin
   logs/audit), B4 (Turnstile on manual payments + real `/api/status`) —
   all still open, per §7.
+
+## B1 hotfix — `exactOptionalPropertyTypes` build break (post-deploy)
+
+The first B1 zip failed Vercel's build: `tsc --noEmit` on `apps/api` threw
+`TS2379` on `temperature` at `src/index.ts:119`. Root cause: the repo's
+`tsconfig.base.json` has `"exactOptionalPropertyTypes": true`, which treats
+`foo?: number` (key may be absent) and `foo: number | undefined` (key may be
+present but `undefined`) as genuinely different types. `chatRequestSchema`'s
+Zod `.optional()` fields infer as the latter, and `index.ts` passes them
+straight into `StreamChatOptions`, which was declared as the former for six
+fields (`temperature`, `top_p`, `max_tokens`, `systemPrompt`,
+`clientMessageId`, `regenerate`) — a mismatch under that flag. The CI log
+only named `temperature` because `tsc` stops at the first bad property in
+an object literal; the other five would have failed the same way one CI run
+at a time if only `temperature` had been patched.
+
+**Fix:** widened all six `StreamChatOptions` fields in
+`apps/api/src/services/gateway.service.ts` to `T | undefined`. Type-only
+change, no runtime behavior differs.
+
+**Checked and confirmed unaffected (no fix needed):**
+`gateway.service.test.ts` (never explicitly assigns `undefined` to these
+fields), `chat-idempotency.service.ts`/`.test.ts`, `test/fakeRedis.ts`, and
+`apps/web/app/api/conversations/[id]/route.ts` (uses guarded
+`if (x !== undefined)` assignment, already safe under this flag).
+
+**Not verifiable without running code (same caveat as the original B1
+entry, still true here):** no `node_modules`/network in this sandbox, so
+this was a manual read of `exactOptionalPropertyTypes` semantics against
+the exact reported error, not a confirmed green `tsc --noEmit`. I grepped
+every other B1-touched file for the same "object literal into optional
+property" pattern to rule out sibling failures, but only a real local
+`tsc` run can fully confirm there isn't an unrelated occurrence elsewhere
+in the codebase.
