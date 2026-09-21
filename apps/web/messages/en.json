@@ -53,6 +53,8 @@
     "noConversations": "No conversations yet",
     "startNewChat": "Start a new chat",
     "partialResponse": "⚠️ Response interrupted — click to retry",
+    "loadEarlier": "Load earlier messages",
+    "remoteImageBlocked": "image",
     "offline": "You're offline. Check your connection to keep chatting.",
     "tabConflict": "This conversation is open in another tab.",
     "tabConflictSending": "A message is being sent from another tab.",

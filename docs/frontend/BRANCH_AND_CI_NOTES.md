@@ -1523,3 +1523,122 @@ every other B1-touched file for the same "object literal into optional
 property" pattern to rule out sibling failures, but only a real local
 `tsc` run can fully confirm there isn't an unrelated occurrence elsewhere
 in the codebase.
+
+## Hotfix #2 — `0003_payment_methods.sql` seed overflow (post-deploy)
+
+Next CI run got further (type-check/lint, API tests, web build/unit tests,
+i18n, legal-docs-sync all green) and failed in E2E's "Apply raw SQL
+migrations" step instead:
+`psql:...0003_payment_methods.sql:152: ERROR: integer out of range`.
+
+**Root cause:** `packages.credits` is `bigint`, but the four seed `INSERT`s
+write it as a bare `N * 1000000` literal expression. Postgres evaluates
+literal `int * int` multiplication as 32-bit (`int4`) arithmetic *before*
+casting into the bigint column — the column's type doesn't retroactively
+widen the literal expression. `int4` maxes at 2,147,483,647; three of the
+four seed rows (300/850/1800 × 1,000,000, up to 1.8B) fit and inserted
+silently, but the fourth (3,800 × 1,000,000 = 3,800,000,000) overflowed —
+which is why only that one `INSERT` failed and the error line pointed at
+the last statement in the file.
+
+**Fix:** cast the credit-count operand to `::bigint` on all four seed rows
+(not just the one that overflowed, to stop this from silently resurfacing
+the next time a larger package is added to this same seed block).
+
+**Not verifiable without running code:** no Postgres/network in this
+sandbox — this is a read of Postgres's literal-folding behavior against
+the exact error, not a re-run migration. The steps after "Apply raw SQL
+migrations" (seed users/models, web build, Playwright itself) never ran in
+either failed CI attempt so far — this fix only addresses the first
+blocker reached, not a confirmed pass of the full E2E job.
+
+## Phase 4a — Chat message rendering
+
+**Built:** `components/markdown/{safe-markdown,code-block}.tsx` (the
+untrusted-model-output renderer: no rehype-raw, remote images blocked,
+links forced `rel=noopener noreferrer`, fenced code delegated to
+CodeBlock with a language label + copy button, inline code styled
+separately — react-markdown v9's `code` override distinguishes the two
+by presence of a rehype-highlight `className`, since the old `inline`
+prop was removed in v9); `features/chat/types.ts` (reconciles the deleted
+placeholder `ChatMessage` against the real `@ai-platform/db` `messages`
+row — see that file's header for why gateway errors are modeled as a
+separate, non-persisted `ChatError` rather than a flag on `ChatMessage`);
+`features/chat/components/message/{message,message-actions,message-list,
+error-message}.tsx` (real, i18n'd replacements for the deleted
+`components/chat/{message-bubble,message-actions}.tsx`); `content/demo/
+chat-render-fixture.ts` + `/dev/chat-render` (Arabic+code fixture, partial
+turn, error turn, and the three XSS payloads, gated the same way
+`/dev/kitchen-sink` is); `styles/code-highlight.css` (hand-written 3-tone
+`.hljs-*` token colors — no highlight.js theme package imported, see
+below); `components/markdown/safe-markdown.test.tsx` (XSS fixtures +
+trusted-rendering sanity checks, rendered via `react-dom/server`'s
+`renderToStaticMarkup`, no jsdom).
+
+**Deleted:** `components/chat/{message-bubble,message-actions}.tsx` —
+presentational pre-phase scaffolding, superseded by the `features/chat`
+files above. Their one consumer, `/dev/kitchen-sink`'s
+`kitchen-sink-client.tsx`, was updated to import the real components and
+adapted `DEMO_MESSAGES`/added `DEMO_ERROR` to the new `ChatMessage`/
+`ChatError` shapes. `components/chat/{composer,chat-sidebar}.tsx` are
+untouched — still presentational, still 4c/4d's scope.
+
+**Config changes (both justified by the same lockfile constraint as B1
+hotfix #1 — no network/node_modules here to run `pnpm add` and regen
+`pnpm-lock.yaml`, and every CI job runs `pnpm install --frozen-lockfile`):**
+- `vitest.config.ts` gained a `resolve.alias` for `@/*` — this is 4a's
+  first test that actually renders a component tree (every test before
+  this was pure logic, see that file's own header comment), and nothing
+  before now needed Vite to resolve the alias Next.js's own bundler
+  already handles. No new dependency, config only.
+- `.eslintrc.json`'s physical-direction-class override gained
+  `**/dev/chat-render/**`, matching the existing `**/dev/kitchen-sink/**`
+  entry (same category of internal QA tooling).
+- `messages/{ar,en}.json` gained two new `chat.*` keys (`loadEarlier`,
+  `remoteImageBlocked`) — parity checked, both files updated identically.
+
+**Deviations from FRONTEND_REBUILD_PLAN.md's Phase 4a spec (flagged
+before building, approved):**
+- **No shiki** — `rehype-highlight` (already a dependency) used instead.
+  Adding `shiki` would need the same lockfile regen the config changes
+  above avoided by not being a new dependency at all.
+- **D5 (AI Elements spike): skipped**, not attempted — same blocker
+  (installing packages to test compatibility needs a working `pnpm add`).
+  Went straight to the plan's own stated fallback: own components.
+- **No `@testing-library/react`/jsdom** — `react-dom/server`'s
+  `renderToStaticMarkup` used instead (see vitest.config.ts's comment
+  above and safe-markdown.test.tsx's own header).
+- **`streaming-cursor.tsx`: not built.** Originally planned as a
+  visual-only blinking cursor; dropped at the person's explicit
+  instruction before building — 4b will render streaming text however it
+  actually streams, with no separate cursor component needed.
+
+**Not verifiable without running code:** no `node_modules`/network here,
+so nothing in this phase was actually built or test-run. Specific risks,
+ranked by how likely they are to surface something on the first real CI
+run:
+1. `components/markdown/safe-markdown.test.tsx` is the highest-risk file
+   in this phase — it's the first test in the repo to render a real
+   React component tree, and depends on three things I could not verify
+   against the installed versions: (a) `next-intl`'s
+   `NextIntlClientProvider` working standalone under plain
+   `react-dom/server` outside a Next.js runtime; (b) react-markdown v9's
+   documented default URL-sanitization behavior (blocking `javascript:`
+   hrefs) being unchanged from what its README describes — this
+   component does not implement its own scheme-checking, it relies on
+   that default; (c) the `components` prop's exact override function
+   signatures typechecking under react-markdown v9's actual exported
+   types (written with contextual/inline typing rather than importing
+   react-markdown's `Components` type by name, specifically to reduce
+   this risk, but contextual inference isn't a substitute for `tsc`
+   actually running).
+2. `code-block.tsx`'s `getNodeText` tree-walk (for the copy button's
+   clipboard text) assumes rehype-highlight's hast→React output is
+   always strings/numbers/elements with a `children` prop — true for
+   every hljs token span I'm aware of, not independently confirmed
+   against the installed `rehype-highlight`/`lowlight` version.
+3. Everything else (the `.tsx` component structure, i18n key usage,
+   Tailwind logical-property classes, the `exactOptionalPropertyTypes`
+   discipline learned from B1 hotfix #1) follows patterns already proven
+   elsewhere in this codebase and carries substantially lower risk than
+   points 1–2 above.

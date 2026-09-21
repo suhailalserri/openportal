@@ -1,0 +1,130 @@
+"use client";
+
+import * as React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { useTranslations } from "next-intl";
+
+import { cn } from "@/lib/utils";
+import { CodeBlock } from "./code-block";
+
+/**
+ * apps/web/components/markdown/safe-markdown.tsx
+ *
+ * Renders UNTRUSTED model output as markdown. Rule 7
+ * (FRONTEND_REBUILD_PLAN.md §3): "Model output is untrusted. No
+ * rehype-raw, no dangerouslySetInnerHTML, remote markdown images are not
+ * auto-loaded, links get rel=noopener noreferrer." Every one of those is
+ * enforced below:
+ *   - no rehype-raw in the plugin list, no dangerouslySetInnerHTML
+ *     anywhere in this file — a `<script>` in a model response is just
+ *     inert text, react-markdown never parses raw HTML into real DOM.
+ *   - `img` is overridden to render an inert placeholder chip; the real
+ *     `src` is never used, so a remote image can't act as a tracking
+ *     pixel / IP-logging vector.
+ *   - `a` is overridden to force `rel="noopener noreferrer"`.
+ * See components/markdown/safe-markdown.test.tsx for the XSS fixtures
+ * this is checked against (a `<script>` tag, a `javascript:` link, and a
+ * remote `![]()` image).
+ *
+ * Distinct from features/legal/components/legal-doc-view.tsx, which
+ * renders OUR OWN committed markdown (trusted, server component, no
+ * remote-image/code-block handling needed — see that file's own header
+ * comment). This is the renderer for anything that came back from a
+ * model. "use client" here (unlike legal-doc-view.tsx) because the
+ * remote-image placeholder's label and the inline-code styling both
+ * need `next-intl`'s `useTranslations`, which — outside a Server
+ * Component using the async `getTranslations` — needs a Client
+ * Component; CodeBlock already needed one either way for its copy
+ * button's `useState`.
+ */
+
+/** Renders a blocked remote image as a small inert placeholder instead
+ *  of a real <img> — nothing ever requests the URL. */
+function BlockedImage({ alt, label }: { alt: string | undefined; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-dashed border-border bg-muted px-2 py-1 text-xs text-faint-foreground">
+      🖼 {alt || label}
+    </span>
+  );
+}
+
+export interface SafeMarkdownProps {
+  content: string;
+  className?: string | undefined;
+}
+
+export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
+  const t = useTranslations("chat");
+
+  return (
+    <div className={cn("text-[15px] leading-[1.65] text-foreground", className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          a: ({ href, title, children }) => (
+            <a
+              href={href}
+              title={title}
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-2 hover:no-underline"
+            >
+              {children}
+            </a>
+          ),
+          img: ({ alt }) => <BlockedImage alt={alt} label={t("remoteImageBlocked")} />,
+          code: ({ className: codeClassName, children }) => {
+            // rehype-highlight only adds a className to the <code> inside
+            // a fenced block (e.g. "language-python hljs") — a plain
+            // inline `code span` never gets one. That's the signal
+            // react-markdown v9 gives for "which kind of code is this"
+            // (the old `inline` prop was removed in v9's rewrite).
+            if (!codeClassName) {
+              return (
+                <code className="rounded-[4px] bg-muted px-[5px] py-px font-mono text-[13px] text-accent-foreground">
+                  {children}
+                </code>
+              );
+            }
+            // Fenced block — rendered plain here; the `pre` override
+            // below discards this element and rebuilds it inside
+            // CodeBlock, reading className/children back off it.
+            return <code className={codeClassName}>{children}</code>;
+          },
+          pre: ({ children }) => {
+            // Unwraps react-markdown's default <pre><code>…</code></pre>
+            // and re-wraps with CodeBlock's head bar (language label +
+            // copy button) instead. CodeBlock supplies its own <pre>, so
+            // this must NOT also render one — that would nest <pre>
+            // inside <pre>, invalid HTML. Only fenced blocks ever reach
+            // `pre` at all, so there's no inline-code case to handle here.
+            const child = React.isValidElement(children) ? children : null;
+            const childProps = (child?.props ?? {}) as {
+              className?: string;
+              children?: React.ReactNode;
+            };
+            return <CodeBlock className={childProps.className}>{childProps.children}</CodeBlock>;
+          },
+          ul: ({ children }) => <ul className="mt-2 ps-5 first:mt-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mt-2 ps-5 first:mt-0">{children}</ol>,
+          li: ({ children }) => <li className="mt-1 marker:text-primary">{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote className="mt-2 border-s-2 border-border ps-3 text-muted-foreground first:mt-0">
+              {children}
+            </blockquote>
+          ),
+          // unicode-bidi: plaintext on bare `p` is already global (see
+          // styles/index.css) — this override only adds paragraph
+          // spacing, which react-markdown otherwise renders with no
+          // margin at all (no `prose` class is used here, unlike
+          // legal-doc-view.tsx, so nothing else supplies it).
+          p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}

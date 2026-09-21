@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "./theme.css";
 @import "./theme-presets.css";
+@import "./code-highlight.css";
 
 /*
  * @tailwindcss/typography has been a devDependency since 1.2 but was

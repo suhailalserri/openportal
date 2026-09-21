@@ -81,8 +81,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { ChatSidebar, type ChatSidebarConversation } from "@/components/chat/chat-sidebar";
-import { MessageBubble, type ChatMessage } from "@/components/chat/message-bubble";
 import { Composer } from "@/components/chat/composer";
+import { MessageList } from "@/features/chat/components/message/message-list";
+import type { ChatMessage, ChatError } from "@/features/chat/types";
 
 const demoFormSchema = z.object({
   displayName: z.string().min(2, "At least 2 characters."),
@@ -237,19 +238,22 @@ function ToastDemos() {
 }
 
 /* ── Chat surface ──────────────────────────────────────────────────
- * All four Session "restyle" components composed together — the only
- * place in the app that currently renders them, since /chat is still
- * 2.1's placeholder. Local state only; no tRPC/IndexedDB wiring (that's
- * Phase 4/7/14 per the master plan), same "presentational only" scope
- * each component's own file header documents.
+ * chat-sidebar.tsx and composer.tsx (still presentational-only, 4c/4d's
+ * scope) composed with the REAL features/chat/components/message/*
+ * (Phase 4a) — message-bubble.tsx and message-actions.tsx, which used
+ * to live here, are deleted; MessageList/Message/ErrorMessage are their
+ * replacement (see features/chat/types.ts's header comment for why the
+ * message shape and the error-as-a-message modeling both changed).
+ * Local state only; no tRPC/IndexedDB wiring (that's Phase 4b/4d/7 per
+ * the master plan).
  *
- * Known gap surfaced here, not fixed here: message-bubble.tsx,
- * message-actions.tsx, composer.tsx and chat-sidebar.tsx all use
- * hardcoded Arabic strings (labels, aria-labels, empty states) rather
- * than next-intl — so this tab renders the same Arabic copy under
- * both /en/ and /ar/. That's consistent with their own "real data/i18n
- * wiring is a later phase" scope, but worth knowing before assuming
- * /en/dev/kitchen-sink is fully localized.
+ * Known gap surfaced here, not fixed here: chat-sidebar.tsx and
+ * composer.tsx still use hardcoded Arabic strings (labels, aria-labels,
+ * empty states) rather than next-intl — so this tab renders the same
+ * Arabic copy for those two under both /en/ and /ar/. That's consistent
+ * with their own "real data/i18n wiring is a later phase" scope (4c/4d),
+ * but worth knowing before assuming /en/dev/kitchen-sink is fully
+ * localized. The message list itself (4a, this phase) IS fully i18n'd.
  */
 const DEMO_CONVERSATIONS: ChatSidebarConversation[] = [
   { id: "c1", title: "رفع حد الطلبات اليومي", isActive: true },
@@ -258,34 +262,46 @@ const DEMO_CONVERSATIONS: ChatSidebarConversation[] = [
 ];
 
 const DEMO_MESSAGES: ChatMessage[] = [
-  { id: "m1", role: "user", content: "كيف أرفع حد الطلبات اليومي؟", createdAtLabel: "10:02" },
+  {
+    id: "m1",
+    role: "user",
+    content: "كيف أرفع حد الطلبات اليومي؟",
+    createdAt: "2026-09-21T10:02:00.000Z",
+    isPartial: false,
+  },
   {
     id: "m2",
     role: "assistant",
     content: "يمكنك رفعه من الإعدادات ← الفوترة. رقم طلبك الحالي هو 12345.",
-    createdAtLabel: "10:02",
-  },
-  {
-    id: "m3",
-    role: "assistant",
-    content: "تعذّر الاتصال بمزوّد النموذج. حاول مرة أخرى.",
-    isError: true,
-    createdAtLabel: "10:03",
+    createdAt: "2026-09-21T10:02:20.000Z",
+    isPartial: false,
+    modelId: "gpt-4o",
+    inputTokens: 18,
+    outputTokens: 24,
+    creditCost: 900_000,
   },
   {
     id: "m4",
     role: "assistant",
     content: "بالتأكيد، إليك الخطوات الأولى قبل أن ينقطع",
+    createdAt: "2026-09-21T10:04:00.000Z",
     isPartial: true,
-    createdAtLabel: "10:04",
+    modelId: "gpt-4o",
   },
 ];
+
+const DEMO_ERROR: ChatError = {
+  id: "m3-err",
+  message: "تعذّر الاتصال بمزوّد النموذج. حاول مرة أخرى.",
+  retryable: true,
+};
 
 function ChatSurface() {
   const [conversations, setConversations] = React.useState(DEMO_CONVERSATIONS);
   const [activeId, setActiveId] = React.useState(DEMO_CONVERSATIONS[0]!.id);
   const [search, setSearch] = React.useState("");
   const [composerValue, setComposerValue] = React.useState("");
+  const [showError, setShowError] = React.useState(true);
 
   const filtered = conversations
     .map((c) => ({ ...c, isActive: c.id === activeId }))
@@ -310,19 +326,16 @@ function ChatSurface() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <ScrollArea className="flex-1 px-5 py-4">
-          <div className="flex flex-col gap-5">
-            {DEMO_MESSAGES.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                userInitial="ف"
-                onCopy={() => toast("تم النسخ (demo)")}
-                onRegenerate={() => toast("إعادة المحاولة (demo)")}
-              />
-            ))}
-          </div>
-        </ScrollArea>
+        <MessageList
+          className="flex-1 px-5 py-4"
+          messages={DEMO_MESSAGES}
+          error={showError ? DEMO_ERROR : undefined}
+          userInitial="ف"
+          onCopy={() => toast("تم النسخ (demo)")}
+          onRegenerate={() => toast("إعادة المحاولة (demo)")}
+          onFeedback={() => toast("شكراً على ملاحظتك (demo)")}
+          onRetryError={() => setShowError(false)}
+        />
 
         <div className="border-t border-border p-3">
           <Composer
@@ -539,10 +552,12 @@ export function KitchenSinkClient() {
         {/* ── Chat ────────────────────────────────────────────────── */}
         <TabsContent value="chat" className="space-y-3 pt-4">
           <p className="t-small text-muted-foreground">
-            components/chat/{"{"}chat-sidebar, message-bubble, message-actions, composer{"}"}.tsx,
-            composed together. Local state only — search filters client-side, send/copy/regenerate/
-            delete just toast. Sidebar shows the active-row + hover-reveal delete; message list
-            shows a normal turn, an error turn (.bubble.error) and an interrupted/partial turn.
+            components/chat/{"{"}chat-sidebar, composer{"}"}.tsx (4c/4d, still presentational) +
+            features/chat/components/message/{"{"}message-list, message, message-actions,
+            error-message{"}"}.tsx (4a, real). Local state only — search filters client-side,
+            send/copy/regenerate/feedback/delete just toast. Sidebar shows the active-row +
+            hover-reveal delete; message list shows a normal turn, an error turn, and an
+            interrupted/partial turn.
           </p>
           <ChatSurface />
         </TabsContent>
