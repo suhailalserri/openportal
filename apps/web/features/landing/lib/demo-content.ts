@@ -79,10 +79,16 @@ function parseScenario(raw: unknown, fallbackId: string): DemoScenario | null {
   const enVariant = parseVariant(en);
   const arVariant = parseVariant(ar);
   if (!enVariant || !arVariant) return null;
+  // `exactOptionalPropertyTypes: true` (tsconfig.base.json) treats an
+  // explicit `modelBadge: undefined` as a DIFFERENT, disallowed shape
+  // from simply omitting the key — `modelBadge?: string` means "string,
+  // or the key is absent," not "string, or the key is present holding
+  // undefined." So the key is spread in only when it's a real string,
+  // never assigned undefined directly (that line was the build failure).
   return {
     id: typeof id === "string" && id.trim() !== "" ? id : fallbackId,
     modelName,
-    modelBadge: typeof modelBadge === "string" ? modelBadge : undefined,
+    ...(typeof modelBadge === "string" ? { modelBadge } : {}),
     en: enVariant,
     ar: arVariant,
   };
