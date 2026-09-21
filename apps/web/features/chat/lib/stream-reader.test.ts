@@ -32,7 +32,16 @@ function fakeReader(
           throw new Error("network drop");
         }
         if (i >= chunks.length) return { done: true };
-        const value = chunks[i];
+        // noUncheckedIndexedAccess (this repo's tsconfig — confirmed by the
+        // register/page.tsx round-2 fix in BRANCH_AND_CI_NOTES.md, Session
+        // 3.1) types chunks[i] as Uint8Array | undefined even though the
+        // guard above already proves it's defined here. That undefined
+        // leaking into `value` is what broke assignability against this
+        // function's declared return type under exactOptionalPropertyTypes
+        // (CI: TS2322 at this file's line 25, cascading into the real
+        // TS2379 at stream-reader.ts:94). The `!` is safe specifically
+        // because of the bounds check two lines up, not a blind unwrap.
+        const value = chunks[i]!;
         i += 1;
         return { done: false, value };
       },

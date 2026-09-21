@@ -33,7 +33,18 @@ export interface StreamCallbacks {
   onDone: () => void;
   onStopped: () => void;
   onPartial: () => void;
-  onError: (error: { message: string; retryable: boolean; redirectTo?: string }) => void;
+  // redirectTo widened to `string | undefined`, not just optional `string`:
+  // this repo's tsconfig has exactOptionalPropertyTypes: true, which treats
+  // "key absent" and "key present but undefined" as different types. The
+  // one call site that sets this field (below, from the parsed JSON error
+  // body) reads it via `parsed.redirectTo`, which is `string | undefined`
+  // even though `parsed`'s own type declares it as `redirectTo?: string` —
+  // passing that explicit `string | undefined` value into a plain `string`-
+  // optional target field is exactly what that flag forbids. Same class of
+  // bug as ChatError.redirectTo in features/chat/types.ts (4b) and every
+  // prior `exactOptionalPropertyTypes` fix logged in
+  // docs/frontend/BRANCH_AND_CI_NOTES.md (3.1 rounds 1–3, B1 hotfix #1).
+  onError: (error: { message: string; retryable: boolean; redirectTo?: string | undefined }) => void;
 }
 
 /**
