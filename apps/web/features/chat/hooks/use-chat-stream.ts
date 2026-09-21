@@ -8,7 +8,7 @@ import {
   type ChatStreamState,
 } from "../lib/chat-stream-reducer";
 import { runChatStream } from "../lib/stream-reader";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, ConversationParams } from "../types";
 
 export interface UseChatStreamOptions {
   /** undefined until a conversation exists (features/chat's own
@@ -16,6 +16,12 @@ export interface UseChatStreamOptions {
    *  hook — out of this hook's scope, see this file's header comment). */
   conversationId: string | undefined;
   model: string;
+  /** Phase 4c. `null` = unset → omitted from the request entirely so the
+   *  provider's own default applies (see ConversationParams in types.ts). */
+  params?: ConversationParams | undefined;
+  /** Phase 4c. Persisted server-side by B1 on first send; empty/whitespace
+   *  is treated as "no system prompt" and omitted. */
+  systemPrompt?: string | undefined;
 }
 
 export interface UseChatStreamResult extends ChatStreamState {
@@ -49,7 +55,12 @@ export interface UseChatStreamResult extends ChatStreamState {
  * checks are UX only, but the redirect target itself must still be
  * sanitized the same way a server guard would).
  */
-export function useChatStream({ conversationId, model }: UseChatStreamOptions): UseChatStreamResult {
+export function useChatStream({
+  conversationId,
+  model,
+  params,
+  systemPrompt,
+}: UseChatStreamOptions): UseChatStreamResult {
   const [state, dispatch] = React.useReducer(chatStreamReducer, initialChatStreamState);
   const controllerRef = React.useRef<AbortController | null>(null);
   const lastSentRef = React.useRef<string | null>(null);
@@ -76,6 +87,18 @@ export function useChatStream({ conversationId, model }: UseChatStreamOptions): 
       const controller = new AbortController();
       controllerRef.current = controller;
 
+      // Build optional fields conditionally so an unset param is ABSENT
+      // from the object, not present-as-undefined (exactOptionalPropertyTypes)
+      // and never `null` (the server's schema rejects null).
+      // Local consts (not `params?.temperature` inside the ternary) so
+      // `!= null` narrows a plain identifier — narrowing on an optional-
+      // chained property path is not reliably carried into the true
+      // branch, and a `number | null` leaking into a `number | undefined`
+      // field is exactly the exactOptionalPropertyTypes failure class.
+      const temperature = params?.temperature;
+      const topP = params?.topP;
+      const maxTokens = params?.maxTokens;
+      const trimmedSystemPrompt = systemPrompt?.trim();
       void runChatStream(
         {
           model,
@@ -84,6 +107,10 @@ export function useChatStream({ conversationId, model }: UseChatStreamOptions): 
             role,
             content: c,
           })),
+          ...(temperature != null ? { temperature } : {}),
+          ...(topP != null ? { top_p: topP } : {}),
+          ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
+          ...(trimmedSystemPrompt ? { systemPrompt: trimmedSystemPrompt } : {}),
         },
         controller.signal,
         {
@@ -105,7 +132,7 @@ export function useChatStream({ conversationId, model }: UseChatStreamOptions): 
         },
       );
     },
-    [model, conversationId],
+    [model, conversationId, params, systemPrompt],
   );
 
   const stop = React.useCallback(() => {

@@ -88,7 +88,26 @@
     "recording": "Listening…",
     "recordStop": "Stop listening",
     "recordUnsupported": "Voice input isn't supported in this browser",
-    "estCostTooltip": "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ."
+    "estCostTooltip": "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ.",
+    "parameters": {
+      "toggle": "Parameters",
+      "temperature": "Temperature",
+      "temperatureHint": "0 to 2. Higher values give more varied replies.",
+      "topP": "Top P",
+      "topPHint": "0 to 1. Limits the pool of likely words.",
+      "maxTokens": "Max response length",
+      "maxTokensHint": "Up to {max} tokens.",
+      "default": "Default",
+      "systemPrompt": "System prompt",
+      "systemPromptPlaceholder": "e.g. Answer briefly and in plain English.",
+      "systemPromptHint": "Saved with this conversation and sent with every message.",
+      "reset": "Reset",
+      "errors": {
+        "outOfRange": "Value must be between {min} and {max}.",
+        "notInteger": "Enter a whole number.",
+        "notANumber": "Enter a valid number."
+      }
+    }
   },
   "balance": {
     "current": "Your Balance",

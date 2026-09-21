@@ -77,3 +77,34 @@ export interface ChatError {
    *  4a's ErrorMessage, which simply doesn't read it. */
   redirectTo?: string | undefined;
 }
+
+/**
+ * Phase 4c. The three numeric generation parameters the user can set per
+ * conversation. `null` means "not set — let the model/provider default
+ * apply" and is deliberately NOT sent on the wire (see
+ * stream-reader.ts's request-body builder), because sending a default
+ * value explicitly would override a provider's own default that may differ
+ * per model.
+ *
+ * `null` (not `undefined`) is used so the "unset" state is an explicit,
+ * serialisable value: this repo's tsconfig has `exactOptionalPropertyTypes:
+ * true`, under which an optional field can't be assigned `undefined`
+ * without widening — an explicit `number | null` sidesteps that whole
+ * class of build failure (see docs/frontend/BRANCH_AND_CI_NOTES.md,
+ * B1 hotfix #1 and 4b's rounds 1-2).
+ *
+ * `systemPrompt` is intentionally NOT in this type: it is the one
+ * parameter that persists server-side (B1), so it has a different
+ * lifecycle and source of truth than these three.
+ */
+export interface ConversationParams {
+  temperature: number | null;
+  topP: number | null;
+  maxTokens: number | null;
+}
+
+export const DEFAULT_CONVERSATION_PARAMS: ConversationParams = {
+  temperature: null,
+  topP: null,
+  maxTokens: null,
+};

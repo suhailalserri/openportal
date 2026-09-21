@@ -1898,5 +1898,157 @@ round, but still not a confirmed green `tsc --noEmit` run.
 
 
 ### Not done this round
-4c (input/models/parameters, needs B1 — done, not yet built) and 4d
-(conversations + cache) are still open, per the plan's own phase list.
+4c (input/models/parameters) was open at the time of writing; it is built
+in the next section. 4d (conversations + cache) remained open.
+
+
+---
+
+## Phase 4c — Chat: input, models, parameters
+
+### Decision record — where the parameters persist (read first)
+The plan's 4c "Done when" says parameters "persist per conversation", but
+B1's own spec only persists `systemPrompt` (plan §7), and the frozen code
+agrees: `conversations` has no columns for `temperature` / `top_p` /
+`max_tokens`, and `PATCH /api/conversations/[id]` doesn't accept them.
+Chosen: **frontend-only, no frozen-zone edits.**
+
+| Param | Persists | Where | Cross-device |
+|---|---|---|---|
+| `systemPrompt` | yes | server, via the existing B1 PATCH | yes |
+| `temperature`, `top_p`, `max_tokens` | yes | `localStorage`, per conversation id | **no — this browser only** |
+| last-picked model | yes | `localStorage` | no |
+
+Reasoning: the frozen-zone rule is a standing instruction, and the upgrade
+path is small and isolated — three nullable columns on `conversations`
+(hand-written migration in the `0006_model_latency.sql` style), extend the
+PATCH body, capture them at first insert in `gateway.service.ts`. A future
+**backend** session, not a frontend one. Nothing built here blocks it;
+`lib/chat-params-storage.ts` would become a thin offline fallback.
+
+An earlier draft of this phase (from a prior session) had applied exactly
+those frozen-zone edits (schema, migration `0009`, PATCH route,
+`gateway.service.ts`). That work did not exist in the repo zip this session
+was given, so it was **not carried forward**; migration number `0009` is
+also already claimed by B2 (plan §7, `idx_transactions_type_date`), so a
+params migration would have needed `0010` regardless.
+
+### What was built (all under `apps/web`, nothing frozen touched)
+- `components/chat/composer.tsx` — **modified.** Fixes two real bugs in the
+  restyle-session version: (1) Enter sent unconditionally, so an Arabic/CJK
+  IME candidate-confirm Enter submitted half-typed text — now guarded by
+  `isComposing` **and** Safari's `keyCode === 229` (Safari fires
+  `compositionend` before the final keydown, so `isComposing` alone
+  misfires there); (2) `aria-label="إرسال"` was hardcoded Arabic — now
+  `chat.send`. Added auto-resize (`useLayoutEffect`, resets to `auto`
+  first so it can shrink) and an optional `sendBlockedReason`
+  (`aria-invalid` + `aria-describedby` + `role="alert"`; distinct from
+  `disabled`, which would also stop the user editing an over-long draft
+  down). All new props optional → `dev/kitchen-sink` unchanged.
+- `features/chat/lib/` (all pure, all unit-tested): `composer-keydown`,
+  `context-estimate`, `model-selection`, `chat-params-storage`,
+  `param-input`, `conversation-api`.
+- `features/chat/hooks/`: `use-chat-models` (tRPC `models.list`),
+  `use-chat-params` (params + system-prompt load/debounced-PATCH).
+  `use-chat-stream` **modified** to carry the four params.
+- `features/chat/components/composer/`: `model-picker`, `parameters-panel`,
+  `composer-bar` (assembly).
+- `lib/stream-reader.ts` **modified:** request body gains four optional
+  fields. `types.ts` **modified:** `ConversationParams`.
+- `messages/{ar,en}.json`: new `chat.parameters.*` block (additive; the
+  only removed line per file is a trailing-comma change on the previous
+  last key). ar/en key parity confirmed.
+- `app/[locale]/dev/chat-composer/` — fixture harness (see "How to verify").
+- `docs/frontend/API_CONTRACT.md` — **corrected**, see below.
+
+### Integration boundary — 4c does NOT mount these in `/chat`
+`app/[locale]/(app)/chat/page.tsx` is still the Phase 2.1 placeholder and
+the plan assigns `/chat` + `/chat/[id]` to **4d**. Nothing outside
+`features/chat` and the `/dev` page imports `ComposerBar` or
+`useChatStream` yet. Mounting them needs conversation creation, the
+sidebar and the cache — all 4d. **4d must:** create the conversation
+(`POST /api/conversations`) before the first send, pass
+`params`/`systemPrompt` from `useChatParams` into `useChatStream`, pass
+`conversationExists` (true once the row exists) to `useChatParams`, and
+feed `history` (prior turns) into `ComposerBar` so the token estimate
+covers the whole request.
+
+### Bugs found and fixed in my own first draft
+1. **Picker unresponsive on an existing conversation.** Priority was
+   conversation model > last-picked, so clicking another model updated
+   `localStorage` but the picker kept showing the conversation's model.
+   Added a "picked this session" tier above both; tested.
+2. **Pending system-prompt PATCH dropped on conversation switch/unmount.**
+   Now flushed against the id it was made for, not silently discarded.
+3. **`exactOptionalPropertyTypes` leaks.** Optional request fields are
+   *omitted* (conditional spread off plain local consts), never `undefined`
+   and never `null` — the server's Zod schema is `.optional()`, so a
+   literal `null` on the wire is a 400.
+4. **A regex "test" that couldn't fail:** a mutation test showed my first
+   `join(" ")` mutation survived because it matched the *comment*, not the
+   code. Re-ran against the real line; now caught.
+
+### API_CONTRACT.md was stale since B1 — corrected
+§3 and quirk #10 still said `/chat` had zero validation, no
+`clientMessageId`, and no abort handling. All false since B1. Verified
+against `chat.schema.ts` / `gateway.service.ts` and rewrote: request shape
+(all-optional fields, `null` rejected), F4 fixed (idempotency claim is on
+the `(conversationId, clientMessageId)` pair), F5 fixed (abort bound to
+disconnect), context estimate formula, system-prompt "first write wins".
+Added quirks 11–13 (price units, list endpoint omits `systemPrompt`,
+PATCH succeeds on 0 rows). **Anyone who built from the old doc should
+re-read §3.**
+
+### How to verify
+**CI:** `web-unit` (new tests: `composer-keydown`, `context-estimate`,
+`model-selection`, `chat-params-storage`, `param-input`,
+`conversation-api`), `Type-check & Lint`, `web-build`, `i18n-parity`.
+
+**Preview** — open `/ar/dev/chat-composer` and `/en/dev/chat-composer`:
+1. Select **"Tiny context"**, paste ~800 characters → Send disables, red
+   border, localized warning appears; delete text → re-enables.
+2. Type ~600 characters (≈80% of the limit) → amber "approaching limit".
+3. Shift+Enter inserts a newline; Enter sends. Textarea grows, then
+   scrolls past 180px.
+4. **IME (needs a real device):** with an Arabic phonetic IME, press Enter
+   to accept a candidate → nothing is sent. Repeat on Safari/iOS.
+5. Open Parameters: temperature `3` → inline range error and the "Would
+   be sent" JSON does **not** change; `٠٫٧` (Arabic digits) → accepted as
+   0.7; empty → key absent from the JSON (not `null`).
+6. "Tiny context" shows `—` for latency; "Large model" shows `1.2s`.
+7. Both themes, both directions. Prices show Western digits in `ar`.
+8. **Sign-out (Rule 9, real app only):** pick a model → sign out → sign in
+   as a different user → last-picked model is **not** carried over.
+   *(Cannot be exercised on the harness page — no auth there.)*
+
+**Not exercisable until 4d mounts the real route:** "parameters change the
+response", system-prompt PATCH round-trip, reload persistence of a real
+conversation's params. The plan's "Done when" for 4c is therefore only
+**partially** demonstrable now; the rest is a 4d acceptance check.
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- **No real `tsc`, `next build`, or `vitest` was run.** What *was* run: a
+  strict-flag `tsc` (exactOptionalPropertyTypes + noUncheckedIndexedAccess)
+  over every new/changed file using **hand-written permissive stubs** for
+  React/next-intl/shadcn/lucide/tRPC — 0 errors in my files. That proves
+  internal consistency, **not** that third-party prop types match. Plus 60
+  test cases (the six new `.test.ts` files; the pre-existing 4a/4b suites
+  were not part of this run) executed against the real source under a
+  small home-made shim, and 7 distinct deliberate mutations (IME guard
+  removed; Safari-229 check removed; `>` → `>=`; join separator removed;
+  history omitted from estimate; stale model id unchecked; clear-only-
+  first-key), all caught. Real vitest may differ on edge
+  semantics of the shim's matchers.
+- **`trpc.models.list.useQuery`** is the first tRPC React hook in
+  `apps/web`. Whether it types cleanly against `AppRouter` is unconfirmed.
+- **Radix `Select`:** `SelectValue` with explicit children, and `value=""`
+  showing the placeholder, are unverified (no Radix source offline).
+- Real Arabic IME behavior (jsdom-free tests only cover the decision
+  function, not a browser's event ordering).
+- Whether any seeded model has a non-null `avgResponseTimeMs`.
+- `HIDE_KITCHEN_SINK` now gates **three** `/dev` pages; the note in
+  `chat-render/page.tsx` said to split it into a dedicated var at the
+  third. Not done (env config is outside this phase) — flagged.
+
+### DELETE list
+None.

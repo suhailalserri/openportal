@@ -26,6 +26,15 @@ export interface ChatStreamRequestBody {
   model: string;
   messages: { role: "user" | "assistant" | "system"; content: string }[];
   conversationId?: string | undefined;
+  // Phase 4c — all optional on the server (apps/api/src/schemas/
+  // chat.schema.ts, B1). Each is OMITTED from the JSON when unset: the
+  // server's Zod schema is `.optional()`, not `.nullable()`, so a
+  // literal `null` on the wire would 400. Widened with `| undefined` for
+  // the same exactOptionalPropertyTypes reason as `conversationId` above.
+  temperature?: number | undefined;
+  top_p?: number | undefined;
+  max_tokens?: number | undefined;
+  systemPrompt?: string | undefined;
 }
 
 export interface StreamCallbacks {
@@ -78,6 +87,8 @@ export async function runChatStream(
     response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // JSON.stringify drops keys whose value is `undefined`, so unset
+      // optional params never reach the wire (see the interface comment).
       body: JSON.stringify(body),
       signal,
     });
