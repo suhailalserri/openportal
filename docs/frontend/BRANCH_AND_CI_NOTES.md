@@ -1155,3 +1155,900 @@ New CI jobs added to `.github/workflows/deploy.yml`:
   CI env block needing the same list, which was presumably set that way
   because production needs it, but that inference should be confirmed
   against the real Vercel project settings before relying on it further.
+
+### Web Build — first real result and fix (3.2 continuation)
+Vercel build red, one error: `playwright.config.ts:35` TS2769, `workers:
+number | undefined` not assignable to `string | number`. Cause:
+`workers: process.env.CI ? 1 : undefined` under `exactOptionalPropertyTypes:
+true` (inherited from `tsconfig.base.json`). Same class as the 3.1 round-1
+fixes: an explicit `undefined` is not allowed for an optional key. The CI
+`check` (`pnpm type-check`) and `web-build` jobs hit the same file/error;
+Vercel was just where it surfaced. Next's build only prints the first type
+error.
+
+Fix: `...(process.env.CI ? { workers: 1 } : {})`, so the key is omitted
+locally and Playwright uses its default. Added `apps/web/.gitignore`
+(`playwright-report/`, `test-results/`, `blob-report/`) so local e2e runs
+don't dirty the tree.
+
+Verified here: reproduced the exact error, then confirmed
+`playwright.config.ts` + `e2e/*.spec.ts` type-check clean, using the repo's
+strict flags (`strict`, `exactOptionalPropertyTypes`,
+`noUncheckedIndexedAccess`) against Playwright **1.56** types.
+
+Not verified: Playwright 1.63.0 types (what Vercel resolved); the rest of
+apps/web under `tsc` (no node_modules/network); whether `next start` with
+`output: "standalone"` serves correctly in the `e2e` job (Next warns for
+this pairing; left as is unless it fails). The `e2e` job has never run: it
+failed at its own `next build` step on this error, so its first real result
+is still pending.
+
+Plan copies: the uploaded plan (2.2/3.1 checked) was treated as canonical.
+The repo's `docs/FRONTEND_REBUILD_PLAN.md` differs (2.2/3.1 unchecked, D1
+decided, 2.1 carry-over list) and was not edited; reconcile the two.
+
+### Legal pages 500 on preview — `DYNAMIC_SERVER_USAGE` (3.2 continuation, round 2)
+Build and CI green, but `/{en,ar}/legal/{terms,privacy,acceptable-use}`
+returned 500. Vercel runtime log (all six URLs, function
+`/[locale]/legal/[doc]`): `digest: 'DYNAMIC_SERVER_USAGE'`.
+
+Cause: `middleware.ts` (custom, not next-intl's) hands the locale to
+next-intl via the `x-next-intl-locale` header, so `requestLocale`
+(`i18n/request.ts`, frozen) calls `headers()` unless `setRequestLocale()`
+ran first. `LocaleLayout` calls `getMessages()` without it, and the page's
+`generateStaticParams` returned only `{ doc }` (no `locale`), so nothing was
+prerendered at build; the first request then rendered the route as
+static-on-demand, where `headers()` throws. It passed `next build` and the
+`e2e` job (which uses `next start`, a different runtime path than Vercel),
+so neither could catch it.
+
+Fix (no frozen file touched):
+- `legal/[doc]/page.tsx`: `generateStaticParams` emits locale × doc (6
+  pages), `setRequestLocale(locale)` at the top of the page,
+  `dynamicParams = false` (no on-demand render path can exist).
+- `app/[locale]/layout.tsx`: `setRequestLocale(locale)` before
+  `getMessages()` (next-intl's documented static-rendering requirement).
+
+Guard: the six pages are now prerendered during `next build`, so any other
+`headers()`/`cookies()` use in that tree fails the `web-build` job with the
+offending route named, not a production 500. `content/legal` is read at
+build time (cwd = apps/web) instead of by a function at request time, which
+also removes a Vercel file-tracing risk for `readFileSync`.
+
+Not verified (no node_modules here): that the build now prerenders all six
+pages (check the `next build` route table shows `● /[locale]/legal/[doc]`
+with `/en/legal/terms` etc. listed); that nothing else in the tree reads
+request headers; Vercel behaviour itself. Standing gap: e2e runs on
+`next start`, so it cannot reproduce Vercel-only rendering failures;
+verification for those is the preview URL.
+
+### Phase 3.3 — Landing page polish (constellation, calculator, table, demo)
+
+**Scope.** Landing page rebuild per this phase's plan: constellation dot
+background in the hero, shimmer sign-up CTA, scroll-reveal on every
+section, animated stat counters (real model count + placeholder total
+users), a searchable/filterable models table (replaces card grid),
+LiveBench click-to-load embed, a "how far does 1,000 YER go" calculator,
+a payment-methods marquee, a comparison table, and a simulated demo
+section.
+
+**Files added** (all under `apps/web/`):
+- `components/ui/reveal.tsx`, `components/ui/animated-number.tsx`,
+  `components/ui/shimmer-button.tsx`
+- `features/landing/types.ts`
+- `features/landing/lib/{pricing,format-price,safe-url,constellation,
+  count-up,demo-content,build-landing-data,landing-data,
+  get-demo-content}.ts` (+ matching `.test.ts` for the pure modules)
+- `features/landing/config/{model-tags,placeholders}.ts` (+ tests)
+- `features/landing/components/{constellation-background,models-table,
+  models-section,stats-strip,pay-per-use-calculator,calculator-section,
+  livebench-embed,livebench-section,payment-marquee,comparison-table,
+  comparison-section,demo-section,demo-section-wrapper,
+  packages-section,landing-intro}.tsx`
+- `content/demo/simulated-chat.json` — **invented numbers**,
+  `simulated: true`. To go real: run one actual chat, copy its real
+  prompt/reply and the real input/output tokens + cost from the billing
+  usage log, then flip the flag. Until then the demo section always
+  shows a "Simulated example" badge (`demo-content.ts`'s own doc is the
+  source of truth for the exact contract).
+
+**Files deleted:** `features/landing/components/model-grid.tsx` and
+`package-grid.tsx` (3.2 card grids, superseded by `models-table.tsx` +
+`models-section.tsx` and `packages-section.tsx`). Confirmed no remaining
+imports of either before deleting.
+
+**`index.tsx` rewritten** as the composition root: one `getLandingData()`
+call per page load (was two independent tRPC calls in 3.2, one per
+grid), sections receive plain props, no section fetches its own data.
+
+**Messages:** 87 new `landing.*` keys added to both `ar.json` and
+`en.json`, verified at parity (script-checked key-set equality, not by
+eye). Pre-existing keys `modelsHeading` / `packagesHeading` /
+`noPackagesAvailable` were deliberately left byte-identical so
+`e2e/landing.spec.ts`'s existing string assertions keep passing
+unmodified.
+
+**Framer Motion decision.** A prior round of this phase had dropped
+framer-motion (declared but unused, v11 predated React 19). This round
+reverses that: `framer-motion@^11.11.0` (already in package.json) does
+support React 19, and `Reveal`/`ShimmerButton` both use it now
+(`useReducedMotion`, `whileInView`). `AnimatedNumber` and the
+constellation canvas stay hand-rolled (rAF + IntersectionObserver, no
+motion library) since neither needed anything framer-motion offers over
+plain JS. Not re-verified against a real `npm install` — declared
+compatibility, not measured here.
+
+**"Magic UI".** Not an installed dependency in this repo (no
+`magicui`/`magic-ui` reference anywhere, no `components.json`/shadcn
+registry config to add it through). Magic UI ships as copy-in source
+(React+Tailwind+Framer Motion), so "using" it here meant hand-porting
+the same techniques — `shimmer-button.tsx` mirrors their shimmer-button
+pattern, `reveal.tsx` mirrors their `blur-fade` — restyled against this
+repo's own theme tokens (`--primary`/`--foreground`, not Magic UI's
+default indigo/violet) rather than installed as-is.
+
+### Frozen-zone change: `middleware.ts` bare-`/` redirect (explicit sign-off)
+
+**Contradiction found before building further** (per this phase's own
+rule: stop and report before proceeding if the plan contradicts the
+code). An earlier round of this phase had asserted, and gotten sign-off
+on, "`middleware.ts` (frozen, approved): `/` redirects to `/{locale}`
+(landing)." This was **wrong** — the actual frozen file and its
+already-passing test both redirected bare `/` to `/{locale}/chat`, not
+`/{locale}`. Flagged before touching either file.
+
+**Resolution (explicit sign-off received this session):** bare `/` now
+redirects to `/{locale}` — the landing page — instead of
+`/{locale}/chat`. This is the intended behavior: the landing page is
+meant to be the first-touch surface for a logged-out visitor, and all of
+this phase's work (hero, table, calculator, etc.) would otherwise be
+unreachable dead code sitting behind a route nothing ever links to.
+
+**Diff, scoped to exactly one line + comment:**
+`middleware.ts`: `pathname === "/" ? \`/${locale}/chat\` : ...` →
+`pathname === "/" ? \`/${locale}\` : ...`. Every other line (locale
+detection, `x-next-intl-locale` / `x-pathname` header forwarding, the
+route matcher) is byte-identical to before.
+
+`middleware.test.ts`: only the two bare-`/` assertions changed
+(expected redirect target `/ar` and `/en` instead of `/ar/chat` and
+`/en/chat`). The other five tests in the file (locale-prefixed path
+header forwarding, the `//evil.com` client-header-spoofing guard, the
+`/api` skip) are untouched and still exercise unrelated, still-correct
+behavior.
+
+`e2e/landing.spec.ts` was NOT broken by this change — it already
+navigated straight to `page.goto("/en")`, never to `/`, so the routing
+change doesn't affect it. Its own doc comment was updated to note (a)
+the ModelGrid/PackageGrid → ModelsSection/PackagesSection rename, (b)
+that the routing change doesn't touch this spec, and (c) a new
+ambiguity: the models table can now also render the string "YER" per
+row (`table.priceYerPerK`), so the existing `text=YER` locator used to
+detect "some package exists" is looser than it used to be — still
+correct for what it currently asserts, flagged for whoever revisits it
+next.
+
+### Not done / not verified this round
+
+- **No `tsc`, vitest, `next build`, or Playwright run at all.** Nothing
+  in this phase's file set (new or edited) has been compiled or
+  executed. In particular: `index.tsx`'s prop shapes against the real
+  `LandingData`/`getLandingData` return type, whether `useTranslations`
+  keys with nested template interpolation (`{value}`, `{count}`,
+  `{price}` etc.) resolve correctly against next-intl's ICU parsing, and
+  whether `framer-motion`'s `motion[as]` dynamic-tag pattern in
+  `reveal.tsx` type-checks under this repo's strict flags.
+- **No tests written** for any component added this round (only the
+  pure `lib/`/`config/` modules that shipped with their own `.test.ts`
+  files already have coverage).
+- **LiveBench iframe embedding is unverified** — whether livebench.ai
+  sends `X-Frame-Options`/`frame-ancestors` that would blank the iframe
+  is not checkable without a real browser hitting the real site; the
+  "Open on livebench.ai" link is always visible specifically because of
+  this.
+- **Old `models.*` namespace keys** (`noneAvailable`, `contextWindow`,
+  `priceInput`, `priceOutput`, `premium`, `standard`, `perThousand`) used
+  only by the now-deleted `model-grid.tsx` were left in place, not
+  pruned — worth checking whether anything else still reads them before
+  removing as dead keys.
+- **CSP / `frame-src`**: confirmed no Content-Security-Policy exists
+  anywhere in this repo (checked `next.config.*` and `middleware.ts`),
+  so there is currently nothing to add a `livebench.ai` allowance to. If
+  a CSP is introduced later, this needs revisiting.
+
+---
+
+## B1 — Chat contract (backend track, §7) — lands on `main`, not `frontend-v2`
+
+Per plan rule L3, this is a backend PR to `main` (additive only), separate
+from the `frontend-v2` UI work everything else in this file tracks. Noted
+here anyway since §7 says every B session updates this file.
+
+### What shipped
+- `apps/api/src/schemas/chat.schema.ts` (new) — Zod validation for
+  `POST /chat`'s body, replacing the bare `as` cast (F2). Every field
+  beyond the original `{model, messages, conversationId}` trio
+  (`temperature`, `top_p`, `max_tokens`, `systemPrompt`,
+  `clientMessageId`, `regenerate`) is optional.
+- `apps/api/src/services/chat-idempotency.service.ts` (new) — Redis
+  `SET NX EX` claim for `(conversationId, clientMessageId)`, 24h TTL,
+  fails open on Redis error (same posture as `fraud.service.ts`'s
+  `fraudRedis`).
+- `apps/api/src/services/gateway.service.ts` (edited) — `streamChat` now:
+  forwards `temperature`/`top_p` as-is and `max_tokens` clamped to the
+  resolved model's own `maxOutputTokens`; prepends `systemPrompt` as a
+  leading system message to the gateway request and persists it on the
+  conversation's *initial* insert only (`onConflictDoNothing` means a
+  later `PATCH` is still the source of truth for changing it after
+  creation); skips the user-row insert unconditionally when
+  `regenerate` is true, or claims `clientMessageId` via
+  `chat-idempotency.service` first when present (F4); binds the upstream
+  `fetch` to an `abortSignal` combined with the existing 120s timeout via
+  a hand-rolled `combineAbortSignals` (F5).
+- `apps/api/src/index.ts` (edited) — parses the body with
+  `chatRequestSchema` (400 + Arabic message + English `details` on
+  failure), creates an `AbortController` bound to `reply.raw`'s `"close"`
+  event and passes its signal into `streamChat`, forwards all new
+  optional fields through.
+- `apps/api/src/test/fakeRedis.ts` (edited, additive) — added
+  `set(key, value, "EX", seconds, "NX")` with real NX semantics (TTL
+  accepted, not enforced — same posture as the existing `expire` no-op).
+  Throws on any other flag combination instead of silently misbehaving.
+- `apps/web/app/api/conversations/[id]/route.ts` (edited, sanctioned
+  frozen-zone touch per plan §4: backend changes to `app/api/**` happen
+  only in §7 sessions) — `PATCH` now accepts an optional `systemPrompt`
+  string; empty string clears it, `undefined` (field omitted) leaves it
+  untouched, matching the existing `title`/`isPinned` pattern.
+- Tests: `chat.schema.test.ts` (new — schema shape, edge cases, and a
+  100-random-malformed-body loop that only asserts non-throwing, since
+  Zod's `safeParse` never throws by design — the actual "don't hit the
+  DB on garbage" property lives in `redeemCode`'s checksum pre-check, not
+  here), `chat-idempotency.service.test.ts` (new — claim/duplicate/
+  cross-conversation/fail-open), and 9 new cases appended to
+  `gateway.service.test.ts` (param forwarding + clamping, systemPrompt
+  forwarding + persistence, regenerate skip, idempotent claim + duplicate
+  skip, client-disconnect abort with no reply sent, timeout still 504s
+  when only the safety timer fires).
+
+### Deviations from the plan text (flagged, not asked)
+- **No DB migration.** Idempotency uses Redis, not a `clientMessageId`
+  column — sidesteps a real migration-numbering collision with B2 (§7),
+  which explicitly claims migration `0009`; if B1 also needed one it
+  would have to take `0009` first (B1 lands before B2), silently
+  breaking B2's plan text. Matches this repo's existing style (fraud/
+  rate-limit state is Redis-based, not DB-based).
+- **Tracker-order note carried over from the Phase Summary:** the
+  tracker (§5) lists B1 immediately after `3.2`; §6's own B1 header says
+  "Do 4a and 4b first; B1 must land before 4c." These disagree with each
+  other on sequencing. Checked: `3.2`/`4a`/`4b` are not a *functional*
+  prerequisite for B1 (B1 touches only `apps/api` +
+  `apps/web/app/api/conversations/[id]`, nothing landing/legal/
+  message-rendering related), and no frontend code in this repo calls
+  `POST /api/chat` yet (Phase 4 chat UI hasn't been built), so "must not
+  break the legacy UI" is satisfied trivially for this endpoint. B1
+  proceeded on that reading.
+
+### Verification
+- `pnpm --filter @ai-platform/api test` — full suite must stay green
+  (regression + the new files above). This is the existing `api-tests`
+  CI job; no new job needed, B1 added test files, not a new test target.
+- Manual, once deployed to Render:
+  - `curl -X POST $API/chat -H "Authorization: ..." -d '{"model":123}'`
+    → expect `400 VALIDATION_ERROR`.
+  - Same conversation, two calls with an identical `clientMessageId` →
+    expect exactly one `messages` row with `role='user'` for that turn.
+  - Start a chat, abort the client request mid-stream (e.g. `curl
+    --max-time 1`) → expect the request logged as interrupted rather than
+    running to completion server-side (cannot confirm from this repo
+    alone whether the *New API* Go binary itself stops billing/
+    generating — see below).
+- `web-build` (existing job): unaffected — `gateway.service.ts` isn't
+  reachable from `appRouter`'s import graph, and the one `apps/web`
+  file touched (`conversations/[id]/route.ts`) only gained an additional
+  optional field on an existing, already-typed request body.
+
+### What breaks in production if this is wrong
+- If `claimUserMessage` didn't fail open, a Redis outage would silently
+  drop real user turns (no user-row insert, no error surfaced) — covered
+  by `chat-idempotency.service.test.ts`'s fail-open case.
+- If `combineAbortSignals` didn't actually propagate, Stop/tab-close
+  would keep paying the upstream provider for the full generation
+  (pre-B1 bug, F5) — covered by the new "stops silently on client
+  disconnect" test in `gateway.service.test.ts`.
+- If `max_tokens` clamping were skipped, a malicious/buggy client could
+  request more output than a model allows, wasting spend before the
+  provider itself rejects it — covered by the "clamped to the model's
+  ceiling" test.
+- If any new field were accidentally required instead of optional, every
+  existing raw-API-key caller (F17) would start getting 400s on a
+  previously-working integration — covered by
+  `chat.schema.test.ts`'s "accepts every new field omitted" case.
+
+### Gate check
+- Phase 0.1 (legal docs): done (see this file's earlier D1/0.2 entries).
+- No other `main`-track prerequisite phase exists for B1 to depend on —
+  it's the first backend-track (§7) session.
+
+### Not verifiable without running code
+- Whether aborting our fetch to the New API gateway makes **New API
+  itself** stop billing/generating upstream, vs. just closing our leg of
+  the HTTP connection — that logic is inside the Go binary, outside this
+  repo, and nothing here can confirm it either way. The abort DOES stop
+  us from continuing to read/relay/bill for tokens on our side either
+  way, which is the part actually in scope for F5.
+- Whether this CI runner's Node version supports `AbortSignal.any()`
+  (Node 20.3+) — sidestepped by hand-rolling `combineAbortSignals`
+  instead of depending on it, so this no longer blocks anything, but the
+  repo's actual Node version in CI was never confirmed.
+- Actual `tsc`/`eslint`/`vitest`/`next build` execution for any file in
+  this session — reasoned through against the existing code and test
+  patterns in this repo, not run (no network, Postgres, or Redis in this
+  sandbox).
+
+### Not done this round
+- B2 (user usage + `idx_transactions_type_date` migration), B3 (admin
+  logs/audit), B4 (Turnstile on manual payments + real `/api/status`) —
+  all still open, per §7.
+
+## B1 hotfix — `exactOptionalPropertyTypes` build break (post-deploy)
+
+The first B1 zip failed Vercel's build: `tsc --noEmit` on `apps/api` threw
+`TS2379` on `temperature` at `src/index.ts:119`. Root cause: the repo's
+`tsconfig.base.json` has `"exactOptionalPropertyTypes": true`, which treats
+`foo?: number` (key may be absent) and `foo: number | undefined` (key may be
+present but `undefined`) as genuinely different types. `chatRequestSchema`'s
+Zod `.optional()` fields infer as the latter, and `index.ts` passes them
+straight into `StreamChatOptions`, which was declared as the former for six
+fields (`temperature`, `top_p`, `max_tokens`, `systemPrompt`,
+`clientMessageId`, `regenerate`) — a mismatch under that flag. The CI log
+only named `temperature` because `tsc` stops at the first bad property in
+an object literal; the other five would have failed the same way one CI run
+at a time if only `temperature` had been patched.
+
+**Fix:** widened all six `StreamChatOptions` fields in
+`apps/api/src/services/gateway.service.ts` to `T | undefined`. Type-only
+change, no runtime behavior differs.
+
+**Checked and confirmed unaffected (no fix needed):**
+`gateway.service.test.ts` (never explicitly assigns `undefined` to these
+fields), `chat-idempotency.service.ts`/`.test.ts`, `test/fakeRedis.ts`, and
+`apps/web/app/api/conversations/[id]/route.ts` (uses guarded
+`if (x !== undefined)` assignment, already safe under this flag).
+
+**Not verifiable without running code (same caveat as the original B1
+entry, still true here):** no `node_modules`/network in this sandbox, so
+this was a manual read of `exactOptionalPropertyTypes` semantics against
+the exact reported error, not a confirmed green `tsc --noEmit`. I grepped
+every other B1-touched file for the same "object literal into optional
+property" pattern to rule out sibling failures, but only a real local
+`tsc` run can fully confirm there isn't an unrelated occurrence elsewhere
+in the codebase.
+
+## Hotfix #2 — `0003_payment_methods.sql` seed overflow (post-deploy)
+
+Next CI run got further (type-check/lint, API tests, web build/unit tests,
+i18n, legal-docs-sync all green) and failed in E2E's "Apply raw SQL
+migrations" step instead:
+`psql:...0003_payment_methods.sql:152: ERROR: integer out of range`.
+
+**Root cause:** `packages.credits` is `bigint`, but the four seed `INSERT`s
+write it as a bare `N * 1000000` literal expression. Postgres evaluates
+literal `int * int` multiplication as 32-bit (`int4`) arithmetic *before*
+casting into the bigint column — the column's type doesn't retroactively
+widen the literal expression. `int4` maxes at 2,147,483,647; three of the
+four seed rows (300/850/1800 × 1,000,000, up to 1.8B) fit and inserted
+silently, but the fourth (3,800 × 1,000,000 = 3,800,000,000) overflowed —
+which is why only that one `INSERT` failed and the error line pointed at
+the last statement in the file.
+
+**Fix:** cast the credit-count operand to `::bigint` on all four seed rows
+(not just the one that overflowed, to stop this from silently resurfacing
+the next time a larger package is added to this same seed block).
+
+**Not verifiable without running code:** no Postgres/network in this
+sandbox — this is a read of Postgres's literal-folding behavior against
+the exact error, not a re-run migration. The steps after "Apply raw SQL
+migrations" (seed users/models, web build, Playwright itself) never ran in
+either failed CI attempt so far — this fix only addresses the first
+blocker reached, not a confirmed pass of the full E2E job.
+
+## Phase 4a — Chat message rendering
+
+**Built:** `components/markdown/{safe-markdown,code-block}.tsx` (the
+untrusted-model-output renderer: no rehype-raw, remote images blocked,
+links forced `rel=noopener noreferrer`, fenced code delegated to
+CodeBlock with a language label + copy button, inline code styled
+separately — react-markdown v9's `code` override distinguishes the two
+by presence of a rehype-highlight `className`, since the old `inline`
+prop was removed in v9); `features/chat/types.ts` (reconciles the deleted
+placeholder `ChatMessage` against the real `@ai-platform/db` `messages`
+row — see that file's header for why gateway errors are modeled as a
+separate, non-persisted `ChatError` rather than a flag on `ChatMessage`);
+`features/chat/components/message/{message,message-actions,message-list,
+error-message}.tsx` (real, i18n'd replacements for the deleted
+`components/chat/{message-bubble,message-actions}.tsx`); `content/demo/
+chat-render-fixture.ts` + `/dev/chat-render` (Arabic+code fixture, partial
+turn, error turn, and the three XSS payloads, gated the same way
+`/dev/kitchen-sink` is); `styles/code-highlight.css` (hand-written 3-tone
+`.hljs-*` token colors — no highlight.js theme package imported, see
+below); `components/markdown/safe-markdown.test.tsx` (XSS fixtures +
+trusted-rendering sanity checks, rendered via `react-dom/server`'s
+`renderToStaticMarkup`, no jsdom).
+
+**Deleted:** `components/chat/{message-bubble,message-actions}.tsx` —
+presentational pre-phase scaffolding, superseded by the `features/chat`
+files above. Their one consumer, `/dev/kitchen-sink`'s
+`kitchen-sink-client.tsx`, was updated to import the real components and
+adapted `DEMO_MESSAGES`/added `DEMO_ERROR` to the new `ChatMessage`/
+`ChatError` shapes. `components/chat/{composer,chat-sidebar}.tsx` are
+untouched — still presentational, still 4c/4d's scope.
+
+**Config changes (both justified by the same lockfile constraint as B1
+hotfix #1 — no network/node_modules here to run `pnpm add` and regen
+`pnpm-lock.yaml`, and every CI job runs `pnpm install --frozen-lockfile`):**
+- `vitest.config.ts` gained a `resolve.alias` for `@/*` — this is 4a's
+  first test that actually renders a component tree (every test before
+  this was pure logic, see that file's own header comment), and nothing
+  before now needed Vite to resolve the alias Next.js's own bundler
+  already handles. No new dependency, config only.
+- `.eslintrc.json`'s physical-direction-class override gained
+  `**/dev/chat-render/**`, matching the existing `**/dev/kitchen-sink/**`
+  entry (same category of internal QA tooling).
+- `messages/{ar,en}.json` gained two new `chat.*` keys (`loadEarlier`,
+  `remoteImageBlocked`) — parity checked, both files updated identically.
+
+**Deviations from FRONTEND_REBUILD_PLAN.md's Phase 4a spec (flagged
+before building, approved):**
+- **No shiki** — `rehype-highlight` (already a dependency) used instead.
+  Adding `shiki` would need the same lockfile regen the config changes
+  above avoided by not being a new dependency at all.
+- **D5 (AI Elements spike): skipped**, not attempted — same blocker
+  (installing packages to test compatibility needs a working `pnpm add`).
+  Went straight to the plan's own stated fallback: own components.
+- **No `@testing-library/react`/jsdom** — `react-dom/server`'s
+  `renderToStaticMarkup` used instead (see vitest.config.ts's comment
+  above and safe-markdown.test.tsx's own header).
+- **`streaming-cursor.tsx`: not built.** Originally planned as a
+  visual-only blinking cursor; dropped at the person's explicit
+  instruction before building — 4b will render streaming text however it
+  actually streams, with no separate cursor component needed.
+
+**Not verifiable without running code:** no `node_modules`/network here,
+so nothing in this phase was actually built or test-run. Specific risks,
+ranked by how likely they are to surface something on the first real CI
+run:
+1. `components/markdown/safe-markdown.test.tsx` is the highest-risk file
+   in this phase — it's the first test in the repo to render a real
+   React component tree, and depends on three things I could not verify
+   against the installed versions: (a) `next-intl`'s
+   `NextIntlClientProvider` working standalone under plain
+   `react-dom/server` outside a Next.js runtime; (b) react-markdown v9's
+   documented default URL-sanitization behavior (blocking `javascript:`
+   hrefs) being unchanged from what its README describes — this
+   component does not implement its own scheme-checking, it relies on
+   that default; (c) the `components` prop's exact override function
+   signatures typechecking under react-markdown v9's actual exported
+   types (written with contextual/inline typing rather than importing
+   react-markdown's `Components` type by name, specifically to reduce
+   this risk, but contextual inference isn't a substitute for `tsc`
+   actually running).
+2. `code-block.tsx`'s `getNodeText` tree-walk (for the copy button's
+   clipboard text) assumes rehype-highlight's hast→React output is
+   always strings/numbers/elements with a `children` prop — true for
+   every hljs token span I'm aware of, not independently confirmed
+   against the installed `rehype-highlight`/`lowlight` version.
+3. Everything else (the `.tsx` component structure, i18n key usage,
+   Tailwind logical-property classes, the `exactOptionalPropertyTypes`
+   discipline learned from B1 hotfix #1) follows patterns already proven
+   elsewhere in this codebase and carries substantially lower risk than
+   points 1–2 above.
+
+## Phase 4a — CI green-up (post-build fixes, closing the phase)
+
+First real CI run on `frontend-v2` (screenshots reviewed, not re-run
+here — same no-network-sandbox caveat as everywhere above) came back
+5 green / 2 red: `web-unit` and `E2E (Playwright)`. Both root-caused
+from the log text alone; both are test-only fixes, no app code touched.
+
+**`web-unit` — `ReferenceError: React is not defined` (7/7 tests in
+`safe-markdown.test.tsx`):** `tsconfig.json` sets `"jsx": "preserve"`
+because in a normal Next.js build it's Next's own compiler that lowers
+JSX, using the automatic runtime (no `React` identifier needed in
+scope — this is why the test file never imported React just to write
+JSX). Vitest doesn't go through Next's compiler; it transforms `.tsx`
+via esbuild directly, which defaults to the classic runtime
+(`React.createElement`, requiring `React` in scope) unless told
+otherwise. **Fix:** `vitest.config.ts` gained `esbuild: { jsx:
+"automatic" }`. No new dependency (React 19 already ships
+`react/jsx-runtime`), no lockfile change.
+
+**`E2E (Playwright)` — "legal footer links navigate to the correct
+documents" timing out, log shows the click retrying against a `Cookie
+notice` region that "subtree intercepts pointer events":**
+`features/consent/components/consent-banner.tsx` renders `fixed
+inset-x-0 bottom-0` once mounted, directly over `landing-footer.tsx`'s
+region (also bottom-of-page) whenever `op.consent.dismissedAt` isn't
+yet in `localStorage` — true on every fresh CI browser context. This
+was a genuine obstruction, not flakiness: the footer link really was
+covered. **Fix:** `e2e/landing.spec.ts` gained a `test.beforeEach` that
+`page.addInitScript`s the same `op.consent.dismissedAt` key
+`dismissConsent()` writes, before any page script runs — mimics a
+returning visitor who already dismissed the banner, so it never mounts.
+Applied to the whole `describe` block (not just the failing test) since
+it's a correct precondition for all three landing tests, not a
+workaround for one.
+
+**Not verifiable without running code:** same sandbox constraint as
+every other entry in this file — neither fix was run against a live
+`vitest`/`playwright`. The vitest fix is a one-line, well-documented
+esbuild option with no ambiguity in its semantics, so residual risk is
+low. The e2e fix depends on `ConsentBanner`'s `mounted`-guard `useEffect`
+actually re-reading `localStorage` (via `isConsentDismissed()`) on the
+client before first paint in a Playwright-driven Chromium the same way
+it does in a real browser — plausible from the code, not independently
+confirmed here.
+
+**Verification (next CI run on `frontend-v2`):**
+- `web-unit` job: all 18 test files / 366+7=373 tests pass (was 359
+  passed, 7 failed).
+- `E2E (Playwright)` job: `landing.spec.ts`'s 3 tests all pass (was 2
+  passed, 1 failed — the other two landing tests were unaffected by the
+  banner since they don't scroll to/click the footer).
+- If green: Phase 4a closes — all 7 `deploy.yml` jobs green, tracker
+  §5 ticked, matching plan rule 0.4's phase-done definition.
+
+## Phase 4a — CI green-up round 2 (from actual failing-job logs)
+
+The round-1 fixes above landed and the `React is not defined` /
+consent-banner-overlap failures are gone. Re-run came back 6 green / 2
+red — `web-unit` and `E2E (Playwright)` again, but different failures
+this time, root-caused directly from the real GitHub Actions log text
+(screenshots), not speculation. Both are test-only fixes again; no app
+code touched.
+
+**`web-unit` — `safe-markdown.test.tsx`, 2 of 7 assertions failing:**
+1. The `<div onclick>` XSS test's own regex, `/<div[\s>]/`, is too
+   broad: `SafeMarkdown` always wraps its output in its own legitimate
+   `<div class="text-[15px] leading-[1.65] ...">` (see
+   `safe-markdown.tsx`), which the regex matches regardless of whether
+   the payload itself became real markup. The log confirms the payload
+   *was* correctly escaped (`&lt;div onclick=...&gt;`) — this was a
+   test false-positive, not an XSS regression. **Fix:** narrowed to
+   `/<div\s+onclick=/i`, which targets the payload's own attribute and
+   ignores the always-present wrapper.
+2. The code-highlighting sanity check asserted `toContain("def f():")`
+   against raw HTML, but `rehype-highlight` tokenizes it into
+   `<span class="hljs-keyword">def</span> <span class="hljs-title
+   function_">f</span>():` — correct, intended output — so the literal
+   substring no longer exists in the markup even though it's exactly
+   what a reader sees. **Fix:** strip tags (`html.replace(/<[^>]+>/g,
+   "")`) before this one assertion; the other two assertions in that
+   test (Arabic prose, `dir="ltr"`) are unaffected and still assert on
+   raw HTML.
+
+**`E2E (Playwright)` — `landing.spec.ts`, 2 of 3 tests failing, both
+strict-mode violations (`getByRole`/`getByText` resolving to 2
+elements), not timeouts:**
+1. `"renders live model data from the database"` — unscoped
+   `page.getByText("GPT-4o", { exact: true })` also matches
+   `features/landing/components/cost-ranking.tsx`'s own model-name span
+   (the "Cost, ranked" calculator independently lists every model,
+   including GPT-4o, elsewhere on the same landing page — correct
+   content, not a duplicate bug). **Fix:** scoped to
+   `page.locator("#models").getByText("GPT-4o", { exact: true })`,
+   `#models` being `models-section.tsx`'s own section id.
+2. `"legal footer links navigate to the correct documents"` — unscoped
+   `page.getByRole("heading", { name: "Terms of Service" })` substring-
+   matches both the page chrome's own `<h1>Terms of Service</h1>`
+   (`legal/[doc]/page.tsx`) and the TOS markdown's own first heading,
+   `"Terms of Service — AI Platform / منصة الذكاء الاصطناعي"`
+   (`docs/legal/TERMS_OF_SERVICE.md`'s first line, rendered by
+   `LegalDocView`) — both headings are correct, intended content.
+   **Fix:** added `exact: true` so the assertion only targets the page
+   chrome's own heading.
+
+**Not verifiable without running code:** same sandbox constraint as
+every other entry in this file. Unlike round 1, though, both e2e root
+causes here were read directly off the Playwright "strict mode
+violation" error text (which lists every matching element verbatim),
+not inferred — residual risk is limited to whether `#models` still
+wraps only the models table and nothing else that also contains
+"GPT-4o" verbatim, which the codebase confirms as of this write.
+
+**Verification (next CI run):**
+- `web-unit` job: `safe-markdown.test.tsx`'s remaining 2 assertions
+  pass (was 5/7 passing, 2 failing).
+- `E2E (Playwright)` job: `landing.spec.ts`'s 3 tests all pass with no
+  retries needed (was 1/3 passing outright, 2 needing/failing retries).
+- If green: Phase 4a closes — all 7 `deploy.yml` jobs green, tracker
+  §5 ticked, matching plan rule 0.4's phase-done definition.
+
+----
+
+
+## Phase 4b — Chat: streaming + state
+
+### What landed
+`features/chat/lib/chat-stream-reducer.ts` (pure reducer, D3: custom, not
+AI SDK `useChat`), `features/chat/lib/stream-reader.ts` (the `fetch` +
+`getReader()` + `TextDecoder({stream:true})` loop, kept separate from the
+reducer so it's testable without React), `features/chat/hooks/
+use-chat-stream.ts` (AbortController + send-lock + wiring), `features/chat/
+hooks/{use-online-status,use-tab-conflict}.ts` + `features/chat/components/
+{offline-banner,tab-conflict-banner}.tsx`. No frozen-zone edits — `app/api/
+chat/route.ts` reused as-is.
+
+### Bug found in the drafted files, fixed before landing
+Both new test files were named with an underscore
+(`chat-stream-reducer_test.ts`, `stream-reader_test.ts`) instead of
+`.test.ts`. `vitest.config.ts`'s `include` is `["**/*.test.ts",
+"**/*.test.tsx"]` — this is the exact bug Session 2.2 already hit once
+(`trpc-error_test.ts`). As drafted, both files would have silently never
+run in CI: green `web-unit`, zero coverage of the split-character/stop/
+retry/partial cases the plan requires. Renamed both; contents otherwise
+unchanged except the one addition below.
+
+### Second bug found and fixed: `redirectTo` was dropped on 401 mid-stream
+`stream-reader.ts` already maps a 401 to `onError({ retryable: false,
+redirectTo: "/auth/login" })`, and `use-chat-stream.ts`'s own header
+comment says "the caller reads `error`/`redirectTo` off a rejected send" —
+but `ChatError` (features/chat/types.ts, from 4a) has no `redirectTo`
+field, and the hook's `onError` callback only forwarded `id`/`message`/
+`retryable` into the dispatched action, silently discarding the value the
+comment promised existed. Fixed:
+- `types.ts`: added `redirectTo?: string | undefined` to `ChatError`
+  (additive/optional — 4a's `ErrorMessage` component doesn't read it and
+  is unaffected).
+- `use-chat-stream.ts`: `onError` now forwards `error.redirectTo` into the
+  dispatched `ChatError`.
+- `chat-stream-reducer.ts` needed no change — its `ERROR` case already
+  stores `action.error` whole, so once the field exists on the type it
+  flows through untouched.
+- New reducer test: `"passes redirectTo through untouched (401 mid-stream
+  case)"` — regression guard for this specific wiring, not just the type
+  existing.
+
+The redirect itself is still not performed anywhere in this phase — no
+router access belongs in this hook by design, and there's no page wiring
+`useChatStream` yet (that's a later phase). This fix makes the value
+reach a future caller intact; it doesn't add the caller.
+
+### Verification
+- `pnpm --filter apps/web test` (the `web-unit` job): the two renamed
+  test files should now collect and run — confirm they show up in the
+  test list, not just that the job is green (a naming regression like
+  this one is invisible in a pass/fail summary alone).
+- Preview: send → stream tokens in → done; Stop mid-stream → cursor
+  stops, no further text; retry after an error; DevTools offline →
+  `OfflineBanner` appears/disappears; same conversation in two tabs →
+  `TabConflictBanner` appears, updates when the other tab starts/stops
+  sending.
+- `/admin/logs`: exactly one `usage_debit` transaction per completed
+  stream — backend guarantee (B1's `deductCreditsAtomic`), this phase's
+  job is only to confirm the client never fires a second `POST /api/chat`
+  for one send (send-lock tests cover the client side of that).
+- No other CI job (`api-tests`, `e2e`, `i18n-parity`, `legal-docs-sync`)
+  should be affected — no i18n keys added (all three used were already
+  present), no `app/api/**`/`server/**` file touched.
+
+### Refined finding on client-abort → server-abort propagation
+Read `app/api/chat/route.ts` directly rather than re-flagging this as a
+blanket unknown. The route's own outbound `fetch` to `apps/api` is bound
+only to `AbortSignal.timeout(125_000)` — it does **not** read the
+incoming `NextRequest`'s own signal and tie it to that outbound fetch.
+So: client `Stop` → `AbortController.abort()` closes the browser's
+connection to this Next route, but whether that actually terminates the
+Node/Vercel function (and therefore its in-flight fetch to `apps/api`,
+which is what would let B1's `reply.raw "close"` handler on the Fastify
+side fire) depends on Vercel/Node serverless runtime behavior, not on
+anything in this repo. This is still not verifiable from the codebase
+alone — flagging as a confirmed *gap in the route's own code* (not just
+"unverified platform behavior") for whoever next touches `app/api/chat/
+route.ts` in a `§7` session.
+
+### Not verified (no node_modules/network in this sandbox — standing gap)
+- No real `tsc`, `next build`, or `vitest` run. In particular:
+  `ChatMessage`/`ChatError` prop typing between `chat-stream-reducer.ts`,
+  `use-chat-stream.ts`, and 4a's `MessageList`/`ErrorMessage` — checked by
+  reading the files side by side (fields line up), not by compiling them
+  together.
+- `use-tab-conflict.ts`'s `BroadcastChannel` behavior across two real
+  browser tabs — code-reviewed only.
+- Whether the strict tsconfig flags that broke earlier phases
+  (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`) affect
+  anything new here — the new optional fields
+  (`ChatError.redirectTo?: string | undefined`,
+  `StreamCallbacks.onError`'s `redirectTo?`) were written in the explicit
+  `T | undefined` form those earlier fixes established as the safe
+  pattern, but this has not been confirmed by a real compile.
+
+### Third fix — from the full CI log (round 2, `Type-check & Lint` job)
+The full log (not just the Vercel `next build` excerpt, which only shows
+the first error `tsc` hits) showed a *second*, distinct error at
+`stream-reader.test.ts(25,7)`, TS2322: `fakeReader`'s inner `read` async
+function's inferred return type didn't match its own declared return
+type. Root cause: `noUncheckedIndexedAccess` (confirmed on in this
+repo's tsconfig by three earlier sessions' build fixes, most recently
+3.1 round 2's `register/page.tsx` fix) types `chunks[i]` as `Uint8Array |
+undefined`, not `Uint8Array` — even though the `i >= chunks.length`
+guard immediately above already proves it's defined at that point. That
+`undefined` leaked into the `{ done: false, value }` return, which is
+what actually produced the confusing `Promise<{done:true;value?:never}>
+| {done:false;value:Uint8Array|undefined}` type in the error text (not a
+separate bug in `stream-reader.ts` itself, as first suspected — a single
+root cause in the test file, cascading into a second annotation).
+
+Fix: `const value = chunks[i]!;` — the non-null assertion is justified
+specifically by the bounds check two lines above, same pattern as the
+`register/page.tsx` fix. The third GitHub annotation (`command
+(/home/runner/.../apps/web) ...exited (2)`) was, as suspected, just the
+step-level wrapper for the same underlying `tsc` failure, not a third
+distinct error — confirmed by the full log, not guessed.
+
+Second `redirectTo` widening (`StreamCallbacks.onError` in
+`stream-reader.ts`, applied the same round) still stands as a real,
+separate fix — the full log shows both TS2322 (this one) and TS2379 (the
+`redirectTo` one) as genuinely two different diagnostics in the same
+file, not one cascading into the other.
+
+**Not verifiable without running code:** same standing sandbox gap — this
+fix is read directly off the full `tsc` output this time (not inferred
+from a truncated annotation), which is higher-confidence than the first
+round, but still not a confirmed green `tsc --noEmit` run.
+
+
+### Not done this round
+4c (input/models/parameters) was open at the time of writing; it is built
+in the next section. 4d (conversations + cache) remained open.
+
+
+---
+
+## Phase 4c — Chat: input, models, parameters
+
+### Decision record — where the parameters persist (read first)
+The plan's 4c "Done when" says parameters "persist per conversation", but
+B1's own spec only persists `systemPrompt` (plan §7), and the frozen code
+agrees: `conversations` has no columns for `temperature` / `top_p` /
+`max_tokens`, and `PATCH /api/conversations/[id]` doesn't accept them.
+Chosen: **frontend-only, no frozen-zone edits.**
+
+| Param | Persists | Where | Cross-device |
+|---|---|---|---|
+| `systemPrompt` | yes | server, via the existing B1 PATCH | yes |
+| `temperature`, `top_p`, `max_tokens` | yes | `localStorage`, per conversation id | **no — this browser only** |
+| last-picked model | yes | `localStorage` | no |
+
+Reasoning: the frozen-zone rule is a standing instruction, and the upgrade
+path is small and isolated — three nullable columns on `conversations`
+(hand-written migration in the `0006_model_latency.sql` style), extend the
+PATCH body, capture them at first insert in `gateway.service.ts`. A future
+**backend** session, not a frontend one. Nothing built here blocks it;
+`lib/chat-params-storage.ts` would become a thin offline fallback.
+
+An earlier draft of this phase (from a prior session) had applied exactly
+those frozen-zone edits (schema, migration `0009`, PATCH route,
+`gateway.service.ts`). That work did not exist in the repo zip this session
+was given, so it was **not carried forward**; migration number `0009` is
+also already claimed by B2 (plan §7, `idx_transactions_type_date`), so a
+params migration would have needed `0010` regardless.
+
+### What was built (all under `apps/web`, nothing frozen touched)
+- `components/chat/composer.tsx` — **modified.** Fixes two real bugs in the
+  restyle-session version: (1) Enter sent unconditionally, so an Arabic/CJK
+  IME candidate-confirm Enter submitted half-typed text — now guarded by
+  `isComposing` **and** Safari's `keyCode === 229` (Safari fires
+  `compositionend` before the final keydown, so `isComposing` alone
+  misfires there); (2) `aria-label="إرسال"` was hardcoded Arabic — now
+  `chat.send`. Added auto-resize (`useLayoutEffect`, resets to `auto`
+  first so it can shrink) and an optional `sendBlockedReason`
+  (`aria-invalid` + `aria-describedby` + `role="alert"`; distinct from
+  `disabled`, which would also stop the user editing an over-long draft
+  down). All new props optional → `dev/kitchen-sink` unchanged.
+- `features/chat/lib/` (all pure, all unit-tested): `composer-keydown`,
+  `context-estimate`, `model-selection`, `chat-params-storage`,
+  `param-input`, `conversation-api`.
+- `features/chat/hooks/`: `use-chat-models` (tRPC `models.list`),
+  `use-chat-params` (params + system-prompt load/debounced-PATCH).
+  `use-chat-stream` **modified** to carry the four params.
+- `features/chat/components/composer/`: `model-picker`, `parameters-panel`,
+  `composer-bar` (assembly).
+- `lib/stream-reader.ts` **modified:** request body gains four optional
+  fields. `types.ts` **modified:** `ConversationParams`.
+- `messages/{ar,en}.json`: new `chat.parameters.*` block (additive; the
+  only removed line per file is a trailing-comma change on the previous
+  last key). ar/en key parity confirmed.
+- `app/[locale]/dev/chat-composer/` — fixture harness (see "How to verify").
+- `docs/frontend/API_CONTRACT.md` — **corrected**, see below.
+
+### Integration boundary — 4c does NOT mount these in `/chat`
+`app/[locale]/(app)/chat/page.tsx` is still the Phase 2.1 placeholder and
+the plan assigns `/chat` + `/chat/[id]` to **4d**. Nothing outside
+`features/chat` and the `/dev` page imports `ComposerBar` or
+`useChatStream` yet. Mounting them needs conversation creation, the
+sidebar and the cache — all 4d. **4d must:** create the conversation
+(`POST /api/conversations`) before the first send, pass
+`params`/`systemPrompt` from `useChatParams` into `useChatStream`, pass
+`conversationExists` (true once the row exists) to `useChatParams`, and
+feed `history` (prior turns) into `ComposerBar` so the token estimate
+covers the whole request.
+
+### Bugs found and fixed in my own first draft
+1. **Picker unresponsive on an existing conversation.** Priority was
+   conversation model > last-picked, so clicking another model updated
+   `localStorage` but the picker kept showing the conversation's model.
+   Added a "picked this session" tier above both; tested.
+2. **Pending system-prompt PATCH dropped on conversation switch/unmount.**
+   Now flushed against the id it was made for, not silently discarded.
+3. **`exactOptionalPropertyTypes` leaks.** Optional request fields are
+   *omitted* (conditional spread off plain local consts), never `undefined`
+   and never `null` — the server's Zod schema is `.optional()`, so a
+   literal `null` on the wire is a 400.
+4. **A regex "test" that couldn't fail:** a mutation test showed my first
+   `join(" ")` mutation survived because it matched the *comment*, not the
+   code. Re-ran against the real line; now caught.
+
+### API_CONTRACT.md was stale since B1 — corrected
+§3 and quirk #10 still said `/chat` had zero validation, no
+`clientMessageId`, and no abort handling. All false since B1. Verified
+against `chat.schema.ts` / `gateway.service.ts` and rewrote: request shape
+(all-optional fields, `null` rejected), F4 fixed (idempotency claim is on
+the `(conversationId, clientMessageId)` pair), F5 fixed (abort bound to
+disconnect), context estimate formula, system-prompt "first write wins".
+Added quirks 11–13 (price units, list endpoint omits `systemPrompt`,
+PATCH succeeds on 0 rows). **Anyone who built from the old doc should
+re-read §3.**
+
+### How to verify
+**CI:** `web-unit` (new tests: `composer-keydown`, `context-estimate`,
+`model-selection`, `chat-params-storage`, `param-input`,
+`conversation-api`), `Type-check & Lint`, `web-build`, `i18n-parity`.
+
+**Preview** — open `/ar/dev/chat-composer` and `/en/dev/chat-composer`:
+1. Select **"Tiny context"**, paste ~800 characters → Send disables, red
+   border, localized warning appears; delete text → re-enables.
+2. Type ~600 characters (≈80% of the limit) → amber "approaching limit".
+3. Shift+Enter inserts a newline; Enter sends. Textarea grows, then
+   scrolls past 180px.
+4. **IME (needs a real device):** with an Arabic phonetic IME, press Enter
+   to accept a candidate → nothing is sent. Repeat on Safari/iOS.
+5. Open Parameters: temperature `3` → inline range error and the "Would
+   be sent" JSON does **not** change; `٠٫٧` (Arabic digits) → accepted as
+   0.7; empty → key absent from the JSON (not `null`).
+6. "Tiny context" shows `—` for latency; "Large model" shows `1.2s`.
+7. Both themes, both directions. Prices show Western digits in `ar`.
+8. **Sign-out (Rule 9, real app only):** pick a model → sign out → sign in
+   as a different user → last-picked model is **not** carried over.
+   *(Cannot be exercised on the harness page — no auth there.)*
+
+**Not exercisable until 4d mounts the real route:** "parameters change the
+response", system-prompt PATCH round-trip, reload persistence of a real
+conversation's params. The plan's "Done when" for 4c is therefore only
+**partially** demonstrable now; the rest is a 4d acceptance check.
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- **No real `tsc`, `next build`, or `vitest` was run.** What *was* run: a
+  strict-flag `tsc` (exactOptionalPropertyTypes + noUncheckedIndexedAccess)
+  over every new/changed file using **hand-written permissive stubs** for
+  React/next-intl/shadcn/lucide/tRPC — 0 errors in my files. That proves
+  internal consistency, **not** that third-party prop types match. Plus 60
+  test cases (the six new `.test.ts` files; the pre-existing 4a/4b suites
+  were not part of this run) executed against the real source under a
+  small home-made shim, and 7 distinct deliberate mutations (IME guard
+  removed; Safari-229 check removed; `>` → `>=`; join separator removed;
+  history omitted from estimate; stale model id unchecked; clear-only-
+  first-key), all caught. Real vitest may differ on edge
+  semantics of the shim's matchers.
+- **`trpc.models.list.useQuery`** is the first tRPC React hook in
+  `apps/web`. Whether it types cleanly against `AppRouter` is unconfirmed.
+- **Radix `Select`:** `SelectValue` with explicit children, and `value=""`
+  showing the placeholder, are unverified (no Radix source offline).
+- Real Arabic IME behavior (jsdom-free tests only cover the decision
+  function, not a browser's event ordering).
+- Whether any seeded model has a non-null `avgResponseTimeMs`.
+- `HIDE_KITCHEN_SINK` now gates **three** `/dev` pages; the note in
+  `chat-render/page.tsx` said to split it into a dedicated var at the
+  third. Not done (env config is outside this phase) — flagged.
+
+### DELETE list
+None.

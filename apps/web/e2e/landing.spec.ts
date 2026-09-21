@@ -19,27 +19,84 @@ import { test, expect } from "@playwright/test";
  * a guessed model name. modelsRouter.list only returns
  * status="published" AND isAvailable=true rows, so this model appearing
  * on the page proves the full path (seed → DB → tRPC caller →
- * ModelGrid) works, not just that some hardcoded fallback rendered.
+ * ModelsSection/ModelsTable) works, not just that some hardcoded
+ * fallback rendered.
+ *
+ * PHASE 3.3 UPDATE: ModelGrid/PackageGrid (card grids) were replaced by
+ * ModelsSection (a searchable/filterable table, models-table.tsx) and
+ * PackagesSection respectively — components/model-grid.tsx and
+ * package-grid.tsx are deleted. The `landing.modelsHeading` /
+ * `landing.packagesHeading` / `landing.noPackagesAvailable` message
+ * strings this spec asserts against are UNCHANGED text (kept identical
+ * on purpose for this reason), so the assertions below still hold
+ * without edits to the strings themselves.
+ *
+ * ROUTING: bare "/" now redirects to "/{locale}" (the landing page)
+ * instead of "/{locale}/chat" (middleware.ts, this same phase) — this
+ * spec already navigated straight to "/en", not "/", so it is
+ * unaffected either way; noted here so the two aren't assumed connected
+ * if this file is revisited later.
  *
  * PACKAGES: deliberately NOT asserted as populated. There is no seed
  * script for the `packages` table anywhere in this repo (checked:
  * grepped packages/db/src for `creditPackages` — the only writes are
  * from admin.router.ts's runtime CRUD procedures, nothing at seed time).
  * A fresh CI database therefore has zero rows there, and
- * PackageGrid correctly renders its "no packages available" empty state
- * — this is the CORRECT behavior for that data state, not a bug to work
- * around. Asserting real package cards here would be testing against
- * data that doesn't exist in this environment and would be exactly the
- * kind of unverified assumption to avoid; this test instead asserts the
- * heading renders and the page does not error, which is true in both
- * the populated and empty states.
+ * PackagesSection correctly renders its "no packages available" empty
+ * state — this is the CORRECT behavior for that data state, not a bug
+ * to work around. Asserting real package cards here would be testing
+ * against data that doesn't exist in this environment and would be
+ * exactly the kind of unverified assumption to avoid; this test instead
+ * asserts the heading renders and the page does not error, which is
+ * true in both the populated and empty states.
+ *
+ * "text=YER" AMBIGUITY (Phase 3.3, unverified without a real run): the
+ * models table can ALSO render "YER" per row now (table.priceYerPerK,
+ * when a usable package exists to derive a rate) — previously only
+ * PackageGrid's cards could contain that string. `hasPackageCards`
+ * below therefore no longer proves a package card specifically exists;
+ * it only proves "YER" appears somewhere on the page, which is true
+ * whenever ANY package is seeded (via the calculator/price-per-model
+ * columns) even before PackagesSection's own cards are checked. This
+ * still correctly distinguishes "some package exists" from "none do"
+ * for the purposes of this assertion, so left as-is rather than
+ * over-fitted to a scenario (packages seeded but a broken PackagesSection)
+ * this repo has no seed data to actually exercise.
+ *
+ * CONSENT BANNER (added post-first-CI-run, fixing the "legal footer
+ * links" failure): features/consent/components/consent-banner.tsx
+ * renders `fixed inset-x-0 bottom-0` once mounted, in the exact same
+ * viewport region as this page's footer (landing-footer.tsx, also at
+ * the bottom of the document). On a fresh CI browser context (no prior
+ * visit, so features/consent/lib/consent-storage.ts's
+ * `op.consent.dismissedAt` localStorage key is unset) the banner is
+ * showing, and Playwright's actionability check correctly refuses to
+ * click a footer link the banner's subtree is covering — this was not a
+ * flaky timing issue, the link genuinely was obstructed. `addInitScript`
+ * below sets that same key before any page script runs, in every test
+ * in this file, exactly mimicking a returning visitor who already
+ * dismissed it (dismissConsent()'s own value shape), so the banner never
+ * mounts and never has an opportunity to overlap the footer.
  */
 test.describe("landing page", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("op.consent.dismissedAt", new Date().toISOString());
+    });
+  });
+
   test("renders live model data from the database", async ({ page }) => {
     await page.goto("/en");
 
     await expect(page.getByRole("heading", { name: "Available models" })).toBeVisible();
-    await expect(page.getByText("GPT-4o", { exact: true })).toBeVisible();
+    // Scoped to the models table (#models, models-section.tsx) specifically.
+    // Unscoped, "GPT-4o" also matches features/landing/components/
+    // cost-ranking.tsx's own model-name span (the "Cost, ranked"
+    // calculator independently lists every model, GPT-4o included) —
+    // that's a second, correctly-rendered "GPT-4o" elsewhere on the same
+    // page, not a bug, so the locator needs to say which one this test
+    // means rather than "any element with this text on the page."
+    await expect(page.locator("#models").getByText("GPT-4o", { exact: true })).toBeVisible();
   });
 
   test("renders the packages section without erroring, even with none seeded", async ({ page }) => {
@@ -58,6 +115,15 @@ test.describe("landing page", () => {
 
     await page.getByRole("link", { name: "Terms of Service" }).click();
     await expect(page).toHaveURL(/\/en\/legal\/terms$/);
-    await expect(page.getByRole("heading", { name: "Terms of Service" })).toBeVisible();
+    // exact: true — unscoped/substring this also matches the TOS
+    // markdown's own first heading (read-doc.ts's rendered h1, "Terms of
+    // Service — AI Platform / منصة الذكاء الاصطناعي", from
+    // docs/legal/TERMS_OF_SERVICE.md's first line), which contains "Terms
+    // of Service" as a substring. Both headings are correct content —
+    // the page chrome's own <h1> (legal/[doc]/page.tsx) plus the
+    // document's own title inside it — this just needs to say which one.
+    await expect(
+      page.getByRole("heading", { name: "Terms of Service", exact: true }),
+    ).toBeVisible();
   });
 });

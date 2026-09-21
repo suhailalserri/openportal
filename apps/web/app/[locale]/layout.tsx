@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
+import { getMessages, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -34,6 +34,12 @@ export default async function LocaleLayout({ children, params }: Props) {
   const { locale } = await params;
 
   if (!SUPPORTED_LOCALES.includes(locale as Locale)) notFound();
+
+  // Must run before getMessages(): without it next-intl resolves the locale
+  // from the request headers (set by middleware.ts), which makes every
+  // statically rendered route under this layout throw DYNAMIC_SERVER_USAGE.
+  // Harmless for dynamic routes.
+  setRequestLocale(locale);
 
   const messages = await getMessages();
   const isRTL = locale === "ar";

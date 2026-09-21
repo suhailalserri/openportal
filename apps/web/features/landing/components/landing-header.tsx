@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/cta-button";
 
 /**
  * apps/web/features/landing/components/landing-header.tsx
@@ -36,9 +37,9 @@ export async function LandingHeader({ locale }: { locale: string }) {
           <Button variant="ghost" size="sm" asChild>
             <Link href={`/${locale}/auth/login`}>{t("signIn")}</Link>
           </Button>
-          <Button size="sm" asChild>
+          <CtaButton size="default" asChild>
             <Link href={`/${locale}/auth/register`}>{t("getStarted")}</Link>
-          </Button>
+          </CtaButton>
         </nav>
       </div>
     </header>

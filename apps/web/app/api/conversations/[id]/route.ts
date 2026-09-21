@@ -29,13 +29,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id }  = await params;
-  const body    = await req.json() as { title?: string; isPinned?: boolean };
+  // B1/F3: systemPrompt added, purely additive — title/isPinned callers are
+  // unaffected (still undefined-checked the same way below). The
+  // `systemPrompt` column already existed on `conversations` before this
+  // change (see packages/db/src/schema/conversations.ts); this is the
+  // first code path that ever writes to it after conversation creation.
+  const body    = await req.json() as { title?: string; isPinned?: boolean; systemPrompt?: string };
 
-  const updateData: { updatedAt: Date; title?: string; isPinned?: boolean } = {
+  const updateData: { updatedAt: Date; title?: string; isPinned?: boolean; systemPrompt?: string } = {
     updatedAt: new Date(),
   };
   if (body.title !== undefined) updateData.title = body.title;
   if (body.isPinned !== undefined) updateData.isPinned = body.isPinned;
+  // Empty string is a legitimate "clear the system prompt" request — only
+  // `undefined` (the field omitted entirely) means "don't touch this
+  // field," matching the same undefined-check pattern as title/isPinned
+  // above.
+  if (body.systemPrompt !== undefined) updateData.systemPrompt = body.systemPrompt;
 
   await db.update(conversations)
     .set(updateData)

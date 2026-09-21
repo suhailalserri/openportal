@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "./theme.css";
 @import "./theme-presets.css";
+@import "./code-highlight.css";
 
 /*
  * @tailwindcss/typography has been a devDependency since 1.2 but was
@@ -113,5 +114,94 @@ p {
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+}
+
+/*
+ * Phase 3.3 (docs/FRONTEND_REBUILD_PLAN.md) — landing page animation.
+ * Additions only; nothing above this block was changed.
+ *
+ * Magic UI animations (components/magicui/*). Copied from the official
+ * registry items' `cssVars` / `css` (magicui.design/r/shimmer-button,
+ * /r/animated-shiny-text): the `animate-*` names are what the components'
+ * class lists use; the @keyframes are exactly Magic UI's.
+ */
+@theme inline {
+  --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite alternate;
+  --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
+  --animate-shiny-text: shiny-text 8s infinite;
+}
+
+@keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+  }
+}
+
+@keyframes spin-around {
+  0% {
+    transform: translateZ(0) rotate(0);
+  }
+  15%,
+  35% {
+    transform: translateZ(0) rotate(90deg);
+  }
+  65%,
+  85% {
+    transform: translateZ(0) rotate(270deg);
+  }
+  100% {
+    transform: translateZ(0) rotate(360deg);
+  }
+}
+
+@keyframes shiny-text {
+  0%,
+  90%,
+  100% {
+    background-position: calc(-100% - var(--shiny-width)) 0;
+  }
+  30%,
+  60% {
+    background-position: calc(100% + var(--shiny-width)) 0;
+  }
+}
+
+/* Reduced motion: drop the ambient loops (spark, shine). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer-slide,
+  .animate-spin-around,
+  .animate-shiny-text {
+    animation: none !important;
+  }
+}
+
+/*
+ * `animate-marquee` backs components/payment-marquee.tsx. Track content
+ * is duplicated once by the component so a 0% -> -50% translate loops
+ * seamlessly. RTL note: this uses `translateX`, which is a physical (not
+ * logical) transform — deliberately NOT flipped for [dir="rtl"], so the
+ * strip keeps scrolling the same screen-direction regardless of locale
+ * (a marquee reversing direction between locales reads as a bug, not
+ * localization, since it isn't reading text).
+ */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+    flex-wrap: wrap;
+    width: 100%;
   }
 }

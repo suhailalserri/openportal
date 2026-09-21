@@ -1,0 +1,50 @@
+/*
+ * Syntax token colors for rehype-highlight's output (components/markdown/
+ * code-block.tsx). Deliberately NOT `highlight.js/styles/*.css` — pnpm's
+ * strict node_modules layout means apps/web can only import a package
+ * that's its own direct dependency, and adding one (even a transitive
+ * dependency's own subpath) means a pnpm-lock.yaml update this sandbox
+ * has no way to run (`pnpm install --frozen-lockfile` is what every CI
+ * job uses — see docs/frontend/BRANCH_AND_CI_NOTES.md's B1 hotfix #1
+ * entry for the same constraint hitting a different dependency).
+ *
+ * So: hand-written, 3-tone, mapped onto the tokens already in
+ * styles/theme.css rather than a bundled theme's own palette — matches
+ * docs/design/design-preview.html's own restrained `.tok-kw` / `.tok-str`
+ * / `.tok-cm` intent (see that file around line 332) applied to
+ * highlight.js's actual class taxonomy instead of the design file's
+ * hand-authored `.tok-*` spans (which nothing here generates — the
+ * highlighter is automatic, not hand-tokenized).
+ */
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-built_in,
+.hljs-type {
+  color: var(--accent-foreground); /* gate-strong */
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-regexp,
+.hljs-symbol {
+  color: var(--success); /* signal */
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--faint-foreground);
+  font-style: italic;
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--primary); /* gate */
+  font-weight: 600;
+}
+
+.hljs-number {
+  color: var(--info);
+}

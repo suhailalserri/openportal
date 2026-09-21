@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { LEGAL_DOCS, getLegalDocMeta } from "@/features/legal/lib/registry";
 import { readLegalDoc } from "@/features/legal/lib/read-doc";
@@ -20,15 +20,32 @@ import { LegalDocView } from "@/features/legal/components/legal-doc-view";
  *
  * Static: the three slugs are fixed and the content only changes via a
  * deploy (sync-legal.ts is a build-time step), so generateStaticParams
- * makes these three routes fully static rather than dynamically
- * rendered per request.
+ * pre-renders every locale x doc pair at `next build`.
+ *
+ * WHY setRequestLocale + full params (this was a production 500,
+ * DYNAMIC_SERVER_USAGE): this app uses its own middleware instead of
+ * next-intl's, which passes the locale in the `x-next-intl-locale`
+ * request header. next-intl's `requestLocale` (i18n/request.ts, frozen)
+ * therefore reads `headers()` unless setRequestLocale(locale) has been
+ * called first. The layout's getMessages() did exactly that, and
+ * generateStaticParams used to return only `{ doc }` (no `locale`), so
+ * nothing was pre-rendered and the first request rendered the route
+ * "statically" on demand, where headers() throws. Fix: emit `locale` too,
+ * call setRequestLocale here AND in app/[locale]/layout.tsx, and set
+ * dynamicParams = false so an on-demand render of this route can never
+ * happen. If anything else in the tree ever touches headers()/cookies(),
+ * `next build` now fails loudly instead of the page 500ing in production.
  */
+const LOCALES = ["ar", "en"] as const;
+
+export const dynamicParams = false;
+
 interface Props {
   params: Promise<{ locale: string; doc: string }>;
 }
 
 export function generateStaticParams() {
-  return LEGAL_DOCS.map((doc) => ({ doc: doc.slug }));
+  return LOCALES.flatMap((locale) => LEGAL_DOCS.map((doc) => ({ locale, doc: doc.slug })));
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -41,6 +58,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function LegalDocPage({ params }: Props) {
   const { locale, doc } = await params;
+  setRequestLocale(locale);
   const meta = getLegalDocMeta(doc);
   if (!meta) notFound();
 

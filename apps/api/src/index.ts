@@ -13,6 +13,12 @@ import { registerScheduledJobs } from "./jobs/scheduled.jobs";
 import { reportQueue } from "./jobs/queue";
 import { metricsHandler, recordHttpRequest, instrumentWorker } from "./metrics";
 import { parseRedisConnection } from "./utils/redis-connection";
+// B1: kept as a plain top-level import (not the lazy `await import(...)`
+// pattern used for ./services/* below) — chat.schema.ts is pure validation
+// logic with zero side effects at import time (no env read, no DB/Redis
+// connection), unlike balance.service/gateway.service, which pull in
+// "../config" and "@ai-platform/db" respectively. Nothing gated behind it.
+import { chatRequestSchema, formatChatValidationError } from "./schemas/chat.schema";
 
 const app = Fastify({
   logger: config.NODE_ENV === "development"
@@ -73,12 +79,19 @@ app.post("/chat", {
 }, async (req, reply) => {
   if (!req.user) { reply.status(401).send({ error: "Unauthorized" }); return; }
 
+  // B1/F2: validate the body with Zod instead of the bare `as` cast this
+  // route used to do. Every field beyond the original
+  // {model, messages, conversationId} trio is optional (see chat.schema.ts)
+  // — this must not reject any request the old bare cast used to accept.
+  const parsed = chatRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    reply.status(400).send(formatChatValidationError(parsed.error));
+    return;
+  }
+  const body = parsed.data;
+
   const { getBalance }    = await import("./services/balance.service");
   const { streamChat }    = await import("./services/gateway.service");
-  const body              = req.body as {
-    model: string; messages: Array<{ role: string; content: string }>;
-    conversationId?: string;
-  };
 
   const balance = await getBalance(req.user.id);
   if (balance.credits <= 0) {
@@ -90,11 +103,31 @@ app.post("/chat", {
     return;
   }
 
+  // B1/F5: bind the upstream fetch (inside streamChat) to this connection's
+  // close event, so hitting Stop or closing the tab actually cancels the
+  // in-flight provider request instead of letting it run for the full 2
+  // minutes at our expense. `reply.raw` is the underlying Node
+  // http.ServerResponse — "close" fires on a client-initiated disconnect
+  // AND on a normal completed response, so the controller is aborted
+  // unconditionally once the handler returns; that's harmless either way
+  // (an already-finished fetch has nothing left to abort).
+  const clientDisconnectController = new AbortController();
+  reply.raw.on("close", () => clientDisconnectController.abort(
+    new DOMException("Client disconnected", "AbortError"),
+  ));
+
   await streamChat({
-    userId:         req.user.id,
-    model:          body.model,
-    messages:       body.messages,
-    conversationId: body.conversationId ?? crypto.randomUUID(),
+    userId:          req.user.id,
+    model:           body.model,
+    messages:        body.messages,
+    conversationId:  body.conversationId ?? crypto.randomUUID(),
+    temperature:     body.temperature,
+    top_p:           body.top_p,
+    max_tokens:      body.max_tokens,
+    systemPrompt:    body.systemPrompt,
+    clientMessageId: body.clientMessageId,
+    regenerate:      body.regenerate,
+    abortSignal:     clientDisconnectController.signal,
     reply,
   });
 });

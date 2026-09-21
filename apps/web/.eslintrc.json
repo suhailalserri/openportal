@@ -11,7 +11,7 @@
   },
   "overrides": [
     {
-      "files": ["**/*.test.ts", "**/*.test.tsx", "**/dev/kitchen-sink/**"],
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/dev/kitchen-sink/**", "**/dev/chat-render/**"],
       "rules": {
         "no-restricted-syntax": "off"
       }

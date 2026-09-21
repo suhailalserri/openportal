@@ -131,22 +131,33 @@ WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE type = 'manual_transfer');
 
 -- ── Seed: initial YER packages (PAYMENT_METHODS_PLAN.md §5) ───────────
 -- Seed values only — fully editable afterwards from /admin/packages.
+--
+-- `credits` is bigint, but a bare `N * 1000000` literal expression is
+-- evaluated as int4 (32-bit) arithmetic BEFORE the result is cast into the
+-- bigint column — Postgres doesn't know the target type while it's still
+-- folding the multiplication. int4 tops out at 2,147,483,647; the
+-- 10,000 YER row below (3800 * 1000000 = 3,800,000,000) silently exceeded
+-- that and failed with "integer out of range" while the three smaller
+-- rows (≤ 1,800,000,000) happened to fit and passed. Casting the credit
+-- count to ::bigint first forces bigint arithmetic throughout, on all four
+-- rows, so this doesn't quietly resurface the next time a bigger package
+-- is added here.
 INSERT INTO packages (name, name_ar, price_yer, price_usd_equivalent, credits, description, description_ar, sort_order)
-SELECT '1,000 YER', '١٬٠٠٠ ريال يمني', 1000, 1.70, 300 * 1000000,
+SELECT '1,000 YER', '١٬٠٠٠ ريال يمني', 1000, 1.70, 300::bigint * 1000000,
        '300 credits', '٣٠٠ رصيد', 1
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE price_yer = 1000);
 
 INSERT INTO packages (name, name_ar, price_yer, price_usd_equivalent, credits, description, description_ar, sort_order)
-SELECT '2,500 YER', '٢٬٥٠٠ ريال يمني', 2500, 4.25, 850 * 1000000,
+SELECT '2,500 YER', '٢٬٥٠٠ ريال يمني', 2500, 4.25, 850::bigint * 1000000,
        '850 credits', '٨٥٠ رصيد', 2
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE price_yer = 2500);
 
 INSERT INTO packages (name, name_ar, price_yer, price_usd_equivalent, credits, description, description_ar, sort_order)
-SELECT '5,000 YER', '٥٬٠٠٠ ريال يمني', 5000, 8.50, 1800 * 1000000,
+SELECT '5,000 YER', '٥٬٠٠٠ ريال يمني', 5000, 8.50, 1800::bigint * 1000000,
        '1,800 credits', '١٬٨٠٠ رصيد', 3
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE price_yer = 5000);
 
 INSERT INTO packages (name, name_ar, price_yer, price_usd_equivalent, credits, description, description_ar, sort_order)
-SELECT '10,000 YER', '١٠٬٠٠٠ ريال يمني', 10000, 17.00, 3800 * 1000000,
+SELECT '10,000 YER', '١٠٬٠٠٠ ريال يمني', 10000, 17.00, 3800::bigint * 1000000,
        '3,800 credits', '٣٬٨٠٠ رصيد', 4
 WHERE NOT EXISTS (SELECT 1 FROM packages WHERE price_yer = 10000);
