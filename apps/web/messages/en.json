@@ -365,7 +365,7 @@
     "signIn": "Sign in",
     "getStarted": "Get started",
     "heroTitle": "Advanced AI, fair pricing, zero complexity",
-    "heroSubtitle": "Chat with the best AI models from one place — no juggling subscriptions, no technical setup.",
+    "heroSubtitle": "One place. Every top AI model. Pay only for what you send.",
     "heroPill": "✨ Pay only for what you use",
     "heroCta": "Create your free account",
     "modelsHeading": "Available models",
@@ -376,13 +376,13 @@
     "legalNav": "Legal links",
     "footerCopyright": "© {year} OpenPortal. All rights reserved.",
     "intro": {
-      "heading": "One platform, every model",
-      "body": "Instead of juggling several subscriptions, chat with the best AI models from a single account, and only pay for what you actually use — no monthly commitment, no technical setup."
+      "heading": "Every model. One account.",
+      "body": "Stop juggling five subscriptions for five different AI tools. Sign up once, pick any model, pay only for what you use."
     },
     "stats": {
       "modelsAvailable": "models available",
       "totalUsers": "active users",
-      "totalUsersApprox": "approximate figure"
+      "totalUsersApprox": "approximate"
     },
     "table": {
       "searchPlaceholder": "Search for a model...",
@@ -408,12 +408,12 @@
       "speedSeconds": "{seconds}s",
       "speedUnknown": "Unknown",
       "noResults": "No models match your search",
-      "whatIsGoodFor": "What is each model good at? See the tags below, or explore the full LiveBench leaderboard beneath the table.",
+      "whatIsGoodFor": "Not sure which model to pick? Check the tags below, or see the full LiveBench leaderboard underneath.",
       "introLine": "Full independent comparison:"
     },
     "calculator": {
-      "heading": "How far does {budget} YER go?",
-      "subheading": "Pick a model and a message size to see a realistic estimate — you only pay for what the model reads and writes.",
+      "heading": "How far does {budget} YER really go?",
+      "subheading": "Pick a model and a message length. See exactly what it costs — no guessing.",
       "modelLabel": "Model",
       "sizeLabel": "Message size",
       "size": {
@@ -429,31 +429,31 @@
       "chatCost": "A {turns}-turn chat ≈ {price} YER",
       "remaining": "Left of your balance: {price} YER",
       "remainingBalanceLabel": "Remaining balance percentage",
-      "reassuringLine": "One chat never takes your whole balance.",
-      "plainCostLine": "Note: a long chat with this model can use a large share of this amount — pick a smaller message size or a cheaper model to stretch your balance further.",
-      "estimateDisclaimer": "Figures above are estimates (based on assumed message sizes) and are always computed by our server, never by your browser."
+      "reassuringLine": "One chat won't touch your whole balance.",
+      "plainCostLine": "Heads up: a long chat here can eat a big chunk of this. Try a shorter message or a cheaper model to make it last.",
+      "estimateDisclaimer": "These are estimates from assumed message sizes, always calculated server-side — never in your browser."
     },
     "costRank": {
-      "heading": "What every model costs",
-      "subheading": "The estimated cost of one message on each model we offer, cheapest first. Pick a message size.",
+      "heading": "What each model actually costs",
+      "subheading": "One message, every model, cheapest first. Pick a size to compare.",
       "perMessageYer": "{price} YER",
       "perMessageCredits": "{price} credits",
       "showAll": "Show all {count} models",
       "showLess": "Show less",
-      "disclaimer": "Estimates for one message (your prompt plus the reply) using assumed sizes, always computed by our server. Your real cost depends on the text you send."
+      "disclaimer": "Estimates for one message (your prompt plus the reply), always calculated server-side. Your real cost depends on what you send."
     },
     "livebench": {
-      "title": "Live LiveBench leaderboard",
-      "description": "An independent AI model performance comparison, updated live via LiveBench.",
+      "title": "See how models really compare",
+      "description": "An independent, live-updating leaderboard from LiveBench — not us grading our own homework.",
       "showButton": "Show live leaderboard",
       "openLink": "Open on livebench.ai",
       "loading": "Loading..."
     },
     "payments": {
-      "heading": "Available payment methods"
+      "heading": "Pay your way"
     },
     "comparison": {
-      "heading": "Why this platform?",
+      "heading": "Why not just use one AI app?",
       "feature": "Feature",
       "us": "Us",
       "subscriptions": "Multiple subscriptions",
@@ -467,13 +467,15 @@
       }
     },
     "demo": {
-      "title": "Example conversation",
+      "title": "Try it before you sign up",
       "simulatedBadge": "Simulated example",
       "inputTokens": "{count} input tokens",
       "outputTokens": "{count} output tokens",
       "totalCost": "Cost: {price} YER",
       "replay": "Replay",
-      "thinking": "Assistant is typing"
+      "thinking": "Assistant is typing",
+      "modelTabsLabel": "Choose a model to try",
+      "thinkingAs": "{model} is thinking..."
     },
     "packages": {
       "bestValue": "Best value"

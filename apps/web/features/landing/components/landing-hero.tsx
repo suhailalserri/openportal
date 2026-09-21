@@ -7,26 +7,28 @@ import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { CtaButton } from "@/components/ui/cta-button";
 import { TextAnimate } from "@/components/ui/text-animate";
 
-import { ConstellationBackground } from "./constellation-background";
-
 /**
  * apps/web/features/landing/components/landing-hero.tsx
  *
- * Phase 3.3. Adds the constellation canvas background and switches the
- * primary CTA from Button to CtaButton (Sign up only — Sign in stays
+ * Phase 3.3. Primary CTA is CtaButton (Sign up only — Sign in stays
  * a plain outline button, so the shimmer draws the eye to the one action
  * that matters here, not both equally).
  *
- * The canvas sits absolutely behind the text (z-0), text is z-10 with a
- * relative wrapper — same section, same copy, same links as 3.2, this
- * only adds the visual layer and the entrance animation.
+ * The constellation canvas is NO LONGER mounted here — it moved to a
+ * single page-root instance in index.tsx (`<ConstellationBackground />`,
+ * `position: fixed`, behind every section) so the dot field spans the
+ * whole page instead of stopping at the bottom of the hero. This
+ * section no longer needs its own `relative overflow-hidden` stacking
+ * context for that purpose, but keeps `relative` since the pill/heading
+ * still sit above the global fixed background by normal stacking order
+ * (a `position: fixed` element behind content needs no z-index dance
+ * from content that is simply in normal flow above it).
  */
 export async function LandingHero({ locale }: { locale: string }) {
   const t = await getTranslations({ locale, namespace: "landing" });
 
   return (
-    <section className="relative overflow-hidden">
-      <ConstellationBackground />
+    <section className="relative">
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
         <Reveal direction="up">
           <div className="mb-6 inline-flex rounded-full border border-border bg-card/70 backdrop-blur-sm">
