@@ -1642,3 +1642,42 @@ run:
    discipline learned from B1 hotfix #1) follows patterns already proven
    elsewhere in this codebase and carries substantially lower risk than
    points 1–2 above.
+
+## Phase 4a — CI closure fixes (2026-09-21)
+
+**CI failures reproduced from the supplied GitHub Actions logs and fixed:**
+
+1. **Web Unit Tests — `ReferenceError: React is not defined`**
+   `apps/web/components/markdown/safe-markdown.test.tsx` renders JSX with
+   `renderToStaticMarkup`. The Vitest transform used by this repo emitted a
+   runtime reference to `React`, but the test file only imported named
+   bindings from React/Vitest dependencies. Added an explicit default React
+   import so the JSX runtime reference is defined. Production markdown code
+   was not changed.
+
+2. **E2E Playwright — Terms of Service click intercepted**
+   `apps/web/features/consent/components/consent-banner.tsx` intentionally
+   renders the cookie notice as `fixed ... bottom-0 z-40`. The existing
+   landing E2E test clicked the footer Terms link without dismissing that
+   banner first. Playwright therefore reported that the consent-banner
+   subtree intercepted the pointer event. Updated the legal-footer test to
+   dismiss the visible `Cookie notice` via its `Got it` button before clicking
+   the Terms link. The consent component itself was not changed.
+
+**Files changed for this CI closure:**
+- `apps/web/components/markdown/safe-markdown.test.tsx`
+- `apps/web/e2e/landing.spec.ts`
+- `docs/frontend/BRANCH_AND_CI_NOTES.md`
+
+**Frozen zone:** untouched. No files under `apps/web/app/api/**`,
+`apps/web/server/**`, the frozen `apps/web/lib/*` list, `middleware.ts`,
+`i18n/request.ts`, `next.config.ts`, `Dockerfile`, or anything outside
+`apps/web` were modified.
+
+**Not verifiable in this sandbox:** the supplied repository archive contains
+no `node_modules`, and this environment has no network access for installing
+its pnpm dependencies. Therefore Vitest, Next build, and Playwright were not
+executed here. The fixes are based on the exact CI stack traces and the
+corresponding source code. The final confirmation still requires a GitHub
+Actions run on `frontend-v2` (or the relevant PR) with the repository's normal
+`pnpm install --frozen-lockfile` step.

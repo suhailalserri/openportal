@@ -85,6 +85,15 @@ test.describe("landing page", () => {
   test("legal footer links navigate to the correct documents", async ({ page }) => {
     await page.goto("/en");
 
+    // The consent banner is intentionally fixed above the page content.
+    // Dismiss it before clicking footer links so Playwright does not report
+    // that the banner intercepted the pointer event on the Terms link.
+    const consentBanner = page.getByRole("region", { name: "Cookie notice" });
+    if (await consentBanner.isVisible()) {
+      await consentBanner.getByRole("button", { name: "Got it" }).click();
+      await expect(consentBanner).toBeHidden();
+    }
+
     await page.getByRole("link", { name: "Terms of Service" }).click();
     await expect(page).toHaveURL(/\/en\/legal\/terms$/);
     await expect(page.getByRole("heading", { name: "Terms of Service" })).toBeVisible();
