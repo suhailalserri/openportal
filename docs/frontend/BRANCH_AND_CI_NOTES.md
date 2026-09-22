@@ -2220,3 +2220,143 @@ both themes:
 ### DELETE list
 - `apps/web/features/chat/lib/param-input.ts`
 - `apps/web/features/chat/lib/param-input.test.ts`
+
+---
+
+## Phase 4d — Chat: conversations + cache (partial — lib/hooks layer only)
+
+**Scope actually received this round:** the phase summary approved earlier
+(list groups, IndexedDB cache, new-chat id generation, sidebar/chat-view
+components, both real pages) — but the file set attached for building only
+covered the data layer: `conversation-cache.ts`, `conversation-grouping.ts`,
+`new-chat.ts`, `use-conversations.ts`, `use-conversation-cache-identity.ts`,
+and their tests. **The UI layer from the same summary was not included**:
+`chat-view.tsx`, `conversation-sidebar.tsx` / `conversation-row.tsx` /
+`conversation-search.tsx`, `use-conversation-messages.ts`, and the real
+`/chat` + `/chat/[id]` pages. `app/[locale]/(app)/chat/page.tsx` is
+therefore still Phase 2.1's placeholder — nothing in the app actually
+mounts any of the code below yet. Per the plan's own rule 3 ("if the plan
+contradicts the code, tell me before building"), flagging this now rather
+than fabricating the missing components against an unseen composer/
+message-list contract. Everything below is real, tested, and ready to be
+imported by that UI layer once it lands.
+
+### Contract gaps found while integrating the delivered files (fixed)
+The five delivered files referenced three things that didn't exist yet
+anywhere in the repo — not a plan/code contradiction, just the batch being
+lib-first and these being the natural seams between files written together:
+- `ConversationSummary` — imported from `../types` by `conversation-cache.ts`,
+  `conversation-grouping.ts`, and `use-conversations.ts`, but `types.ts` had
+  no such export. Added it: `{ id, title: string | null, modelId: string |
+  null, isPinned, updatedAt: string }`, matching `GET /api/conversations`'s
+  `columns` selection exactly (`title`/`modelId` are nullable columns per
+  `packages/db/src/schema/conversations.ts` — neither has `.notNull()`).
+- `listConversations` / `renameConversation` / `pinConversation` /
+  `deleteConversation` — `use-conversations.ts` imports all four from
+  `../lib/conversation-api`, matching the approved summary's "add list/
+  rename/pin/delete calls next to the existing get/patch-system-prompt."
+  Added, following `fetchConversationSystemPrompt`'s exact pattern
+  (`ApiResult<T>` envelope, `credentials: "include"`, injectable
+  `fetchImpl`). Verified against the real (frozen-zone, read-only) route
+  handlers: `GET /api/conversations` → `{ items }`; `PATCH .../[id]` body
+  `{ title }` or `{ isPinned }` → `{ success: true }`; `DELETE .../[id]` →
+  `{ success: true }`, soft-delete.
+- `getRealIdbStore` — `use-conversations.ts` imports it from
+  `../lib/idb-store`, a file that didn't exist. `conversation-cache.ts` has
+  its OWN real `idb-keyval` adapter, but it's deliberately private
+  (module-internal, used only by that file's own sign-out-clearer
+  registration — see that file's header comment on why its public surface
+  stays real-`idb-keyval`-free for the `environment: "node"` test suite).
+  Added `idb-store.ts` as a separate small adapter satisfying the same
+  `KVStore` shape, rather than exporting the private one — keeps the
+  "nothing importing conversation-cache.ts needs a real `indexedDB`
+  global" property structural instead of a by-convention rule the next
+  edit could quietly break. Documented in that file's header that this
+  means two tiny `idb-keyval` wrapper closures now exist instead of one
+  shared instance (harmless — `idb-keyval`'s functions are module-level
+  and stateless — but worth a conscious yes/no rather than silently
+  deduplicating into either file without being asked).
+
+### What was actually run (real execution, not just reading)
+No `pnpm`/`node_modules` in this sandbox (network disabled, nothing
+installed) — same standing gap as every prior phase. What this phase adds
+beyond 4c's "hand-written-stub `tsc` + SSR render" approach: an *actual*
+`tsc --strict` (plus this repo's `exactOptionalPropertyTypes` +
+`noUncheckedIndexedAccess`) run against the 11 files above (8 source + 3
+test) using hand-written stub modules for `react`/`idb-keyval`/`vitest`/
+`@/lib/{auth-client,client-cache}` — **0 type errors** — and then, going one
+step further than a type-check: the three `.test.ts` files' actual logic
+was executed under a minimal real test runner (`describe`/`it`/`expect`
+that genuinely assert, not stubs that no-op) against a real in-memory
+`idb-keyval` replacement (same `get`/`set`/`del` semantics, just backed by
+a `Map` instead of real IndexedDB). Real results: **24 of 30 assertions
+passed**; the 6 failures break down as:
+- 1 failure (`crypto.randomUUID` stub) is this harness's limitation —
+  Node's global `crypto` is non-configurable, so `vi.stubGlobal("crypto",
+  …)` can't actually override it outside real vitest/jsdom. Not a code bug.
+- **5 failures are a real, if low-probability, latent flake in
+  `conversation-cache.test.ts`'s fixtures** — worth a look before this
+  lands. Both `conv(id)` and `msg(id)` build `updatedAt`/`createdAt` from
+  a fresh `new Date().toISOString()` on every call, and five assertions
+  call the same fixture twice (once for the input, once for the expected
+  value in `toEqual`) — e.g. `writeCachedConversationList("u1", [conv("a"),
+  conv("b")], store)` then `toEqual([conv("a"), conv("b")])` re-invokes
+  `conv` and can produce a different millisecond timestamp than the first
+  call. In real (fast) vitest the two calls are normally sub-millisecond
+  apart and this won't trip in practice, which is almost certainly why it
+  hasn't been caught yet — but it's a genuine flake risk, not a
+  theoretical one (it reproduced three separate times in this run at
+  ~10-30ms apart under this sandbox's slower execution). The eviction/LRU
+  logic itself (`touchIndex`'s clamped `splitAt`, the whole reason for
+  this file's most carefully-commented line) **passed clean** — that was
+  the one test worth the most scrutiny and it held up under real
+  execution, not just a type-check.
+  Suggested fix (not applied — flagging per rule 4, not silently rewriting
+  someone else's delivered test file): freeze one `conv(id)` /
+  `msg(id)` return value per test and reuse it for both the write and the
+  `toEqual`, instead of calling the factory twice.
+- All 10 `conversation-grouping.test.ts` assertions (calendar-day
+  boundaries, the exactly-7-days-is-older case, DST-neutral local-midnight
+  math) passed with zero caveats — no timestamp-freshness issue there
+  since that file's fixtures take an explicit `updatedAt` string, never
+  calling `new Date()` internally.
+- `new-chat.test.ts`'s two non-crypto-stub assertions (UUID-v4 shape check
+  on a real un-stubbed `crypto.randomUUID`, and the locale-prefixed path
+  builder) passed.
+
+### Not verified
+- The React hooks (`use-conversations.ts`, `use-conversation-cache-
+  identity.ts`) — no real React renderer available in this pass (unlike
+  4c's SSR-render check, there is no consuming component yet to render
+  them into; a bare hook isn't independently render-testable the way a
+  finished component is). Read carefully by hand against `useSession`'s
+  real shape and the four new `conversation-api.ts` functions' real
+  signatures — everything lines up — but this is not the same as having
+  run it.
+- The real `idb-keyval` adapter bodies in both `conversation-cache.ts`
+  (private) and the new `idb-store.ts` — three lines each, but the one
+  piece no amount of stubbing reaches; genuine IndexedDB behavior (quota,
+  Safari private mode, `structuredClone`-vs-JSON serialization
+  differences for the cached arrays) is preview/CI-only, as flagged in
+  `conversation-cache.ts`'s own header comment.
+- Whether `use-conversations.ts`'s optimistic pin/rename/remove +
+  rollback actually feels right against real network latency — logic
+  read as correct (snapshot-then-restore-on-failure) but UX timing can't
+  be judged without a browser.
+
+### DELETE list
+None this round — nothing shipped here supersedes an existing file.
+`components/chat/chat-sidebar.tsx` (Phase 1.2's presentational-only
+sidebar) is NOT a delete candidate yet: it's still the only thing
+`app/[locale]/dev/kitchen-sink/kitchen-sink-client.tsx` renders, unlike
+`message-bubble.tsx` (deleted in 4a once nothing referenced it). It
+becomes a real delete candidate once `conversation-sidebar.tsx` lands and
+kitchen-sink is updated to point at it instead — not before.
+
+### How to verify once the UI layer lands
+Cannot produce a real preview/CI list yet — there is no page or component
+in this batch for CI's `web-build`/`i18n-parity` to build, and no route
+for a human to click through. Re-request this section once `chat-view.tsx`
+and the two real pages exist; until then the only honest verification is
+what's above (type-check + logic execution against the lib files
+themselves).
