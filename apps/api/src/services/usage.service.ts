@@ -200,7 +200,14 @@ export async function listUsage(
     // every other query here: it can never be used to page into rows
     // outside `usageWhere`'s own userId filter.
     if (cursorRow) {
-      cursorClause = sql`(${transactions.createdAt}, ${transactions.id}) < (${cursorRow.createdAt}, ${cursorRow.id})`;
+      // Plain JS Date values don't get the same automatic serialization
+      // inside a raw `sql` template that column-based comparators (gte/
+      // lte elsewhere in this file) get for free — postgres-js needs an
+      // explicit string + cast here, or it throws trying to bind the Date
+      // object directly (TypeError: "string" argument ... Received an
+      // instance of Date — caught by usage.service.test.ts's pagination
+      // test, which is what surfaced this).
+      cursorClause = sql`(${transactions.createdAt}, ${transactions.id}) < (${cursorRow.createdAt.toISOString()}::timestamptz, ${cursorRow.id})`;
     }
   }
 

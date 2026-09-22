@@ -3835,3 +3835,50 @@ same limitation as every prior phase here. Specifically:
 - `listUsageForExport`'s 5,000-row cap is a judgment call, not something
   from the plan text — worth confirming it's generous enough once real
   usage volume exists.
+
+## B2 Patch v1 — `postgres-js` Date-binding crash in listUsage's cursor
+
+**Symptom (from actual CI logs, not predicted):** `API Tests
+(Testcontainers)` failed — `usage.service.test.ts > listUsage paginates
+with a stable keyset cursor` — `TypeError: The "string" argument must be
+of type string or an instance of Buffer or ArrayBuffer. Received an
+instance of Date`, thrown inside `node_modules/postgres/src/bytes.js`
+during bind. Everything else in the suite passed (86/87).
+
+**Root cause:** `listUsage`'s keyset-cursor clause interpolated a plain
+`Date` object (`cursorRow.createdAt`) directly into a raw `sql\`...\``
+tuple. Drizzle's column-aware comparators (`gte`, `lte`, used elsewhere
+in this same file) know how to serialize a `Date` for `postgres-js`;
+a bare value inside a hand-written `sql` template does not get that
+treatment and `postgres-js` fails trying to bind it.
+
+**Fix:** `apps/api/src/services/usage.service.ts` — the cursor clause
+now converts `cursorRow.createdAt` to `.toISOString()` and casts it
+explicitly as `::timestamptz` in the SQL string, instead of passing the
+`Date` object through.
+
+### Files changed (this patch)
+- `apps/api/src/services/usage.service.ts` (edit — `listUsage`'s cursor
+  clause only; no other query in the file touched, since only this one
+  builds a raw tuple comparison)
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** re-run `API Tests (Testcontainers)` — `usage.service.test.ts`
+  should go from 1 failed / 86 passed to 87/87.
+- No other job in the run needs re-checking — Type-check & Lint, Web
+  Build, Web Unit Tests, i18n Key Parity, Legal Docs In Sync all already
+  passed; E2E was still amber/running in the screenshot, unrelated to
+  this file.
+
+### Not verified
+Still no local `vitest`/Postgres in this sandbox — this fix is inferred
+directly from the pasted stack trace (exact error text + file), not
+re-run here. If `postgres-js` still rejects the cast for any reason
+(e.g. a driver version quirk), the fallback is switching the cursor
+clause to two plain comparators (`or(lt(createdAt, x), and(eq(createdAt,
+x), lt(id, y)))`) instead of a row-constructor tuple — more verbose,
+but built entirely from column-aware operators with no raw-value
+binding at all.
