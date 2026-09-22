@@ -26,7 +26,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "inline-flex w-fit items-center gap-0.5 overflow-x-auto border-b border-input",
+        "inline-flex w-fit self-start items-center gap-1 overflow-x-auto border-b border-input",
         className
       )}
       {...props}
