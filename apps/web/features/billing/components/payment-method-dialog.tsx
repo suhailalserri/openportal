@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaymentMethodLogo } from "./payment-method-logo";
 import { useManualPayment } from "../hooks/use-manual-payment";
+import { buildManualPaymentInput } from "../lib/manual-payment-input";
 import type { CreditPackageRow, PaymentMethodRow } from "../types";
 
 /**
@@ -193,14 +194,16 @@ function ManualTransferPanel({
       onSubmit={async (e) => {
         e.preventDefault();
         if (!pkg) return;
-        await submit({
-          packageId: pkg.id,
-          paymentMethodId: method.id,
-          submittedTxRef: submittedTxRef.trim() || undefined,
-          senderPhone: senderPhone.trim() || undefined,
-          senderName: senderName.trim() || undefined,
-          notes: notes.trim() || undefined,
-        }).catch(() => {
+        await submit(
+          buildManualPaymentInput({
+            packageId: pkg.id,
+            paymentMethodId: method.id,
+            submittedTxRef,
+            senderPhone,
+            senderName,
+            notes,
+          })
+        ).catch(() => {
           // onError toast already shown by the hook; nothing else to do here.
         });
       }}

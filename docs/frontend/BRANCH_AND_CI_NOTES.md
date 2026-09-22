@@ -3632,3 +3632,70 @@ No network/`node_modules` in this sandbox — `pnpm install`, `tsc --noEmit`,
   device to see; keyboard/touch-only navigation still works (the whole
   card is a `<button>`), just without the visual flourish — not verified
   on an actual touch device.
+
+## Phase 5.2 Patch v1 — `exactOptionalPropertyTypes` build failure fixed
+
+**Symptom (from the actual Vercel/CI logs, not predicted):** `web:type-check`
+and `web:build` both failed on `payment-method-dialog.tsx:196` —
+`TS2379: ... not assignable ... with 'exactOptionalPropertyTypes: true'`.
+The other 5.2 jobs (`Web Unit Tests`, `i18n Key Parity`, `API Tests`,
+`Legal Docs In Sync`) passed; `E2E (Playwright)` also failed, almost
+certainly as a downstream effect of the same build failure rather than a
+separate bug (a broken `next build` means the app the E2E suite hits
+doesn't come up) — worth confirming once the build is green again, but
+not treated as a second issue here.
+
+**Root cause:** this repo's `tsconfig.json` has `exactOptionalPropertyTypes: true`
+(not visible from the schema/router source alone — only shows up at
+`tsc` time, which this sandbox can't run, hence "Not verified" in the
+original 5.2 delivery flagged exactly this class of risk, just not this
+specific line). Under that flag, an optional property (`field?: string`)
+may be *omitted* but never explicitly assigned `undefined` — `{ field:
+undefined }` is a type error; only leaving the key out satisfies it. The
+submit handler did `submittedTxRef: submittedTxRef.trim() || undefined`,
+which explicitly assigns `undefined` for an empty field instead of
+omitting the key.
+
+**Fix:** new `features/billing/lib/manual-payment-input.ts` —
+`buildManualPaymentInput()` only adds an optional key to the returned
+object when the trimmed value is non-empty, so empty fields are absent
+from the object entirely rather than present-with-`undefined`. Required
+fields (`packageId`, `paymentMethodId`) are always included.
+`payment-method-dialog.tsx`'s submit handler now calls this instead of
+constructing the payload inline. Added
+`features/billing/lib/manual-payment-input.test.ts` (3 cases: blank
+fields omitted, trimmed non-blank fields included, required fields
+always present) to `web-unit` so this exact class of regression fails
+fast next time instead of only surfacing at `tsc`/build time.
+
+### Files changed (this patch)
+- `apps/web/features/billing/lib/manual-payment-input.ts` (new)
+- `apps/web/features/billing/lib/manual-payment-input.test.ts` (new)
+- `apps/web/features/billing/components/payment-method-dialog.tsx` (edit
+  — submit handler now uses `buildManualPaymentInput()`; no behavior
+  change for the buyer, same fields, same validation, same server call)
+
+### Frozen zone
+Not touched — same as the original 5.2 delivery.
+
+### How to verify
+- **CI:** `check`/`web:type-check` should now pass on this exact line —
+  re-run the failed `Type-check & Lint` and `Web Build (next build)`
+  jobs from the same PR/commit. `web-unit` gains 3 new passing cases.
+- **Manual:** submit the manual-transfer claim form with every optional
+  field left blank → succeeds, reference code shown (previously this
+  exact case is what produced the `undefined` values that failed the
+  build, so it's the one worth re-checking on the live preview once
+  deployed). Then submit again with all fields filled → still succeeds,
+  values reach the claim as before.
+
+### Not verified
+Still no `node_modules`/`tsc` in this sandbox — this fix is inferred
+directly from the pasted compiler error text (exact file, line, and
+message), not re-run locally. If another optional-field-assigned-
+`undefined` pattern exists elsewhere in the 5.2 files (there wasn't one
+in a re-read of the other new components — only this form has multiple
+optional-from-empty-string fields), the same `tsc` flag would catch it
+the same way; worth a full `pnpm type-check` before merging even after
+this patch, since this fix addresses the one reported line, not a
+project-wide sweep.
