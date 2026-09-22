@@ -80,7 +80,17 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
   }, [text]);
 
   return (
-    <div dir="ltr" className="mt-2.5 overflow-hidden rounded-[10px] border border-input">
+    // `min-w-0 w-full max-w-full`: explicit rather than relying purely on
+    // normal block-flow inheritance from the ancestor chain — this is the
+    // one node in the chain that both intentionally holds genuinely
+    // unbreakable content (a code line has no wrap points at all, by
+    // design) AND flips to `dir="ltr"` inside what is, for most of this
+    // app's users, an RTL document. Costs nothing to be explicit here
+    // rather than trust inheritance through a direction switch.
+    <div
+      dir="ltr"
+      className="mt-2.5 w-full min-w-0 max-w-full overflow-hidden rounded-[10px] border border-input"
+    >
       <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-1.5 font-mono text-[11.5px] text-faint-foreground">
         <span>{language}</span>
         <button
@@ -94,7 +104,7 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
           {copied ? t("copied") : t("copy")}
         </button>
       </div>
-      <pre className="overflow-x-auto bg-muted p-3">
+      <pre className="w-full max-w-full overflow-x-auto bg-muted p-3">
         <code
           className={cn(className, "bg-transparent p-0 text-[13px] leading-[1.6] text-muted-foreground")}
         >

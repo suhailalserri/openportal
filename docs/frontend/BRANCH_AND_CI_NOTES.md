@@ -2810,3 +2810,38 @@ in this round's scope touches the dev kitchen-sink page.
   source given what Patch v3 already covers, but worth confirming on the
   next real-device check: does the offending message contain a `|...|`
   table, and does resending it now stay contained?
+
+## Phase 4d Patch v5 — code blocks specifically, two more gaps closed (unconfirmed)
+
+- **Report:** still overflowing after v3+v4, and it's code blocks
+  specifically, not tables.
+
+- **Traced the chain by hand again** (no working build in this session —
+  this whole analysis is static CSS/flexbox reasoning, not an observed
+  render): `CodeBlock`'s `<pre>` already had `overflow-x-auto` before any
+  of these patches, and per the flex "automatic minimum size" spec, an
+  item with `overflow: auto`/non-visible should contribute zero to an
+  ancestor flex container's forced width once every flex item up the
+  chain has `min-w-0` — which, after v3, it does (`SafeMarkdown`'s root
+  div is a direct flex item of the message's flex-col content column and
+  already has `min-w-0`). By that reasoning code blocks should already
+  have been fixed by v3. Two gaps found anyway, both fixed defensively:
+  - `chat-view.tsx`: `ChatView`'s own wrapper (rendered before
+    `ChatSession` mounts, one level up in the same flex chain) never got
+    `min-w-0` in v3 — only `ChatSession`'s root did.
+  - `code-block.tsx`: the fenced-code wrapper `div` and the `<pre>` itself
+    now get explicit `min-w-0 w-full max-w-full`, rather than relying on
+    normal block-flow inheritance through a `dir="ltr"` switch inside an
+    RTL document — a plausible but NOT confirmed source of a mobile
+    rendering inconsistency specific to this one node (it is the only
+    place in the chain that both holds genuinely unbreakable content by
+    design AND flips text direction).
+
+- **Explicitly NOT confirmed:** unlike v3/v4, I do not have a specific,
+  traceable root cause here I can point to with confidence — the CSS
+  spec reasoning says this should already have been fixed by v3. Asked
+  the user for a fresh screenshot of the actual code-block overflow
+  before treating this as resolved, and to confirm whether v3/v4 were
+  actually live on the deployment they tested (a stale/cached preview
+  would reproduce exactly this "still broken" report even if the fix is
+  correct).
