@@ -186,6 +186,35 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
     setDraft("");
   };
 
+  // Stable identities (useCallback) rather than inline arrows in the
+  // JSX below: `Message` is `React.memo`'d specifically so that only
+  // the ONE row actually streaming re-renders per chunk (message.tsx's
+  // own header comment) — a fresh `() => {}` on every ChatSession render
+  // for these props would defeat that memoization for every row's
+  // callback props, on every single chunk.
+  const handleCopyMessage = React.useCallback((message: ChatMessage) => {
+    void navigator.clipboard?.writeText(message.content);
+  }, []);
+
+  const handleRegenerate = React.useCallback(() => {
+    stream.retry();
+  }, [stream]);
+
+  // NOT WIRED — flagged, not fixed (see docs/frontend/BRANCH_AND_CI_NOTES.md
+  // Patch v10). No persistence endpoint exists for `messages.feedback`
+  // yet (conversation-api.ts only ever READS it off a fetched row —
+  // grep the repo, there is no PATCH/mutation call anywhere). Left as an
+  // explicit no-op rather than silently wired to something that looks
+  // like it works but doesn't persist.
+  const handleFeedback = React.useCallback(() => {}, []);
+
+  const handleEditMessage = React.useCallback(
+    (message: ChatMessage, newContent: string) => {
+      stream.edit(message.id, newContent);
+    },
+    [stream],
+  );
+
   const isNewChat = !conversationId;
 
   return (
@@ -223,9 +252,11 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
         <MessageList
           messages={stream.messages}
           error={stream.error ?? undefined}
-          onCopy={() => {}}
-          onRegenerate={() => stream.retry()}
-          onFeedback={() => {}}
+          onCopy={handleCopyMessage}
+          onRegenerate={handleRegenerate}
+          onFeedback={handleFeedback}
+          onEdit={handleEditMessage}
+          editDisabled={isBusy}
           onRetryError={() => stream.retry()}
           className="min-h-0 flex-1"
         />

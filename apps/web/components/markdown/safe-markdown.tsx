@@ -116,8 +116,16 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
             };
             return <CodeBlock className={childProps.className}>{childProps.children}</CodeBlock>;
           },
-          ul: ({ children }) => <ul className="mt-2 ps-5 first:mt-0">{children}</ul>,
-          ol: ({ children }) => <ol className="mt-2 ps-5 first:mt-0">{children}</ol>,
+          // `list-disc`/`list-decimal`: Tailwind's preflight reset sets
+          // `list-style: none` on every `ul`/`ol` globally, so without
+          // these the markers have no shape to render at all — `li`'s
+          // own `marker:text-primary` only sets marker COLOR, it doesn't
+          // re-enable a marker that preflight already turned off. This
+          // is what made bullets/numbers disappear entirely (both here
+          // and on the assistant side, which used the same override —
+          // just less noticed there).
+          ul: ({ children }) => <ul className="mt-2 list-disc ps-5 first:mt-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mt-2 list-decimal ps-5 first:mt-0">{children}</ol>,
           li: ({ children }) => <li className="mt-1 marker:text-primary">{children}</li>,
           blockquote: ({ children }) => (
             <blockquote className="mt-2 border-s-2 border-border ps-3 text-muted-foreground first:mt-0">

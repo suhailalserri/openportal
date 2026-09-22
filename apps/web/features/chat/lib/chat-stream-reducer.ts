@@ -47,6 +47,7 @@ export interface ChatStreamState {
 
 export type ChatStreamAction =
   | { type: "SEND"; userMessage: ChatMessage; assistantMessageId: string }
+  | { type: "EDIT_SEND"; truncateBeforeId: string; userMessage: ChatMessage; assistantMessageId: string }
   | { type: "CHUNK"; id: string; delta: string }
   | { type: "DONE"; id: string }
   | { type: "STOP"; id: string }
@@ -87,6 +88,26 @@ export function chatStreamReducer(
         status: "sending",
         error: null,
         messages: [...state.messages, action.userMessage],
+      };
+    }
+
+    case "EDIT_SEND": {
+      // Editing a past user turn. Same in-flight guard as SEND (no
+      // editing while a stream is already running). Unlike SEND, this
+      // also drops the edited message itself and EVERYTHING after it —
+      // that's the whole point of an edit: the old assistant reply (and
+      // any further turns) answered a question that no longer exists,
+      // so they're replaced by whatever the new send produces, not kept
+      // alongside it. If `truncateBeforeId` isn't found (edited message
+      // already gone — e.g. a retry/edit race), this is a no-op rather
+      // than silently appending onto the wrong point in history.
+      if (IN_FLIGHT.has(state.status)) return state;
+      const idx = state.messages.findIndex((m) => m.id === action.truncateBeforeId);
+      if (idx === -1) return state;
+      return {
+        status: "sending",
+        error: null,
+        messages: [...state.messages.slice(0, idx), action.userMessage],
       };
     }
 

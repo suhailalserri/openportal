@@ -117,12 +117,23 @@ export function Composer({
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Read live (not cached in state): a foldable/2-in-1 can change
+    // pointer type mid-session, and this only runs on the rare Enter
+    // keydown, not every keystroke, so there's no perf reason to cache
+    // it. `matchMedia` is undefined during SSR, hence the guard — this
+    // handler only ever runs client-side anyway, but keeps the function
+    // safe to call from anywhere without crashing on `window`.
+    const isCoarsePointer =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(pointer: coarse)").matches
+        : false;
     if (
       shouldSendOnKeydown({
         key: e.key,
         shiftKey: e.shiftKey,
         isComposing: e.nativeEvent.isComposing,
         keyCode: e.keyCode,
+        isCoarsePointer,
       })
     ) {
       e.preventDefault();

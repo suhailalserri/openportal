@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { Copy, Check, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatCredits, formatRelativeDate } from "@/lib/format";
@@ -14,6 +15,18 @@ export interface MessageProps {
   onCopy?: ((message: ChatMessage) => void) | undefined;
   onRegenerate?: ((message: ChatMessage) => void) | undefined;
   onFeedback?: ((message: ChatMessage, value: "positive" | "negative") => void) | undefined;
+  /** Edit affordance on a USER turn only (see the `isUser` branch below —
+   *  never rendered on an assistant turn). Absent `onEdit` hides the
+   *  edit icon entirely rather than rendering a disabled one — same
+   *  optional-callback-as-feature-flag pattern already used for
+   *  `onCopy`/`onRegenerate`/`onFeedback` here. */
+  onEdit?: ((message: ChatMessage, newContent: string) => void) | undefined;
+  /** True while a stream is already sending/running elsewhere in this
+   *  conversation — disables entering edit mode (editing calls
+   *  use-chat-stream.ts's `edit`, which no-ops during an in-flight
+   *  stream anyway; disabling the button too avoids a confusing "I
+   *  clicked Edit and nothing happened"). */
+  editDisabled?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -68,6 +81,8 @@ function MessageImpl({
   onCopy,
   onRegenerate,
   onFeedback,
+  onEdit,
+  editDisabled,
   className,
 }: MessageProps) {
   const t = useTranslations("chat");
@@ -75,6 +90,62 @@ function MessageImpl({
   const rawLocale = useLocale();
   const locale = rawLocale === "ar" ? "ar" : "en";
   const isUser = message.role === "user";
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(message.content);
+  const [copied, setCopied] = React.useState(false);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Re-sync the draft if the underlying message content changes while
+  // NOT editing (e.g. this row got reused for a different message via
+  // some future virtualization) — but never while `isEditing`, or the
+  // user's own in-progress keystrokes would be clobbered.
+  React.useEffect(() => {
+    if (!isEditing) setDraft(message.content);
+  }, [message.content, isEditing]);
+
+  const startEditing = React.useCallback(() => {
+    setDraft(message.content);
+    setIsEditing(true);
+  }, [message.content]);
+
+  const cancelEditing = React.useCallback(() => {
+    setDraft(message.content);
+    setIsEditing(false);
+  }, [message.content]);
+
+  const saveEditing = React.useCallback(() => {
+    const trimmed = draft.trim();
+    // Nothing typed, or unchanged from the original: treat as Cancel
+    // rather than calling `onEdit` with a no-op/empty edit — `edit()`
+    // in use-chat-stream.ts already no-ops on an empty string, but an
+    // UNCHANGED resend would still truncate and re-run the assistant
+    // reply for a turn that didn't actually change, wasting a real
+    // provider call.
+    if (!trimmed || trimmed === message.content) {
+      setIsEditing(false);
+      setDraft(message.content);
+      return;
+    }
+    onEdit?.(message, trimmed);
+    setIsEditing(false);
+  }, [draft, message, onEdit]);
+
+  const handleCopyUser = React.useCallback(() => {
+    onCopy?.(message);
+    void navigator.clipboard?.writeText(message.content);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }, [onCopy, message]);
+
+  // Autofocus + place the caret at the end when edit mode opens, same
+  // affordance a native "edit" action anywhere else gives you.
+  React.useEffect(() => {
+    if (!isEditing) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [isEditing]);
 
   const metaParts: string[] = [];
   if (!isUser) {
@@ -105,7 +176,48 @@ function MessageImpl({
           isUser ? "ms-auto max-w-[86%] items-end" : "max-w-none flex-1"
         )}
       >
-        {isUser ? (
+        {isUser && isEditing ? (
+          // Edit mode replaces the bubble with an editable textarea in
+          // the same visual shell (same border/radius/background), so
+          // the row doesn't jump around the page while editing — plus
+          // Save/Cancel where the timestamp/action row normally sits.
+          <div className="w-full min-w-0 rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] text-foreground">
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends (same convention as the composer); Shift+Enter
+                // inserts a newline. Escape cancels without saving.
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  saveEditing();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelEditing();
+                }
+              }}
+              rows={Math.min(10, Math.max(2, draft.split("\n").length))}
+              className="w-full min-w-0 resize-none bg-transparent text-[15px] leading-[1.65] break-words [overflow-wrap:anywhere] text-foreground outline-none"
+            />
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="rounded-full px-3 py-1 text-[12.5px] font-medium text-faint-foreground hover:bg-border hover:text-foreground"
+              >
+                {t("editCancel")}
+              </button>
+              <button
+                type="button"
+                onClick={saveEditing}
+                className="rounded-full bg-primary px-3 py-1 text-[12.5px] font-medium text-primary-foreground hover:opacity-90"
+              >
+                {t("editSave")}
+              </button>
+            </div>
+          </div>
+        ) : isUser ? (
           // `break-words [overflow-wrap:anywhere]`: still needed here even
           // though SafeMarkdown carries its own — this is the OUTER bubble
           // (border/background/padding), which must not stretch past
@@ -130,22 +242,60 @@ function MessageImpl({
           </button>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11.5px] text-faint-foreground">
-            {formatRelativeDate(message.createdAt, locale)}
-          </span>
-          {metaParts.length > 0 && (
-            <span className="text-[11.5px] text-faint-foreground">· {metaParts.join(" · ")}</span>
-          )}
-          {!isUser && (
-            <MessageActions
-              className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-              onCopy={() => onCopy?.(message)}
-              onRegenerate={() => onRegenerate?.(message)}
-              onFeedback={(value) => onFeedback?.(message, value)}
-            />
-          )}
-        </div>
+        {!isEditing && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11.5px] text-faint-foreground">
+              {formatRelativeDate(message.createdAt, locale)}
+            </span>
+            {metaParts.length > 0 && (
+              <span className="text-[11.5px] text-faint-foreground">· {metaParts.join(" · ")}</span>
+            )}
+            {!isUser && (
+              <MessageActions
+                className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                onCopy={() => onCopy?.(message)}
+                onRegenerate={() => onRegenerate?.(message)}
+                onFeedback={(value) => onFeedback?.(message, value)}
+              />
+            )}
+            {isUser && (
+              // Same two-icon shape as MessageActions (same `size-7`
+              // IconButton dimensions there), kept as its own small
+              // block here rather than extending MessageActions itself —
+              // MessageActions' 4 icons (copy/regenerate/thumbs-up/down)
+              // are all assistant-only concepts; copy+edit is a
+              // deliberately different, smaller set for a user turn, not
+              // a subset toggled by props off the same component.
+              <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                <button
+                  type="button"
+                  aria-label={t("copy")}
+                  title={t("copy")}
+                  onClick={handleCopyUser}
+                  className="inline-flex size-7 items-center justify-center rounded-[9px] text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
+                >
+                  {copied ? (
+                    <Check className="size-3.5 text-success" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                </button>
+                {onEdit && (
+                  <button
+                    type="button"
+                    aria-label={t("edit")}
+                    title={t("edit")}
+                    disabled={editDisabled}
+                    onClick={startEditing}
+                    className="inline-flex size-7 items-center justify-center rounded-[9px] text-muted-foreground transition-colors hover:bg-border hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -175,7 +325,9 @@ function messagePropsAreEqual(prev: MessageProps, next: MessageProps): boolean {
     prev.className === next.className &&
     prev.onCopy === next.onCopy &&
     prev.onRegenerate === next.onRegenerate &&
-    prev.onFeedback === next.onFeedback
+    prev.onFeedback === next.onFeedback &&
+    prev.onEdit === next.onEdit &&
+    prev.editDisabled === next.editDisabled
   );
 }
 

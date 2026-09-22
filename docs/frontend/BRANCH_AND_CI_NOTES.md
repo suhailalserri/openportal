@@ -3081,3 +3081,287 @@ None.
   fenced block's closing ``` has actually streamed in, rather than
   highlighting an incomplete/unclosed block on every frame. Not done
   here since it wasn't confirmed to still be a problem after the rAF fix.
+
+## Phase 4d Patch v9 — list bullets/numbers disappearing
+
+### Root cause
+`safe-markdown.tsx`'s `ul`/`ol` overrides never set `list-disc`/
+`list-decimal`. Tailwind's preflight reset sets `list-style: none` on
+every `ul`/`ol` globally; `li`'s `marker:text-primary` only styles
+marker *color*, it doesn't turn a marker back on once preflight has
+disabled it. Net effect: every list rendered through `SafeMarkdown` —
+assistant messages too, this override is shared, not user-message-
+specific — had its bullets/numbers invisible, just less noticed on the
+assistant side before user messages started going through the same
+renderer (Patch v8).
+
+### Fix
+`ul` → adds `list-disc`; `ol` → adds `list-decimal`. Nothing else
+changed in either override.
+
+### Files changed
+- `apps/web/components/markdown/safe-markdown.tsx`
+
+### DELETE list
+None.
+
+### How to verify
+Send/receive a message containing a numbered list and a bulleted list;
+confirm markers now render on both list types, in both a user bubble
+and an assistant turn.
+
+### Not verified
+No `node_modules`/network in this sandbox — not typechecked or built,
+reasoned from the Tailwind preflight/marker behavior directly.
+
+## Phase 4d Patch v10 — Copy + Edit on user messages; copy/regenerate/feedback audit
+
+### What was asked
+1. Add Copy and Edit icons to a user message (same slot the assistant
+   turn's meta row uses for its own actions), matching icon size.
+2. Confirm the assistant's Copy icon is actually functional.
+3. Audit Regenerate and the thumbs feedback icons; flag, don't fix yet.
+
+### 1 — Copy + Edit on user messages (built)
+- `chat-stream-reducer.ts`: new `EDIT_SEND` action. Same in-flight guard
+  as `SEND`; additionally truncates the edited message and everything
+  after it (old assistant reply included — the whole point of an edit)
+  before appending the new user turn. No-ops if the edited id is no
+  longer in `state.messages` (e.g. a race).
+- `use-chat-stream.ts`: `send`'s body was refactored into two shared
+  helpers (`makeCallbacks`, `buildRequestBody`) with no behavior change,
+  then a new `edit(id, content)` reuses both — computes the truncated
+  history + new user message itself (same reason `send` builds its own
+  request array rather than reading the reducer's return value:
+  reducers don't have one), dispatches `EDIT_SEND`, and starts a stream
+  exactly like `send` does. No-ops during an in-flight stream or if `id`
+  isn't found.
+- `message.tsx`: user bubble gets a hover-revealed Copy + Edit icon pair
+  (own small block, not an extension of `MessageActions` — that
+  component's 4 icons are assistant-only concepts; see the inline
+  comment for why this isn't "MessageActions with props toggled").
+  Clicking Edit swaps the bubble for an inline auto-growing textarea in
+  the same visual shell (border/radius/background unchanged) with
+  Save/Cancel — Enter saves, Shift+Enter newlines, Escape cancels.
+  Saving with empty or UNCHANGED text is treated as Cancel (no wasted
+  provider call on a no-op edit). `editDisabled` (wired from
+  ChatSession's existing `isBusy`) greys out the Edit icon while any
+  stream is in flight.
+- **`Message`/`MessageList`/`ChatSession` callback-identity fix, found
+  while wiring this in:** `ChatSession` was passing brand-new inline
+  arrow functions (`onCopy={() => {}}` etc.) as `MessageList`'s props on
+  every render — which defeated `Message`'s own `React.memo` (Patch v8)
+  for every row's callback props on every single streamed chunk, since
+  a new function reference fails the memo comparator every time. All of
+  `handleCopyMessage`/`handleRegenerate`/`handleFeedback`/
+  `handleEditMessage` are now `useCallback`'d in `chat-view.tsx` with
+  stable dependencies, restoring the actual point of Patch v8's memo.
+
+**Open question, not resolved here — please confirm before this ships
+past a preview:** editing only changes the CLIENT's in-memory transcript
+(same truncate-and-resend pattern `retry()` already used). I found no
+delete/truncate endpoint for persisted messages anywhere in
+`apps/web/features/chat/lib` or `apps/api/src` — `runChatStream`'s own
+contract (stream-reader.ts's header comment) is that a NEW send always
+inserts new rows; it does not delete the old assistant reply (or any
+rows after the edited turn) server-side. So after an edit + page
+refresh, `useConversationMessages` will refetch from the DB and the
+edited-away messages will likely reappear, out of sync with what the
+client just showed. Either: (a) this is fine because nothing here is
+DB-backed for undo purposes and a stale trailing turn is an acceptable
+trade for now, or (b) `apps/api` needs a real
+delete-messages-after-timestamp/id endpoint before this is a complete
+feature. I did not build (b) — it's a backend contract change I
+haven't seen a spec for, and guessing at one felt riskier than flagging
+it. Flagging per plan rule 0.2/L3 territory (backend changes land on
+`main` directly, not this branch) — your call on priority.
+
+### 2 — Assistant Copy icon: confirmed broken, now fixed
+`chat-view.tsx` had `onCopy={() => {}}` — a literal no-op, so the
+assistant's copy button pressed the "copied ✓" check animation
+(`message-actions.tsx`'s own local `useState`) but never actually put
+anything on the clipboard. Now wired to
+`navigator.clipboard.writeText(message.content)` via the same
+`handleCopyMessage` used for the new user-message copy button.
+
+### 3 — Regenerate and thumbs feedback: audited, NOT fixed, flagging per your instruction
+- **Regenerate is only half-wired.** `chat-view.tsx` passes
+  `onRegenerate={() => stream.retry()}`, but `retry()` in
+  `use-chat-stream.ts` early-returns unless `state.status === "error"`
+  (`if (state.status !== "error" || !lastSentRef.current) return;`).
+  So the Regenerate icon under a NORMAL, successfully-completed
+  assistant message does nothing at all — it only does something on the
+  error-state's own retry affordance (`ErrorMessage`'s retry button,
+  which hits the same code path and does work). A real "regenerate this
+  reply" needs the same truncate-before-this-assistant-turn-and-resend
+  shape `EDIT_SEND` now provides for user messages, just anchored to an
+  assistant message id instead of a user one — straightforward to add
+  as a sibling to `edit()`, deliberately not built now since you asked
+  to flag rather than fix this round.
+- **Thumbs up/down are a complete no-op, client AND server.**
+  `chat-view.tsx` passes `onFeedback={() => {}}` (now `handleFeedback`,
+  same empty body, kept explicit rather than silently wired to
+  something half-working). `ChatMessage.feedback` is read from the DB
+  row (`conversation-api.ts`'s `mapRow`), meaning a `feedback` column
+  exists server-side, but there is no mutation endpoint anywhere in
+  `apps/api/src` or `apps/web/features/chat/lib` that writes to it — I
+  grepped the whole tree for `feedback` and the only other hit is the
+  read path. Clicking either thumb changes nothing, persists nothing,
+  and gives no visual feedback that anything happened (unlike Copy's
+  copied-checkmark state) — a user has no way to tell whether it worked
+  the first time they try it.
+
+### Files changed
+- `apps/web/features/chat/lib/chat-stream-reducer.ts`
+- `apps/web/features/chat/hooks/use-chat-stream.ts`
+- `apps/web/features/chat/components/message/message.tsx`
+- `apps/web/features/chat/components/message/message-list.tsx`
+- `apps/web/features/chat/components/chat-view.tsx`
+- `apps/web/messages/en.json`
+- `apps/web/messages/ar.json`
+
+### DELETE list
+None.
+
+### How to verify
+- Hover/tap a user message → Copy and Edit icons appear at the same
+  size as the assistant's action icons.
+- Copy on a user message and on an assistant message both actually put
+  the text on the clipboard (paste somewhere to confirm) — previously
+  only the user-message one would have worked at all, since assistant
+  copy was the no-op.
+- Edit a past user message with meaningful new content → old assistant
+  reply (and anything after it) disappears, new user text appears, a
+  fresh assistant reply streams in for it. Press Enter in the edit
+  textarea to save, Shift+Enter for a newline, Escape to cancel, and
+  saving with the text unchanged should just close edit mode with no
+  network call.
+- Try to open edit mode while a message is actively streaming elsewhere
+  in the same conversation — icon should be visibly disabled.
+- Regenerate on a normal (non-error) assistant message: confirm it
+  still does nothing (this is the flagged, not-yet-fixed behavior —
+  verifying the flag is accurate, not verifying a fix).
+- Thumbs up/down: confirm no visible state change and nothing persisted
+  after a refresh (same reason).
+- CI: `type-check`/`lint`/`test`/`web-build` — no new jobs.
+
+### Not verified
+No `node_modules`/network in this sandbox — none of this was
+typechecked, built, or run in a browser; reasoned from the existing
+code and React/Tailwind semantics only. Please run CI and a manual pass
+on the preview before merging.
+
+### Unresolved / next steps (carried forward explicitly per your request)
+1. Backend: does an edit (and, later, a real regenerate) need a
+   delete-messages-after-X endpoint, or is the current
+   resend-creates-new-rows-only behavior acceptable? (see the open
+   question under §1 above.)
+2. Regenerate: wire it the same way `edit()` now works, anchored to the
+   assistant message id, once (1) above is settled — since regenerate
+   has the identical "does the old row need deleting server-side"
+   question.
+3. Feedback: needs a real mutation endpoint (`apps/api`) before the UI
+   is worth wiring at all — right now there is nowhere to send a
+   thumbs-up/down to.
+
+---
+
+## Bugfix round — mobile Enter-to-send + markdown numbered-list report
+
+### What was reported
+1. On mobile, pressing the on-screen keyboard's Enter/return key sent
+   the message instead of starting a new line. Desktop Enter-to-send /
+   Shift+Enter-for-newline was working; only touch devices were affected
+   (there is no way to type a multi-line message on a phone otherwise).
+2. A pasted numbered list (1.–5., one item wrapping to a second,
+   indented line) appeared to lose its numbers and render as
+   unstructured text instead of a list.
+
+### Root cause — (1), confirmed
+`features/chat/lib/composer-keydown.ts`'s `shouldSendOnKeydown` only
+guarded against Shift+Enter and mid-IME-composition Enter
+(`isComposing` / Safari's `keyCode === 229`). A phone's on-screen
+"return" key fires a perfectly ordinary, non-composing `Enter` keydown —
+indistinguishable at the DOM level from a physical Enter — so neither
+guard caught it, and every tap of the mobile return key sent the draft.
+
+### Root cause — (2), NOT reproduced
+Traced the exact pasted text through `remark-parse`/`micromark`
+(the same CommonMark engine `react-markdown`+`remark-gfm` build on)
+outside the app: it parses into a correct 5-item `<ol>` with the
+wrapped second item's continuation line correctly attached, numbers
+intact. `components/markdown/safe-markdown.tsx` already applies
+`list-decimal`/`list-disc` + `ps-5` to `ol`/`ul` specifically because
+Tailwind's preflight resets `list-style: none` globally — that fix is
+already in this codebase (see that file's own `ol`/`ul`/`li` comment,
+"this is what made bullets/numbers disappear entirely ... just less
+noticed there"). No other code path mutates `message.content` before
+it reaches `SafeMarkdown` (grepped for `replace(`/sanitizers under
+`features/chat` and `components/markdown` — the only hit is an unrelated
+UUID generator). I could not find a way to make this repo's current
+code reproduce the loss of numbers. Not fixed because not found broken —
+see "Not verified" below for what would settle it either way.
+
+### What changed
+- `features/chat/lib/composer-keydown.ts` — `shouldSendOnKeydown` takes
+  an optional `isCoarsePointer` boolean; when true, Enter never sends
+  (documented tradeoff: a touch+physical-keyboard 2-in-1 also loses
+  Enter-to-send, since there's no DOM signal to tell the two apart).
+  Defaults to `false`/unset so every existing desktop call and test is
+  unchanged.
+- `components/chat/composer.tsx` — `handleKeyDown` now reads
+  `matchMedia("(pointer: coarse)")` live (SSR-guarded) and passes it
+  through.
+- `features/chat/lib/composer-keydown.test.ts` — 4 new cases covering
+  coarse-pointer Enter, coarse-pointer Shift+Enter, and the two
+  desktop-default cases (omitted / explicit `false`).
+
+### Files changed
+- `apps/web/features/chat/lib/composer-keydown.ts`
+- `apps/web/components/chat/composer.tsx`
+- `apps/web/features/chat/lib/composer-keydown.test.ts`
+
+### DELETE list
+None.
+
+### How to verify
+- **Mobile Enter fix** — on an actual phone (or Chrome DevTools device
+  emulation, which sets `pointer: coarse`): tap the keyboard's
+  return/Enter key while typing → inserts a newline, does not send.
+  Tap the Send button → sends normally. On a real desktop browser
+  (`pointer: fine`): Enter still sends, Shift+Enter still inserts a
+  newline — unchanged.
+- **Markdown numbering** — paste the exact 5-item numbered list from
+  the report into the composer and send it: expect a rendered `<ol>`
+  with visible `1.`–`5.` markers, item 2's wrapped line part of the
+  same list item. If it still shows as unnumbered/flat text on an
+  actual deployed preview, that's the one thing to send back to me —
+  ideally with the browser/OS and a screenshot, since I could not
+  reproduce it from the code alone (see below).
+- `pnpm --filter web test` → `composer-keydown.test.ts` should show 10
+  passing cases (6 existing + 4 new).
+- CI: `type-check`/`lint`/`test`/`web-build` — no new jobs, no schema
+  changes.
+
+### Not verified
+No `node_modules`/network in this sandbox for the actual `react-markdown`
++ `remark-gfm` + `rehype-highlight` pipeline or `pnpm`/`vitest` itself —
+the list-rendering root-cause check used `remark-parse`+`micromark`
+directly (present read-only in this sandbox as another tool's
+dependency) as a stand-in for the same CommonMark grammar, not the
+app's actual bundled pipeline, and the mobile fix was reasoned from
+`matchMedia`/`KeyboardEvent` semantics, not exercised in a real mobile
+browser. Please run CI and a real-device manual pass before merging.
+If item (2) still reproduces on a real preview after this, the next
+thing to check (that I could not check here) is whether the deployed
+build actually contains the `list-decimal`/`list-disc` classes at all —
+i.e. whether the preview the bug was seen on predates that earlier fix.
+
+### Unresolved / next steps
+1. If the numbered-list bug reproduces again, get the exact preview
+   URL/commit it was seen on — if it's older than the `list-decimal`/
+   `list-disc` fix already in `safe-markdown.tsx`, that alone explains
+   it and no further code change is needed, just a redeploy.
+2. The coarse-pointer heuristic's 2-in-1/iPad-with-keyboard tradeoff
+   (documented above) is accepted as-is; revisit only if it's reported
+   as an actual complaint, not preemptively.

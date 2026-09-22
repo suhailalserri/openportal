@@ -18,6 +18,8 @@ export interface MessageListProps {
   onCopy?: ((message: ChatMessage) => void) | undefined;
   onRegenerate?: ((message: ChatMessage) => void) | undefined;
   onFeedback?: ((message: ChatMessage, value: "positive" | "negative") => void) | undefined;
+  onEdit?: ((message: ChatMessage, newContent: string) => void) | undefined;
+  editDisabled?: boolean | undefined;
   onRetryError?: (() => void) | undefined;
   className?: string | undefined;
 }
@@ -55,6 +57,8 @@ export function MessageList({
   onCopy,
   onRegenerate,
   onFeedback,
+  onEdit,
+  editDisabled,
   onRetryError,
   className,
 }: MessageListProps) {
@@ -142,6 +146,8 @@ export function MessageList({
             onCopy={onCopy}
             onRegenerate={onRegenerate}
             onFeedback={onFeedback}
+            onEdit={onEdit}
+            editDisabled={editDisabled}
           />
         ))}
 
