@@ -21,24 +21,38 @@ import {
 /**
  * apps/web/features/landing/components/constellation-background.tsx
  *
- * Phase 3.3 (docs/FRONTEND_REBUILD_PLAN.md). The DOM/canvas half of the
- * hero's dot field — "white and gold dots drift randomly... on
- * mouse/touch, dots gather around the point and drift back on release."
- * All physics (drift, gathering, bounce, link-line fade) is in
- * lib/constellation.ts and unit-tested there without a browser; this
- * component only owns the canvas, the rAF loop, colour resolution, and
- * event wiring, per that file's own module doc.
+ * Phase 3.3 (docs/FRONTEND_REBUILD_PLAN.md). PAGE-WIDE dot field (moved
+ * out of the hero's own <section> — a follow-up round of this phase, per
+ * explicit feedback that confining it to the hero's box read as
+ * incomplete against a full page of scroll): "white and gold dots drift
+ * randomly... on mouse/touch, dots gather around the point and drift
+ * back on release." All physics (drift, gathering, bounce, link-line
+ * fade) is in lib/constellation.ts and unit-tested there without a
+ * browser; this component only owns the canvas, the rAF loop, colour
+ * resolution, and event wiring, per that file's own module doc.
+ *
+ * MOUNTED ONCE, AT THE PAGE ROOT (index.tsx), `position: fixed`, behind
+ * everything (`-z-10`), not inside LandingHero. A single canvas sized to
+ * the viewport (not the full scrollable document) is intentional: fixed
+ * positioning means it never needs to be document-height, which keeps
+ * the pixel count — and therefore the per-frame link-distance check's
+ * O(n²) cost — bounded to one screenful regardless of how long the page
+ * is, rather than growing with page length.
  *
  * PERFORMANCE GUARDS (the plan's "slow phones" concern):
- *  - Paused via `document.visibilityState` (tab hidden) AND an
- *    IntersectionObserver (hero scrolled out of view) — either alone
- *    would miss a case a real user hits (background tab vs. scrolled
- *    past the hero on a long page).
+ *  - Paused via `document.visibilityState` only now — there is no
+ *    "scrolled past the hero" case anymore once this covers the whole
+ *    viewport, so the previous IntersectionObserver-on-the-hero pause
+ *    is gone; a full-page fixed background is either on-screen (tab
+ *    visible) or not (tab hidden), nothing in between.
  *  - devicePixelRatio is capped at 2 (a 3x phone screen does not get a
  *    3x canvas — 4x-9x fewer pixels than an uncapped canvas would draw).
  *  - dotCountFor() already scales down on narrow (phone) screens
  *    (lib/constellation.ts NARROW_MAX_DOTS) — nothing here needs to
- *    duplicate that.
+ *    duplicate that. Because this now sizes to the viewport instead of
+ *    one hero section, absolute dot count for the same screen width is
+ *    similar to before (viewport height, not hero height, but
+ *    dotCountFor is area-based off width primarily — see that file).
  *
  * REDUCED MOTION: draws exactly one static frame (dots placed, zero
  * velocity, no pointer interaction, no rAF loop started at all) rather
@@ -56,12 +70,10 @@ import {
 
 export function ConstellationBackground() {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -76,7 +88,6 @@ export function ConstellationBackground() {
     let rafId = 0;
     let lastT = 0;
     let running = false;
-    let inView = true;
 
     const pointer: Pointer = { x: 0, y: 0, strength: 0, target: 0 };
     let pointerActive = false;
@@ -86,10 +97,11 @@ export function ConstellationBackground() {
     }
 
     function resize() {
-      if (!canvas || !container) return;
-      const rect = container.getBoundingClientRect();
-      width = Math.max(1, Math.floor(rect.width));
-      height = Math.max(1, Math.floor(rect.height));
+      if (!canvas) return;
+      // Viewport-sized, not document-sized: the canvas is `position:
+      // fixed`, so it only ever needs to cover what's currently visible.
+      width = Math.max(1, window.innerWidth);
+      height = Math.max(1, window.innerHeight);
       dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
@@ -237,23 +249,15 @@ export function ConstellationBackground() {
     }
 
     resize();
+    if (!prefersReducedMotion) start();
 
-    const ro = new ResizeObserver(() => resize());
-    ro.observe(container);
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        inView = entry.isIntersecting;
-        if (inView && document.visibilityState === "visible") start();
-        else stop();
-      },
-      { threshold: 0 },
-    );
-    io.observe(container);
+    // No IntersectionObserver anymore: a `position: fixed`, full-viewport
+    // canvas has no "scrolled past it" state to detect — it is either on
+    // a visible tab or it isn't, which visibilitychange alone covers.
+    window.addEventListener("resize", resize, { passive: true });
 
     function onVisibilityChange() {
-      if (document.visibilityState === "visible" && inView) start();
+      if (document.visibilityState === "visible") start();
       else stop();
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -266,8 +270,7 @@ export function ConstellationBackground() {
 
     return () => {
       stop();
-      ro.disconnect();
-      io.disconnect();
+      window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerdown", onPointerDown);
@@ -278,7 +281,7 @@ export function ConstellationBackground() {
   }, []);
 
   return (
-    <div ref={containerRef} aria-hidden className="absolute inset-0 overflow-hidden">
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <canvas ref={canvasRef} className="block h-full w-full" />
     </div>
   );

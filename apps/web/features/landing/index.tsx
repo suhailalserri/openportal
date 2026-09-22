@@ -1,3 +1,4 @@
+import { ConstellationBackground } from "./components/constellation-background";
 import { LandingHeader } from "./components/landing-header";
 import { LandingHero } from "./components/landing-hero";
 import { LandingIntro } from "./components/landing-intro";
@@ -44,12 +45,22 @@ import { getLandingData } from "./lib/landing-data";
  * until real/simulated content exists) -> footer. This follows the plan's
  * "also in the build" list order (docs/FRONTEND_REBUILD_PLAN.md Phase 3.3
  * summary) rather than an arbitrary arrangement.
+ *
+ * CONSTELLATION BACKGROUND: mounted ONCE here, at the page root, not
+ * inside LandingHero — a follow-up round of this phase moved it from
+ * hero-scoped to page-wide per feedback that it looked unfinished
+ * stopping at the hero's bottom edge. It renders `position: fixed`
+ * behind everything (`-z-10`, see the component), so one instance here
+ * covers the full page regardless of scroll length; every section below
+ * it in the DOM sits in normal flow above it with no z-index needed on
+ * their part.
  */
 export async function LandingPage({ locale }: { locale: string }) {
   const data = await getLandingData(locale);
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <ConstellationBackground />
       <LandingHeader locale={locale} />
       <main className="flex-1">
         <LandingHero locale={locale} />

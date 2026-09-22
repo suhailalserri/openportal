@@ -2052,3 +2052,540 @@ conversation's params. The plan's "Done when" for 4c is therefore only
 
 ### DELETE list
 None.
+
+## Phase 4c — rework: sliders, inline composer toolbar, script-aware cost quote
+
+Requested after 4c shipped green: temperature/top_p as sliders (not typed
+numbers), attach/mic placeholders, and the model picker + parameters moved
+into the composer's own bottom toolbar, Claude-style. Also answered two
+open product questions (send-block vs. input limit; per-script token
+estimation) and acted on both.
+
+### What changed (all under `apps/web`, nothing frozen touched)
+- **New:** `features/chat/lib/{token-estimate,cost-estimate,param-slider,
+  composer-panels}.ts` (+ tests), `components/chat/composer-icon-button.tsx`,
+  `features/chat/components/composer/{composer-panel,param-controls}.tsx`.
+- **Rewritten:** `components/chat/composer.tsx` (toolbar-slot layout, gone:
+  the standalone `metaLeft` token-counter usage from 4c's own preview —
+  kept as a prop for kitchen-sink's demo card, which still passes plain
+  strings), `features/chat/components/composer/{composer-bar,model-picker,
+  parameters-panel}.tsx`.
+- **Deleted:** `features/chat/lib/param-input.ts` + its test. Text parsing
+  (`parseParam`/`paramToText`, the "outOfRange"/"notInteger"/"notANumber"
+  errors) only existed because the old panel let people type numbers;
+  sliders and a stepper can't produce an invalid value, so there is nothing
+  left to parse. The three `chat.parameters.errors.*` strings are now
+  unused in `apps/web`, kept in `messages/*.json` because deleting them is
+  a separate content decision, not this rework's to make silently.
+- **i18n:** added `chat.recordComingSoon`, `chat.costInput`,
+  `chat.costReplyUpTo`, `chat.costInfo`, `chat.parameters.{info,resetOne,
+  decrease,increase}`; reworded `chat.estCostTooltip` for the new line.
+  ar/en parity re-checked (400/400 keys, no diff either direction).
+
+### Decision — the input token "limit" and the cost line (product question)
+Confirmed with the gateway: `apps/api/.../gateway.service.ts` blocks any
+request over 95% of the model's context window before it reaches the
+provider — that's a real limit, not decorative, because every model has a
+hard context window regardless of what an aggregator's UI shows. What *was*
+wrong was surfacing it as a live "N / limit" counter. Kept the 95% block
+(byte-for-byte the server's own `chars/4` rule, in
+`lib/context-estimate.ts`, unchanged from 4c) but replaced the always-on
+counter with a warning that only appears from 80%, plus a new always-on
+line: "≈ X credits · input" (`lib/cost-estimate.ts`). Output cost is a
+separate lever (`max_tokens`); today an unset value means "provider
+default, up to model max" — capping that by default is a backend product
+decision and is only flagged here, not built.
+**Not done, flagged for a backend decision:** a default (non-null)
+server-side `max_tokens` ceiling to bound worst-case output cost.
+
+### Decision — per-script token estimation (product question)
+Confirmed the premise: BPE tokenizers spend more tokens per character on
+Arabic (~2–3 chars/token vs. Latin's ~4) and on CJK (~1 char/token), and an
+emoji is 1–4 tokens while JS `.length` reports it as 2 UTF-16 units. Built
+`token-estimate.ts`, a code-point-classified weight table (Latin/digit/
+ASCII-symbol/Arabic/Arabic-mark/CJK/astral(emoji)/BMP-symbol/other) that:
+reduces to the server's exact `ceil(chars/4)` for plain English (regression
+test), and quotes Arabic/CJK/emoji higher (also tested). This feeds the
+cost line ONLY — the send-block above still uses the plain `chars/4` rule
+on purpose, so client and server can never disagree about "too long".
+**No tokenizer or network was available to calibrate this** — the weights
+are derived from documented BPE behavior, not measured, and are labelled
+"≈" everywhere they're shown. Real billing (`gateway.service.ts`) already
+uses the provider's reported `usage`, not this estimate, so nothing about
+actual charges changed.
+
+### Rule 1 exception, logged as instructed (client-side money math)
+`cost-estimate.ts` computes a credits figure in the browser. Rule 1 (docs
+§3) says money is never computed client-side; this is a deliberate,
+bounded exception: labelled "≈", never persisted, never sent to the
+server, never used to gate Send. The authoritative number stays the
+server's per-message `creditCost`. Flagged in the pre-build summary and
+approved before writing any code.
+
+### Known imprecision — `models.list` rounds prices up
+`apps/api/.../models.router.ts` rounds credits-per-K UP to a whole number,
+so a model actually priced at 0.3 credits/K lists as 1 and every quote for
+it overstates by up to that rounding. `cost-estimate.ts`'s `unitPrice()`
+already prefers optional `creditsPerKInputExact`/`creditsPerKOutputExact`
+fields if the API ever adds them — no frontend change needed when it does.
+**Not done, flagged for a backend decision:** add those exact fields.
+
+### No new dependencies
+No Radix `Slider`/`Popover` — a lockfile regeneration wasn't available
+offline. Sliders are native `<input type="range">` (styled thumb only, see
+`param-controls.tsx`'s header comment on why the track isn't); the model
+list and parameters open as an in-flow panel (`composer-panel.tsx`) rather
+than a portal, which also sidesteps the RTL/portal-positioning question
+entirely — the panel is just as wide as the composer because it's laid out
+inside it.
+
+### Bugs fixed in my own first draft here
+- `roundQuoteUp`: naive `Math.ceil(credits * 100) / 100` ticked `0.3` up to
+  `0.31` on `0.1 + 0.2`-style float error. Fixed by subtracting a `1e-9`
+  epsilon before the ceil; regression test added
+  (`roundQuoteUp(0.1 + 0.2) === 0.3`).
+- `stepMaxTokens`: a plain `current + step`/clamp couldn't reach a ceiling
+  that isn't a multiple of the step (e.g. 200 with step 32 would stop at
+  168 or overshoot to 232). Rewrote the "increase" branch's floor/ceiling
+  clamp so the model's exact ceiling is always reachable in one press from
+  its neighbour; test added.
+- First draft's `<input type="range">` fill bar sized off the raw fraction,
+  so at `min` and `max` the fill visibly over/undershot the round thumb by
+  half its width. Fixed with a `calc()` that starts the fill at the thumb's
+  centre, not the track's edge.
+
+### Integration boundary — unchanged from 4c
+Still not mounted in `/chat` (see 4c's own "Integration boundary" note
+above — that gap is unchanged by this rework). Verify via
+`/{ar,en}/dev/chat-composer` as before.
+
+### How to verify
+**CI:** `web-unit` (new: `token-estimate`, `cost-estimate`, `param-slider`,
+`composer-panels`; `param-input`'s suite is gone with the file), `Type-check
+& Lint` (logical-properties lint — every new class uses `ps-`/`pe-`/`ms-`/
+`start-`/`end-`, checked by hand this round; grepped for physical
+`left/right/ml/mr/pl/pr` and found none), `web-build`, `i18n-parity`.
+
+**Preview** — `/ar` and `/en` at `/dev/chat-composer`, 360px and desktop,
+both themes:
+1. Toolbar reads `[+] [⚙] [Model ▾] … [🎙] [➤]` in that order in `en`, and
+   mirrors under `dir="rtl"` in `ar` (buttons and the whole card flip; the
+   slider tracks themselves stay LTR — numbers read low-to-high regardless
+   of page direction, matching every numeric field elsewhere in the app).
+2. Tap **⚙** → parameters panel opens above the card, full composer width;
+   tap **Model** → it closes and the model list opens instead (only one
+   open at a time); tap the same button again, press Escape, tap outside,
+   or focus the textarea → panel closes.
+3. Drag temperature/top_p → the ⚙ button grows a small dot (customised);
+   "Reset" in the panel clears both sliders and the system prompt in one
+   tap and the dot disappears.
+4. Max response length: `−`/`+` moves by a step sized to the model's
+   ceiling; both ends disable at their limit; switching to "Tiny context"
+   (256-token ceiling) after setting a big value on "Large model" shows the
+   value clamped to 256, not silently rewritten in storage.
+5. Tap **+** or **🎙** → each shows its "coming soon" line under the card
+   and does not block typing or sending.
+6. Type a draft → "≈ X credits · input" appears; tap its ⓘ → the longer
+   explanation opens inline; type the same length in Arabic → the credit
+   number is visibly higher than the English case.
+7. Repeat 4c's original context-limit and IME checks (unchanged
+   send-block) — see 4c's own "How to verify" above.
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- Same standing gap as 4c: no real `tsc`, `next build`, or `vitest` binary
+  in this sandbox. What *was* run this round: a strict-flag `tsc`
+  (`exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`, the repo's
+  own `tsconfig.base.json`) over every new/changed file against
+  hand-written stubs for react/next-intl/shadcn/lucide — 0 errors; a
+  server-side React render (`react-dom/server`) of the assembled
+  `ComposerBar` and the slider/stepper/model-list pieces across 11
+  fixtures (empty draft, English draft, Arabic draft, a draft that trips
+  the "Tiny context" send-block, zero models, `parametersEnabled={false}`,
+  default vs. set slider, default vs. maxed stepper, the model list) to
+  catch render-time crashes and confirm the i18n keys resolve; and 56 new
+  test cases for the four new lib files, executed against the real source
+  under the same small home-made shim as 4c. None of that is real
+  `vitest`/jsdom/a browser, so touch-drag behavior on an actual
+  `<input type="range">`, RTL mirroring, and iOS Safari specifically remain
+  unverified until CI and the preview.
+- Real tokenizer counts for Arabic/CJK/emoji: the weights in
+  `token-estimate.ts` are derived from documented BPE behavior, not
+  measured against any provider's actual tokenizer (none reachable
+  offline). Treat as ±30% until calibrated against real `usage` data.
+- Whether `next-intl`'s real ICU interpolation handles the new
+  `{credits}`/`{label}`/`{max}` placeholders identically to the plain
+  `.replace()` used in the local stub — no next-intl runtime available
+  offline.
+
+### DELETE list
+- `apps/web/features/chat/lib/param-input.ts`
+- `apps/web/features/chat/lib/param-input.test.ts`
+
+---
+
+## Phase 4d — Chat: conversations + cache (partial — lib/hooks layer only)
+
+**Scope actually received this round:** the phase summary approved earlier
+(list groups, IndexedDB cache, new-chat id generation, sidebar/chat-view
+components, both real pages) — but the file set attached for building only
+covered the data layer: `conversation-cache.ts`, `conversation-grouping.ts`,
+`new-chat.ts`, `use-conversations.ts`, `use-conversation-cache-identity.ts`,
+and their tests. **The UI layer from the same summary was not included**:
+`chat-view.tsx`, `conversation-sidebar.tsx` / `conversation-row.tsx` /
+`conversation-search.tsx`, `use-conversation-messages.ts`, and the real
+`/chat` + `/chat/[id]` pages. `app/[locale]/(app)/chat/page.tsx` is
+therefore still Phase 2.1's placeholder — nothing in the app actually
+mounts any of the code below yet. Per the plan's own rule 3 ("if the plan
+contradicts the code, tell me before building"), flagging this now rather
+than fabricating the missing components against an unseen composer/
+message-list contract. Everything below is real, tested, and ready to be
+imported by that UI layer once it lands.
+
+### Contract gaps found while integrating the delivered files (fixed)
+The five delivered files referenced three things that didn't exist yet
+anywhere in the repo — not a plan/code contradiction, just the batch being
+lib-first and these being the natural seams between files written together:
+- `ConversationSummary` — imported from `../types` by `conversation-cache.ts`,
+  `conversation-grouping.ts`, and `use-conversations.ts`, but `types.ts` had
+  no such export. Added it: `{ id, title: string | null, modelId: string |
+  null, isPinned, updatedAt: string }`, matching `GET /api/conversations`'s
+  `columns` selection exactly (`title`/`modelId` are nullable columns per
+  `packages/db/src/schema/conversations.ts` — neither has `.notNull()`).
+- `listConversations` / `renameConversation` / `pinConversation` /
+  `deleteConversation` — `use-conversations.ts` imports all four from
+  `../lib/conversation-api`, matching the approved summary's "add list/
+  rename/pin/delete calls next to the existing get/patch-system-prompt."
+  Added, following `fetchConversationSystemPrompt`'s exact pattern
+  (`ApiResult<T>` envelope, `credentials: "include"`, injectable
+  `fetchImpl`). Verified against the real (frozen-zone, read-only) route
+  handlers: `GET /api/conversations` → `{ items }`; `PATCH .../[id]` body
+  `{ title }` or `{ isPinned }` → `{ success: true }`; `DELETE .../[id]` →
+  `{ success: true }`, soft-delete.
+- `getRealIdbStore` — `use-conversations.ts` imports it from
+  `../lib/idb-store`, a file that didn't exist. `conversation-cache.ts` has
+  its OWN real `idb-keyval` adapter, but it's deliberately private
+  (module-internal, used only by that file's own sign-out-clearer
+  registration — see that file's header comment on why its public surface
+  stays real-`idb-keyval`-free for the `environment: "node"` test suite).
+  Added `idb-store.ts` as a separate small adapter satisfying the same
+  `KVStore` shape, rather than exporting the private one — keeps the
+  "nothing importing conversation-cache.ts needs a real `indexedDB`
+  global" property structural instead of a by-convention rule the next
+  edit could quietly break. Documented in that file's header that this
+  means two tiny `idb-keyval` wrapper closures now exist instead of one
+  shared instance (harmless — `idb-keyval`'s functions are module-level
+  and stateless — but worth a conscious yes/no rather than silently
+  deduplicating into either file without being asked).
+
+### What was actually run (real execution, not just reading)
+No `pnpm`/`node_modules` in this sandbox (network disabled, nothing
+installed) — same standing gap as every prior phase. What this phase adds
+beyond 4c's "hand-written-stub `tsc` + SSR render" approach: an *actual*
+`tsc --strict` (plus this repo's `exactOptionalPropertyTypes` +
+`noUncheckedIndexedAccess`) run against the 11 files above (8 source + 3
+test) using hand-written stub modules for `react`/`idb-keyval`/`vitest`/
+`@/lib/{auth-client,client-cache}` — **0 type errors** — and then, going one
+step further than a type-check: the three `.test.ts` files' actual logic
+was executed under a minimal real test runner (`describe`/`it`/`expect`
+that genuinely assert, not stubs that no-op) against a real in-memory
+`idb-keyval` replacement (same `get`/`set`/`del` semantics, just backed by
+a `Map` instead of real IndexedDB). Real results: **24 of 30 assertions
+passed**; the 6 failures break down as:
+- 1 failure (`crypto.randomUUID` stub) is this harness's limitation —
+  Node's global `crypto` is non-configurable, so `vi.stubGlobal("crypto",
+  …)` can't actually override it outside real vitest/jsdom. Not a code bug.
+- **5 failures are a real, if low-probability, latent flake in
+  `conversation-cache.test.ts`'s fixtures** — worth a look before this
+  lands. Both `conv(id)` and `msg(id)` build `updatedAt`/`createdAt` from
+  a fresh `new Date().toISOString()` on every call, and five assertions
+  call the same fixture twice (once for the input, once for the expected
+  value in `toEqual`) — e.g. `writeCachedConversationList("u1", [conv("a"),
+  conv("b")], store)` then `toEqual([conv("a"), conv("b")])` re-invokes
+  `conv` and can produce a different millisecond timestamp than the first
+  call. In real (fast) vitest the two calls are normally sub-millisecond
+  apart and this won't trip in practice, which is almost certainly why it
+  hasn't been caught yet — but it's a genuine flake risk, not a
+  theoretical one (it reproduced three separate times in this run at
+  ~10-30ms apart under this sandbox's slower execution). The eviction/LRU
+  logic itself (`touchIndex`'s clamped `splitAt`, the whole reason for
+  this file's most carefully-commented line) **passed clean** — that was
+  the one test worth the most scrutiny and it held up under real
+  execution, not just a type-check.
+  Suggested fix (not applied — flagging per rule 4, not silently rewriting
+  someone else's delivered test file): freeze one `conv(id)` /
+  `msg(id)` return value per test and reuse it for both the write and the
+  `toEqual`, instead of calling the factory twice.
+- All 10 `conversation-grouping.test.ts` assertions (calendar-day
+  boundaries, the exactly-7-days-is-older case, DST-neutral local-midnight
+  math) passed with zero caveats — no timestamp-freshness issue there
+  since that file's fixtures take an explicit `updatedAt` string, never
+  calling `new Date()` internally.
+- `new-chat.test.ts`'s two non-crypto-stub assertions (UUID-v4 shape check
+  on a real un-stubbed `crypto.randomUUID`, and the locale-prefixed path
+  builder) passed.
+
+### Not verified
+- The React hooks (`use-conversations.ts`, `use-conversation-cache-
+  identity.ts`) — no real React renderer available in this pass (unlike
+  4c's SSR-render check, there is no consuming component yet to render
+  them into; a bare hook isn't independently render-testable the way a
+  finished component is). Read carefully by hand against `useSession`'s
+  real shape and the four new `conversation-api.ts` functions' real
+  signatures — everything lines up — but this is not the same as having
+  run it.
+- The real `idb-keyval` adapter bodies in both `conversation-cache.ts`
+  (private) and the new `idb-store.ts` — three lines each, but the one
+  piece no amount of stubbing reaches; genuine IndexedDB behavior (quota,
+  Safari private mode, `structuredClone`-vs-JSON serialization
+  differences for the cached arrays) is preview/CI-only, as flagged in
+  `conversation-cache.ts`'s own header comment.
+- Whether `use-conversations.ts`'s optimistic pin/rename/remove +
+  rollback actually feels right against real network latency — logic
+  read as correct (snapshot-then-restore-on-failure) but UX timing can't
+  be judged without a browser.
+
+### DELETE list
+None this round — nothing shipped here supersedes an existing file.
+`components/chat/chat-sidebar.tsx` (Phase 1.2's presentational-only
+sidebar) is NOT a delete candidate yet: it's still the only thing
+`app/[locale]/dev/kitchen-sink/kitchen-sink-client.tsx` renders, unlike
+`message-bubble.tsx` (deleted in 4a once nothing referenced it). It
+becomes a real delete candidate once `conversation-sidebar.tsx` lands and
+kitchen-sink is updated to point at it instead — not before.
+
+### How to verify once the UI layer lands
+Cannot produce a real preview/CI list yet — there is no page or component
+in this batch for CI's `web-build`/`i18n-parity` to build, and no route
+for a human to click through. Re-request this section once `chat-view.tsx`
+and the two real pages exist; until then the only honest verification is
+what's above (type-check + logic execution against the lib files
+themselves).
+
+---
+
+## Phase 4d — CI-confirmed test failures, fixed (post-delivery)
+
+Real CI (`Web Unit Tests (vitest)`, screenshot supplied by the user) hit
+exactly two bugs — both test-only, `conversation-cache.ts`/`new-chat.ts`
+source unchanged:
+
+1. **`conversation-cache.test.ts` fixture-freshness flake** — predicted in
+   this file's own "not verified" section above and now confirmed with a
+   real CI diff (`updatedAt`/`createdAt` off by 1ms between the write side
+   and the `toEqual` side). Root cause: `conv(id)`/`msg(id)` stamp a fresh
+   `new Date().toISOString()` on every call, and 8 assertions across the
+   file called the same fixture twice — once to build the value being
+   written, once again inside `toEqual(...)` for the expected value.
+   **Fixed** in all 8 spots (not just the ones CI happened to catch this
+   run — `msg("m9")`/`conv("z")`, `msg("m2")` in the delete test, the
+   eviction test's last-written message, and the recency test's
+   `m0-updated` had the identical latent issue and were one unlucky
+   scheduler tick from failing too): capture the fixture once into a
+   `const`, reuse that same value for both the write and the assertion.
+2. **`new-chat.test.ts` stubbed-global leak across tests** — NOT
+   something the earlier hand-rolled logic-execution pass could have
+   caught (it used a bespoke `vi.stubGlobal`/`vi.restoreAllMocks` shim
+   that happened to reset `crypto` on `restoreAllMocks`, which is not
+   real vitest's behavior). Real vitest's `restoreAllMocks()` only undoes
+   `vi.spyOn`/`vi.fn`; it does **not** touch `vi.stubGlobal`. The suite's
+   `afterEach` called only `restoreAllMocks()`, so the first test's
+   `vi.stubGlobal("crypto", { randomUUID: () => fixed })` stayed active
+   into "produces distinct ids across calls" — both calls returned the
+   same stubbed fixed UUID, exactly matching the CI failure ("expected X
+   not to be X"). **Fixed**: `afterEach` now also calls
+   `vi.unstubAllGlobals()`.
+
+**Re-verified for real** (not just read): re-ran the same real-logic
+harness from this phase's first entry above (real `describe`/`it`/
+`expect`, in-memory `idb-keyval` stand-in, and this time a corrected
+`stubGlobal`/`unstubAllGlobals` pair that actually swaps a global out and
+back). Result: 29/30 assertions pass; the 1 remaining "failure" is the
+harness's own known limitation (a plain-assignment stub can't override
+Node's non-configurable `crypto` global the way real vitest's
+`Object.defineProperty`-based `stubGlobal` can) — that specific assertion
+already passed in the user's real CI run per the screenshot, so this is
+not a live gap, just this sandbox's stand-in reaching its ceiling.
+
+### Still true, unchanged by this fix
+`/en/chat` still shows the Phase 2.1 placeholder — this round only touched
+two test files. The UI layer (`chat-view.tsx`, sidebar components,
+`use-conversation-messages.ts`, the two real pages) is still outstanding;
+CI going green on `Web Unit Tests` does not mean the phase is done, only
+that the lib layer's tests no longer flake.
+
+---
+
+## Phase 4d — UI layer delivered
+
+The lib layer landed in the round above; this round is the actual UI:
+`chat-view.tsx`, the three sidebar components, `use-conversation-messages.ts`,
+and the two real pages. `/{locale}/chat` no longer shows the Phase 2.1
+placeholder.
+
+### What shipped this round
+
+- `features/chat/lib/conversation-api.ts` — added `fetchConversationMessages`.
+  Not previously present despite being assumed by `use-conversation-messages.ts`
+  in an earlier draft of this round; added for real, with a `mapRow` step
+  that converts the DB row's `null` nullable columns (`feedback`, `modelId`,
+  `inputTokens`, `outputTokens`, `creditCost`) into OMITTED keys, matching
+  `ChatMessage`'s optional-field (never-null) contract under this repo's
+  `exactOptionalPropertyTypes`. A 404 maps to `{ ok: true, value: [] }`,
+  not a failure — the gap between `new-chat.ts` generating an id/navigating
+  and the gateway's lazy insert landing on first send means `/chat/[id]`
+  can legitimately be visited before a row exists yet.
+- `features/chat/hooks/use-chat-stream.ts` — added the `initialMessages`
+  option, via `useReducer`'s 3-argument lazy-init form (read once, on this
+  hook's first render only — see the option's own doc comment for why a
+  later prop change deliberately does NOT re-seed). Also not previously
+  present despite `chat-view.tsx` depending on it.
+- `features/chat/hooks/use-conversation-messages.ts` — `/chat/[id]`'s
+  history loader, same cache-first-then-network shape as `use-conversations.ts`.
+- `features/chat/components/sidebar/{conversation-search,conversation-row,
+  conversation-sidebar}.tsx` — search input, one row (normal/renaming modes,
+  pin/rename/delete-with-confirmation), and the assembling sidebar
+  (new-chat button, search, Pinned section, Today/Yesterday/This week/Older).
+- `features/chat/components/chat-view.tsx` — the assembly point. Splits into
+  an outer `ChatView` (loads history) and inner `ChatSession` (only mounts
+  once history has resolved, `key`'d on conversation id) so `useChatStream`'s
+  lazy-init `initialMessages` always sees the real history on its first
+  render, never an empty array that would then be permanently locked in.
+  New-chat handoff goes through `pending-first-message.ts`: the empty
+  state's composer generates the id, stashes the draft, navigates; the
+  freshly-mounted `/chat/[id]` session picks it up and sends it itself,
+  after the navigation completes (see that file's header comment for why
+  it can't happen before — `useChatStream` aborts its own in-flight
+  request on unmount, and `/chat` → `/chat/[id]` is a full unmount).
+- `app/[locale]/(app)/chat/page.tsx` — replaced the placeholder. Full-height
+  sidebar + `ChatView` row, not `SectionPage` (that component width-caps
+  and pads for a form/dashboard page; chat is the first `(app)` page that
+  needs to fill `<Main>` edge-to-edge).
+- `app/[locale]/(app)/chat/[id]/page.tsx` — new. Client component reading
+  `id` via `useParams()`; no server wrapper, since every hook underneath
+  is client-side anyway and every real read/write re-derives ownership
+  from the session server-side regardless (confirmed by re-reading
+  `app/api/conversations/[id]/route.ts`, frozen/read-only, this round).
+- `messages/{ar,en}.json` — added `chat.searchConversations`,
+  `chat.moreOptions`, `chat.deleteConfirmBody` (the last takes a `{title}`
+  placeholder, matching `conversation-row.tsx`'s call site). Both files
+  re-checked for key-set parity after the edit (`python3 -c` diff of the
+  two `chat` key sets — empty on both sides).
+
+### A known, flagged simplification (not silently dropped)
+
+`chat-view.tsx` calls `useChatModels({})` with no `conversationModelId` —
+that option exists to let an EXISTING conversation's own model win over
+the user's last-picked one, but the data source that would supply it
+(`useConversationMessages`) returns only the message array, not the
+conversation row's `modelId` column. Wiring that through would mean
+widening `UseConversationMessagesResult`'s contract beyond this phase's
+scope. Left as-is with a comment at the call site rather than expanded
+silently: on an existing conversation, the model picker currently falls
+back to the user's last-picked model (or the first available one)
+instead of that conversation's own. A real gap, worth a follow-up.
+
+### Verification
+
+**Still cannot run `tsc`/`vitest`/`next build`/a browser in this sandbox**
+— no network access (confirmed via the container's egress config) and no
+`node_modules` in the delivered zip, so nothing here has been executed for
+real, only read closely. What was actually done in place of execution:
+
+- Every new import in every changed file was traced by hand to a real
+  exported symbol in the target file (not assumed from memory) —
+  `Skeleton`, `useSession`, `MessageList`, `ComposerBar`, `OfflineBanner`,
+  `TabConflictBanner`, `DropdownMenu*`, `AlertDialog*` (including
+  `DropdownMenuItem`'s `variant="destructive"` prop, which does exist),
+  `fetchConversationMessages`, `readCachedMessages`/`writeCachedMessages`,
+  `getRealIdbStore` — all confirmed present with matching signatures.
+- Brace/paren/bracket balance checked programmatically across every
+  touched file (all balanced) as a crude syntax sanity pass in place of
+  a real parser.
+- `messages/en.json` and `messages/ar.json` both re-parsed as JSON and
+  diffed key-by-key under `chat.*` — parity confirmed, zero keys on
+  either side alone.
+- Read `app/api/conversations/[id]/route.ts` again (frozen, read-only)
+  to confirm the exact response shape `fetchConversationMessages` parses
+  against (`{ ...conv, messages }`, 404 on not-found-or-not-owned) rather
+  than assuming the earlier round's documented contract was still accurate.
+
+**Not verified, flagged rather than assumed:**
+- `use-chat-stream.ts`'s new `initialMessages` option has NO test. This
+  repo's `vitest.config.ts` runs `environment: "node"` with no jsdom and
+  no `@testing-library/react` (see that file's own header comment) — a
+  hook built on `useReducer`/`useEffect`/refs isn't reachable through the
+  `renderToStaticMarkup` SSR-only approach this codebase uses for
+  component tests (that approach renders once and stops; it can't dispatch
+  an action or resolve an effect). Confirmed by hand against
+  `chat-stream-reducer.ts`'s own tested behavior, but not executed.
+- `conversation-sidebar.tsx` and `conversation-row.tsx` have no test for
+  the same reason PLUS a second one: `conversation-sidebar.tsx` calls
+  `useConversations`, which calls `useSession`/tRPC — real hooks this
+  sandbox has no mock for and no established `vi.mock` precedent in this
+  codebase to follow (every existing `.test.tsx` here is a dependency-free
+  SSR render). `conversation-search.tsx` (a pure controlled input, no data
+  hooks) DOES have a real SSR test — `conversation-search.test.tsx` —
+  written in this round, following `safe-markdown.test.tsx`'s exact
+  pattern; it confirms the component renders under `next-intl` with the
+  real `en.json` string, the `ps-9` logical-padding class survives (Rule 2),
+  and the controlled `value` reaches the DOM. It does not and cannot
+  prove `onChange` fires on a real keystroke (no live DOM to dispatch an
+  event into).
+- The two page files' actual runtime navigation behavior — `useParams()`
+  reading the dynamic segment, the sidebar's `onSelect`/`onNewChat`
+  round-tripping through `next/navigation`'s `useRouter` — read as
+  correct against Next 15's client-component API, no precedent for
+  `useParams()` existing elsewhere in this repo to compare against (every
+  other dynamic route in this codebase reads `params` server-side instead;
+  this is the first client dynamic-segment page), so this is a slightly
+  higher-uncertainty item than usual, flagged rather than asserted.
+- `useChatModels({})`'s missing `conversationModelId` — see the
+  simplification note above; not a bug so much as a known incompleteness.
+- Preview-only, as every round: reload-restores-instantly and
+  sign-out/sign-in-as-another-user-shows-nothing (Rule 9's two "done when"
+  checks), pin/rename/delete's actual round-trip feel, RTL rendering of
+  the new sidebar under `dir="rtl"` (nothing here was checked in a real
+  browser, only read for logical-property usage — `ps-9`/`ms-*`/`me-*`,
+  no bare `pl-*`/`mr-*`/`ml-*` in any new file, confirmed by grep).
+
+### DELETE list
+
+None. `components/chat/chat-sidebar.tsx` (Phase 1.2's presentational-only
+sidebar) is STILL not a delete candidate — re-confirmed this round by
+grepping `kitchen-sink-client.tsx`, which still imports and renders it
+directly (`ChatSidebar`/`ChatSidebarConversation`). It becomes a real
+delete candidate once kitchen-sink is updated to point at the new
+`ConversationSidebar` instead — a follow-up, not done here, since nothing
+in this round's scope touches the dev kitchen-sink page.
+
+### How to verify (once this lands in a real environment)
+
+- **CI:** `Type-check & Lint` (`tsc --noEmit`, `next lint`) — the class of
+  error this sandbox could not run for real; `web-build` (`next build`) —
+  will also catch any RSC/client-boundary mistake in the two new page
+  files; `Web Unit Tests (vitest)` — `conversation-api.test.ts`'s new
+  `fetchConversationMessages` suite, `conversation-search.test.tsx`'s SSR
+  render, plus every already-green suite from the prior round;
+  `i18n-parity` — should pass given the manual key-parity check above,
+  but this is exactly the kind of check worth letting CI itself confirm
+  rather than trusting a local diff.
+- **Preview, `/en/chat` and `/en/chat/[id]`:**
+  - Empty state renders (heading + suggestion chips), picking a
+    suggestion fills the composer without sending.
+  - Sending from the empty state navigates to `/en/chat/{new-uuid}` and
+    the message actually sends (not lost across the navigation) —
+    this is the exact race `pending-first-message.ts` exists to close;
+    worth deliberately watching the Network tab across the navigation.
+  - Reload on an existing `/chat/[id]` restores the conversation
+    instantly from cache, then reconciles with the network.
+  - Sidebar: new-chat button, search filters by title only (not
+    modelId), pin/unpin/rename/delete round-trip against the real
+    PATCH/DELETE routes, delete requires the confirmation dialog.
+  - Sign out, sign in as a second test account: sidebar shows none of
+    the first account's cached conversations (Rule 9's own "done when").
+  - `/en` and `/ar`, both directions: RTL sidebar layout, RTL delete
+    confirmation dialog, search icon on the correct logical side.
+  - A conversation whose `modelId` differs from the signed-in user's
+    last-picked model: confirm whether the picker shows the
+    last-picked/first-available model (expected, per the flagged
+    simplification above) rather than treating a mismatch as a bug.

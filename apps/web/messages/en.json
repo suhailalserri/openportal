@@ -42,7 +42,10 @@
     "thisWeek": "This Week",
     "older": "Older",
     "pinned": "Pinned",
+    "searchConversations": "Search conversations",
+    "moreOptions": "More options",
     "deleteConversation": "Delete Conversation",
+    "deleteConfirmBody": "Delete \"{title}\"? This can't be undone from here.",
     "renameConversation": "Rename",
     "pinConversation": "Pin",
     "unpinConversation": "Unpin",
@@ -88,7 +91,11 @@
     "recording": "Listening…",
     "recordStop": "Stop listening",
     "recordUnsupported": "Voice input isn't supported in this browser",
-    "estCostTooltip": "Rough estimate: input cost is confirmed, reply cost assumes a typical reply length and may differ.",
+    "recordComingSoon": "Voice input is coming soon",
+    "costInput": "≈ {credits} credits · input",
+    "costReplyUpTo": "reply up to ≈ {credits}",
+    "costInfo": "About this estimate",
+    "estCostTooltip": "Estimate of what this message plus the conversation so far will cost as input. The reply is billed by its length. Arabic text, emoji and code use more tokens than English, so this leans high on purpose.",
     "parameters": {
       "toggle": "Parameters",
       "temperature": "Temperature",
@@ -102,11 +109,10 @@
       "systemPromptPlaceholder": "e.g. Answer briefly and in plain English.",
       "systemPromptHint": "Saved with this conversation and sent with every message.",
       "reset": "Reset",
-      "errors": {
-        "outOfRange": "Value must be between {min} and {max}.",
-        "notInteger": "Enter a whole number.",
-        "notANumber": "Enter a valid number."
-      }
+      "info": "About {label}",
+      "resetOne": "Reset {label} to default",
+      "decrease": "Decrease",
+      "increase": "Increase"
     }
   },
   "balance": {

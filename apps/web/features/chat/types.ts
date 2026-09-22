@@ -108,3 +108,34 @@ export const DEFAULT_CONVERSATION_PARAMS: ConversationParams = {
   topP: null,
   maxTokens: null,
 };
+
+/**
+ * Phase 4d. The sidebar's row shape — exactly the `columns` subset
+ * `GET /api/conversations` selects (apps/web/app/api/conversations/route.ts):
+ * `{ id, title, modelId, isPinned, updatedAt, deletedAt }`, minus
+ * `deletedAt` (that route already filters soft-deleted rows out of the
+ * response, so a row reaching the client never carries it — modeling the
+ * field here would just invite a caller to check it and find it always
+ * absent). `GET /api/conversations/[id]`'s full row is NOT this type —
+ * that one has `messages` + `systemPrompt` attached; ConversationSummary
+ * is specifically the list-row view conversation-cache.ts,
+ * conversation-grouping.ts, and use-conversations.ts all key off of.
+ *
+ * `title`/`modelId` are `string | null`, matching the DB columns
+ * (`packages/db/src/schema/conversations.ts`: neither has `.notNull()`)
+ * — a brand-new conversation has no title until B1's auto-title job (or
+ * the user's first rename) runs, and no modelId until the first message
+ * picks one.
+ *
+ * `updatedAt` is a plain ISO string (JSON has no Date type) — same "one
+ * conversion point" rule as `ChatMessage.createdAt` above; conversion to
+ * a Date only happens at the point of use (conversation-grouping.ts's
+ * `groupKeyForDate`).
+ */
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  modelId: string | null;
+  isPinned: boolean;
+  updatedAt: string;
+}

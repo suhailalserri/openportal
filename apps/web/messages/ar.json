@@ -42,7 +42,10 @@
     "thisWeek": "هذا الأسبوع",
     "older": "أقدم",
     "pinned": "المثبتة",
+    "searchConversations": "البحث في المحادثات",
+    "moreOptions": "خيارات إضافية",
     "deleteConversation": "حذف المحادثة",
+    "deleteConfirmBody": "حذف \"{title}\"؟ لا يمكن التراجع عن هذا من هنا.",
     "renameConversation": "إعادة التسمية",
     "pinConversation": "تثبيت",
     "unpinConversation": "إلغاء التثبيت",
@@ -88,7 +91,11 @@
     "recording": "جارٍ الاستماع…",
     "recordStop": "إيقاف الاستماع",
     "recordUnsupported": "الإدخال الصوتي غير مدعوم في هذا المتصفح",
-    "estCostTooltip": "تقدير تقريبي: تكلفة الإدخال مؤكدة، تكلفة الرد تُحسب على طول رد افتراضي متوسط وقد تختلف فعلياً.",
+    "recordComingSoon": "الإدخال الصوتي قادم قريباً",
+    "costInput": "≈ {credits} رصيد · إدخال",
+    "costReplyUpTo": "الرد حتى ≈ {credits}",
+    "costInfo": "عن هذا التقدير",
+    "estCostTooltip": "تقدير لتكلفة هذه الرسالة مع المحادثة السابقة كإدخال. يُحاسَب الرد حسب طوله. النص العربي والرموز التعبيرية والأكواد تستهلك رموزاً أكثر من الإنجليزية، لذا يميل التقدير إلى الأعلى عمداً.",
     "parameters": {
       "toggle": "المعاملات",
       "temperature": "درجة الحرارة",
@@ -102,11 +109,10 @@
       "systemPromptPlaceholder": "مثال: أجب بإيجاز وباللغة العربية الفصحى.",
       "systemPromptHint": "تُحفظ مع هذه المحادثة وتُرسل مع كل رسالة.",
       "reset": "إعادة الضبط",
-      "errors": {
-        "outOfRange": "القيمة يجب أن تكون بين {min} و{max}.",
-        "notInteger": "أدخل عدداً صحيحاً.",
-        "notANumber": "أدخل رقماً صالحاً."
-      }
+      "info": "عن {label}",
+      "resetOne": "إعادة {label} إلى الافتراضي",
+      "decrease": "إنقاص",
+      "increase": "زيادة"
     }
   },
   "balance": {

@@ -1,19 +1,64 @@
 {
-  "_comment": "apps/web/content/demo/simulated-chat.json — Phase 3.3. Parsed by features/landing/lib/demo-content.ts (see parseDemoContent for the exact validated shape). ALL NUMBERS BELOW ARE INVENTED for display purposes only — no real chat was run and no real usage-log cost was recorded. `simulated: true` makes the landing page render a visible 'Simulated example' badge over this section. TO GO REAL: run one actual chat on the platform, copy its exact prompt/reply text and the real inputTokens/outputTokens/costYer from the billing usage log (transactions table — see Phase 9.1/9.2 in the master plan), paste them into `en` and `ar` below, and flip `simulated` to false. Until that happens this file must never be presented to a visitor as a real example.",
+  "_comment": "apps/web/content/demo/simulated-chat.json — Phase 3.3 (follow-up round: multi-model demo). Parsed by features/landing/lib/demo-content.ts (see parseDemoContent for the exact validated shape). ALL NUMBERS AND MODEL LABELS BELOW ARE INVENTED for display purposes only — no real chat was run on any of these three models and no real usage-log cost was recorded for any of them. `simulated: true` makes the landing page render a visible 'Simulated example' badge over the whole section, covering every scenario. `modelName`/`modelBadge` are cosmetic tab labels ('Fast', 'Balanced', 'Flagship reasoning') chosen to illustrate the SHAPE of a real model lineup (a cheap/fast tier, a general-purpose tier, a frontier/expensive tier) without claiming to be any specific named model's real pricing or behavior — the actual model catalog and its real names/prices live in the database (models table, admin-managed), not here. TO GO REAL, per scenario: run one actual chat on that specific real model, copy its exact prompt/reply text and the real inputTokens/outputTokens/costYer from the billing usage log (transactions table — see Phase 9.1/9.2 in the master plan), replace that scenario's fields, rename modelName/modelBadge to the model's real display name and a true badge, and only flip the top-level `simulated` to false once EVERY scenario in the file has been replaced this way (the flag is global, not per-scenario, so it must not go false while any scenario is still invented). Until that happens this file must never be presented to a visitor as real.",
   "enabled": true,
   "simulated": true,
-  "en": {
-    "prompt": "Can you summarize the key differences between REST and GraphQL APIs in a few bullet points?",
-    "reply": "Sure — a few of the main differences:\n\n- **Data fetching**: REST exposes fixed endpoints per resource; GraphQL lets the client ask for exactly the fields it needs in one request.\n- **Over/under-fetching**: REST often returns more or less data than you need; GraphQL avoids this by design.\n- **Versioning**: REST APIs are commonly versioned (v1, v2...); GraphQL schemas typically evolve in place by adding fields.\n- **Tooling**: GraphQL ships with a strongly-typed schema and introspection out of the box, which REST doesn't standardize.\n\nBoth are widely used in production — the right choice depends on how your clients need to query data.",
-    "inputTokens": 24,
-    "outputTokens": 118,
-    "costYer": 0.86
-  },
-  "ar": {
-    "prompt": "هل يمكنك تلخيص الفروقات الأساسية بين REST وGraphQL في نقاط سريعة؟",
-    "reply": "بالتأكيد — من أبرز الفروقات:\n\n- **جلب البيانات**: تعتمد REST على نقاط وصول ثابتة لكل مورد، بينما تتيح GraphQL للعميل طلب الحقول التي يحتاجها فقط في طلب واحد.\n- **زيادة أو نقص البيانات**: كثيراً ما تُرجع REST بيانات أكثر أو أقل من الحاجة، بينما تتجنب GraphQL ذلك بتصميمها.\n- **إصدارات النسخ**: تُصدر واجهات REST عادة بنسخ (v1، v2...)، بينما يتطور مخطط GraphQL في مكانه بإضافة حقول جديدة.\n- **الأدوات**: توفر GraphQL مخططاً قوي النوع مع إمكانية الاستكشاف الذاتي مباشرة، وهو ما لا توحّده REST.\n\nكلاهما مستخدم بكثرة في الإنتاج — والاختيار الأنسب يعتمد على طريقة استعلام عملائك عن البيانات.",
-    "inputTokens": 22,
-    "outputTokens": 142,
-    "costYer": 0.97
-  }
+  "scenarios": [
+    {
+      "id": "fast",
+      "modelName": "Fast",
+      "modelBadge": "Quick answers, lowest cost",
+      "en": {
+        "prompt": "Can you summarize the key differences between REST and GraphQL APIs in a few bullet points?",
+        "reply": "Sure — a few of the main differences:\n\n- **Data fetching**: REST exposes fixed endpoints per resource; GraphQL lets the client ask for exactly the fields it needs in one request.\n- **Over/under-fetching**: REST often returns more or less data than you need; GraphQL avoids this by design.\n- **Versioning**: REST APIs are commonly versioned (v1, v2...); GraphQL schemas typically evolve in place by adding fields.\n- **Tooling**: GraphQL ships with a strongly-typed schema and introspection out of the box, which REST doesn't standardize.\n\nBoth are widely used in production — the right choice depends on how your clients need to query data.",
+        "inputTokens": 24,
+        "outputTokens": 118,
+        "costYer": 0.86
+      },
+      "ar": {
+        "prompt": "هل يمكنك تلخيص الفروقات الأساسية بين REST وGraphQL في نقاط سريعة؟",
+        "reply": "بالتأكيد — من أبرز الفروقات:\n\n- **جلب البيانات**: تعتمد REST على نقاط وصول ثابتة لكل مورد، بينما تتيح GraphQL للعميل طلب الحقول التي يحتاجها فقط في طلب واحد.\n- **زيادة أو نقص البيانات**: كثيراً ما تُرجع REST بيانات أكثر أو أقل من الحاجة، بينما تتجنب GraphQL ذلك بتصميمها.\n- **إصدارات النسخ**: تُصدر واجهات REST عادة بنسخ (v1، v2...)، بينما يتطور مخطط GraphQL في مكانه بإضافة حقول جديدة.\n- **الأدوات**: توفر GraphQL مخططاً قوي النوع مع إمكانية الاستكشاف الذاتي مباشرة، وهو ما لا توحّده REST.\n\nكلاهما مستخدم بكثرة في الإنتاج — والاختيار الأنسب يعتمد على طريقة استعلام عملائك عن البيانات.",
+        "inputTokens": 22,
+        "outputTokens": 142,
+        "costYer": 0.97
+      }
+    },
+    {
+      "id": "balanced",
+      "modelName": "Balanced",
+      "modelBadge": "Great at code",
+      "en": {
+        "prompt": "Write a Python function that checks if a string is a valid palindrome, ignoring spaces, punctuation, and capitalization.",
+        "reply": "Here's a clean way to do it:\n\n```python\nimport re\n\ndef is_palindrome(s: str) -> bool:\n    cleaned = re.sub(r'[^a-zA-Z0-9]', '', s).lower()\n    return cleaned == cleaned[::-1]\n```\n\n**How it works:**\n- `re.sub(r'[^a-zA-Z0-9]', '', s)` strips out anything that isn't a letter or digit.\n- `.lower()` makes the comparison case-insensitive.\n- `cleaned[::-1]` reverses the string, so we just compare it to itself.\n\n```python\nis_palindrome(\"A man, a plan, a canal: Panama\")  # True\nis_palindrome(\"Not a palindrome\")                 # False\n```\n\nRuns in O(n) time and handles Unicode letters fine if you swap the regex for `\\w` if you need broader character support.",
+        "inputTokens": 31,
+        "outputTokens": 187,
+        "costYer": 2.14
+      },
+      "ar": {
+        "prompt": "اكتب دالة بايثون تتحقق ما إذا كانت السلسلة النصية متناظرة (palindrome)، مع تجاهل المسافات وعلامات الترقيم وحالة الأحرف.",
+        "reply": "إليك طريقة نظيفة لعمل ذلك:\n\n```python\nimport re\n\ndef is_palindrome(s: str) -> bool:\n    cleaned = re.sub(r'[^a-zA-Z0-9]', '', s).lower()\n    return cleaned == cleaned[::-1]\n```\n\n**كيف تعمل:**\n- `re.sub(r'[^a-zA-Z0-9]', '', s)` تحذف أي شيء ليس حرفاً أو رقماً.\n- `.lower()` تجعل المقارنة غير حساسة لحالة الأحرف.\n- `cleaned[::-1]` تعكس السلسلة، فنقارنها بنفسها فقط.\n\n```python\nis_palindrome(\"A man, a plan, a canal: Panama\")  # True\nis_palindrome(\"Not a palindrome\")                 # False\n```\n\nتعمل بزمن O(n)، ويمكنك استبدال الـ regex بـ `\\w` إذا احتجت دعماً أوسع للأحرف.",
+        "inputTokens": 34,
+        "outputTokens": 201,
+        "costYer": 2.31
+      }
+    },
+    {
+      "id": "flagship",
+      "modelName": "Flagship reasoning",
+      "modelBadge": "Deep, careful answers",
+      "en": {
+        "prompt": "A farmer has 17 sheep. All but 9 die. How many are left? Then explain the trick in the question.",
+        "reply": "**9 sheep are left.**\n\nThe trick is in the phrase *\"all but 9 die.\"* It's easy to misread this as \"17 die\" or to subtract 9 from 17 out of habit (17 − 9 = 8), but \"all but 9\" literally means *\"all except 9\"* — in other words, 9 survive, and the rest (8) die.\n\nThis is a classic case of a question designed to trigger a fast, pattern-matched subtraction instead of a careful read. The numbers are chosen so the \"obvious\" wrong answer (8) is plausible enough that it's easy to commit to without rereading the sentence.\n\nIf you want a quick way to catch these: whenever a word problem uses \"all but N,\" mentally replace it with \"except N\" before doing any arithmetic — it removes the ambiguity immediately.",
+        "inputTokens": 28,
+        "outputTokens": 176,
+        "costYer": 5.4
+      },
+      "ar": {
+        "prompt": "لدى مزارع 17 خروفاً. ماتت كل الخراف ما عدا 9. كم خروفاً تبقى؟ ثم اشرح خدعة السؤال.",
+        "reply": "**تبقى 9 خراف.**\n\nالخدعة في عبارة \"ماتت كل الخراف ما عدا 9\". يسهل قراءتها بسرعة على أنها \"ماتت 17\" أو طرح 9 من 17 بشكل تلقائي (17 − 9 = 8)، لكن \"ما عدا 9\" تعني حرفياً أن 9 نجت، والباقي (8) هو ما مات.\n\nهذا مثال كلاسيكي على سؤال مصمم ليستدرجك لطرح سريع دون قراءة متأنية. الأرقام اختيرت بحيث تكون الإجابة الخاطئة \"الواضحة\" (8) معقولة بما يكفي ليسهل الوقوع فيها دون إعادة قراءة الجملة.\n\nطريقة سريعة لتفادي هذا: كلما رأيت \"كل .. ما عدا العدد كذا\" في مسألة، استبدلها ذهنياً بـ\"باستثناء\" قبل أي حساب — هذا يزيل الالتباس فوراً.",
+        "inputTokens": 30,
+        "outputTokens": 195,
+        "costYer": 5.85
+      }
+    }
+  ]
 }

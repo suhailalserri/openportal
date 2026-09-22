@@ -35,6 +35,12 @@ export interface ChatModel {
   avgResponseTimeMs: number | null;
   creditsPerKInput: number;
   creditsPerKOutput: number;
+  /** Optional exact (fractional) display credits per 1K tokens. `models.list`
+   *  does not return these yet (it rounds the two fields above UP); when a
+   *  future additive backend change does, lib/cost-estimate.ts prefers them.
+   *  Provisional names. */
+  creditsPerKInputExact?: number | undefined;
+  creditsPerKOutputExact?: number | undefined;
 }
 
 /**

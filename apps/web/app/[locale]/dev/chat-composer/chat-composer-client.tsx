@@ -18,12 +18,20 @@ import { resolveSelectedModelId, type ChatModel } from "@/features/chat/lib/mode
  *   - Shift+Enter inserts a newline, Enter "sends" (appends to the log);
  *   - IME: compose Arabic with a phonetic IME and press Enter to accept a
  *     candidate — nothing may be sent;
- *   - the Parameters panel: out-of-range temperature (e.g. 3) shows an
- *     inline error; Arabic-Indic digits (٠٫٧) are accepted;
+ *   - the Parameters panel (⚙ in the composer's bottom row): temperature
+ *     and top_p are sliders that can't go out of range by construction;
+ *     drag one, note the dot on the ⚙ button, then "Reset" clears both
+ *     sliders AND the system prompt back to null/empty in one tap;
+ *   - tap the ⓘ next to a slider or the max-length stepper — the hint
+ *     opens inline (no hover, so this also has to work on a touch device);
+ *   - type an Arabic sentence into the draft and open the cost line's ⓘ:
+ *     the credit estimate is intentionally higher per character than an
+ *     English draft of the same length (see lib/token-estimate.ts);
  *   - the model with `avgResponseTimeMs: null` renders "—" for latency.
- * What this page CANNOT show: real generation changing with parameters, or
- * the system prompt PATCH round-trip — those need the deployed backend
- * (see "How to verify" in BRANCH_AND_CI_NOTES.md).
+ * What this page CANNOT show: real generation changing with parameters, the
+ * system prompt PATCH round-trip, or the true (non-rounded) per-model price
+ * — those need the deployed backend (see "How to verify" in
+ * BRANCH_AND_CI_NOTES.md).
  */
 const FIXTURE_MODELS: ChatModel[] = [
   {
