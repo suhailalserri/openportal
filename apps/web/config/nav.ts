@@ -61,7 +61,11 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     id: "main",
     items: [
-      { id: "chat", href: "/chat", labelKey: "chat", icon: "chat", enabled: true },
+      // "chat" deliberately absent (Phase 4d Patch v2): AppSidebar/
+      // MobileDrawer now embed the conversation list itself, which
+      // already links to /chat via its own New Chat button and row
+      // clicks — a second "Chat" entry here would point at the same
+      // place and add nothing.
       // 5.1 — wallet + redeem
       { id: "billing", href: "/billing", labelKey: "billing", icon: "billing", enabled: false },
       // 6.1

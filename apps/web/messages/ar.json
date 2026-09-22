@@ -43,6 +43,8 @@
     "older": "أقدم",
     "pinned": "المثبتة",
     "searchConversations": "البحث في المحادثات",
+    "viewAllChats": "عرض كل المحادثات",
+    "allChatsTitle": "المحادثات",
     "moreOptions": "خيارات إضافية",
     "deleteConversation": "حذف المحادثة",
     "deleteConfirmBody": "حذف \"{title}\"؟ لا يمكن التراجع عن هذا من هنا.",

@@ -129,14 +129,14 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 | 1.1 | Design direction + tokens | [x] |
 | 1.2 | Foundation code + kitchen-sink | [x] |
 | 2.1 | App shell + guards | [x] |
-| 2.2 | Shell widgets + states | [ ] |
-| 3.1 | Auth pages | [ ] |
-| 3.2 | Legal, landing, consent, e2e harness | [ ] |
-| B1 | Backend: chat contract | [ ] |
-| 4a | Chat: message rendering | [ ] |
-| 4b | Chat: streaming + state | [ ] |
-| 4c | Chat: input, models, parameters | [ ] |
-| 4d | Chat: conversations + cache | [ ] |
+| 2.2 | Shell widgets + states | [x] |
+| 3.1 | Auth pages | [x] |
+| 3.2 | Legal, landing, consent, e2e harness | [x] |
+| B1 | Backend: chat contract | [x] |
+| 4a | Chat: message rendering | [x] |
+| 4b | Chat: streaming + state | [x] |
+| 4c | Chat: input, models, parameters | [x] |
+| 4d | Chat: conversations + cache | [x] |
 | 5.1 | Billing: wallet + redeem | [ ] |
 | 5.2 | Billing: buy flow + history | [ ] |
 | B2 | Backend: user usage + index | [ ] |

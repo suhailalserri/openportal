@@ -84,7 +84,7 @@ export function ChatView({ conversationId, className }: ChatViewProps) {
           initialMessages={history}
         />
       ) : (
-        <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           <Skeleton className="h-16 w-2/3" />
           <Skeleton className="ms-auto h-10 w-1/2" />
           <Skeleton className="h-24 w-3/4" />
@@ -197,6 +197,14 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
       {isNewChat && stream.messages.length === 0 ? (
         <EmptyState onPick={(prompt) => setDraft(prompt)} />
       ) : (
+        // min-h-0 alongside flex-1: a flex child's default min-height is
+        // "auto" (i.e. its content's natural height), which is what let
+        // this element grow to fit the whole transcript instead of
+        // shrinking to the space ChatSession actually has and letting
+        // its own `overflow-y-auto` (message-list.tsx) do the scrolling
+        // — that growth is what dragged the composer below it up and
+        // down with the conversation on mobile. See Main's and
+        // AppShell's own comments for the rest of this fix's chain.
         <MessageList
           messages={stream.messages}
           error={stream.error ?? undefined}
@@ -205,7 +213,7 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
           onRegenerate={() => stream.retry()}
           onFeedback={() => {}}
           onRetryError={() => stream.retry()}
-          className="flex-1"
+          className="min-h-0 flex-1"
         />
       )}
 
@@ -250,7 +258,7 @@ function EmptyState({ onPick }: EmptyStateProps) {
   const suggestions = t.raw("suggestions") as { label: string; prompt: string }[];
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 text-center overflow-y-auto">
       <h1 className="t-h2">{t("emptyStateTitle")}</h1>
       <div className="flex flex-wrap justify-center gap-2">
         {suggestions.map((s) => (

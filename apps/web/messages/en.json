@@ -43,6 +43,8 @@
     "older": "Older",
     "pinned": "Pinned",
     "searchConversations": "Search conversations",
+    "viewAllChats": "View all chats",
+    "allChatsTitle": "Chats",
     "moreOptions": "More options",
     "deleteConversation": "Delete Conversation",
     "deleteConfirmBody": "Delete \"{title}\"? This can't be undone from here.",
