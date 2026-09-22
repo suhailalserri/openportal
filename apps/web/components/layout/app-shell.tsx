@@ -67,7 +67,20 @@ export function AppShell({ role, children }: AppShellProps) {
   const startNewChat = () => router.push(`/${locale}/chat`);
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
+    // `h-dvh overflow-hidden` (was `min-h-dvh`, no overflow rule) — the
+    // other half of the mobile chat-composer fix, paired with `Main`'s
+    // own comment. `min-h-dvh` let this root grow taller than the
+    // viewport to fit its content, which is what made the WHOLE PAGE
+    // scroll on mobile (composer included) instead of just the message
+    // list. A fixed `h-dvh` (the dynamic-viewport-height unit — correct
+    // for mobile browser chrome show/hide, matching `AppSidebar`'s own
+    // `h-dvh`) plus `overflow-hidden` forces every descendant that needs
+    // more room than the viewport gives it to scroll INTERNALLY instead
+    // of pushing this root taller — `Main`'s own `overflow-y-auto` is
+    // where that internal scrolling actually happens for every page
+    // except chat, which handles it one level deeper still
+    // (`MessageList`), so the composer never moves.
+    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
@@ -83,7 +96,11 @@ export function AppShell({ role, children }: AppShellProps) {
         className="hidden md:flex"
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* min-h-0: without it, a flex child's default min-height:auto would
+          let this column grow to fit Main's content instead of respecting
+          the fixed-height root above — same reasoning as Main's own
+          min-h-0. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/*
           Always rendered (not md:hidden like before Phase 2.2): the
           desktop sidebar has no footer/account area, so this is also
