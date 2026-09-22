@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -36,11 +36,29 @@ import { shouldSendOnKeydown } from "@/features/chat/lib/composer-keydown";
  *
  * Backward compatible: every prop added since the kitchen-sink demo is
  * optional, so `dev/kitchen-sink` is unchanged.
+ *
+ * Phase 4d Patch v7: `isStreaming`/`onStop` replace the separate "Stop"
+ * pill that used to sit above this card (chat-view.tsx). The Send button
+ * itself morphs into Stop instead — same size and position, an
+ * absolutely-stacked icon pair cross-fades between the two glyphs
+ * (`transition-all` on opacity+scale) rather than swapping the DOM node,
+ * and the button's own fill switches from solid `bg-primary` to an
+ * outline (`border-primary`, transparent fill) so "this now stops
+ * something instead of sending it" reads at a glance. Unlike Send,
+ * Stop is intentionally never `disabled` while `isStreaming` — the
+ * whole point is to interrupt a stream that's already blocking normal
+ * Send via the `disabled` prop below.
  */
 export interface ComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  /** True while a response is being sent/streamed. Switches the Send
+   *  button into a Stop button (see header comment). Omit/false for the
+   *  ordinary Send behaviour. */
+  isStreaming?: boolean;
+  /** Required when `isStreaming` is true; fires on a Stop tap. */
+  onStop?: () => void;
   placeholder?: string;
   disabled?: boolean;
   /** When set, Send is disabled and this text is announced to assistive
@@ -66,6 +84,8 @@ export function Composer({
   value,
   onChange,
   onSend,
+  isStreaming = false,
+  onStop,
   placeholder,
   disabled,
   sendBlockedReason,
@@ -97,12 +117,23 @@ export function Composer({
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Read live (not cached in state): a foldable/2-in-1 can change
+    // pointer type mid-session, and this only runs on the rare Enter
+    // keydown, not every keystroke, so there's no perf reason to cache
+    // it. `matchMedia` is undefined during SSR, hence the guard — this
+    // handler only ever runs client-side anyway, but keeps the function
+    // safe to call from anywhere without crashing on `window`.
+    const isCoarsePointer =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(pointer: coarse)").matches
+        : false;
     if (
       shouldSendOnKeydown({
         key: e.key,
         shiftKey: e.shiftKey,
         isComposing: e.nativeEvent.isComposing,
         keyCode: e.keyCode,
+        isCoarsePointer,
       })
     ) {
       e.preventDefault();
@@ -140,12 +171,37 @@ export function Composer({
             {toolbarEnd}
             <button
               type="button"
-              disabled={!canSend}
-              onClick={onSend}
-              aria-label={t("send")}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground outline-none transition-[filter,transform,opacity] hover:not-disabled:brightness-[1.08] active:not-disabled:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={isStreaming ? false : !canSend}
+              onClick={isStreaming ? onStop : onSend}
+              aria-label={isStreaming ? t("stop") : t("send")}
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-full outline-none transition-[background-color,color,border-color,transform,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                isStreaming
+                  ? "border border-primary bg-transparent text-primary hover:brightness-[1.15] active:scale-[0.94]"
+                  : "bg-primary text-primary-foreground hover:not-disabled:brightness-[1.08] active:not-disabled:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-40",
+              )}
             >
-              <ArrowUp className="size-[18px]" />
+              {/* Cross-fade the two glyphs in place (same button, same
+                  size) rather than swapping the icon node outright — see
+                  header comment. `pointer-events-none` on both so the
+                  fading-out icon never eats the tap meant for the button
+                  underneath it during the transition. */}
+              <span className="relative flex size-[18px] items-center justify-center">
+                <ArrowUp
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute size-[18px] transition-all duration-200",
+                    isStreaming ? "scale-50 opacity-0" : "scale-100 opacity-100",
+                  )}
+                />
+                <Square
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute size-[13px] fill-current transition-all duration-200",
+                    isStreaming ? "scale-100 opacity-100" : "scale-50 opacity-0",
+                  )}
+                />
+              </span>
             </button>
           </div>
         </div>

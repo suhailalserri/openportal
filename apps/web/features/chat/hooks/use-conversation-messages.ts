@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { useSession } from "@/lib/auth-client";
-import { fetchConversationMessages } from "../lib/conversation-api";
+import { fetchConversationMessages, fetchConversationModelId } from "../lib/conversation-api";
 import { readCachedMessages, writeCachedMessages } from "../lib/conversation-cache";
 import { getRealIdbStore } from "../lib/idb-store";
 import type { ChatMessage } from "../types";
@@ -25,6 +25,20 @@ export interface UseConversationMessagesResult {
    *  load yet. */
   isLoading: boolean;
   isError: boolean;
+  /**
+   * Phase 4d patch. This EXISTING conversation's own model, once known —
+   * fed straight into `useChatModels({ conversationModelId })` so an
+   * existing conversation's picker reflects the model it was actually
+   * built with instead of always falling back to the user's last-picked
+   * global default. Cache-only paint never has this (the cached message
+   * array does not carry the conversation row's own modelId column) — it
+   * only becomes defined once the network call resolves, same as every
+   * other network-only field in this codebase's cache-first hooks. A
+   * brand-new conversation (no id, or an id with no server row yet)
+   * simply never gets one, which `useChatModels` already treats as "fall
+   * through to the next tier" (its own resolveSelectedModelId contract).
+   */
+  conversationModelId: string | undefined;
 }
 
 /**
@@ -57,6 +71,9 @@ export function useConversationMessages(
   const [hasAnyData, setHasAnyData] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isError, setIsError] = React.useState(false);
+  const [conversationModelId, setConversationModelId] = React.useState<string | undefined>(
+    undefined,
+  );
 
   React.useEffect(() => {
     if (!userId || !conversationId) {
@@ -64,6 +81,7 @@ export function useConversationMessages(
       setHasAnyData(false);
       setIsLoading(false);
       setIsError(false);
+      setConversationModelId(undefined);
       return;
     }
 
@@ -100,10 +118,24 @@ export function useConversationMessages(
       await writeCachedMessages(userId, conversationId, result.value, store);
     })();
 
+    // 2b. The conversation's own modelId — a second, independent GET to
+    // the same endpoint (see fetchConversationModelId's own header
+    // comment for why this isn't folded into the call above). Failure
+    // here is NOT surfaced as this hook's isError: the picker's fallback
+    // chain (useChatModels) already degrades gracefully to the user's
+    // last-picked model when this stays undefined, so one extra fetch
+    // failing must not block or error out the whole conversation view
+    // over a purely cosmetic model-preselection detail.
+    void (async () => {
+      const result = await fetchConversationModelId(conversationId);
+      if (cancelled) return;
+      setConversationModelId(result.ok ? result.value : undefined);
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [userId, conversationId]);
 
-  return { messages, isLoading: isLoading && !hasAnyData, isError };
+  return { messages, isLoading: isLoading && !hasAnyData, isError, conversationModelId };
 }

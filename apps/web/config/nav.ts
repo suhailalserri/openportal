@@ -66,8 +66,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       // already links to /chat via its own New Chat button and row
       // clicks — a second "Chat" entry here would point at the same
       // place and add nothing.
-      // 5.1 — wallet + redeem
-      { id: "billing", href: "/billing", labelKey: "billing", icon: "billing", enabled: false },
+      // 5.1 — wallet + redeem (landed)
+      { id: "billing", href: "/billing", labelKey: "billing", icon: "billing", enabled: true },
       // 6.1
       { id: "dashboard", href: "/dashboard", labelKey: "dashboard", icon: "dashboard", enabled: false },
       // 6.2

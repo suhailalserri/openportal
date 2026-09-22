@@ -45,6 +45,14 @@ export interface UseChatStreamOptions {
 
 export interface UseChatStreamResult extends ChatStreamState {
   send: (content: string) => void;
+  /** Edits a past USER turn: truncates that message and everything
+   *  after it (its old assistant reply included), then sends `content`
+   *  as a new turn in its place. See EDIT_SEND in chat-stream-reducer.ts
+   *  for exactly what "everything after it" means. No-ops if a stream is
+   *  already in flight (same guard as `send`) or if `id` is no longer in
+   *  `state.messages` (e.g. a race with something else that already
+   *  changed the history). */
+  edit: (id: string, content: string) => void;
   stop: () => void;
   retry: () => void;
 }
@@ -96,6 +104,133 @@ export function useChatStream({
   const stateRef = React.useRef(state);
   stateRef.current = state;
 
+  // Chunk-coalescing buffer for the in-flight stream. `onChunk` below is
+  // called once per `reader.read()` resolution in stream-reader.ts — on a
+  // fast connection / small provider chunks that can be many times a
+  // frame. Every one of those used to go straight to `dispatch`, which
+  // re-renders `MessageList` and re-runs `SafeMarkdown` (react-markdown +
+  // remarkGfm + rehypeHighlight) over the ENTIRE accumulated message
+  // string each time — cost that grows with message length, so more
+  // chunks in = quadratic-ish total work, which is what actually made
+  // long responses visibly slow down partway through (not a network or
+  // reducer issue; both were already correct — see stream-reader.ts and
+  // chat-stream-reducer.ts's own header comments).
+  //
+  // Fix: accumulate deltas here and flush at most once per animation
+  // frame via a single CHUNK dispatch of the coalesced buffer. This
+  // bounds re-render/re-highlight frequency to ~60/s regardless of how
+  // many network chunks arrive in that window, while the reducer's
+  // append-only CHUNK handling means coalescing N deltas into one is
+  // byte-for-byte identical to applying them one at a time — no output
+  // difference, just fewer, larger appends.
+  const pendingDeltaRef = React.useRef("");
+  const flushHandleRef = React.useRef<number | null>(null);
+
+  const scheduleFlush = React.useCallback((id: string) => {
+    if (flushHandleRef.current !== null) return;
+    flushHandleRef.current = requestAnimationFrame(() => {
+      flushHandleRef.current = null;
+      if (pendingDeltaRef.current.length === 0) return;
+      const delta = pendingDeltaRef.current;
+      pendingDeltaRef.current = "";
+      dispatch({ type: "CHUNK", id, delta });
+    });
+  }, []);
+
+  // Synchronously drain whatever hasn't been flushed yet — used at
+  // stream end (onDone/onStopped/onPartial/onError all arrive AFTER the
+  // last onChunk, but a pending rAF flush may not have fired yet) so the
+  // final byte of content is never left stuck in the buffer.
+  const flushNow = React.useCallback((id: string) => {
+    if (flushHandleRef.current !== null) {
+      cancelAnimationFrame(flushHandleRef.current);
+      flushHandleRef.current = null;
+    }
+    if (pendingDeltaRef.current.length === 0) return;
+    const delta = pendingDeltaRef.current;
+    pendingDeltaRef.current = "";
+    dispatch({ type: "CHUNK", id, delta });
+  }, []);
+
+  // Shared by `send` and `edit`: identical stream-event wiring in both
+  // cases (coalesced CHUNK flush, DONE/STOP/PARTIAL/ERROR dispatch) —
+  // the only thing that differs between the two callers is which
+  // reducer action starts the turn (SEND vs EDIT_SEND) and what request
+  // body goes over the wire, both handled by the caller before this is
+  // invoked.
+  const makeCallbacks = React.useCallback(
+    (assistantMessageId: string) => ({
+      onChunk: (delta: string) => {
+        pendingDeltaRef.current += delta;
+        scheduleFlush(assistantMessageId);
+      },
+      onDone: () => {
+        flushNow(assistantMessageId);
+        dispatch({ type: "DONE", id: assistantMessageId });
+      },
+      onStopped: () => {
+        flushNow(assistantMessageId);
+        dispatch({ type: "STOP", id: assistantMessageId });
+      },
+      onPartial: () => {
+        flushNow(assistantMessageId);
+        dispatch({ type: "PARTIAL", id: assistantMessageId });
+      },
+      onError: (error: { message: string; retryable: boolean; redirectTo?: string | undefined }) => {
+        // No flushNow here: ERROR's own reducer branch (chat-stream-
+        // reducer.ts) drops the draft entirely when content.length
+        // === 0 at the moment the action lands. Flushing a pending
+        // buffer first would give the draft nonzero content and
+        // change ERROR's behavior for a case it was never meant to
+        // cover (Phase 4b's contract: a gateway error is never a
+        // persisted/partial message). ERROR only ever fires from
+        // stream-reader.ts before any onChunk in practice (a
+        // mid-stream network drop surfaces as onPartial, not
+        // onError) but the buffer is cleared here defensively so a
+        // stale delta can't leak into whatever comes after.
+        pendingDeltaRef.current = "";
+        if (flushHandleRef.current !== null) {
+          cancelAnimationFrame(flushHandleRef.current);
+          flushHandleRef.current = null;
+        }
+        dispatch({
+          type: "ERROR",
+          id: assistantMessageId,
+          error: {
+            id: crypto.randomUUID(),
+            message: error.message,
+            retryable: error.retryable,
+            redirectTo: error.redirectTo,
+          },
+        });
+      },
+    }),
+    [scheduleFlush, flushNow],
+  );
+
+  // Shared by `send` and `edit`: the optional-field-omission dance is
+  // identical either way (see the inline comments this was lifted from,
+  // originally only in `send`, for exactly why each field is built as a
+  // local const and conditionally spread rather than inlined).
+  const buildRequestBody = React.useCallback(
+    (messages: ChatMessage[]) => {
+      const temperature = params?.temperature;
+      const topP = params?.topP;
+      const maxTokens = params?.maxTokens;
+      const trimmedSystemPrompt = systemPrompt?.trim();
+      return {
+        model,
+        conversationId,
+        messages: messages.map(({ role, content: c }) => ({ role, content: c })),
+        ...(temperature != null ? { temperature } : {}),
+        ...(topP != null ? { top_p: topP } : {}),
+        ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
+        ...(trimmedSystemPrompt ? { systemPrompt: trimmedSystemPrompt } : {}),
+      };
+    },
+    [model, conversationId, params, systemPrompt],
+  );
+
   const send = React.useCallback(
     (content: string) => {
       const trimmed = content.trim();
@@ -116,52 +251,52 @@ export function useChatStream({
       const controller = new AbortController();
       controllerRef.current = controller;
 
-      // Build optional fields conditionally so an unset param is ABSENT
-      // from the object, not present-as-undefined (exactOptionalPropertyTypes)
-      // and never `null` (the server's schema rejects null).
-      // Local consts (not `params?.temperature` inside the ternary) so
-      // `!= null` narrows a plain identifier — narrowing on an optional-
-      // chained property path is not reliably carried into the true
-      // branch, and a `number | null` leaking into a `number | undefined`
-      // field is exactly the exactOptionalPropertyTypes failure class.
-      const temperature = params?.temperature;
-      const topP = params?.topP;
-      const maxTokens = params?.maxTokens;
-      const trimmedSystemPrompt = systemPrompt?.trim();
       void runChatStream(
-        {
-          model,
-          conversationId,
-          messages: [...stateRef.current.messages, userMessage].map(({ role, content: c }) => ({
-            role,
-            content: c,
-          })),
-          ...(temperature != null ? { temperature } : {}),
-          ...(topP != null ? { top_p: topP } : {}),
-          ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
-          ...(trimmedSystemPrompt ? { systemPrompt: trimmedSystemPrompt } : {}),
-        },
+        buildRequestBody([...stateRef.current.messages, userMessage]),
         controller.signal,
-        {
-          onChunk: (delta) => dispatch({ type: "CHUNK", id: assistantMessageId, delta }),
-          onDone: () => dispatch({ type: "DONE", id: assistantMessageId }),
-          onStopped: () => dispatch({ type: "STOP", id: assistantMessageId }),
-          onPartial: () => dispatch({ type: "PARTIAL", id: assistantMessageId }),
-          onError: (error) =>
-            dispatch({
-              type: "ERROR",
-              id: assistantMessageId,
-              error: {
-                id: crypto.randomUUID(),
-                message: error.message,
-                retryable: error.retryable,
-                redirectTo: error.redirectTo,
-              },
-            }),
-        },
+        makeCallbacks(assistantMessageId),
       );
     },
-    [model, conversationId, params, systemPrompt],
+    [buildRequestBody, makeCallbacks],
+  );
+
+  const edit = React.useCallback(
+    (id: string, content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      if (stateRef.current.status === "sending" || stateRef.current.status === "streaming") return;
+
+      // Computed here (not left to the reducer) because the REQUEST body
+      // needs the truncated history too, not just the reducer's next
+      // state — same reason `send` above builds its own array rather
+      // than reading it back off `dispatch`'s return value (reducers
+      // don't have one). If `id` isn't found, EDIT_SEND's own reducer
+      // branch also no-ops, so nothing is sent to the server either.
+      const idx = stateRef.current.messages.findIndex((m) => m.id === id);
+      if (idx === -1) return;
+      const historyBefore = stateRef.current.messages.slice(0, idx);
+
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmed,
+        createdAt: new Date().toISOString(),
+        isPartial: false,
+      };
+      const assistantMessageId = crypto.randomUUID();
+      lastSentRef.current = trimmed;
+      dispatch({ type: "EDIT_SEND", truncateBeforeId: id, userMessage, assistantMessageId });
+
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
+      void runChatStream(
+        buildRequestBody([...historyBefore, userMessage]),
+        controller.signal,
+        makeCallbacks(assistantMessageId),
+      );
+    },
+    [buildRequestBody, makeCallbacks],
   );
 
   const stop = React.useCallback(() => {
@@ -178,8 +313,11 @@ export function useChatStream({
   // late callback never fires into a reducer no component is reading
   // anymore, and so the browser actually stops the network request.
   React.useEffect(() => {
-    return () => controllerRef.current?.abort();
+    return () => {
+      controllerRef.current?.abort();
+      if (flushHandleRef.current !== null) cancelAnimationFrame(flushHandleRef.current);
+    };
   }, []);
 
-  return { ...state, send, stop, retry };
+  return { ...state, send, edit, stop, retry };
 }

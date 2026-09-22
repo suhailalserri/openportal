@@ -4,6 +4,7 @@ import {
   fetchConversationSystemPrompt,
   patchConversationSystemPrompt,
   fetchConversationMessages,
+  fetchConversationModelId,
 } from "./conversation-api";
 
 function res(status: number, body?: unknown): Response {
@@ -180,5 +181,39 @@ describe("fetchConversationMessages", () => {
     }) as unknown as typeof fetch;
     await fetchConversationMessages("a/b?c", f);
     expect(seen).toBe("/api/conversations/a%2Fb%3Fc");
+  });
+});
+
+describe("fetchConversationModelId", () => {
+  it("returns the conversation's modelId", async () => {
+    const f = (async () => res(200, { id: "c1", modelId: "gpt-4o" })) as unknown as typeof fetch;
+    expect(await fetchConversationModelId("c1", f)).toEqual({ ok: true, value: "gpt-4o" });
+  });
+
+  it("maps a null modelId to undefined, not null", async () => {
+    const f = (async () => res(200, { id: "c1", modelId: null })) as unknown as typeof fetch;
+    const result = await fetchConversationModelId("c1", f);
+    expect(result).toEqual({ ok: true, value: undefined });
+  });
+
+  it("returns ok:true, value:undefined on 404 — a not-yet-created conversation", async () => {
+    const f = (async () => res(404)) as unknown as typeof fetch;
+    expect(await fetchConversationModelId("brand-new-id", f)).toEqual({ ok: true, value: undefined });
+  });
+
+  it("flags a real 401 as unauthorized, other statuses as plain failures", async () => {
+    const f401 = (async () => res(401)) as unknown as typeof fetch;
+    const f500 = (async () => res(500)) as unknown as typeof fetch;
+    expect(await fetchConversationModelId("c1", f401)).toEqual({ ok: false, status: 401, unauthorized: true });
+    expect(await fetchConversationModelId("c1", f500)).toEqual({ ok: false, status: 500, unauthorized: false });
+  });
+
+  it("does not throw on a network error or a non-JSON body", async () => {
+    const boom = (async () => {
+      throw new Error("offline");
+    }) as unknown as typeof fetch;
+    expect(await fetchConversationModelId("c1", boom)).toEqual({ ok: false, status: 0, unauthorized: false });
+    const bad = (async () => res(200)) as unknown as typeof fetch;
+    expect((await fetchConversationModelId("c1", bad)).ok).toBe(false);
   });
 });

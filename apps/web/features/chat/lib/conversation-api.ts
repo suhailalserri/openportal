@@ -234,6 +234,45 @@ function mapRow(row: ConversationRow["messages"][number]): ChatMessage {
   };
 }
 
+/**
+ * Phase 4d patch. Same GET this file's `fetchConversationSystemPrompt`
+ * and `fetchConversationMessages` already hit, for the same reason those
+ * two are separate functions rather than one widened response (see this
+ * file's earlier header comment): `use-conversation-messages.ts` wants
+ * the conversation's own `modelId` alongside its messages, and the two
+ * existing functions' callers have no reason to also receive it.
+ *
+ * `modelId` is `string | null` on the `conversations` row (not `.notNull()`
+ * — packages/db/src/schema/conversations.ts) for a conversation that has
+ * never had a message sent in it yet. Mapped to `string | undefined` here,
+ * matching every other nullable-column mapping in this file
+ * (`mapRow` above) and `ChatModel`'s own optional convention.
+ */
+export async function fetchConversationModelId(
+  conversationId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ApiResult<string | undefined>> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+      credentials: "include",
+    });
+  } catch {
+    return { ok: false, status: 0, unauthorized: false };
+  }
+  // Mirrors fetchConversationMessages's 404-as-empty handling: a
+  // not-yet-created conversation has no modelId yet either, which is a
+  // valid "undefined" state here, not a failure.
+  if (res.status === 404) return { ok: true, value: undefined };
+  if (!res.ok) return { ok: false, status: res.status, unauthorized: res.status === 401 };
+  try {
+    const body = (await res.json()) as { modelId?: string | null };
+    return { ok: true, value: body.modelId ?? undefined };
+  } catch {
+    return { ok: false, status: res.status, unauthorized: false };
+  }
+}
+
 export async function fetchConversationMessages(
   conversationId: string,
   fetchImpl: typeof fetch = fetch,

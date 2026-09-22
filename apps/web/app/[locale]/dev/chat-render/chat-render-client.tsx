@@ -31,7 +31,6 @@ export function ChatRenderClient() {
           <MessageList
             messages={CHAT_RENDER_FIXTURE}
             error={showErrorState ? CHAT_RENDER_ERROR : undefined}
-            userInitial="ف"
             hasMore
             onLoadMore={() => {}}
             onCopy={() => {}}

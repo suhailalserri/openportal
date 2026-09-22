@@ -59,7 +59,16 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
   const t = useTranslations("chat");
 
   return (
-    <div className={cn("text-[15px] leading-[1.65] text-foreground", className)}>
+    // `min-w-0 break-words [overflow-wrap:anywhere]`: same fix as
+    // message.tsx's user bubble, applied here for model output — an
+    // unbroken long token (a URL, a hash, a path with no spaces) in a
+    // plain paragraph would otherwise force this whole column wider than
+    // the viewport instead of wrapping. Fenced code blocks are NOT
+    // affected (and must not be — line breaks inside real code would
+    // corrupt it): CodeBlock's own `<pre className="overflow-x-auto">`
+    // already scrolls internally instead of wrapping, so this rule only
+    // ever reaches plain-text nodes (p/li/blockquote/inline code).
+    <div className={cn("min-w-0 break-words [overflow-wrap:anywhere] text-[15px] leading-[1.65] text-foreground", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
@@ -107,8 +116,16 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
             };
             return <CodeBlock className={childProps.className}>{childProps.children}</CodeBlock>;
           },
-          ul: ({ children }) => <ul className="mt-2 ps-5 first:mt-0">{children}</ul>,
-          ol: ({ children }) => <ol className="mt-2 ps-5 first:mt-0">{children}</ol>,
+          // `list-disc`/`list-decimal`: Tailwind's preflight reset sets
+          // `list-style: none` on every `ul`/`ol` globally, so without
+          // these the markers have no shape to render at all — `li`'s
+          // own `marker:text-primary` only sets marker COLOR, it doesn't
+          // re-enable a marker that preflight already turned off. This
+          // is what made bullets/numbers disappear entirely (both here
+          // and on the assistant side, which used the same override —
+          // just less noticed there).
+          ul: ({ children }) => <ul className="mt-2 list-disc ps-5 first:mt-0">{children}</ul>,
+          ol: ({ children }) => <ol className="mt-2 list-decimal ps-5 first:mt-0">{children}</ol>,
           li: ({ children }) => <li className="mt-1 marker:text-primary">{children}</li>,
           blockquote: ({ children }) => (
             <blockquote className="mt-2 border-s-2 border-border ps-3 text-muted-foreground first:mt-0">
@@ -121,6 +138,28 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
           // margin at all (no `prose` class is used here, unlike
           // legal-doc-view.tsx, so nothing else supplies it).
           p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
+          // GFM tables (remark-gfm) render as a plain `<table>` with no
+          // override at all before this patch — a `<table>` does not
+          // shrink to fit its parent the way text does; the browser's
+          // table layout algorithm widens it to fit the widest cell's
+          // content, ignoring the column's available width. That is a
+          // SEPARATE overflow source from the min-w-0/break-words chain
+          // fixed in message.tsx/message-list.tsx/chat-view.tsx (Patch
+          // v3) — this table.tsx/tr/td override give the table its own
+          // horizontally-scrolling wrapper instead, the same pattern
+          // CodeBlock already uses for `<pre>`, so a wide table scrolls
+          // internally instead of widening the page.
+          table: ({ children }) => (
+            <div className="mt-2 overflow-x-auto first:mt-0">
+              <table className="w-full border-collapse text-start">{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead className="border-b border-border">{children}</thead>,
+          tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+          th: ({ children }) => (
+            <th className="whitespace-nowrap px-3 py-1.5 text-start font-semibold">{children}</th>
+          ),
+          td: ({ children }) => <td className="px-3 py-1.5">{children}</td>,
         }}
       >
         {content}

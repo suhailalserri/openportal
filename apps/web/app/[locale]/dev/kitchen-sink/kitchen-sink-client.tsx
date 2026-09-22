@@ -330,7 +330,6 @@ function ChatSurface() {
           className="flex-1 px-5 py-4"
           messages={DEMO_MESSAGES}
           error={showError ? DEMO_ERROR : undefined}
-          userInitial="ف"
           onCopy={() => toast("تم النسخ (demo)")}
           onRegenerate={() => toast("إعادة المحاولة (demo)")}
           onFeedback={() => toast("شكراً على ملاحظتك (demo)")}

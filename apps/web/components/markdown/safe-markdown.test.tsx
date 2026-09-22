@@ -119,4 +119,16 @@ describe("SafeMarkdown — trusted rendering (Arabic + code, sanity check)", () 
     expect(html).toContain("pip install");
     expect(html).not.toContain("language-");
   });
+
+  it("wraps a GFM table in an overflow-x-auto container instead of a bare <table>", () => {
+    // Regression test for the mobile horizontal-overflow bug: a plain
+    // <table> with no wrapper forces the page to the table's natural
+    // width instead of scrolling internally (see this component's
+    // `table` override comment). Asserts the wrapper div and its class
+    // are actually present around the table react-markdown produces.
+    const html = renderMarkdown("| A | B |\n| --- | --- |\n| 1 | 2 |");
+    expect(html).toMatch(/<div[^>]*overflow-x-auto[^>]*>\s*<table/);
+    expect(html).toContain("<th");
+    expect(html).toContain("<td");
+  });
 });

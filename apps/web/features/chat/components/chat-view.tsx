@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildLoginRedirect, sanitizeNext } from "@/lib/safe-redirect";
-import { useSession } from "@/lib/auth-client";
 import { MessageList } from "./message/message-list";
 import { ComposerBar } from "./composer/composer-bar";
 import { OfflineBanner } from "./offline-banner";
@@ -72,16 +71,21 @@ export interface ChatViewProps {
 export function ChatView({ conversationId, className }: ChatViewProps) {
   useConversationCacheIdentity();
 
-  const { messages: history, isLoading: isLoadingHistory } = useConversationMessages(conversationId);
+  const {
+    messages: history,
+    isLoading: isLoadingHistory,
+    conversationModelId,
+  } = useConversationMessages(conversationId);
   const historyReady = !conversationId || !isLoadingHistory;
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-1 flex-col", className)}>
+    <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", className)}>
       {historyReady ? (
         <ChatSession
           key={conversationId ?? "new"}
           conversationId={conversationId}
           initialMessages={history}
+          conversationModelId={conversationModelId}
         />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -97,13 +101,15 @@ export function ChatView({ conversationId, className }: ChatViewProps) {
 interface ChatSessionProps {
   conversationId: string | undefined;
   initialMessages: ChatMessage[];
+  /** Phase 4d patch. This existing conversation's own model, once known
+   *  (undefined for a brand-new conversation, or before the network call
+   *  resolves) — see useConversationMessages's own doc comment. */
+  conversationModelId: string | undefined;
 }
 
-function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
-  const t = useTranslations("chat");
+function ChatSession({ conversationId, initialMessages, conversationModelId }: ChatSessionProps) {
   const locale = useLocale();
   const router = useRouter();
-  const { data: session } = useSession();
 
   const [draft, setDraft] = React.useState("");
   const conversationExists = Boolean(conversationId) && initialMessages.length === 0 ? false : Boolean(conversationId);
@@ -117,19 +123,15 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
   // this heuristic is safe in practice — flagged rather than silently
   // assumed, since it is a heuristic and not a field the server sends.
 
-  // NOTE: `useChatModels({})` — deliberately no `conversationModelId`.
-  // That option exists to make an EXISTING conversation's own model win
-  // over the user's last-picked one on load, but the data source that
-  // would supply it here (useConversationMessages) returns only the
-  // message array, not the conversation row's `modelId` column — adding
-  // that would mean widening UseConversationMessagesResult's contract
-  // (and conversation-api.ts's mapping) beyond what this phase's summary
-  // scoped, so it's left as a flagged simplification rather than done
-  // silently: on an existing conversation, the picker falls back to the
-  // user's last-picked model (or the first available one) instead of
-  // that conversation's own, until a follow-up wires the row's modelId
-  // through. See docs/frontend/BRANCH_AND_CI_NOTES.md's 4d entry.
-  const { models, selectedId, select } = useChatModels({});
+  // Phase 4d patch: `conversationModelId` now comes from
+  // useConversationMessages (conversation-api.ts's fetchConversationModelId),
+  // closing the gap flagged in the 4d session — see
+  // docs/frontend/BRANCH_AND_CI_NOTES.md's 4d entry for the prior
+  // simplification this replaces. `resolveSelectedModelId`'s own
+  // precedence (session pick > conversation's own model > last-picked >
+  // first available) is unchanged; this just supplies the middle tier
+  // with real data instead of always leaving it undefined.
+  const { models, selectedId, select } = useChatModels({ conversationModelId });
   const { params, setParams, systemPrompt, setSystemPrompt } = useChatParams({
     conversationId,
     conversationExists,
@@ -184,12 +186,54 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
     setDraft("");
   };
 
-  const userInitial = session?.user?.name?.trim().charAt(0) || undefined;
+  // Stable identities (useCallback) rather than inline arrows in the
+  // JSX below: `Message` is `React.memo`'d specifically so that only
+  // the ONE row actually streaming re-renders per chunk (message.tsx's
+  // own header comment) — a fresh `() => {}` on every ChatSession render
+  // for these props would defeat that memoization for every row's
+  // callback props, on every single chunk.
+  const handleCopyMessage = React.useCallback((message: ChatMessage) => {
+    void navigator.clipboard?.writeText(message.content);
+  }, []);
+
+  const handleRegenerate = React.useCallback(() => {
+    stream.retry();
+  }, [stream]);
+
+  // NOT WIRED — flagged, not fixed (see docs/frontend/BRANCH_AND_CI_NOTES.md
+  // Patch v10). No persistence endpoint exists for `messages.feedback`
+  // yet (conversation-api.ts only ever READS it off a fetched row —
+  // grep the repo, there is no PATCH/mutation call anywhere). Left as an
+  // explicit no-op rather than silently wired to something that looks
+  // like it works but doesn't persist.
+  const handleFeedback = React.useCallback(() => {}, []);
+
+  const handleEditMessage = React.useCallback(
+    (message: ChatMessage, newContent: string) => {
+      stream.edit(message.id, newContent);
+    },
+    [stream],
+  );
+
   const isNewChat = !conversationId;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 p-4">
-      <div className="flex flex-col gap-2">
+    // `min-w-0`: closes the same flex-item-default-min-width gap one more
+    // level up (see message-list.tsx's and message.tsx's own comments on
+    // this chain) — this is itself a flex child of AppShell's `<Main>`.
+    //
+    // Phase 4d Patch v6: no `p-4`/`gap-3` here any more. Both used to add
+    // a flat, always-present strip of solid `bg-background` between the
+    // header and the first message (the padding) and another above the
+    // composer (the flex gap) — same colour as the page, so it read as a
+    // blank cut rather than intentional spacing (confirmed via the
+    // deployed preview's own inspector: toggling this div's `.p-4` off
+    // visibly removed it). Each child below now owns its OWN inset
+    // instead, sized to what it actually needs, and MessageList supplies
+    // the "fade" look at its own top/bottom edges rather than a hard
+    // padding edge — see that file's header comment.
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex flex-col gap-2 px-4">
         <OfflineBanner />
         <TabConflictBanner conversationId={conversationId} isSending={isBusy} />
       </div>
@@ -208,36 +252,35 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
         <MessageList
           messages={stream.messages}
           error={stream.error ?? undefined}
-          userInitial={userInitial}
-          onCopy={() => {}}
-          onRegenerate={() => stream.retry()}
-          onFeedback={() => {}}
+          onCopy={handleCopyMessage}
+          onRegenerate={handleRegenerate}
+          onFeedback={handleFeedback}
+          onEdit={handleEditMessage}
+          editDisabled={isBusy}
           onRetryError={() => stream.retry()}
           className="min-h-0 flex-1"
         />
       )}
 
-      {isBusy && (
-        <Button type="button" variant="outline" size="sm" className="self-center" onClick={() => stream.stop()}>
-          {t("stop")}
-        </Button>
-      )}
-
-      <ComposerBar
-        value={draft}
-        onChange={setDraft}
-        onSend={handleSend}
-        disabled={isBusy}
-        models={models}
-        selectedModelId={selectedId}
-        onSelectModel={select}
-        history={stream.messages.map((m) => ({ content: m.content }))}
-        parametersEnabled
-        params={params}
-        onParamsChange={setParams}
-        systemPrompt={systemPrompt}
-        onSystemPromptChange={setSystemPrompt}
-      />
+      <div className="px-4 pt-2 pb-4">
+        <ComposerBar
+          value={draft}
+          onChange={setDraft}
+          onSend={handleSend}
+          isStreaming={isBusy}
+          onStop={() => stream.stop()}
+          disabled={isBusy}
+          models={models}
+          selectedModelId={selectedId}
+          onSelectModel={select}
+          history={stream.messages.map((m) => ({ content: m.content }))}
+          parametersEnabled
+          params={params}
+          onParamsChange={setParams}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
+        />
+      </div>
     </div>
   );
 }
@@ -258,7 +301,7 @@ function EmptyState({ onPick }: EmptyStateProps) {
   const suggestions = t.raw("suggestions") as { label: string; prompt: string }[];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 text-center overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-4 py-6 text-center">
       <h1 className="t-h2">{t("emptyStateTitle")}</h1>
       <div className="flex flex-wrap justify-center gap-2">
         {suggestions.map((s) => (

@@ -2589,3 +2589,886 @@ in this round's scope touches the dev kitchen-sink page.
     last-picked model: confirm whether the picker shows the
     last-picked/first-available model (expected, per the flagged
     simplification above) rather than treating a mismatch as a bug.
+
+## Phase 4d Patch v2 — Mobile chat nav redesign (conversation list moves to shell level)
+
+- **What changed:** `ConversationSidebar` gained a `limit` prop (caps at
+  10, pinned first, with a "View all chats →" link to `/chat/all` once
+  the real count exceeds it) and a `listClassName` prop so it can be
+  embedded without its own nested scroll region. New
+  `ConversationFullList` + `/chat/all` page give the uncapped view with
+  a round floating "new chat" button (`end-4 bottom-4`, never
+  `right-`/`left-`). `AppSidebar`/`SidebarNav` now embed the (capped)
+  conversation list above the role-filtered nav groups, and render on
+  **every** route via `AppShell`, not just the two chat pages — the
+  inline `ConversationSidebar` in `chat/page.tsx` and `chat/[id]/page.tsx`
+  is gone; both now render only `ChatView`. `AppShell` derives
+  `activeConversationId` from `usePathname()` (excluding the literal
+  `/chat/all` segment) and provides `onSelectConversation`/`onNewChat`
+  via `useRouter()`, passed to both `AppSidebar` and `MobileDrawer`. The
+  `"chat"` entry was removed from `config/nav.ts`'s main group — the
+  embedded list already owns that destination, so a second link to the
+  same place was redundant. `messages/{en,ar}.json` gained
+  `chat.viewAllChats` and `chat.allChatsTitle`, parity-checked (both
+  files have identical key sets after the edit).
+
+- **Admin visibility — confirmed from code, not assumed:**
+  `getNavGroups(role)` in `config/nav.ts` filters the `admin` group by
+  `roles: ADMIN_ROLES`, and `normalizeRole()` fails closed for any
+  unknown/missing role. This was unchanged by this patch and needed no
+  fix — a regular user's embedded sidebar/drawer never renders the admin
+  group; the screenshot the request was built from showed it only
+  because that session was signed in as superadmin.
+
+- **Could not verify without running the code:**
+  - Whether nesting `ConversationSidebar` (with `listClassName=""`,
+    `flex-none`) inside `SidebarNav`'s own `overflow-y-auto` `<nav>`
+    actually lays out as intended (one shared scroll for New
+    Chat/search/list/nav-links together) rather than the list's own
+    `flex flex-col` producing an unexpected height in a parent whose
+    height comes from `overflow-y-auto` content-sizing rather than a
+    hard pixel value. This is exactly the class of thing Phase 4d's
+    original gap (a real-device-only bug) came from, so it needs the
+    same real-phone-width check called out below before being trusted.
+  - Whether `AppShell` now mounting `useConversations` unconditionally
+    on every `(app)`/`(admin)` route (previously only on the two chat
+    pages) causes a visible list flash or extra fetch when navigating
+    away from and back to `/chat` — the hook's cache-first IndexedDB
+    read should mask this, but it wasn't exercised here.
+  - `pnpm install` was not possible in this sandbox (no network egress,
+    no `node_modules` in the provided zip), so none of `type-check`,
+    `lint`, `next build`, or `vitest` were actually run against these
+    changes — CI is the first real execution of any of it.
+
+- **CI:** same jobs as prior phases — `type-check`/`lint` (would catch
+  any prop-mismatch from the `ConversationSidebar` signature change, and
+  Rule 2's lint ban on literal `right-`/`left-` classes on the new FAB
+  and "View all chats" chevron), `next build` (RSC/client-boundary
+  correctness of the new `/chat/all` route and the simplified chat
+  pages), `vitest` (`nav.test.ts` should still pass with `"chat"`
+  removed from `NAV_GROUPS` — nothing in it asserts that entry exists),
+  `i18n-parity` (new `chat.viewAllChats`/`chat.allChatsTitle` keys are
+  present in both locale files).
+
+- **Manual, real phone width, both locales (this is the gap that caused
+  the original bug — do not substitute a resized desktop browser):**
+  - `/chat`, `/chat/[id]`, `/chat/all`, and one non-chat route (e.g.
+    `/admin` for a superadmin account) — confirm the sidebar/drawer
+    content is identical across all of them (same capped list, same
+    "View all chats" link, same nav links below the divider).
+  - Confirm the drawer never renders alongside a second, desktop-only
+    `ConversationSidebar` — there should be exactly one conversation
+    list on screen at any viewport width.
+  - FAB on `/chat/all` and the "View all chats" link/chevron sit on the
+    correct logical side under `dir="rtl"`.
+  - A non-admin test account's drawer and desktop sidebar both show no
+    admin section (expected per the code-confirmed finding above — this
+    is a regression check, not expected to surface anything new).
+  - Selecting a conversation from the drawer closes the drawer AND
+    navigates (both `onSelectConversation` and `onNavigate` firing from
+    the same click, per `SidebarNav`'s wiring).
+
+## Mobile chat layout fix — composer no longer scrolls with the conversation
+
+- **Root cause:** not in the chat feature at all — `components/layout/main.tsx`
+  (`<Main>`) and `AppShell`'s root only ever had `flex-1`/`min-h-dvh`, never a
+  definite, capped height. On mobile, once a conversation's message list grew
+  taller than the viewport, the whole page grew with it (native page scroll)
+  instead of `MessageList`'s own internal `overflow-y-auto` doing the
+  scrolling — dragging the composer up/down with the transcript. Compounding
+  it, `MessageList` was handed `className="flex-1"` with no `min-h-0`, so
+  even if the ancestor chain had been bounded, this element's flex
+  default (`min-height: auto`) would still have let it grow to fit its
+  own content rather than shrink to the space available and scroll.
+
+- **Fix (three files, one chain):**
+  - `AppShell` root: `min-h-dvh` → `h-dvh overflow-hidden` (matches
+    `AppSidebar`'s own `h-dvh`), and its inner column wrapper gained
+    `min-h-0`.
+  - `Main`: `flex-1` → `flex min-h-0 flex-col overflow-y-auto`. This is
+    also what keeps every OTHER page (billing, settings, admin —
+    none of which manage their own height) scrolling normally now that
+    the page/root itself no longer can.
+  - `chat-view.tsx`: `MessageList` and the empty-state/loading-skeleton
+    containers all gained `min-h-0` alongside their existing `flex-1`, so
+    they actually shrink to `ChatSession`'s available height and let
+    their own `overflow-y-auto` engage instead of stretching it.
+  - Net effect: on chat routes, `ChatView` fills `Main`'s `h-full`
+    exactly; `MessageList` (not `Main`, not the page) is the one
+    scrolling region; `ComposerBar` (no `flex-1`) sits at its natural
+    size below it and never moves.
+
+- **Could not verify without running the code:** this is CSS/layout
+  behavior depending on the full flexbox chain resolving at runtime
+  across four nested components — the reasoning is sound and matches
+  the working pattern `AppSidebar` already used (`h-dvh`), but it needs
+  the same real-phone check called out for the nav patch: open a long
+  conversation on an actual device (not a resized desktop browser),
+  scroll up through history, and confirm the composer and header never
+  move. Also worth a once-over on `/billing`, `/settings`, `/admin` to
+  confirm they still scroll normally now that `Main` (not the page body)
+  owns that scroll.
+
+- **CI:** same jobs as before — `type-check`/`lint`/`next build` would
+  catch any JSX/className mistake in these edits; no new job needed;
+  nothing here is unit-testable (pure layout/CSS).
+
+## Phase 4d Patch v3 — horizontal overflow fix + conversation modelId wiring
+
+- **Reported symptom (screenshots):** on mobile, a message bubble could be
+  panned/dragged left and right, cropped at both edges — the page was
+  horizontally scrollable, which it should never be.
+
+- **Root cause:** the vertical-scroll fix in Patch v2 (above) bounded
+  every ancestor's *height*, but nothing in that chain bounded *width*.
+  A flex item's default `min-width` is `auto` (its content's intrinsic
+  width), not `0`. `message.tsx`'s outer row, `SafeMarkdown`'s root
+  `div`, and `MessageList`'s scroll container all omitted `min-w-0`, and
+  the two actual text nodes (the user bubble's `whitespace-pre-wrap` div,
+  and every plain-text node `SafeMarkdown` renders) had no
+  `break-words`/`overflow-wrap` rule at all. One long unbroken token in a
+  message (a URL, a hash, a path) was therefore free to force its row
+  wider than the viewport instead of wrapping, and with nothing upstream
+  clipping horizontally either, that widened row is what let the whole
+  page pan.
+
+- **Fix (four files):**
+  - `message.tsx`: `min-w-0` added to the outer row; `break-words
+    [overflow-wrap:anywhere]` added to the user bubble's content div;
+    `min-w-0` added to the `SafeMarkdown` wrapper via its `className` prop.
+  - `safe-markdown.tsx`: `min-w-0 break-words [overflow-wrap:anywhere]`
+    added to the component's own root `div`. Fenced code blocks are
+    unaffected — `CodeBlock`'s `<pre className="overflow-x-auto">`
+    already scrolls internally rather than wrapping, and this rule never
+    reaches it (only plain-text nodes: p/li/blockquote/inline code).
+  - `message-list.tsx`: `min-w-0 overflow-x-hidden` added to the scroll
+    container as a backstop, one level above the per-message fix.
+  - `chat-view.tsx`: `min-w-0` added to `ChatSession`'s root div, closing
+    the same gap one level further up (it's `Main`'s flex child).
+
+- **Could not verify without running the code:** same caveat as Patch v2
+  — no node_modules/build tooling available in this session, so nothing
+  below was actually run: `pnpm --filter web type-check`,
+  `pnpm --filter web lint`, `pnpm --filter web test`. Only a coarse
+  brace-balance check was done by hand. Needs a real device check too:
+  send a message containing one long unbroken string (~200 chars, no
+  spaces) at a phone-width viewport and confirm it wraps with no
+  horizontal pan, on both `/chat` and an existing long conversation.
+
+- **Also in this patch — conversation modelId wiring** (closes the
+  flagged simplification from the original 4d session, see that entry
+  above `useChatModels({})`): added `fetchConversationModelId` to
+  `conversation-api.ts` (a third independent GET to
+  `/api/conversations/[id]`, same pattern as the existing
+  system-prompt/messages split — see that file's own header comment for
+  why these stay separate functions rather than one widened response).
+  `useConversationMessages` now also returns `conversationModelId`;
+  `chat-view.tsx` passes it into `useChatModels({ conversationModelId })`.
+  A failure on this specific fetch is swallowed to `undefined`, not
+  surfaced as the hook's `isError` — `useChatModels`'s own fallback chain
+  (session pick → conversation's model → last-picked → first available)
+  already degrades gracefully, and this is a cosmetic preselection detail,
+  not something that should block or error out the whole conversation view.
+  Unit-tested in `conversation-api.test.ts` (5 new cases, mirroring the
+  existing `fetchConversationMessages` suite's shape). The hook itself
+  (`use-conversation-messages.ts`) has no test file, consistent with the
+  rest of that file's pattern — not newly introduced by this patch.
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs as every
+  prior phase, no new job needed. `test` is the one that actually
+  exercises new behavior (`conversation-api.test.ts`); the rest is
+  layout/CSS plus one new hook field with no dedicated test.
+
+## Phase 4d Patch v4 — GFM tables were the real remaining overflow source
+
+- **Still broken after Patch v3 deployed.** Patch v3's `min-w-0` +
+  `break-words [overflow-wrap:anywhere]` chain only fixes overflow from
+  unbroken TEXT (a long word/URL/hash). It does nothing for a `<table>`:
+  `remark-gfm` (already enabled) turns GFM pipe-tables into a plain HTML
+  `<table>`, and `safe-markdown.tsx` had no `table`/`tr`/`th`/`td`
+  override at all before this patch. A `<table>` doesn't shrink to its
+  parent — the browser's table layout algorithm widens it to fit the
+  widest cell, ignoring the column's available width, entirely
+  independent of word-wrapping. Any assistant response containing a
+  table reproduced the exact symptom regardless of Patch v3.
+
+- **Fix:** `safe-markdown.tsx` now overrides `table` to render inside
+  `<div className="overflow-x-auto">` (same pattern `CodeBlock` already
+  uses for `<pre>`), plus `thead`/`tr`/`th`/`td` overrides for RTL-aware
+  alignment (`text-start`) and spacing. A wide table now scrolls
+  internally instead of widening the page.
+
+- **Test added:** `safe-markdown.test.tsx` — new case renders a 2-column
+  GFM table and asserts the `overflow-x-auto` wrapper div is actually
+  present around the `<table>` (regression guard, HTML-string assertion
+  matching this test file's existing SSR-string style).
+
+- **Could not verify without running the code:** same caveat as v2/v3 —
+  no node_modules/build tooling in this session. Also could not confirm
+  from the report alone that a table was actually present in the
+  reproducing message — this is the most likely remaining overflow
+  source given what Patch v3 already covers, but worth confirming on the
+  next real-device check: does the offending message contain a `|...|`
+  table, and does resending it now stay contained?
+
+## Phase 4d Patch v5 — code blocks specifically, two more gaps closed (unconfirmed)
+
+- **Report:** still overflowing after v3+v4, and it's code blocks
+  specifically, not tables.
+
+- **Traced the chain by hand again** (no working build in this session —
+  this whole analysis is static CSS/flexbox reasoning, not an observed
+  render): `CodeBlock`'s `<pre>` already had `overflow-x-auto` before any
+  of these patches, and per the flex "automatic minimum size" spec, an
+  item with `overflow: auto`/non-visible should contribute zero to an
+  ancestor flex container's forced width once every flex item up the
+  chain has `min-w-0` — which, after v3, it does (`SafeMarkdown`'s root
+  div is a direct flex item of the message's flex-col content column and
+  already has `min-w-0`). By that reasoning code blocks should already
+  have been fixed by v3. Two gaps found anyway, both fixed defensively:
+  - `chat-view.tsx`: `ChatView`'s own wrapper (rendered before
+    `ChatSession` mounts, one level up in the same flex chain) never got
+    `min-w-0` in v3 — only `ChatSession`'s root did.
+  - `code-block.tsx`: the fenced-code wrapper `div` and the `<pre>` itself
+    now get explicit `min-w-0 w-full max-w-full`, rather than relying on
+    normal block-flow inheritance through a `dir="ltr"` switch inside an
+    RTL document — a plausible but NOT confirmed source of a mobile
+    rendering inconsistency specific to this one node (it is the only
+    place in the chain that both holds genuinely unbreakable content by
+    design AND flips text direction).
+
+- **Explicitly NOT confirmed:** unlike v3/v4, I do not have a specific,
+  traceable root cause here I can point to with confidence — the CSS
+  spec reasoning says this should already have been fixed by v3. Asked
+  the user for a fresh screenshot of the actual code-block overflow
+  before treating this as resolved, and to confirm whether v3/v4 were
+  actually live on the deployment they tested (a stale/cached preview
+  would reproduce exactly this "still broken" report even if the fix is
+  correct).
+
+## Phase 4d Patch v6 — no-avatar + the real source of the header/composer gap
+
+- **Report:** two flat, same-background-colour strips — a larger one
+  between the header and the first message, a smaller one above the
+  composer — both fixed regardless of scroll, both present even though
+  nothing visibly renders in them. Also asked to remove the round
+  user-initial/"AI" avatar from every message row.
+
+- **Root cause, confirmed (not just reasoned) this time:** the person used
+  the deployed preview's own DevTools element picker and isolated it
+  themselves — `chat-view.tsx`'s `ChatSession` root div,
+  `className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-4"`.
+  Toggling `.p-4` off in the Styles panel visibly shrank the gap,
+  confirming it directly rather than by static code reading. `p-4`
+  (16px all sides) was the strip below the header; the flex `gap-3`
+  (12px) between `MessageList` and `ComposerBar` was the smaller one
+  above the composer — two different CSS rules producing two different
+  sizes, which is why the person correctly described them as unequal.
+
+- **Fix (5 files):**
+  - `chat-view.tsx`: `ChatSession`'s root div drops `gap-3 p-4` entirely.
+    Each child now owns its own inset instead: the banner row gets
+    `px-4` (horizontal only — an empty `OfflineBanner`/`TabConflictBanner`
+    pair collapses to 0 height, so no padding-driven strip reappears
+    when neither is showing); the "Stop" button and the composer are
+    each wrapped in their own `px-4 …` div with a small, deliberate
+    `py`/`pt`/`pb`; `EmptyState` gained `px-4 py-6` since it no longer
+    inherits the parent's padding.
+  - `message-list.tsx`: the scrollable container itself now carries
+    `px-4 py-3` (previously just `px-1`) — it's the only source of inset
+    around the transcript now. Also wrapped in a new `relative` outer div
+    holding two `pointer-events-none` gradient overlays (`h-4`,
+    `bg-gradient-to-b`/`to-t`, `from-background to-transparent`) pinned to
+    its own top and bottom edges — the "shadow that fades" option from the
+    original ask, replacing the hard padding edge with a soft dissolve
+    into whatever sits above/below (header, composer). `className` from
+    the caller (`"min-h-0 flex-1"`) now lands on this outer wrapper
+    instead of directly on the scroll div, which itself gained `h-full` to
+    fill it.
+  - `message.tsx`: removed the `Avatar`/`AvatarFallback` block and the
+    `userInitial` prop. The row is now a single column (no more
+    avatar + bubble pair), with `flex-row-reverse` replaced by `ms-auto`
+    on that column for user-turn end-alignment, since there's no longer a
+    second flex child to reverse against.
+  - `message-list.tsx` / `chat-view.tsx`: `userInitial` removed from the
+    prop chain (`MessageList` → `Message`); `chat-view.tsx` also drops the
+    now-unused `useSession` import and `session.user.name` derivation
+    that only existed to compute it.
+  - Two `/dev` fixtures (`dev/chat-render/chat-render-client.tsx`,
+    `dev/kitchen-sink/kitchen-sink-client.tsx`) still passed
+    `userInitial="ف"` into `MessageList` — removed from both so the
+    removed prop doesn't fail type-check.
+
+- **Could not verify without running the code:** same standing caveat as
+  every prior patch in this log — no `node_modules`/build tooling in this
+  session, so `type-check`/`lint`/`test`/`next build` were not actually
+  run, only read/edited by hand with a brace/paren balance check. This
+  patch is lower-risk than v2–v5 in one respect: the root cause was
+  confirmed live by the person via the deployed preview's own inspector
+  before any code was touched, rather than inferred from static reasoning
+  alone. Still worth a real-device pass to confirm: the header/composer
+  edges now read as intentional (not a bug), the top/bottom fades look
+  right in both light and dark themes (the gradient uses the `--background`
+  token so it should track the active theme automatically, but this
+  wasn't visually confirmed), and no message is hidden behind the fade
+  overlays (`pointer-events-none` should guarantee this, but real-device
+  tap-through wasn't tested).
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs as every
+  prior phase. No new test added (pure layout/CSS + a prop removal); the
+  type-check job is the one that would actually catch a missed
+  `userInitial` call site if this list missed one.
+
+## Phase 4d Patch v7 — Send↔Stop morph, visible conversation-row menu
+
+- **Report 1:** the "Stop" pill floating above the composer should go
+  away; the Send button itself should turn into a stop icon while a
+  response is streaming, same size, outline style.
+- **Report 2:** the conversation-row "⋯" (more options) trigger in the
+  sidebar was invisible at rest — only appeared once tapped, so there
+  was no visible sign the option existed at all.
+
+- **Fix 1 — Send↔Stop (3 files):**
+  - `components/chat/composer.tsx`: new `isStreaming`/`onStop` props.
+    The Send button no longer swaps DOM nodes — it's one button with two
+    absolutely-stacked icons (`ArrowUp`, `Square`) cross-fading via
+    opacity+scale (`transition-all duration-200`), and the button's own
+    fill switches from solid `bg-primary` to an outline
+    (`border-primary`, transparent) while streaming. Unlike ordinary
+    Send, the button is never `disabled` while `isStreaming` — it has to
+    stay tappable to interrupt the very thing that's disabling normal
+    Send elsewhere in the card.
+  - `composer-bar.tsx`: threads `isStreaming`/`onStop` through to
+    `<Composer>` (same `exactOptionalPropertyTypes`-safe conditional-spread
+    pattern already used for `sendBlockedReason`).
+  - `chat-view.tsx`: deleted the standalone `isBusy && <Button>Stop</Button>`
+    block entirely; `ComposerBar` now gets `isStreaming={isBusy}` and
+    `onStop={() => stream.stop()}`. The now-unused `t` in `ChatSession`
+    (only used for the old Stop button's label) was removed too —
+    `EmptyState` has its own separate `t`, untouched.
+
+- **Fix 2 — visible menu trigger (1 file):**
+  - `sidebar/conversation-row.tsx`: the trigger button was
+    `opacity-0` at rest, reaching `opacity-100` only via `:hover` /
+    `:focus-visible` — both are no-ops on a touch device (no hover, and
+    focus-visible only follows keyboard nav), so on mobile the button was
+    invisible until a tap happened to land on its hitbox anyway. Rest
+    state is now `opacity-60` (dim, not gone), full opacity on
+    hover/focus/open, and `[@media(hover:none)]:opacity-60` pins the same
+    60% on touch devices — the identical pattern `message.tsx`'s
+    `MessageActions` already uses for the same reason.
+
+- **Could not verify without running the code:** same standing caveat —
+  no build tooling in this session. The morph animation in particular is
+  pure CSS reasoning (never test-rendered); worth a real-device check
+  that the cross-fade looks smooth rather than jumpy, and that tapping
+  Stop mid-fade doesn't miss (the `pointer-events-none` on both icons
+  should route every tap to the button itself throughout the
+  transition, but this wasn't observed running).
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs, no new
+  ones. Nothing here is unit-testable (pure JSX/CSS + prop threading).
+
+## Phase 4d Patch v8 — Streaming re-render/highlight cost, user-message markdown
+
+### Problem reported
+1. Assistant response streaming appears to get slower as it goes on.
+2. Request: render user messages as markdown too (currently plain text
+   by Phase 4d's original design — see the old header comment in
+   message.tsx, now replaced).
+
+### Root cause (1) — not the network, not the reducer
+`stream-reader.ts` calls `onChunk` synchronously per `reader.read()`
+resolution with no batching (correct, unchanged). `chat-stream-
+reducer.ts`'s CHUNK handling is a cheap array `.map()` + string
+concatenation (correct, unchanged). The cost was in `SafeMarkdown`:
+`ReactMarkdown` + `remarkGfm` + `rehypeHighlight` re-parses and
+re-syntax-highlights the ENTIRE accumulated message string on every
+single chunk, and neither `Message` nor `MessageList` was memoized, so
+every other row in the transcript re-rendered on every chunk too. Cost
+per chunk grows with message length → total cost across a stream grows
+roughly quadratically with response length. This reads exactly as
+reported: fine at the start of a response, visibly laggy by the end,
+worse on code-heavy answers (rehypeHighlight is the most expensive part).
+
+### Fix
+- `use-chat-stream.ts`: deltas are now coalesced into a buffer and
+  flushed to the reducer via a single `CHUNK` dispatch per animation
+  frame (`requestAnimationFrame`), instead of one dispatch per network
+  chunk. `onDone`/`onStopped`/`onPartial` synchronously flush any
+  remaining buffered text first (`flushNow`) so no trailing content is
+  ever dropped; `onError` clears the buffer instead of flushing it, so
+  it doesn't change chat-stream-reducer.ts's existing "empty draft on
+  error is dropped" contract (ERROR only checks `content.length === 0`
+  at the moment the action lands). rAF cleanup added to the existing
+  unmount effect.
+  - This bounds re-render/re-highlight frequency to ~60/s regardless of
+    how fast the network delivers bytes. It does NOT change what content
+    ends up on screen or in the reducer — same bytes, same final state,
+    just coalesced into fewer, larger appends. `stream-reader.ts` and
+    `chat-stream-reducer.ts` are both untouched.
+- `message.tsx`: `Message` wrapped in `React.memo` with an explicit
+  field-by-field comparator (documents exactly what streaming vs. user
+  action changes, rather than relying on shallow-equal by accident).
+  Stops every other row in the transcript from re-rendering while one
+  message streams.
+
+### Fix (2) — user messages now render as markdown
+`message.tsx`: user bubble now renders `message.content` through the
+same `SafeMarkdown` component the assistant turn uses, instead of a
+raw `whitespace-pre-wrap` div. `SafeMarkdown`'s own sanitization rules
+(no rehype-raw, no dangerouslySetInnerHTML, blocked remote images,
+forced `rel=noopener noreferrer`) apply identically regardless of who
+authored the string, so no new XSS surface — `safe-markdown.test.tsx`'s
+existing fixtures already cover this renderer, not just its assistant
+call site. Outer bubble div keeps its border/background/padding and
+`min-w-0 break-words [overflow-wrap:anywhere]`; `whitespace-pre-wrap` is
+dropped since markdown's own paragraph/list/line-break handling now
+owns that.
+
+**Known behavior change, on purpose:** a user who literally types `*`,
+`_`, or a lone backtick will now see it consumed as markdown formatting
+instead of shown as-is — including retroactively on already-persisted
+historical messages, since this reads `message.content` directly with
+no "was this sent before/after the switch" flag stored anywhere.
+
+### No new dependencies
+`SafeMarkdown`/`react-markdown`/`remark-gfm`/`rehype-highlight` were
+already dependencies (4a). No new package added for either fix.
+
+### Files changed
+- `apps/web/features/chat/hooks/use-chat-stream.ts`
+- `apps/web/features/chat/components/message/message.tsx`
+
+### DELETE list
+None.
+
+### How to verify
+- CI: `type-check` / `lint` / `test` / `web-build` — no new jobs.
+- Manual: start a long assistant response (ideally one with a fenced
+  code block) and confirm the stream doesn't visibly decelerate near
+  the end; confirm the full response still lands byte-for-byte (compare
+  against Stop→resume-free full completion, or just read the final
+  text). Confirm Stop mid-stream still marks the message `isPartial`
+  with exactly the content received up to that point (no gap from the
+  rAF buffer). Send a user message containing a numbered list, a `*bold*`
+  word, and a fenced code block; confirm it renders formatted, not
+  literal.
+- Preview: `frontend-v2` Vercel preview (per D1's existing rules —
+  dedicated test account, no real-money actions).
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- No `node_modules` installed in this container and no network access,
+  so neither of these changes has been typechecked or built here — only
+  read/reasoned about and brace/structure-checked. Please run CI before
+  merging.
+- The rAF-batching behavior itself was not exercised against a live or
+  mocked stream (no test file existed for `use-chat-stream.ts` before
+  this change, and none was added — see "unresolved" below).
+- Visual check of the user bubble's markdown spacing (`SafeMarkdown`'s
+  default `p`/`li`/`code` margins against the bubble's existing
+  `px-4 py-[13px]` padding) was reasoned from the CSS, not rendered.
+
+### Unresolved / next steps
+- Consider adding a `use-chat-stream.test.ts` that drives `send()` with
+  a fake `runChatStream` to assert the rAF-coalescing behavior directly
+  (chunk count in vs. dispatch count out, final content correctness,
+  Stop-mid-buffer correctness) — flagged rather than built now, to keep
+  this patch's diff scoped to the two reported bugs.
+- If, after this, streaming still feels slow specifically on very long
+  code blocks, the next lever is `rehypeHighlight`'s own re-tokenization
+  cost, not React's re-render cost — e.g. skipping highlighting until a
+  fenced block's closing ``` has actually streamed in, rather than
+  highlighting an incomplete/unclosed block on every frame. Not done
+  here since it wasn't confirmed to still be a problem after the rAF fix.
+
+## Phase 4d Patch v9 — list bullets/numbers disappearing
+
+### Root cause
+`safe-markdown.tsx`'s `ul`/`ol` overrides never set `list-disc`/
+`list-decimal`. Tailwind's preflight reset sets `list-style: none` on
+every `ul`/`ol` globally; `li`'s `marker:text-primary` only styles
+marker *color*, it doesn't turn a marker back on once preflight has
+disabled it. Net effect: every list rendered through `SafeMarkdown` —
+assistant messages too, this override is shared, not user-message-
+specific — had its bullets/numbers invisible, just less noticed on the
+assistant side before user messages started going through the same
+renderer (Patch v8).
+
+### Fix
+`ul` → adds `list-disc`; `ol` → adds `list-decimal`. Nothing else
+changed in either override.
+
+### Files changed
+- `apps/web/components/markdown/safe-markdown.tsx`
+
+### DELETE list
+None.
+
+### How to verify
+Send/receive a message containing a numbered list and a bulleted list;
+confirm markers now render on both list types, in both a user bubble
+and an assistant turn.
+
+### Not verified
+No `node_modules`/network in this sandbox — not typechecked or built,
+reasoned from the Tailwind preflight/marker behavior directly.
+
+## Phase 4d Patch v10 — Copy + Edit on user messages; copy/regenerate/feedback audit
+
+### What was asked
+1. Add Copy and Edit icons to a user message (same slot the assistant
+   turn's meta row uses for its own actions), matching icon size.
+2. Confirm the assistant's Copy icon is actually functional.
+3. Audit Regenerate and the thumbs feedback icons; flag, don't fix yet.
+
+### 1 — Copy + Edit on user messages (built)
+- `chat-stream-reducer.ts`: new `EDIT_SEND` action. Same in-flight guard
+  as `SEND`; additionally truncates the edited message and everything
+  after it (old assistant reply included — the whole point of an edit)
+  before appending the new user turn. No-ops if the edited id is no
+  longer in `state.messages` (e.g. a race).
+- `use-chat-stream.ts`: `send`'s body was refactored into two shared
+  helpers (`makeCallbacks`, `buildRequestBody`) with no behavior change,
+  then a new `edit(id, content)` reuses both — computes the truncated
+  history + new user message itself (same reason `send` builds its own
+  request array rather than reading the reducer's return value:
+  reducers don't have one), dispatches `EDIT_SEND`, and starts a stream
+  exactly like `send` does. No-ops during an in-flight stream or if `id`
+  isn't found.
+- `message.tsx`: user bubble gets a hover-revealed Copy + Edit icon pair
+  (own small block, not an extension of `MessageActions` — that
+  component's 4 icons are assistant-only concepts; see the inline
+  comment for why this isn't "MessageActions with props toggled").
+  Clicking Edit swaps the bubble for an inline auto-growing textarea in
+  the same visual shell (border/radius/background unchanged) with
+  Save/Cancel — Enter saves, Shift+Enter newlines, Escape cancels.
+  Saving with empty or UNCHANGED text is treated as Cancel (no wasted
+  provider call on a no-op edit). `editDisabled` (wired from
+  ChatSession's existing `isBusy`) greys out the Edit icon while any
+  stream is in flight.
+- **`Message`/`MessageList`/`ChatSession` callback-identity fix, found
+  while wiring this in:** `ChatSession` was passing brand-new inline
+  arrow functions (`onCopy={() => {}}` etc.) as `MessageList`'s props on
+  every render — which defeated `Message`'s own `React.memo` (Patch v8)
+  for every row's callback props on every single streamed chunk, since
+  a new function reference fails the memo comparator every time. All of
+  `handleCopyMessage`/`handleRegenerate`/`handleFeedback`/
+  `handleEditMessage` are now `useCallback`'d in `chat-view.tsx` with
+  stable dependencies, restoring the actual point of Patch v8's memo.
+
+**Open question, not resolved here — please confirm before this ships
+past a preview:** editing only changes the CLIENT's in-memory transcript
+(same truncate-and-resend pattern `retry()` already used). I found no
+delete/truncate endpoint for persisted messages anywhere in
+`apps/web/features/chat/lib` or `apps/api/src` — `runChatStream`'s own
+contract (stream-reader.ts's header comment) is that a NEW send always
+inserts new rows; it does not delete the old assistant reply (or any
+rows after the edited turn) server-side. So after an edit + page
+refresh, `useConversationMessages` will refetch from the DB and the
+edited-away messages will likely reappear, out of sync with what the
+client just showed. Either: (a) this is fine because nothing here is
+DB-backed for undo purposes and a stale trailing turn is an acceptable
+trade for now, or (b) `apps/api` needs a real
+delete-messages-after-timestamp/id endpoint before this is a complete
+feature. I did not build (b) — it's a backend contract change I
+haven't seen a spec for, and guessing at one felt riskier than flagging
+it. Flagging per plan rule 0.2/L3 territory (backend changes land on
+`main` directly, not this branch) — your call on priority.
+
+### 2 — Assistant Copy icon: confirmed broken, now fixed
+`chat-view.tsx` had `onCopy={() => {}}` — a literal no-op, so the
+assistant's copy button pressed the "copied ✓" check animation
+(`message-actions.tsx`'s own local `useState`) but never actually put
+anything on the clipboard. Now wired to
+`navigator.clipboard.writeText(message.content)` via the same
+`handleCopyMessage` used for the new user-message copy button.
+
+### 3 — Regenerate and thumbs feedback: audited, NOT fixed, flagging per your instruction
+- **Regenerate is only half-wired.** `chat-view.tsx` passes
+  `onRegenerate={() => stream.retry()}`, but `retry()` in
+  `use-chat-stream.ts` early-returns unless `state.status === "error"`
+  (`if (state.status !== "error" || !lastSentRef.current) return;`).
+  So the Regenerate icon under a NORMAL, successfully-completed
+  assistant message does nothing at all — it only does something on the
+  error-state's own retry affordance (`ErrorMessage`'s retry button,
+  which hits the same code path and does work). A real "regenerate this
+  reply" needs the same truncate-before-this-assistant-turn-and-resend
+  shape `EDIT_SEND` now provides for user messages, just anchored to an
+  assistant message id instead of a user one — straightforward to add
+  as a sibling to `edit()`, deliberately not built now since you asked
+  to flag rather than fix this round.
+- **Thumbs up/down are a complete no-op, client AND server.**
+  `chat-view.tsx` passes `onFeedback={() => {}}` (now `handleFeedback`,
+  same empty body, kept explicit rather than silently wired to
+  something half-working). `ChatMessage.feedback` is read from the DB
+  row (`conversation-api.ts`'s `mapRow`), meaning a `feedback` column
+  exists server-side, but there is no mutation endpoint anywhere in
+  `apps/api/src` or `apps/web/features/chat/lib` that writes to it — I
+  grepped the whole tree for `feedback` and the only other hit is the
+  read path. Clicking either thumb changes nothing, persists nothing,
+  and gives no visual feedback that anything happened (unlike Copy's
+  copied-checkmark state) — a user has no way to tell whether it worked
+  the first time they try it.
+
+### Files changed
+- `apps/web/features/chat/lib/chat-stream-reducer.ts`
+- `apps/web/features/chat/hooks/use-chat-stream.ts`
+- `apps/web/features/chat/components/message/message.tsx`
+- `apps/web/features/chat/components/message/message-list.tsx`
+- `apps/web/features/chat/components/chat-view.tsx`
+- `apps/web/messages/en.json`
+- `apps/web/messages/ar.json`
+
+### DELETE list
+None.
+
+### How to verify
+- Hover/tap a user message → Copy and Edit icons appear at the same
+  size as the assistant's action icons.
+- Copy on a user message and on an assistant message both actually put
+  the text on the clipboard (paste somewhere to confirm) — previously
+  only the user-message one would have worked at all, since assistant
+  copy was the no-op.
+- Edit a past user message with meaningful new content → old assistant
+  reply (and anything after it) disappears, new user text appears, a
+  fresh assistant reply streams in for it. Press Enter in the edit
+  textarea to save, Shift+Enter for a newline, Escape to cancel, and
+  saving with the text unchanged should just close edit mode with no
+  network call.
+- Try to open edit mode while a message is actively streaming elsewhere
+  in the same conversation — icon should be visibly disabled.
+- Regenerate on a normal (non-error) assistant message: confirm it
+  still does nothing (this is the flagged, not-yet-fixed behavior —
+  verifying the flag is accurate, not verifying a fix).
+- Thumbs up/down: confirm no visible state change and nothing persisted
+  after a refresh (same reason).
+- CI: `type-check`/`lint`/`test`/`web-build` — no new jobs.
+
+### Not verified
+No `node_modules`/network in this sandbox — none of this was
+typechecked, built, or run in a browser; reasoned from the existing
+code and React/Tailwind semantics only. Please run CI and a manual pass
+on the preview before merging.
+
+### Unresolved / next steps (carried forward explicitly per your request)
+1. Backend: does an edit (and, later, a real regenerate) need a
+   delete-messages-after-X endpoint, or is the current
+   resend-creates-new-rows-only behavior acceptable? (see the open
+   question under §1 above.)
+2. Regenerate: wire it the same way `edit()` now works, anchored to the
+   assistant message id, once (1) above is settled — since regenerate
+   has the identical "does the old row need deleting server-side"
+   question.
+3. Feedback: needs a real mutation endpoint (`apps/api`) before the UI
+   is worth wiring at all — right now there is nowhere to send a
+   thumbs-up/down to.
+
+---
+
+## Bugfix round — mobile Enter-to-send + markdown numbered-list report
+
+### What was reported
+1. On mobile, pressing the on-screen keyboard's Enter/return key sent
+   the message instead of starting a new line. Desktop Enter-to-send /
+   Shift+Enter-for-newline was working; only touch devices were affected
+   (there is no way to type a multi-line message on a phone otherwise).
+2. A pasted numbered list (1.–5., one item wrapping to a second,
+   indented line) appeared to lose its numbers and render as
+   unstructured text instead of a list.
+
+### Root cause — (1), confirmed
+`features/chat/lib/composer-keydown.ts`'s `shouldSendOnKeydown` only
+guarded against Shift+Enter and mid-IME-composition Enter
+(`isComposing` / Safari's `keyCode === 229`). A phone's on-screen
+"return" key fires a perfectly ordinary, non-composing `Enter` keydown —
+indistinguishable at the DOM level from a physical Enter — so neither
+guard caught it, and every tap of the mobile return key sent the draft.
+
+### Root cause — (2), NOT reproduced
+Traced the exact pasted text through `remark-parse`/`micromark`
+(the same CommonMark engine `react-markdown`+`remark-gfm` build on)
+outside the app: it parses into a correct 5-item `<ol>` with the
+wrapped second item's continuation line correctly attached, numbers
+intact. `components/markdown/safe-markdown.tsx` already applies
+`list-decimal`/`list-disc` + `ps-5` to `ol`/`ul` specifically because
+Tailwind's preflight resets `list-style: none` globally — that fix is
+already in this codebase (see that file's own `ol`/`ul`/`li` comment,
+"this is what made bullets/numbers disappear entirely ... just less
+noticed there"). No other code path mutates `message.content` before
+it reaches `SafeMarkdown` (grepped for `replace(`/sanitizers under
+`features/chat` and `components/markdown` — the only hit is an unrelated
+UUID generator). I could not find a way to make this repo's current
+code reproduce the loss of numbers. Not fixed because not found broken —
+see "Not verified" below for what would settle it either way.
+
+### What changed
+- `features/chat/lib/composer-keydown.ts` — `shouldSendOnKeydown` takes
+  an optional `isCoarsePointer` boolean; when true, Enter never sends
+  (documented tradeoff: a touch+physical-keyboard 2-in-1 also loses
+  Enter-to-send, since there's no DOM signal to tell the two apart).
+  Defaults to `false`/unset so every existing desktop call and test is
+  unchanged.
+- `components/chat/composer.tsx` — `handleKeyDown` now reads
+  `matchMedia("(pointer: coarse)")` live (SSR-guarded) and passes it
+  through.
+- `features/chat/lib/composer-keydown.test.ts` — 4 new cases covering
+  coarse-pointer Enter, coarse-pointer Shift+Enter, and the two
+  desktop-default cases (omitted / explicit `false`).
+
+### Files changed
+- `apps/web/features/chat/lib/composer-keydown.ts`
+- `apps/web/components/chat/composer.tsx`
+- `apps/web/features/chat/lib/composer-keydown.test.ts`
+
+### DELETE list
+None.
+
+### How to verify
+- **Mobile Enter fix** — on an actual phone (or Chrome DevTools device
+  emulation, which sets `pointer: coarse`): tap the keyboard's
+  return/Enter key while typing → inserts a newline, does not send.
+  Tap the Send button → sends normally. On a real desktop browser
+  (`pointer: fine`): Enter still sends, Shift+Enter still inserts a
+  newline — unchanged.
+- **Markdown numbering** — paste the exact 5-item numbered list from
+  the report into the composer and send it: expect a rendered `<ol>`
+  with visible `1.`–`5.` markers, item 2's wrapped line part of the
+  same list item. If it still shows as unnumbered/flat text on an
+  actual deployed preview, that's the one thing to send back to me —
+  ideally with the browser/OS and a screenshot, since I could not
+  reproduce it from the code alone (see below).
+- `pnpm --filter web test` → `composer-keydown.test.ts` should show 10
+  passing cases (6 existing + 4 new).
+- CI: `type-check`/`lint`/`test`/`web-build` — no new jobs, no schema
+  changes.
+
+### Not verified
+No `node_modules`/network in this sandbox for the actual `react-markdown`
++ `remark-gfm` + `rehype-highlight` pipeline or `pnpm`/`vitest` itself —
+the list-rendering root-cause check used `remark-parse`+`micromark`
+directly (present read-only in this sandbox as another tool's
+dependency) as a stand-in for the same CommonMark grammar, not the
+app's actual bundled pipeline, and the mobile fix was reasoned from
+`matchMedia`/`KeyboardEvent` semantics, not exercised in a real mobile
+browser. Please run CI and a real-device manual pass before merging.
+If item (2) still reproduces on a real preview after this, the next
+thing to check (that I could not check here) is whether the deployed
+build actually contains the `list-decimal`/`list-disc` classes at all —
+i.e. whether the preview the bug was seen on predates that earlier fix.
+
+### Unresolved / next steps
+1. If the numbered-list bug reproduces again, get the exact preview
+   URL/commit it was seen on — if it's older than the `list-decimal`/
+   `list-disc` fix already in `safe-markdown.tsx`, that alone explains
+   it and no further code change is needed, just a redeploy.
+2. The coarse-pointer heuristic's 2-in-1/iPad-with-keyboard tradeoff
+   (documented above) is accepted as-is; revisit only if it's reported
+   as an actual complaint, not preemptively.
+
+---
+
+## Phase 5.1 — Billing: wallet + redeem
+
+### Summary
+Built `/billing` (`(app)` group): `BalanceCard` (balance hero, low/zero
+states) + `RedeemForm` (dash-auto-formatting input, paste button,
+Turnstile, shape-only client check per Rule 5) in a new
+`features/billing/` folder, wired to the existing frozen `POST
+/api/redeem` route and `billing.getBalance` tRPC query. Flipped
+`config/nav.ts`'s `billing` entry to `enabled: true` (page file now
+exists, satisfying `nav.test.ts`'s enabled-implies-page-exists check).
+
+Added polish beyond the plan's bare bullet list, per the session's
+explicit ask: a two-cannon `canvas-confetti` burst
+(`components/magicui/confetti.tsx`) fires once on a confirmed successful
+redeem (Enter-to-submit or button), and `BalanceCard` gets an animated
+`BorderBeam` ring (already in the repo since before this phase) in
+warning/destructive colors when the balance is low/zero. Both respect
+`prefers-reduced-motion`.
+
+### Files changed
+- `apps/web/features/billing/types.ts` (new)
+- `apps/web/features/billing/lib/redeem-shape.ts` (new)
+- `apps/web/features/billing/lib/redeem-shape.test.ts` (new)
+- `apps/web/features/billing/hooks/use-redeem.ts` (new)
+- `apps/web/features/billing/components/balance-card.tsx` (new)
+- `apps/web/features/billing/components/redeem-form.tsx` (new)
+- `apps/web/features/billing/index.tsx` (new)
+- `apps/web/components/magicui/confetti.tsx` (new)
+- `apps/web/app/[locale]/(app)/billing/page.tsx` (new)
+- `apps/web/config/nav.ts` (edit: `billing.enabled` false → true)
+- `apps/web/package.json` (edit: added `canvas-confetti` dependency,
+  `@types/canvas-confetti` devDependency — install after merge)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. No edits under `app/api/**`, `server/**`, the listed
+`lib/*.ts` files, `middleware.ts`, `i18n/request.ts`, `next.config.ts`,
+`Dockerfile`, or anything outside `apps/web` (including `packages/config`
+— `LOW_BALANCE_THRESHOLD` is imported from there, read-only, not
+modified; a genuinely shared redeem-alphabet constant would need a
+backend (B*) session to hoist it, since `packages/config` is out of
+scope for a frontend session even though it predates the frozen-zone
+rule's own drafting — see `redeem-shape.ts`'s header comment).
+
+### No message-file changes
+`messages/{ar,en}.json` already had complete `balance.*` and `redeem.*`
+namespaces (including every error code the frozen service returns) from
+an earlier phase — nothing added or renamed, so `i18n-parity` should
+stay green as a pure regression check, not because this phase touched it.
+
+### How to verify
+- **CI:** `check` (type-check + lint) · `web-unit` (new
+  `redeem-shape.test.ts`, 5+ cases) · `i18n-parity` (should be an
+  unaffected regression pass) · `web-build`.
+- **`nav.test.ts`:** must still pass now that `billing.enabled = true` —
+  it asserts `app/[locale]/(app)/billing/page.tsx` exists, which it now
+  does.
+- **Preview, both locales (`/ar/billing`, `/en/billing`):**
+  - Balance card shows the live balance; skeleton while loading.
+  - Seed/force a low balance (< 10 credits) → card shows the amber
+    `BorderBeam` ring + "Low Balance" badge + `lowMessage` text. Zero →
+    red ring + "No Credits" + `zeroMessage`.
+  - Redeem a valid, unused seeded code, submit via **Enter** in the
+    input: side-cannon confetti fires once, success toast shows the
+    exact credited amount, balance card updates without a page reload
+    (no manual refresh).
+  - Redeem the same code again (or an already-used one): translated
+    `ALREADY_USED` error shown inline + as a toast, **no confetti**, code
+    stays in the field for editing.
+  - Rapid double-Enter / double-click submit on one code: only one
+    network call fires (button disables on `isPending`), only one
+    confetti burst, only one balance-refresh.
+  - OS-level "reduce motion" enabled: no confetti, no BorderBeam pulse
+    (theme.css's global override + `confetti.tsx`'s own check).
+  - Sidebar: "Credits & Billing" now renders as a live link (not the
+    disabled "soon" row) in both locales.
+- **RTL:** Arabic layout — input direction stays LTR (codes are Latin
+  characters, matching the code-block LTR convention elsewhere), paste
+  button sits at the correct logical side, card grid reflows correctly.
+
+### Not verified
+No network/`node_modules` in this sandbox: `canvas-confetti`'s actual
+bundle behavior, `pnpm install`, `tsc --noEmit`, `next build`, and
+`vitest` itself were not run. In particular:
+- I could not confirm `@trpc/react-query@^11` exposes `trpc.useUtils()`
+  under that exact name in this repo's pinned minor version (v11's own
+  history renamed `useContext` → `useUtils`; nothing in this codebase
+  called either one yet, so there was no existing call site to confirm
+  against). If CI's type-check fails on that call, it's a one-line
+  rename to `trpc.useContext()`.
+- `navigator.clipboard.readText()` in `handlePaste` requires a secure
+  context and (on some browsers) a permission prompt — behavior on the
+  actual Vercel preview domain over HTTPS should be fine, but I could
+  not exercise it here.
+- The `BorderBeam` `colorFrom`/`colorTo` props were passed
+  `"var(--destructive)"`-style CSS var references (rather than resolved
+  hex) so both light/dark themes pick up the right color automatically —
+  this is a valid CSS value for the component's own custom-property
+  usage as I read its source, but I did not render it to confirm.
+- Per **0.2's D1 decision**, `frontend-v2` previews hit the production
+  database — please redeem-test only with a dedicated test account and a
+  purpose-generated test code batch, not a real user's code.

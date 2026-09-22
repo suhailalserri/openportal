@@ -41,3 +41,27 @@ describe("shouldSendOnKeydown", () => {
     }
   });
 });
+
+/**
+ * Post-4d bugfix round: regression coverage for the mobile Enter bug —
+ * a phone's on-screen "return" key fired a plain, non-composing Enter
+ * that this function used to treat as send, making it impossible to
+ * type a newline in the composer on any touch device.
+ */
+describe("shouldSendOnKeydown — mobile/coarse-pointer devices", () => {
+  it("does NOT send on Enter when isCoarsePointer is true (mobile virtual keyboard)", () => {
+    expect(shouldSendOnKeydown(ev({ isCoarsePointer: true }))).toBe(false);
+  });
+
+  it("still does not send on Shift+Enter on a coarse pointer either", () => {
+    expect(shouldSendOnKeydown(ev({ isCoarsePointer: true, shiftKey: true }))).toBe(false);
+  });
+
+  it("defaults to desktop (sends) when isCoarsePointer is omitted", () => {
+    expect(shouldSendOnKeydown(ev())).toBe(true);
+  });
+
+  it("still sends on a plain desktop Enter when isCoarsePointer is explicitly false", () => {
+    expect(shouldSendOnKeydown(ev({ isCoarsePointer: false }))).toBe(true);
+  });
+});

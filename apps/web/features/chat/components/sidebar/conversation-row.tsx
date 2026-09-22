@@ -164,7 +164,24 @@ export function ConversationRow({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+            // Phase 4d Patch v7: was `opacity-0` unconditionally, only
+            // reaching `opacity-100` via `:hover`/`:focus-visible` — on a
+            // touch device (no hover, and focus-visible only follows
+            // keyboard nav) that meant the trigger was invisible until a
+            // tap accidentally landed on its hitbox and opened the menu
+            // "by surprise," with no visible affordance beforehand. Rest
+            // state is now a dim-but-visible `opacity-60`
+            // (`text-faint-foreground` note: this is the SAME icon-only
+            // ghost button used elsewhere at full opacity, so a lower
+            // opacity here — not a different color token — is what keeps
+            // it from competing with the row title while still being
+            // discoverable); hover/focus/open still brighten it to fully
+            // solid, and `[@media(hover:none)]:opacity-60` is the same
+            // touch-target pattern already used for message actions
+            // (message.tsx) — resolves to the same 60% on a device with
+            // no hover, everywhere those two rules would otherwise
+            // disagree.
+            className="size-7 shrink-0 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-60"
             aria-label={t("moreOptions")}
           >
             <MoreHorizontal aria-hidden="true" className="size-4" />

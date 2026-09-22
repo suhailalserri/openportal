@@ -68,6 +68,11 @@ export interface ComposerBarProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  /** Phase 4d Patch v7: true while a response is in flight — morphs the
+   *  Send button into Stop (see components/chat/composer.tsx). */
+  isStreaming?: boolean;
+  /** Required alongside `isStreaming`. */
+  onStop?: () => void;
   disabled?: boolean;
 
   models: readonly ChatModel[];
@@ -92,6 +97,8 @@ export function ComposerBar({
   value,
   onChange,
   onSend,
+  isStreaming,
+  onStop,
   disabled,
   models,
   selectedModelId,
@@ -304,6 +311,7 @@ export function ComposerBar({
           setOpenPanel(null);
           onSend();
         }}
+        {...(isStreaming ? { isStreaming, onStop } : {})}
         onInputFocus={() => setOpenPanel(null)}
         placeholder={t("placeholder")}
         disabled={composerDisabled}
