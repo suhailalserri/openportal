@@ -2778,3 +2778,35 @@ in this round's scope touches the dev kitchen-sink page.
   prior phase, no new job needed. `test` is the one that actually
   exercises new behavior (`conversation-api.test.ts`); the rest is
   layout/CSS plus one new hook field with no dedicated test.
+
+## Phase 4d Patch v4 — GFM tables were the real remaining overflow source
+
+- **Still broken after Patch v3 deployed.** Patch v3's `min-w-0` +
+  `break-words [overflow-wrap:anywhere]` chain only fixes overflow from
+  unbroken TEXT (a long word/URL/hash). It does nothing for a `<table>`:
+  `remark-gfm` (already enabled) turns GFM pipe-tables into a plain HTML
+  `<table>`, and `safe-markdown.tsx` had no `table`/`tr`/`th`/`td`
+  override at all before this patch. A `<table>` doesn't shrink to its
+  parent — the browser's table layout algorithm widens it to fit the
+  widest cell, ignoring the column's available width, entirely
+  independent of word-wrapping. Any assistant response containing a
+  table reproduced the exact symptom regardless of Patch v3.
+
+- **Fix:** `safe-markdown.tsx` now overrides `table` to render inside
+  `<div className="overflow-x-auto">` (same pattern `CodeBlock` already
+  uses for `<pre>`), plus `thead`/`tr`/`th`/`td` overrides for RTL-aware
+  alignment (`text-start`) and spacing. A wide table now scrolls
+  internally instead of widening the page.
+
+- **Test added:** `safe-markdown.test.tsx` — new case renders a 2-column
+  GFM table and asserts the `overflow-x-auto` wrapper div is actually
+  present around the `<table>` (regression guard, HTML-string assertion
+  matching this test file's existing SSR-string style).
+
+- **Could not verify without running the code:** same caveat as v2/v3 —
+  no node_modules/build tooling in this session. Also could not confirm
+  from the report alone that a table was actually present in the
+  reproducing message — this is the most likely remaining overflow
+  source given what Patch v3 already covers, but worth confirming on the
+  next real-device check: does the offending message contain a `|...|`
+  table, and does resending it now stay contained?

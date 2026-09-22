@@ -130,6 +130,28 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
           // margin at all (no `prose` class is used here, unlike
           // legal-doc-view.tsx, so nothing else supplies it).
           p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
+          // GFM tables (remark-gfm) render as a plain `<table>` with no
+          // override at all before this patch — a `<table>` does not
+          // shrink to fit its parent the way text does; the browser's
+          // table layout algorithm widens it to fit the widest cell's
+          // content, ignoring the column's available width. That is a
+          // SEPARATE overflow source from the min-w-0/break-words chain
+          // fixed in message.tsx/message-list.tsx/chat-view.tsx (Patch
+          // v3) — this table.tsx/tr/td override give the table its own
+          // horizontally-scrolling wrapper instead, the same pattern
+          // CodeBlock already uses for `<pre>`, so a wide table scrolls
+          // internally instead of widening the page.
+          table: ({ children }) => (
+            <div className="mt-2 overflow-x-auto first:mt-0">
+              <table className="w-full border-collapse text-start">{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead className="border-b border-border">{children}</thead>,
+          tr: ({ children }) => <tr className="border-b border-border last:border-0">{children}</tr>,
+          th: ({ children }) => (
+            <th className="whitespace-nowrap px-3 py-1.5 text-start font-semibold">{children}</th>
+          ),
+          td: ({ children }) => <td className="px-3 py-1.5">{children}</td>,
         }}
       >
         {content}
