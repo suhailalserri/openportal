@@ -2052,3 +2052,171 @@ conversation's params. The plan's "Done when" for 4c is therefore only
 
 ### DELETE list
 None.
+
+## Phase 4c — rework: sliders, inline composer toolbar, script-aware cost quote
+
+Requested after 4c shipped green: temperature/top_p as sliders (not typed
+numbers), attach/mic placeholders, and the model picker + parameters moved
+into the composer's own bottom toolbar, Claude-style. Also answered two
+open product questions (send-block vs. input limit; per-script token
+estimation) and acted on both.
+
+### What changed (all under `apps/web`, nothing frozen touched)
+- **New:** `features/chat/lib/{token-estimate,cost-estimate,param-slider,
+  composer-panels}.ts` (+ tests), `components/chat/composer-icon-button.tsx`,
+  `features/chat/components/composer/{composer-panel,param-controls}.tsx`.
+- **Rewritten:** `components/chat/composer.tsx` (toolbar-slot layout, gone:
+  the standalone `metaLeft` token-counter usage from 4c's own preview —
+  kept as a prop for kitchen-sink's demo card, which still passes plain
+  strings), `features/chat/components/composer/{composer-bar,model-picker,
+  parameters-panel}.tsx`.
+- **Deleted:** `features/chat/lib/param-input.ts` + its test. Text parsing
+  (`parseParam`/`paramToText`, the "outOfRange"/"notInteger"/"notANumber"
+  errors) only existed because the old panel let people type numbers;
+  sliders and a stepper can't produce an invalid value, so there is nothing
+  left to parse. The three `chat.parameters.errors.*` strings are now
+  unused in `apps/web`, kept in `messages/*.json` because deleting them is
+  a separate content decision, not this rework's to make silently.
+- **i18n:** added `chat.recordComingSoon`, `chat.costInput`,
+  `chat.costReplyUpTo`, `chat.costInfo`, `chat.parameters.{info,resetOne,
+  decrease,increase}`; reworded `chat.estCostTooltip` for the new line.
+  ar/en parity re-checked (400/400 keys, no diff either direction).
+
+### Decision — the input token "limit" and the cost line (product question)
+Confirmed with the gateway: `apps/api/.../gateway.service.ts` blocks any
+request over 95% of the model's context window before it reaches the
+provider — that's a real limit, not decorative, because every model has a
+hard context window regardless of what an aggregator's UI shows. What *was*
+wrong was surfacing it as a live "N / limit" counter. Kept the 95% block
+(byte-for-byte the server's own `chars/4` rule, in
+`lib/context-estimate.ts`, unchanged from 4c) but replaced the always-on
+counter with a warning that only appears from 80%, plus a new always-on
+line: "≈ X credits · input" (`lib/cost-estimate.ts`). Output cost is a
+separate lever (`max_tokens`); today an unset value means "provider
+default, up to model max" — capping that by default is a backend product
+decision and is only flagged here, not built.
+**Not done, flagged for a backend decision:** a default (non-null)
+server-side `max_tokens` ceiling to bound worst-case output cost.
+
+### Decision — per-script token estimation (product question)
+Confirmed the premise: BPE tokenizers spend more tokens per character on
+Arabic (~2–3 chars/token vs. Latin's ~4) and on CJK (~1 char/token), and an
+emoji is 1–4 tokens while JS `.length` reports it as 2 UTF-16 units. Built
+`token-estimate.ts`, a code-point-classified weight table (Latin/digit/
+ASCII-symbol/Arabic/Arabic-mark/CJK/astral(emoji)/BMP-symbol/other) that:
+reduces to the server's exact `ceil(chars/4)` for plain English (regression
+test), and quotes Arabic/CJK/emoji higher (also tested). This feeds the
+cost line ONLY — the send-block above still uses the plain `chars/4` rule
+on purpose, so client and server can never disagree about "too long".
+**No tokenizer or network was available to calibrate this** — the weights
+are derived from documented BPE behavior, not measured, and are labelled
+"≈" everywhere they're shown. Real billing (`gateway.service.ts`) already
+uses the provider's reported `usage`, not this estimate, so nothing about
+actual charges changed.
+
+### Rule 1 exception, logged as instructed (client-side money math)
+`cost-estimate.ts` computes a credits figure in the browser. Rule 1 (docs
+§3) says money is never computed client-side; this is a deliberate,
+bounded exception: labelled "≈", never persisted, never sent to the
+server, never used to gate Send. The authoritative number stays the
+server's per-message `creditCost`. Flagged in the pre-build summary and
+approved before writing any code.
+
+### Known imprecision — `models.list` rounds prices up
+`apps/api/.../models.router.ts` rounds credits-per-K UP to a whole number,
+so a model actually priced at 0.3 credits/K lists as 1 and every quote for
+it overstates by up to that rounding. `cost-estimate.ts`'s `unitPrice()`
+already prefers optional `creditsPerKInputExact`/`creditsPerKOutputExact`
+fields if the API ever adds them — no frontend change needed when it does.
+**Not done, flagged for a backend decision:** add those exact fields.
+
+### No new dependencies
+No Radix `Slider`/`Popover` — a lockfile regeneration wasn't available
+offline. Sliders are native `<input type="range">` (styled thumb only, see
+`param-controls.tsx`'s header comment on why the track isn't); the model
+list and parameters open as an in-flow panel (`composer-panel.tsx`) rather
+than a portal, which also sidesteps the RTL/portal-positioning question
+entirely — the panel is just as wide as the composer because it's laid out
+inside it.
+
+### Bugs fixed in my own first draft here
+- `roundQuoteUp`: naive `Math.ceil(credits * 100) / 100` ticked `0.3` up to
+  `0.31` on `0.1 + 0.2`-style float error. Fixed by subtracting a `1e-9`
+  epsilon before the ceil; regression test added
+  (`roundQuoteUp(0.1 + 0.2) === 0.3`).
+- `stepMaxTokens`: a plain `current + step`/clamp couldn't reach a ceiling
+  that isn't a multiple of the step (e.g. 200 with step 32 would stop at
+  168 or overshoot to 232). Rewrote the "increase" branch's floor/ceiling
+  clamp so the model's exact ceiling is always reachable in one press from
+  its neighbour; test added.
+- First draft's `<input type="range">` fill bar sized off the raw fraction,
+  so at `min` and `max` the fill visibly over/undershot the round thumb by
+  half its width. Fixed with a `calc()` that starts the fill at the thumb's
+  centre, not the track's edge.
+
+### Integration boundary — unchanged from 4c
+Still not mounted in `/chat` (see 4c's own "Integration boundary" note
+above — that gap is unchanged by this rework). Verify via
+`/{ar,en}/dev/chat-composer` as before.
+
+### How to verify
+**CI:** `web-unit` (new: `token-estimate`, `cost-estimate`, `param-slider`,
+`composer-panels`; `param-input`'s suite is gone with the file), `Type-check
+& Lint` (logical-properties lint — every new class uses `ps-`/`pe-`/`ms-`/
+`start-`/`end-`, checked by hand this round; grepped for physical
+`left/right/ml/mr/pl/pr` and found none), `web-build`, `i18n-parity`.
+
+**Preview** — `/ar` and `/en` at `/dev/chat-composer`, 360px and desktop,
+both themes:
+1. Toolbar reads `[+] [⚙] [Model ▾] … [🎙] [➤]` in that order in `en`, and
+   mirrors under `dir="rtl"` in `ar` (buttons and the whole card flip; the
+   slider tracks themselves stay LTR — numbers read low-to-high regardless
+   of page direction, matching every numeric field elsewhere in the app).
+2. Tap **⚙** → parameters panel opens above the card, full composer width;
+   tap **Model** → it closes and the model list opens instead (only one
+   open at a time); tap the same button again, press Escape, tap outside,
+   or focus the textarea → panel closes.
+3. Drag temperature/top_p → the ⚙ button grows a small dot (customised);
+   "Reset" in the panel clears both sliders and the system prompt in one
+   tap and the dot disappears.
+4. Max response length: `−`/`+` moves by a step sized to the model's
+   ceiling; both ends disable at their limit; switching to "Tiny context"
+   (256-token ceiling) after setting a big value on "Large model" shows the
+   value clamped to 256, not silently rewritten in storage.
+5. Tap **+** or **🎙** → each shows its "coming soon" line under the card
+   and does not block typing or sending.
+6. Type a draft → "≈ X credits · input" appears; tap its ⓘ → the longer
+   explanation opens inline; type the same length in Arabic → the credit
+   number is visibly higher than the English case.
+7. Repeat 4c's original context-limit and IME checks (unchanged
+   send-block) — see 4c's own "How to verify" above.
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- Same standing gap as 4c: no real `tsc`, `next build`, or `vitest` binary
+  in this sandbox. What *was* run this round: a strict-flag `tsc`
+  (`exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`, the repo's
+  own `tsconfig.base.json`) over every new/changed file against
+  hand-written stubs for react/next-intl/shadcn/lucide — 0 errors; a
+  server-side React render (`react-dom/server`) of the assembled
+  `ComposerBar` and the slider/stepper/model-list pieces across 11
+  fixtures (empty draft, English draft, Arabic draft, a draft that trips
+  the "Tiny context" send-block, zero models, `parametersEnabled={false}`,
+  default vs. set slider, default vs. maxed stepper, the model list) to
+  catch render-time crashes and confirm the i18n keys resolve; and 56 new
+  test cases for the four new lib files, executed against the real source
+  under the same small home-made shim as 4c. None of that is real
+  `vitest`/jsdom/a browser, so touch-drag behavior on an actual
+  `<input type="range">`, RTL mirroring, and iOS Safari specifically remain
+  unverified until CI and the preview.
+- Real tokenizer counts for Arabic/CJK/emoji: the weights in
+  `token-estimate.ts` are derived from documented BPE behavior, not
+  measured against any provider's actual tokenizer (none reachable
+  offline). Treat as ±30% until calibrated against real `usage` data.
+- Whether `next-intl`'s real ICU interpolation handles the new
+  `{credits}`/`{label}`/`{max}` placeholders identically to the plain
+  `.replace()` used in the local stub — no next-intl runtime available
+  offline.
+
+### DELETE list
+- `apps/web/features/chat/lib/param-input.ts`
+- `apps/web/features/chat/lib/param-input.test.ts`
