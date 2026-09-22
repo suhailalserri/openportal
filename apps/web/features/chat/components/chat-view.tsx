@@ -108,7 +108,6 @@ interface ChatSessionProps {
 }
 
 function ChatSession({ conversationId, initialMessages, conversationModelId }: ChatSessionProps) {
-  const t = useTranslations("chat");
   const locale = useLocale();
   const router = useRouter();
 
@@ -232,19 +231,13 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
         />
       )}
 
-      {isBusy && (
-        <div className="flex justify-center px-4 py-1.5">
-          <Button type="button" variant="outline" size="sm" onClick={() => stream.stop()}>
-            {t("stop")}
-          </Button>
-        </div>
-      )}
-
       <div className="px-4 pt-2 pb-4">
         <ComposerBar
           value={draft}
           onChange={setDraft}
           onSend={handleSend}
+          isStreaming={isBusy}
+          onStop={() => stream.stop()}
           disabled={isBusy}
           models={models}
           selectedModelId={selectedId}

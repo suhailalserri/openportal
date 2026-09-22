@@ -2918,3 +2918,53 @@ in this round's scope touches the dev kitchen-sink page.
   prior phase. No new test added (pure layout/CSS + a prop removal); the
   type-check job is the one that would actually catch a missed
   `userInitial` call site if this list missed one.
+
+## Phase 4d Patch v7 — Send↔Stop morph, visible conversation-row menu
+
+- **Report 1:** the "Stop" pill floating above the composer should go
+  away; the Send button itself should turn into a stop icon while a
+  response is streaming, same size, outline style.
+- **Report 2:** the conversation-row "⋯" (more options) trigger in the
+  sidebar was invisible at rest — only appeared once tapped, so there
+  was no visible sign the option existed at all.
+
+- **Fix 1 — Send↔Stop (3 files):**
+  - `components/chat/composer.tsx`: new `isStreaming`/`onStop` props.
+    The Send button no longer swaps DOM nodes — it's one button with two
+    absolutely-stacked icons (`ArrowUp`, `Square`) cross-fading via
+    opacity+scale (`transition-all duration-200`), and the button's own
+    fill switches from solid `bg-primary` to an outline
+    (`border-primary`, transparent) while streaming. Unlike ordinary
+    Send, the button is never `disabled` while `isStreaming` — it has to
+    stay tappable to interrupt the very thing that's disabling normal
+    Send elsewhere in the card.
+  - `composer-bar.tsx`: threads `isStreaming`/`onStop` through to
+    `<Composer>` (same `exactOptionalPropertyTypes`-safe conditional-spread
+    pattern already used for `sendBlockedReason`).
+  - `chat-view.tsx`: deleted the standalone `isBusy && <Button>Stop</Button>`
+    block entirely; `ComposerBar` now gets `isStreaming={isBusy}` and
+    `onStop={() => stream.stop()}`. The now-unused `t` in `ChatSession`
+    (only used for the old Stop button's label) was removed too —
+    `EmptyState` has its own separate `t`, untouched.
+
+- **Fix 2 — visible menu trigger (1 file):**
+  - `sidebar/conversation-row.tsx`: the trigger button was
+    `opacity-0` at rest, reaching `opacity-100` only via `:hover` /
+    `:focus-visible` — both are no-ops on a touch device (no hover, and
+    focus-visible only follows keyboard nav), so on mobile the button was
+    invisible until a tap happened to land on its hitbox anyway. Rest
+    state is now `opacity-60` (dim, not gone), full opacity on
+    hover/focus/open, and `[@media(hover:none)]:opacity-60` pins the same
+    60% on touch devices — the identical pattern `message.tsx`'s
+    `MessageActions` already uses for the same reason.
+
+- **Could not verify without running the code:** same standing caveat —
+  no build tooling in this session. The morph animation in particular is
+  pure CSS reasoning (never test-rendered); worth a real-device check
+  that the cross-fade looks smooth rather than jumpy, and that tapping
+  Stop mid-fade doesn't miss (the `pointer-events-none` on both icons
+  should route every tap to the button itself throughout the
+  transition, but this wasn't observed running).
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs, no new
+  ones. Nothing here is unit-testable (pure JSX/CSS + prop threading).
