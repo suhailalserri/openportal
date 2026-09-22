@@ -4,14 +4,12 @@ import { useTranslations, useLocale } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { formatCredits, formatRelativeDate } from "@/lib/format";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SafeMarkdown } from "@/components/markdown/safe-markdown";
 import { MessageActions } from "./message-actions";
 import type { ChatMessage } from "../../types";
 
 export interface MessageProps {
   message: ChatMessage;
-  userInitial?: string | undefined;
   onCopy?: ((message: ChatMessage) => void) | undefined;
   onRegenerate?: ((message: ChatMessage) => void) | undefined;
   onFeedback?: ((message: ChatMessage, value: "positive" | "negative") => void) | undefined;
@@ -40,10 +38,15 @@ export interface MessageProps {
  * `SafeMarkdown` (Rule 7: model output is untrusted, user input isn't
  * subject to the same rule, but also gets no benefit from markdown
  * parsing here).
+ *
+ * Phase 4d Patch v6: no avatar. The role is already unambiguous from
+ * alignment (user bubbles sit end-aligned, assistant fill-width) plus
+ * the per-message model-name/token/cost line under assistant turns —
+ * a "U"/"AI" circle added nothing a screen reader or a sighted user
+ * didn't already have, and it cost every row 30px + a gap for it.
  */
 export function Message({
   message,
-  userInitial = "U",
   onCopy,
   onRegenerate,
   onFeedback,
@@ -77,22 +80,11 @@ export function Message({
     // `max-w-full` alone (already present) only bounds a node against a
     // PARENT that already has a fixed width, it does nothing against a
     // child forcing its own intrinsic size upward.
-    <div className={cn("flex min-w-0 max-w-full gap-2.5", isUser && "flex-row-reverse", className)}>
-      <Avatar
-        className={cn(
-          "size-[30px] shrink-0 border border-input",
-          isUser ? "bg-card text-muted-foreground" : "bg-accent text-accent-foreground"
-        )}
-      >
-        <AvatarFallback className="bg-transparent text-xs font-semibold">
-          {isUser ? userInitial : "AI"}
-        </AvatarFallback>
-      </Avatar>
-
+    <div className={cn("flex min-w-0 max-w-full", className)}>
       <div
         className={cn(
           "group flex min-w-0 flex-col gap-1.5",
-          isUser ? "max-w-[86%] items-end" : "max-w-none flex-1"
+          isUser ? "ms-auto max-w-[86%] items-end" : "max-w-none flex-1"
         )}
       >
         {isUser ? (

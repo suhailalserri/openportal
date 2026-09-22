@@ -2845,3 +2845,76 @@ in this round's scope touches the dev kitchen-sink page.
   actually live on the deployment they tested (a stale/cached preview
   would reproduce exactly this "still broken" report even if the fix is
   correct).
+
+## Phase 4d Patch v6 — no-avatar + the real source of the header/composer gap
+
+- **Report:** two flat, same-background-colour strips — a larger one
+  between the header and the first message, a smaller one above the
+  composer — both fixed regardless of scroll, both present even though
+  nothing visibly renders in them. Also asked to remove the round
+  user-initial/"AI" avatar from every message row.
+
+- **Root cause, confirmed (not just reasoned) this time:** the person used
+  the deployed preview's own DevTools element picker and isolated it
+  themselves — `chat-view.tsx`'s `ChatSession` root div,
+  `className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-4"`.
+  Toggling `.p-4` off in the Styles panel visibly shrank the gap,
+  confirming it directly rather than by static code reading. `p-4`
+  (16px all sides) was the strip below the header; the flex `gap-3`
+  (12px) between `MessageList` and `ComposerBar` was the smaller one
+  above the composer — two different CSS rules producing two different
+  sizes, which is why the person correctly described them as unequal.
+
+- **Fix (5 files):**
+  - `chat-view.tsx`: `ChatSession`'s root div drops `gap-3 p-4` entirely.
+    Each child now owns its own inset instead: the banner row gets
+    `px-4` (horizontal only — an empty `OfflineBanner`/`TabConflictBanner`
+    pair collapses to 0 height, so no padding-driven strip reappears
+    when neither is showing); the "Stop" button and the composer are
+    each wrapped in their own `px-4 …` div with a small, deliberate
+    `py`/`pt`/`pb`; `EmptyState` gained `px-4 py-6` since it no longer
+    inherits the parent's padding.
+  - `message-list.tsx`: the scrollable container itself now carries
+    `px-4 py-3` (previously just `px-1`) — it's the only source of inset
+    around the transcript now. Also wrapped in a new `relative` outer div
+    holding two `pointer-events-none` gradient overlays (`h-4`,
+    `bg-gradient-to-b`/`to-t`, `from-background to-transparent`) pinned to
+    its own top and bottom edges — the "shadow that fades" option from the
+    original ask, replacing the hard padding edge with a soft dissolve
+    into whatever sits above/below (header, composer). `className` from
+    the caller (`"min-h-0 flex-1"`) now lands on this outer wrapper
+    instead of directly on the scroll div, which itself gained `h-full` to
+    fill it.
+  - `message.tsx`: removed the `Avatar`/`AvatarFallback` block and the
+    `userInitial` prop. The row is now a single column (no more
+    avatar + bubble pair), with `flex-row-reverse` replaced by `ms-auto`
+    on that column for user-turn end-alignment, since there's no longer a
+    second flex child to reverse against.
+  - `message-list.tsx` / `chat-view.tsx`: `userInitial` removed from the
+    prop chain (`MessageList` → `Message`); `chat-view.tsx` also drops the
+    now-unused `useSession` import and `session.user.name` derivation
+    that only existed to compute it.
+  - Two `/dev` fixtures (`dev/chat-render/chat-render-client.tsx`,
+    `dev/kitchen-sink/kitchen-sink-client.tsx`) still passed
+    `userInitial="ف"` into `MessageList` — removed from both so the
+    removed prop doesn't fail type-check.
+
+- **Could not verify without running the code:** same standing caveat as
+  every prior patch in this log — no `node_modules`/build tooling in this
+  session, so `type-check`/`lint`/`test`/`next build` were not actually
+  run, only read/edited by hand with a brace/paren balance check. This
+  patch is lower-risk than v2–v5 in one respect: the root cause was
+  confirmed live by the person via the deployed preview's own inspector
+  before any code was touched, rather than inferred from static reasoning
+  alone. Still worth a real-device pass to confirm: the header/composer
+  edges now read as intentional (not a bug), the top/bottom fades look
+  right in both light and dark themes (the gradient uses the `--background`
+  token so it should track the active theme automatically, but this
+  wasn't visually confirmed), and no message is hidden behind the fade
+  overlays (`pointer-events-none` should guarantee this, but real-device
+  tap-through wasn't tested).
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs as every
+  prior phase. No new test added (pure layout/CSS + a prop removal); the
+  type-check job is the one that would actually catch a missed
+  `userInitial` call site if this list missed one.

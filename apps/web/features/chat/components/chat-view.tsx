@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildLoginRedirect, sanitizeNext } from "@/lib/safe-redirect";
-import { useSession } from "@/lib/auth-client";
 import { MessageList } from "./message/message-list";
 import { ComposerBar } from "./composer/composer-bar";
 import { OfflineBanner } from "./offline-banner";
@@ -112,7 +111,6 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   const t = useTranslations("chat");
   const locale = useLocale();
   const router = useRouter();
-  const { data: session } = useSession();
 
   const [draft, setDraft] = React.useState("");
   const conversationExists = Boolean(conversationId) && initialMessages.length === 0 ? false : Boolean(conversationId);
@@ -189,15 +187,25 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
     setDraft("");
   };
 
-  const userInitial = session?.user?.name?.trim().charAt(0) || undefined;
   const isNewChat = !conversationId;
 
   return (
     // `min-w-0`: closes the same flex-item-default-min-width gap one more
     // level up (see message-list.tsx's and message.tsx's own comments on
     // this chain) — this is itself a flex child of AppShell's `<Main>`.
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-4">
-      <div className="flex flex-col gap-2">
+    //
+    // Phase 4d Patch v6: no `p-4`/`gap-3` here any more. Both used to add
+    // a flat, always-present strip of solid `bg-background` between the
+    // header and the first message (the padding) and another above the
+    // composer (the flex gap) — same colour as the page, so it read as a
+    // blank cut rather than intentional spacing (confirmed via the
+    // deployed preview's own inspector: toggling this div's `.p-4` off
+    // visibly removed it). Each child below now owns its OWN inset
+    // instead, sized to what it actually needs, and MessageList supplies
+    // the "fade" look at its own top/bottom edges rather than a hard
+    // padding edge — see that file's header comment.
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex flex-col gap-2 px-4">
         <OfflineBanner />
         <TabConflictBanner conversationId={conversationId} isSending={isBusy} />
       </div>
@@ -216,7 +224,6 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
         <MessageList
           messages={stream.messages}
           error={stream.error ?? undefined}
-          userInitial={userInitial}
           onCopy={() => {}}
           onRegenerate={() => stream.retry()}
           onFeedback={() => {}}
@@ -226,26 +233,30 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
       )}
 
       {isBusy && (
-        <Button type="button" variant="outline" size="sm" className="self-center" onClick={() => stream.stop()}>
-          {t("stop")}
-        </Button>
+        <div className="flex justify-center px-4 py-1.5">
+          <Button type="button" variant="outline" size="sm" onClick={() => stream.stop()}>
+            {t("stop")}
+          </Button>
+        </div>
       )}
 
-      <ComposerBar
-        value={draft}
-        onChange={setDraft}
-        onSend={handleSend}
-        disabled={isBusy}
-        models={models}
-        selectedModelId={selectedId}
-        onSelectModel={select}
-        history={stream.messages.map((m) => ({ content: m.content }))}
-        parametersEnabled
-        params={params}
-        onParamsChange={setParams}
-        systemPrompt={systemPrompt}
-        onSystemPromptChange={setSystemPrompt}
-      />
+      <div className="px-4 pt-2 pb-4">
+        <ComposerBar
+          value={draft}
+          onChange={setDraft}
+          onSend={handleSend}
+          disabled={isBusy}
+          models={models}
+          selectedModelId={selectedId}
+          onSelectModel={select}
+          history={stream.messages.map((m) => ({ content: m.content }))}
+          parametersEnabled
+          params={params}
+          onParamsChange={setParams}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
+        />
+      </div>
     </div>
   );
 }
@@ -266,7 +277,7 @@ function EmptyState({ onPick }: EmptyStateProps) {
   const suggestions = t.raw("suggestions") as { label: string; prompt: string }[];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 text-center overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-4 py-6 text-center">
       <h1 className="t-h2">{t("emptyStateTitle")}</h1>
       <div className="flex flex-wrap justify-center gap-2">
         {suggestions.map((s) => (
