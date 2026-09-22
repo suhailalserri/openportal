@@ -2360,3 +2360,232 @@ for a human to click through. Re-request this section once `chat-view.tsx`
 and the two real pages exist; until then the only honest verification is
 what's above (type-check + logic execution against the lib files
 themselves).
+
+---
+
+## Phase 4d — CI-confirmed test failures, fixed (post-delivery)
+
+Real CI (`Web Unit Tests (vitest)`, screenshot supplied by the user) hit
+exactly two bugs — both test-only, `conversation-cache.ts`/`new-chat.ts`
+source unchanged:
+
+1. **`conversation-cache.test.ts` fixture-freshness flake** — predicted in
+   this file's own "not verified" section above and now confirmed with a
+   real CI diff (`updatedAt`/`createdAt` off by 1ms between the write side
+   and the `toEqual` side). Root cause: `conv(id)`/`msg(id)` stamp a fresh
+   `new Date().toISOString()` on every call, and 8 assertions across the
+   file called the same fixture twice — once to build the value being
+   written, once again inside `toEqual(...)` for the expected value.
+   **Fixed** in all 8 spots (not just the ones CI happened to catch this
+   run — `msg("m9")`/`conv("z")`, `msg("m2")` in the delete test, the
+   eviction test's last-written message, and the recency test's
+   `m0-updated` had the identical latent issue and were one unlucky
+   scheduler tick from failing too): capture the fixture once into a
+   `const`, reuse that same value for both the write and the assertion.
+2. **`new-chat.test.ts` stubbed-global leak across tests** — NOT
+   something the earlier hand-rolled logic-execution pass could have
+   caught (it used a bespoke `vi.stubGlobal`/`vi.restoreAllMocks` shim
+   that happened to reset `crypto` on `restoreAllMocks`, which is not
+   real vitest's behavior). Real vitest's `restoreAllMocks()` only undoes
+   `vi.spyOn`/`vi.fn`; it does **not** touch `vi.stubGlobal`. The suite's
+   `afterEach` called only `restoreAllMocks()`, so the first test's
+   `vi.stubGlobal("crypto", { randomUUID: () => fixed })` stayed active
+   into "produces distinct ids across calls" — both calls returned the
+   same stubbed fixed UUID, exactly matching the CI failure ("expected X
+   not to be X"). **Fixed**: `afterEach` now also calls
+   `vi.unstubAllGlobals()`.
+
+**Re-verified for real** (not just read): re-ran the same real-logic
+harness from this phase's first entry above (real `describe`/`it`/
+`expect`, in-memory `idb-keyval` stand-in, and this time a corrected
+`stubGlobal`/`unstubAllGlobals` pair that actually swaps a global out and
+back). Result: 29/30 assertions pass; the 1 remaining "failure" is the
+harness's own known limitation (a plain-assignment stub can't override
+Node's non-configurable `crypto` global the way real vitest's
+`Object.defineProperty`-based `stubGlobal` can) — that specific assertion
+already passed in the user's real CI run per the screenshot, so this is
+not a live gap, just this sandbox's stand-in reaching its ceiling.
+
+### Still true, unchanged by this fix
+`/en/chat` still shows the Phase 2.1 placeholder — this round only touched
+two test files. The UI layer (`chat-view.tsx`, sidebar components,
+`use-conversation-messages.ts`, the two real pages) is still outstanding;
+CI going green on `Web Unit Tests` does not mean the phase is done, only
+that the lib layer's tests no longer flake.
+
+---
+
+## Phase 4d — UI layer delivered
+
+The lib layer landed in the round above; this round is the actual UI:
+`chat-view.tsx`, the three sidebar components, `use-conversation-messages.ts`,
+and the two real pages. `/{locale}/chat` no longer shows the Phase 2.1
+placeholder.
+
+### What shipped this round
+
+- `features/chat/lib/conversation-api.ts` — added `fetchConversationMessages`.
+  Not previously present despite being assumed by `use-conversation-messages.ts`
+  in an earlier draft of this round; added for real, with a `mapRow` step
+  that converts the DB row's `null` nullable columns (`feedback`, `modelId`,
+  `inputTokens`, `outputTokens`, `creditCost`) into OMITTED keys, matching
+  `ChatMessage`'s optional-field (never-null) contract under this repo's
+  `exactOptionalPropertyTypes`. A 404 maps to `{ ok: true, value: [] }`,
+  not a failure — the gap between `new-chat.ts` generating an id/navigating
+  and the gateway's lazy insert landing on first send means `/chat/[id]`
+  can legitimately be visited before a row exists yet.
+- `features/chat/hooks/use-chat-stream.ts` — added the `initialMessages`
+  option, via `useReducer`'s 3-argument lazy-init form (read once, on this
+  hook's first render only — see the option's own doc comment for why a
+  later prop change deliberately does NOT re-seed). Also not previously
+  present despite `chat-view.tsx` depending on it.
+- `features/chat/hooks/use-conversation-messages.ts` — `/chat/[id]`'s
+  history loader, same cache-first-then-network shape as `use-conversations.ts`.
+- `features/chat/components/sidebar/{conversation-search,conversation-row,
+  conversation-sidebar}.tsx` — search input, one row (normal/renaming modes,
+  pin/rename/delete-with-confirmation), and the assembling sidebar
+  (new-chat button, search, Pinned section, Today/Yesterday/This week/Older).
+- `features/chat/components/chat-view.tsx` — the assembly point. Splits into
+  an outer `ChatView` (loads history) and inner `ChatSession` (only mounts
+  once history has resolved, `key`'d on conversation id) so `useChatStream`'s
+  lazy-init `initialMessages` always sees the real history on its first
+  render, never an empty array that would then be permanently locked in.
+  New-chat handoff goes through `pending-first-message.ts`: the empty
+  state's composer generates the id, stashes the draft, navigates; the
+  freshly-mounted `/chat/[id]` session picks it up and sends it itself,
+  after the navigation completes (see that file's header comment for why
+  it can't happen before — `useChatStream` aborts its own in-flight
+  request on unmount, and `/chat` → `/chat/[id]` is a full unmount).
+- `app/[locale]/(app)/chat/page.tsx` — replaced the placeholder. Full-height
+  sidebar + `ChatView` row, not `SectionPage` (that component width-caps
+  and pads for a form/dashboard page; chat is the first `(app)` page that
+  needs to fill `<Main>` edge-to-edge).
+- `app/[locale]/(app)/chat/[id]/page.tsx` — new. Client component reading
+  `id` via `useParams()`; no server wrapper, since every hook underneath
+  is client-side anyway and every real read/write re-derives ownership
+  from the session server-side regardless (confirmed by re-reading
+  `app/api/conversations/[id]/route.ts`, frozen/read-only, this round).
+- `messages/{ar,en}.json` — added `chat.searchConversations`,
+  `chat.moreOptions`, `chat.deleteConfirmBody` (the last takes a `{title}`
+  placeholder, matching `conversation-row.tsx`'s call site). Both files
+  re-checked for key-set parity after the edit (`python3 -c` diff of the
+  two `chat` key sets — empty on both sides).
+
+### A known, flagged simplification (not silently dropped)
+
+`chat-view.tsx` calls `useChatModels({})` with no `conversationModelId` —
+that option exists to let an EXISTING conversation's own model win over
+the user's last-picked one, but the data source that would supply it
+(`useConversationMessages`) returns only the message array, not the
+conversation row's `modelId` column. Wiring that through would mean
+widening `UseConversationMessagesResult`'s contract beyond this phase's
+scope. Left as-is with a comment at the call site rather than expanded
+silently: on an existing conversation, the model picker currently falls
+back to the user's last-picked model (or the first available one)
+instead of that conversation's own. A real gap, worth a follow-up.
+
+### Verification
+
+**Still cannot run `tsc`/`vitest`/`next build`/a browser in this sandbox**
+— no network access (confirmed via the container's egress config) and no
+`node_modules` in the delivered zip, so nothing here has been executed for
+real, only read closely. What was actually done in place of execution:
+
+- Every new import in every changed file was traced by hand to a real
+  exported symbol in the target file (not assumed from memory) —
+  `Skeleton`, `useSession`, `MessageList`, `ComposerBar`, `OfflineBanner`,
+  `TabConflictBanner`, `DropdownMenu*`, `AlertDialog*` (including
+  `DropdownMenuItem`'s `variant="destructive"` prop, which does exist),
+  `fetchConversationMessages`, `readCachedMessages`/`writeCachedMessages`,
+  `getRealIdbStore` — all confirmed present with matching signatures.
+- Brace/paren/bracket balance checked programmatically across every
+  touched file (all balanced) as a crude syntax sanity pass in place of
+  a real parser.
+- `messages/en.json` and `messages/ar.json` both re-parsed as JSON and
+  diffed key-by-key under `chat.*` — parity confirmed, zero keys on
+  either side alone.
+- Read `app/api/conversations/[id]/route.ts` again (frozen, read-only)
+  to confirm the exact response shape `fetchConversationMessages` parses
+  against (`{ ...conv, messages }`, 404 on not-found-or-not-owned) rather
+  than assuming the earlier round's documented contract was still accurate.
+
+**Not verified, flagged rather than assumed:**
+- `use-chat-stream.ts`'s new `initialMessages` option has NO test. This
+  repo's `vitest.config.ts` runs `environment: "node"` with no jsdom and
+  no `@testing-library/react` (see that file's own header comment) — a
+  hook built on `useReducer`/`useEffect`/refs isn't reachable through the
+  `renderToStaticMarkup` SSR-only approach this codebase uses for
+  component tests (that approach renders once and stops; it can't dispatch
+  an action or resolve an effect). Confirmed by hand against
+  `chat-stream-reducer.ts`'s own tested behavior, but not executed.
+- `conversation-sidebar.tsx` and `conversation-row.tsx` have no test for
+  the same reason PLUS a second one: `conversation-sidebar.tsx` calls
+  `useConversations`, which calls `useSession`/tRPC — real hooks this
+  sandbox has no mock for and no established `vi.mock` precedent in this
+  codebase to follow (every existing `.test.tsx` here is a dependency-free
+  SSR render). `conversation-search.tsx` (a pure controlled input, no data
+  hooks) DOES have a real SSR test — `conversation-search.test.tsx` —
+  written in this round, following `safe-markdown.test.tsx`'s exact
+  pattern; it confirms the component renders under `next-intl` with the
+  real `en.json` string, the `ps-9` logical-padding class survives (Rule 2),
+  and the controlled `value` reaches the DOM. It does not and cannot
+  prove `onChange` fires on a real keystroke (no live DOM to dispatch an
+  event into).
+- The two page files' actual runtime navigation behavior — `useParams()`
+  reading the dynamic segment, the sidebar's `onSelect`/`onNewChat`
+  round-tripping through `next/navigation`'s `useRouter` — read as
+  correct against Next 15's client-component API, no precedent for
+  `useParams()` existing elsewhere in this repo to compare against (every
+  other dynamic route in this codebase reads `params` server-side instead;
+  this is the first client dynamic-segment page), so this is a slightly
+  higher-uncertainty item than usual, flagged rather than asserted.
+- `useChatModels({})`'s missing `conversationModelId` — see the
+  simplification note above; not a bug so much as a known incompleteness.
+- Preview-only, as every round: reload-restores-instantly and
+  sign-out/sign-in-as-another-user-shows-nothing (Rule 9's two "done when"
+  checks), pin/rename/delete's actual round-trip feel, RTL rendering of
+  the new sidebar under `dir="rtl"` (nothing here was checked in a real
+  browser, only read for logical-property usage — `ps-9`/`ms-*`/`me-*`,
+  no bare `pl-*`/`mr-*`/`ml-*` in any new file, confirmed by grep).
+
+### DELETE list
+
+None. `components/chat/chat-sidebar.tsx` (Phase 1.2's presentational-only
+sidebar) is STILL not a delete candidate — re-confirmed this round by
+grepping `kitchen-sink-client.tsx`, which still imports and renders it
+directly (`ChatSidebar`/`ChatSidebarConversation`). It becomes a real
+delete candidate once kitchen-sink is updated to point at the new
+`ConversationSidebar` instead — a follow-up, not done here, since nothing
+in this round's scope touches the dev kitchen-sink page.
+
+### How to verify (once this lands in a real environment)
+
+- **CI:** `Type-check & Lint` (`tsc --noEmit`, `next lint`) — the class of
+  error this sandbox could not run for real; `web-build` (`next build`) —
+  will also catch any RSC/client-boundary mistake in the two new page
+  files; `Web Unit Tests (vitest)` — `conversation-api.test.ts`'s new
+  `fetchConversationMessages` suite, `conversation-search.test.tsx`'s SSR
+  render, plus every already-green suite from the prior round;
+  `i18n-parity` — should pass given the manual key-parity check above,
+  but this is exactly the kind of check worth letting CI itself confirm
+  rather than trusting a local diff.
+- **Preview, `/en/chat` and `/en/chat/[id]`:**
+  - Empty state renders (heading + suggestion chips), picking a
+    suggestion fills the composer without sending.
+  - Sending from the empty state navigates to `/en/chat/{new-uuid}` and
+    the message actually sends (not lost across the navigation) —
+    this is the exact race `pending-first-message.ts` exists to close;
+    worth deliberately watching the Network tab across the navigation.
+  - Reload on an existing `/chat/[id]` restores the conversation
+    instantly from cache, then reconciles with the network.
+  - Sidebar: new-chat button, search filters by title only (not
+    modelId), pin/unpin/rename/delete round-trip against the real
+    PATCH/DELETE routes, delete requires the confirmation dialog.
+  - Sign out, sign in as a second test account: sidebar shows none of
+    the first account's cached conversations (Rule 9's own "done when").
+  - `/en` and `/ar`, both directions: RTL sidebar layout, RTL delete
+    confirmation dialog, search icon on the correct logical side.
+  - A conversation whose `modelId` differs from the signed-in user's
+    last-picked model: confirm whether the picker shows the
+    last-picked/first-available model (expected, per the flagged
+    simplification above) rather than treating a mismatch as a bug.

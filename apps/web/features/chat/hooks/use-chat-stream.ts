@@ -22,6 +22,25 @@ export interface UseChatStreamOptions {
   /** Phase 4c. Persisted server-side by B1 on first send; empty/whitespace
    *  is treated as "no system prompt" and omitted. */
   systemPrompt?: string | undefined;
+  /** Phase 4d. Seeds this hook's message list for a conversation that
+   *  already has history (`/chat/[id]`, loaded by
+   *  use-conversation-messages.ts). Applied via `useReducer`'s LAZY-INIT
+   *  form (the third argument below) — meaning it is read EXACTLY ONCE,
+   *  on this hook's first render for a given component instance, and
+   *  every render after that is ignored. This is deliberate, not an
+   *  oversight: once a stream is live, `state.messages` is this hook's
+   *  own source of truth (it's what SEND/CHUNK/DONE mutate), so a prop
+   *  that kept re-seeding on every parent re-render would either fight
+   *  the reducer for ownership of the array or silently discard
+   *  in-progress streamed content the moment the parent re-rendered for
+   *  an unrelated reason. Because of the once-only read, the CALLER is
+   *  responsible for only mounting this hook once real history has
+   *  actually arrived — chat-view.tsx's `ChatSession` split (mounted
+   *  only once `useConversationMessages` resolves, remounted via `key`
+   *  on every conversation switch) exists specifically to satisfy this
+   *  contract; passing a not-yet-loaded empty array here and expecting
+   *  a later prop change to backfill it will NOT work. */
+  initialMessages?: ChatMessage[] | undefined;
 }
 
 export interface UseChatStreamResult extends ChatStreamState {
@@ -60,8 +79,18 @@ export function useChatStream({
   model,
   params,
   systemPrompt,
+  initialMessages,
 }: UseChatStreamOptions): UseChatStreamResult {
-  const [state, dispatch] = React.useReducer(chatStreamReducer, initialChatStreamState);
+  // Lazy-init (the 3-argument form): `initialChatStreamState` is passed
+  // as the reducer's default and `init` (third arg) only runs ONCE, on
+  // this component instance's first render, regardless of how many times
+  // `initialMessages` itself changes on later renders — see this option's
+  // doc comment above for why that's required, not incidental.
+  const [state, dispatch] = React.useReducer(
+    chatStreamReducer,
+    initialChatStreamState,
+    (base) => (initialMessages && initialMessages.length > 0 ? { ...base, messages: initialMessages } : base),
+  );
   const controllerRef = React.useRef<AbortController | null>(null);
   const lastSentRef = React.useRef<string | null>(null);
   const stateRef = React.useRef(state);

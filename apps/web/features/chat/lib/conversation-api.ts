@@ -23,7 +23,7 @@
  *   - once the row exists: a changed prompt must be PATCHed, because the
  *     insert will NOT overwrite it on later sends.
  */
-import type { ConversationSummary } from "../types";
+import type { ChatMessage, ConversationSummary } from "../types";
 
 export type ApiResult<T> =
   | { ok: true; value: T }
@@ -161,4 +161,97 @@ export async function deleteConversation(
   }
   if (!res.ok) return { ok: false, status: res.status, unauthorized: res.status === 401 };
   return { ok: true, value: true };
+}
+
+/**
+ * Phase 4d. `/chat/[id]`'s history loader (use-conversation-messages.ts)
+ * calls this. Reuses the same GET this file's `fetchConversationSystemPrompt`
+ * already hits (`GET /api/conversations/[id]` → `{ ...conv, messages }`,
+ * `apps/web/app/api/conversations/[id]/route.ts`, frozen/read-only) —
+ * deliberately a SECOND function rather than teaching that one to also
+ * return messages, because the two callers want different slices of the
+ * same response and `fetchConversationSystemPrompt`'s existing callers
+ * (use-chat-params.ts) have no reason to pull the message array over the
+ * wire too.
+ *
+ * ROW SHAPE MAPPING: the route's `messages` array is `@ai-platform/db`'s
+ * `Message` row shape (packages/db/src/schema/messages.ts) serialized
+ * through `NextResponse.json` — `createdAt` arrives as an ISO string
+ * (Date → JSON), and nullable columns (`feedback`, `modelId`,
+ * `inputTokens`, `outputTokens`, `creditCost`) arrive as `null`, not
+ * `undefined`. `ChatMessage` (types.ts) models every one of those as an
+ * OPTIONAL field, not `T | null` — this repo's `exactOptionalPropertyTypes`
+ * means a bare pass-through of `null` into an optional field is a type
+ * error, and more importantly a `ChatMessage` with `feedback: null` is
+ * not the same representable state 4b's reducer/ErrorMessage code was
+ * written against (`feedback?: "positive" | "negative"`, i.e. absent-or-
+ * one-of-two, never `null`). `mapRow` below is the one conversion point
+ * (same rule as `createdAt`'s own doc comment) that turns `null` into
+ * "key omitted".
+ *
+ * 404-AS-EMPTY: a conversation id with no server row yet — the gap
+ * between new-chat.ts generating an id/navigating and gateway.service.ts's
+ * lazy `onConflictDoNothing()` insert actually landing on the first send
+ * — is NOT an error from this hook's caller's point of view: chat-view.tsx
+ * mounts `ChatSession` with `conversationId` already set (the URL has
+ * navigated) before that insert has necessarily happened, and its very
+ * first `useConversationMessages` call must not flash an error state for
+ * a conversation that simply doesn't exist YET. A 404 is therefore mapped
+ * to `{ ok: true, value: [] }` here, not `{ ok: false }` — deliberately
+ * different from every other function in this file, where 404 is an
+ * ordinary failure. A REAL, unexpected 404 (a stale/bad id typed into the
+ * URL bar directly) still resolves to "no messages", which is also the
+ * correct rendering for that case (an empty transcript, not a crash) —
+ * the two situations are visually indistinguishable on purpose.
+ */
+interface ConversationRow {
+  messages: Array<{
+    id: string;
+    role: ChatMessage["role"];
+    content: string;
+    createdAt: string;
+    isPartial: boolean;
+    feedback: "positive" | "negative" | null;
+    modelId: string | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    creditCost: number | null;
+  }>;
+}
+
+function mapRow(row: ConversationRow["messages"][number]): ChatMessage {
+  return {
+    id: row.id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.createdAt,
+    isPartial: row.isPartial,
+    ...(row.feedback != null ? { feedback: row.feedback } : {}),
+    ...(row.modelId != null ? { modelId: row.modelId } : {}),
+    ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
+    ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
+    ...(row.creditCost != null ? { creditCost: row.creditCost } : {}),
+  };
+}
+
+export async function fetchConversationMessages(
+  conversationId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ApiResult<ChatMessage[]>> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+      credentials: "include",
+    });
+  } catch {
+    return { ok: false, status: 0, unauthorized: false };
+  }
+  if (res.status === 404) return { ok: true, value: [] }; // see header comment: not-yet-created is not a failure
+  if (!res.ok) return { ok: false, status: res.status, unauthorized: res.status === 401 };
+  try {
+    const body = (await res.json()) as ConversationRow;
+    return { ok: true, value: body.messages.map(mapRow) };
+  } catch {
+    return { ok: false, status: res.status, unauthorized: false };
+  }
 }

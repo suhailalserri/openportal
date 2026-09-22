@@ -4,7 +4,17 @@ import { generateConversationId, conversationPath } from "./new-chat";
 
 describe("generateConversationId", () => {
   afterEach(() => {
+    // `vi.restoreAllMocks()` only undoes `vi.spyOn`/`vi.fn` mocks — it does
+    // NOT touch `vi.stubGlobal` (two of the four tests below stub
+    // `globalThis.crypto`). Without `unstubAllGlobals()` here, a stubbed
+    // fake `crypto` leaks into the next test in this file, which is
+    // exactly what happened in CI: "produces distinct ids across calls"
+    // got the SAME fixed id twice because the previous test's stub was
+    // still active. Both calls are kept — restoreAllMocks for any future
+    // spy-based test added to this suite, unstubAllGlobals for the
+    // globals this file actually stubs today.
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("uses crypto.randomUUID when available", () => {
