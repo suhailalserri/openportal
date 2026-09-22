@@ -3699,3 +3699,139 @@ optional-from-empty-string fields), the same `tsc` flag would catch it
 the same way; worth a full `pnpm type-check` before merging even after
 this patch, since this fix addresses the one reported line, not a
 project-wide sweep.
+
+## Phase 5.2 Patch v2 — TabsList full-width layout fix
+
+**Symptom:** on the `/billing` preview, the `Buy Credits / Pricing /
+History` tab strip rendered stretched edge-to-edge with large gaps
+between items (screenshot from user, mobile Chrome), instead of a
+compact left/leading-aligned tab bar.
+
+**Fix:** `apps/web/components/ui/tabs.tsx` — `TabsList` gets
+`self-start` added alongside the existing `w-fit` (belt-and-suspenders
+against the parent `Tabs`'s `flex flex-col` cross-axis stretch), and
+`gap-0.5` tightened to `gap-1`. Shared primitive, so any other tab
+usage in the app gets the same fix, not just billing.
+
+### Files changed
+- `apps/web/components/ui/tabs.tsx` (edit)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** `web:type-check`, `web:build` — layout-only class change,
+  no logic touched, no new test expected to fail or be needed.
+- **Preview:** `/billing`, both mobile width and desktop width — tab
+  strip (`Buy Credits`/`Pricing`/`History`) should hug its content on
+  the leading edge (left in LTR, right in RTL) with tight spacing
+  between items, not spread across the full container width.
+
+### Not verified
+No browser/`next build` in this sandbox — could not screenshot-diff
+mobile vs. desktop myself. `self-start` + `w-fit` is the standard fix
+for this exact flex-col stretch pattern, but if the preview still
+shows stretching after this, the next thing to check (not yet
+inspected) is whether `TabsPrimitive.List` from `@radix-ui/react-tabs`
+renders any inline `style="width: ..."` of its own that would need an
+explicit `!w-fit` override instead.
+
+## B2 — Backend: user usage + index
+
+**Goal:** tRPC procedures + REST export + DB index that Phase 6
+(Dashboard & Usage Log) needs. Scoped to `type = 'usage_debit'`
+transactions only (the rows with modelId/token metadata) — redeems,
+admin credits, refunds, payments, referral bonuses are deliberately
+excluded; that's the full ledger already served by
+`billing.getTransactions` (5.2's History tab), not "usage."
+
+### Files changed
+- `packages/db/src/migrations/0009_usage_index.sql` (new) —
+  `idx_transactions_type_date ON transactions(type, created_at DESC)`,
+  per plan §7 F13.
+- `apps/api/src/services/usage.service.ts` (new) — `getUsageSummary`,
+  `getUsageTimeseries`, `getUsageByModel`, `listUsage` (keyset/cursor
+  pagination on `(created_at, id)`, not offset — avoids skip/dup rows
+  under concurrent writes), `listUsageForExport` (hard-capped 5,000
+  rows, used by the REST route below). Every exported function takes
+  `userId` as a required first argument and every query filters on it —
+  no path returns another user's rows.
+- `apps/api/src/routers/billing.router.ts` (edit) — added
+  `usageSummary` / `usageTimeseries` / `usageByModel` / `listUsage`
+  procedures, all `protectedProcedure`, all pass `ctx.user.id` (never
+  client input) into usage.service.ts. Shared `usageRangeInput` (from/to/
+  modelId) added.
+- `apps/api/package.json` (edit) — new export map entry
+  `"./services/usage"` (matches the existing `./services/redeem` /
+  `./services/fraud` naming convention — key drops the `.service`
+  suffix the filename has).
+- `apps/web/app/api/usage/export/route.ts` (new) — REST `GET`, session
+  auth via `auth.api.getSession` (same pattern as
+  `apps/web/app/api/redeem/route.ts`), calls `listUsageForExport`
+  directly (same service the trpc procedures use, so export can never
+  diverge from what the UI shows), returns CSV with a
+  `Content-Disposition: attachment` filename encoding the date range.
+- `apps/api/src/services/usage.service.test.ts` (new) — Testcontainers,
+  same pattern as `redeem.service.test.ts`. Covers: IDOR (4 tests — one
+  per exported function, including a "foreign cursor" case where user A
+  pages using user B's transaction id as `cursor` and must get an empty
+  result, not an error or a leak), non-usage transaction types excluded,
+  summary/avg/top-model aggregation correctness, keyset pagination
+  (no skipped/duplicate rows across two pages), 90-day range clamp.
+
+### DELETE list
+None.
+
+### Frozen zone
+`app/api/usage/export/route.ts` is a new file under `apps/web/app/api/**`
+— that path is frozen for *frontend* phase sessions, but B-sessions are
+the explicitly sanctioned exception (§7: "separate small PRs to main");
+`apps/web/app/api/redeem/route.ts` already established this exact
+precedent (direct DB/service access, session-checked, outside any
+frontend phase). No `server/**`, `middleware.ts`, `i18n/request.ts`, or
+`next.config.ts` touched.
+
+### How to verify
+- **CI:** new `usage.service.test.ts` should run under whatever job runs
+  `apps/api`'s existing `*.service.test.ts` files (Testcontainers, real
+  Postgres) — confirm it's picked up by the same vitest config as
+  `redeem.service.test.ts` (no new config needed if so). `web:type-check`
+  should resolve `@ai-platform/api/services/usage` via the new
+  `package.json` export.
+- **Manual, against a seeded account with some chat usage:**
+  - tRPC: `billing.usageSummary` / `usageTimeseries` / `usageByModel` /
+    `listUsage` all return only that account's rows; `listUsage` with a
+    `cursor` param pages correctly with no repeats.
+  - REST: `GET /api/usage/export` (logged in, browser or `curl -b
+    <session cookie>`) downloads a CSV; try `?from=2020-01-01` — either
+    clamped to 90 days server-side or returns nothing beyond that window
+    (this is the one behavior I could not exercise here — see below).
+  - Confirm migration `0009` applies cleanly against a copy of the real
+    DB (`IF NOT EXISTS`, so safe to run twice).
+
+### Not verified
+No `node_modules`/`tsc`/`vitest`/`next build` run in this sandbox —
+same limitation as every prior phase here. Specifically:
+- The new test file is written against the same Testcontainers/factory
+  pattern as `redeem.service.test.ts`, but was not actually executed —
+  if `drizzle-kit push` (which the test harness uses to build the schema
+  fresh) or the SQL row-constructor comparison
+  (`(created_at, id) < (cursorRow.createdAt, cursorRow.id)`) behaves
+  differently than expected under Drizzle's `postgres-js` driver, the
+  keyset-cursor tests are the ones most likely to need adjustment.
+- Did not confirm `z.coerce.date()` (used for the `from`/`to` query
+  params on the trpc procedures) is available in this repo's exact Zod
+  version — Phase 1's stack doc says "Zod v4," which has it, but the
+  lockfile wasn't checked.
+- Did not confirm `exactOptionalPropertyTypes` (the flag that broke the
+  5.2 build once already) has any issue with this file's optional
+  `from`/`to`/`modelId`/`cursor` fields — they're all read via `?? `
+  fallbacks or passed straight through from Zod's `.optional()` output,
+  not manually assigned `undefined` the way the 5.2 bug did, but a real
+  `tsc` run is the only way to be sure.
+- `listUsageForExport`'s 5,000-row cap is a judgment call, not something
+  from the plan text — worth confirming it's generous enough once real
+  usage volume exists.
