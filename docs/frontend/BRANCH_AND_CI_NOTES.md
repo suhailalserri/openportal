@@ -3365,3 +3365,110 @@ i.e. whether the preview the bug was seen on predates that earlier fix.
 2. The coarse-pointer heuristic's 2-in-1/iPad-with-keyboard tradeoff
    (documented above) is accepted as-is; revisit only if it's reported
    as an actual complaint, not preemptively.
+
+---
+
+## Phase 5.1 — Billing: wallet + redeem
+
+### Summary
+Built `/billing` (`(app)` group): `BalanceCard` (balance hero, low/zero
+states) + `RedeemForm` (dash-auto-formatting input, paste button,
+Turnstile, shape-only client check per Rule 5) in a new
+`features/billing/` folder, wired to the existing frozen `POST
+/api/redeem` route and `billing.getBalance` tRPC query. Flipped
+`config/nav.ts`'s `billing` entry to `enabled: true` (page file now
+exists, satisfying `nav.test.ts`'s enabled-implies-page-exists check).
+
+Added polish beyond the plan's bare bullet list, per the session's
+explicit ask: a two-cannon `canvas-confetti` burst
+(`components/magicui/confetti.tsx`) fires once on a confirmed successful
+redeem (Enter-to-submit or button), and `BalanceCard` gets an animated
+`BorderBeam` ring (already in the repo since before this phase) in
+warning/destructive colors when the balance is low/zero. Both respect
+`prefers-reduced-motion`.
+
+### Files changed
+- `apps/web/features/billing/types.ts` (new)
+- `apps/web/features/billing/lib/redeem-shape.ts` (new)
+- `apps/web/features/billing/lib/redeem-shape.test.ts` (new)
+- `apps/web/features/billing/hooks/use-redeem.ts` (new)
+- `apps/web/features/billing/components/balance-card.tsx` (new)
+- `apps/web/features/billing/components/redeem-form.tsx` (new)
+- `apps/web/features/billing/index.tsx` (new)
+- `apps/web/components/magicui/confetti.tsx` (new)
+- `apps/web/app/[locale]/(app)/billing/page.tsx` (new)
+- `apps/web/config/nav.ts` (edit: `billing.enabled` false → true)
+- `apps/web/package.json` (edit: added `canvas-confetti` dependency,
+  `@types/canvas-confetti` devDependency — install after merge)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. No edits under `app/api/**`, `server/**`, the listed
+`lib/*.ts` files, `middleware.ts`, `i18n/request.ts`, `next.config.ts`,
+`Dockerfile`, or anything outside `apps/web` (including `packages/config`
+— `LOW_BALANCE_THRESHOLD` is imported from there, read-only, not
+modified; a genuinely shared redeem-alphabet constant would need a
+backend (B*) session to hoist it, since `packages/config` is out of
+scope for a frontend session even though it predates the frozen-zone
+rule's own drafting — see `redeem-shape.ts`'s header comment).
+
+### No message-file changes
+`messages/{ar,en}.json` already had complete `balance.*` and `redeem.*`
+namespaces (including every error code the frozen service returns) from
+an earlier phase — nothing added or renamed, so `i18n-parity` should
+stay green as a pure regression check, not because this phase touched it.
+
+### How to verify
+- **CI:** `check` (type-check + lint) · `web-unit` (new
+  `redeem-shape.test.ts`, 5+ cases) · `i18n-parity` (should be an
+  unaffected regression pass) · `web-build`.
+- **`nav.test.ts`:** must still pass now that `billing.enabled = true` —
+  it asserts `app/[locale]/(app)/billing/page.tsx` exists, which it now
+  does.
+- **Preview, both locales (`/ar/billing`, `/en/billing`):**
+  - Balance card shows the live balance; skeleton while loading.
+  - Seed/force a low balance (< 10 credits) → card shows the amber
+    `BorderBeam` ring + "Low Balance" badge + `lowMessage` text. Zero →
+    red ring + "No Credits" + `zeroMessage`.
+  - Redeem a valid, unused seeded code, submit via **Enter** in the
+    input: side-cannon confetti fires once, success toast shows the
+    exact credited amount, balance card updates without a page reload
+    (no manual refresh).
+  - Redeem the same code again (or an already-used one): translated
+    `ALREADY_USED` error shown inline + as a toast, **no confetti**, code
+    stays in the field for editing.
+  - Rapid double-Enter / double-click submit on one code: only one
+    network call fires (button disables on `isPending`), only one
+    confetti burst, only one balance-refresh.
+  - OS-level "reduce motion" enabled: no confetti, no BorderBeam pulse
+    (theme.css's global override + `confetti.tsx`'s own check).
+  - Sidebar: "Credits & Billing" now renders as a live link (not the
+    disabled "soon" row) in both locales.
+- **RTL:** Arabic layout — input direction stays LTR (codes are Latin
+  characters, matching the code-block LTR convention elsewhere), paste
+  button sits at the correct logical side, card grid reflows correctly.
+
+### Not verified
+No network/`node_modules` in this sandbox: `canvas-confetti`'s actual
+bundle behavior, `pnpm install`, `tsc --noEmit`, `next build`, and
+`vitest` itself were not run. In particular:
+- I could not confirm `@trpc/react-query@^11` exposes `trpc.useUtils()`
+  under that exact name in this repo's pinned minor version (v11's own
+  history renamed `useContext` → `useUtils`; nothing in this codebase
+  called either one yet, so there was no existing call site to confirm
+  against). If CI's type-check fails on that call, it's a one-line
+  rename to `trpc.useContext()`.
+- `navigator.clipboard.readText()` in `handlePaste` requires a secure
+  context and (on some browsers) a permission prompt — behavior on the
+  actual Vercel preview domain over HTTPS should be fine, but I could
+  not exercise it here.
+- The `BorderBeam` `colorFrom`/`colorTo` props were passed
+  `"var(--destructive)"`-style CSS var references (rather than resolved
+  hex) so both light/dark themes pick up the right color automatically —
+  this is a valid CSS value for the component's own custom-property
+  usage as I read its source, but I did not render it to confirm.
+- Per **0.2's D1 decision**, `frontend-v2` previews hit the production
+  database — please redeem-test only with a dedicated test account and a
+  purpose-generated test code batch, not a real user's code.
