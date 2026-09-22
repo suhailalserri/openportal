@@ -136,8 +136,16 @@
       "admin_credit": "Admin Credit",
       "admin_debit": "Admin Debit",
       "payment": "Payment",
-      "referral_bonus": "Referral Bonus"
-    }
+      "referral_bonus": "Referral Bonus",
+      "refund": "Refund",
+      "unknown": "Other"
+    },
+    "typeColumn": "Type",
+    "amountColumn": "Amount",
+    "balanceColumn": "Balance After",
+    "exportCsv": "Export CSV",
+    "prevPage": "Previous",
+    "nextPage": "Next"
   },
   "redeem": {
     "title": "Redeem a Code",
@@ -505,5 +513,53 @@
     "message": "We only use essential cookies needed for sign-in and to run the platform.",
     "learnMore": "Learn more",
     "accept": "Got it"
+  },
+  "billing": {
+    "tabs": {
+      "buy": "Buy Credits",
+      "pricing": "Pricing",
+      "history": "History"
+    },
+    "packages": {
+      "title": "Choose a package",
+      "empty": "No packages available right now.",
+      "bestValue": "Best Value",
+      "yer": "YER",
+      "creditsGranted": "{amount} credits"
+    },
+    "methods": {
+      "title": "Choose a payment method",
+      "yer": "YER",
+      "accountCode": "Account / Code",
+      "copy": "Copy",
+      "copied": "Copied ✓",
+      "goToRedeem": "Go to redeem a code",
+      "claimSubmitted": "Your claim was submitted. An admin will review it shortly.",
+      "referenceCodeLabel": "Reference code",
+      "referenceCodeHint": "Write this code as your transfer note so we can match it.",
+      "done": "Done",
+      "senderName": "Sender name",
+      "senderPhone": "Sender phone",
+      "submittedTxRef": "Transfer reference (if any)",
+      "notes": "Notes",
+      "submitting": "Submitting...",
+      "submitClaim": "Submit claim"
+    },
+    "claims": {
+      "title": "My Claims",
+      "empty": "No transfer claims yet.",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      }
+    },
+    "pricing": {
+      "model": "Model",
+      "tier": "Tier",
+      "inputPer1k": "Credits / 1K (input)",
+      "outputPer1k": "Credits / 1K (output)",
+      "empty": "No models available right now."
+    }
   }
 }

@@ -3472,3 +3472,163 @@ bundle behavior, `pnpm install`, `tsc --noEmit`, `next build`, and
 - Per **0.2's D1 decision**, `frontend-v2` previews hit the production
   database — please redeem-test only with a dedicated test account and a
   purpose-generated test code batch, not a real user's code.
+
+## Phase 5.2 — Billing: buy flow (Jaib + manual transfer), history, pricing
+
+Built on top of 5.1's `features/billing/` folder (merged onto the
+5.1-era `frontend-v2` state — no repo re-export happened between the two
+phases in this session). Adds the package picker, the Jaib/manual-transfer
+payment method dialog, the buyer's own claim list, transaction history
+with client-side CSV export, and a public pricing table — all reading
+from tRPC procedures that already existed and were unchanged
+(`billing.listPackages`, `listPaymentMethods`, `submitManualPayment`,
+`myManualPayments`, `getTransactions`, `models.list`).
+
+### i18n gap found and fixed
+`balance.types` (messages/{ar,en}.json) covered 6 of the real 7
+`tx_type` enum values (`packages/db/src/schema/enums.ts`) — `refund` had
+no translation key. Added `balance.types.refund` (and `.unknown`, for
+`transaction-labels.ts`'s safe fallback on any future enum value the
+frontend doesn't recognize yet) to both locale files. Confirmed full
+key-set parity between `ar.json`/`en.json` after the edit (450 keys
+each, zero one-sided keys) — `i18n-parity` should pass as a real check
+this time, not a pass-through.
+
+### Payment method fork
+`paymentMethodTypeEnum` has exactly two values. `payment-method-dialog.tsx`
+forks on `method.type`:
+- `jaib_voucher` → instructions + `accountCode` panel, then a **scroll**
+  (not a tab switch) to the always-visible 5.1 redeem box
+  (`REDEEM_SECTION_ID`, exported from `features/billing/index.tsx`).
+  Jaib buys a pre-issued code out-of-band; the existing redeem box
+  already handles that.
+- `manual_transfer` → the claim form (`submittedTxRef`, `senderPhone`,
+  `senderName`, `notes` — **no screenshot field**, deferred), calling
+  `billing.submitManualPayment`, then showing the server-generated
+  `referenceCode` prominently as the transfer memo the buyer must use.
+
+`submitManualPayment` already hard-rejects any method that isn't
+`manual_transfer` server-side, so a client-side fork mistake here is a
+confusing-UI bug at worst, never a money bug.
+
+### Page layout change
+`features/billing/index.tsx` (edited, not `page.tsx` — that file still
+just renders `<BillingView />`, unchanged): the 5.1 `BalanceCard` +
+`RedeemForm` grid stays at the top, always visible. Below it, a `Tabs`
+(`Buy Credits` / `Pricing` / `History`) holds the new sections, so the
+page doesn't become one long scroll.
+
+### Payment method logos — no upload endpoint exists yet
+`paymentMethods.logoUrl` is a nullable `text` column, validated as
+`z.string().url()` by `admin.paymentMethods.create/update` — but there
+is **no file-upload endpoint anywhere in this codebase** (grepped both
+apps; infra/docker-compose mentions MinIO, nothing in `apps/web` or
+`apps/api` calls it). There is also no admin UI yet for payment methods
+at all (`/admin/payment-methods` is `enabled: false` in `config/nav.ts`,
+Phase 8b). So today, adding a payment method's logo means:
+1. Host the PNG/SVG somewhere with a stable HTTPS URL (a static host, a
+   public bucket, even a CDN-fronted GitHub raw link short-term).
+2. Paste that URL into `paymentMethods.logoUrl` directly (via a DB seed/
+   migration, or `admin.paymentMethods.update` called from a script) —
+   the tRPC procedure already accepts it, there's just no form for it.
+`features/billing/components/payment-method-logo.tsx` renders the logo
+if `logoUrl` is set, otherwise a neutral wallet-icon placeholder — never
+a broken-image glyph. **Real fix**: a future backend session should add
+an actual upload endpoint (MinIO, since it's already in the docker-compose
+stack and unused) plus the Phase 8b admin form; until then this is a
+manual, DB-level step, worth flagging to Fras before real Jaib/bank logos
+are needed for launch.
+
+### Magic UI
+Not a new package.json dependency — Magic UI ships as copy-in component
+source (`shadcn add @magicui/...`), and this repo already vendors four
+components under `components/magicui/` from earlier phases
+(`confetti.tsx`, `border-beam.tsx`, `magic-card.tsx`,
+`shimmer-button.tsx`, `animated-shiny-text.tsx`). `package-picker.tsx`
+reuses the existing `MagicCard` for the package cards' pointer-following
+spotlight rather than adding a new component or a package install step.
+If a future phase wants a Magic UI component not already vendored here,
+the pattern is the same: copy the component source into
+`components/magicui/`, not an npm install — `magic-card.tsx`'s own
+header comment documents the adaptation notes (theme tokens,
+`framer-motion` vs `motion` package) to follow for any new one.
+
+### Files changed
+- `apps/web/features/billing/types.ts` (edit — added
+  `CreditPackageRow`/`PaymentMethodRow`/`PendingManualPaymentRow`/
+  `TransactionRow`/`ManualPaymentSubmit*` local interfaces, mirroring DB
+  row shapes rather than importing from outside `apps/web`, consistent
+  with this file's own 5.1 header comment about a zero-import-into-
+  frozen-zone policy for this feature folder)
+- `apps/web/features/billing/lib/transaction-labels.ts` (new)
+- `apps/web/features/billing/lib/transaction-labels.test.ts` (new)
+- `apps/web/features/billing/hooks/use-manual-payment.ts` (new)
+- `apps/web/features/billing/components/payment-method-logo.tsx` (new)
+- `apps/web/features/billing/components/package-picker.tsx` (new)
+- `apps/web/features/billing/components/pricing-table.tsx` (new)
+- `apps/web/features/billing/components/payment-method-dialog.tsx` (new)
+- `apps/web/features/billing/components/my-claims-list.tsx` (new)
+- `apps/web/features/billing/components/transaction-history.tsx` (new)
+- `apps/web/features/billing/components/buy-credits-section.tsx` (new)
+- `apps/web/features/billing/index.tsx` (edit — Tabs layout, see above)
+- `apps/web/messages/ar.json` / `en.json` (edit — new `billing.*`
+  namespace + `balance.types.refund`/`.unknown` + a few `balance.*`
+  table/pagination strings; see i18n gap note above)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. No edits under `app/api/**`, `server/**`, the listed
+`lib/*.ts` files, `middleware.ts`, `i18n/request.ts`, `next.config.ts`,
+`Dockerfile`, or anything outside `apps/web`. `app/[locale]/(app)/billing/page.tsx`
+was **not** edited this phase — it already only renders `<BillingView />`
+and that contract didn't need to change.
+
+### How to verify
+- **CI:** `check` · `web-unit` (new `transaction-labels.test.ts`, 6
+  cases) · `i18n-parity` (now exercised by real new keys) · `web-build`.
+- **Preview, both locales:**
+  - `/billing`: redeem box unchanged at top; `Buy Credits` tab shows
+    package cards (MagicCard spotlight on hover/pointer-move), best-value
+    badge on the highest-credit package.
+  - Pick a package → dialog lists payment methods with logo-or-placeholder
+    icon → pick Jaib → instructions + account code with a working copy
+    button → "Go to redeem" smooth-scrolls to the redeem box.
+  - Pick manual transfer instead → fill the claim form → submit → success
+    panel shows a reference code → claim appears in "My Claims" as
+    Pending immediately (no refresh) → double-click submit doesn't create
+    two rows client-side (button disables on `isPending`; server-side
+    rate limits are the real guarantee, untouched).
+  - `Pricing` tab: table renders every published+available model with
+    its markup-applied credits/1K figures (server-computed, not
+    recomputed here).
+  - `History` tab: paginates via Prev/Next, every row has a real badge
+    label including `refund` if you seed one, CSV export downloads the
+    currently-loaded page only (filename says the offset range).
+  - RTL: dialog fields default to LTR where the content is
+    Latin/numeric (phone, tx ref), matching the code-block LTR
+    convention elsewhere.
+
+### Not verified
+No network/`node_modules` in this sandbox — `pnpm install`, `tsc --noEmit`,
+`next build`, `vitest`, and `eslint` were not run. Specifically:
+- Could not confirm `trpc.billing.submitManualPayment.useMutation()`'s
+  inferred input/output types line up byte-for-byte with the local
+  `ManualPaymentSubmitInput`/`ManualPaymentSubmitApiResult` interfaces in
+  `types.ts` — they're hand-mirrored from the router/schema source, not
+  imported, so a real drift would only surface as a `tsc` structural-typing
+  error, not a runtime one. If CI's type-check fails here, the fix is
+  updating the interface to match, not the component.
+- `navigator.clipboard.writeText()` in the Jaib panel's copy button has
+  the same secure-context caveat 5.1 already flagged for
+  `readText()` — should work fine on the HTTPS preview domain, not
+  exercised here.
+- Did not confirm `Table`'s default cell padding/wrapping looks right at
+  narrow (mobile) widths with the pricing/history tables' 4 columns —
+  `overflow-x-auto` wrapper is there as a safety net, not visually
+  checked.
+- `MagicCard`'s pointer-following spotlight requires an actual pointer
+  device to see; keyboard/touch-only navigation still works (the whole
+  card is a `<button>`), just without the visual flourish — not verified
+  on an actual touch device.

@@ -136,8 +136,16 @@
       "admin_credit": "إضافة إدارية",
       "admin_debit": "خصم إداري",
       "payment": "دفع",
-      "referral_bonus": "مكافأة إحالة"
-    }
+      "referral_bonus": "مكافأة إحالة",
+      "refund": "استرجاع",
+      "unknown": "أخرى"
+    },
+    "typeColumn": "النوع",
+    "amountColumn": "المبلغ",
+    "balanceColumn": "الرصيد بعد",
+    "exportCsv": "تصدير CSV",
+    "prevPage": "السابق",
+    "nextPage": "التالي"
   },
   "redeem": {
     "title": "استبدال كود الشحن",
@@ -505,5 +513,53 @@
     "message": "نستخدم فقط ملفات تعريف الارتباط الأساسية اللازمة لتسجيل الدخول وتشغيل المنصة.",
     "learnMore": "معرفة المزيد",
     "accept": "حسناً"
+  },
+  "billing": {
+    "tabs": {
+      "buy": "شحن الرصيد",
+      "pricing": "الأسعار",
+      "history": "السجل"
+    },
+    "packages": {
+      "title": "اختر باقة",
+      "empty": "لا توجد باقات متاحة حالياً.",
+      "bestValue": "الأفضل قيمة",
+      "yer": "ريال يمني",
+      "creditsGranted": "{amount} رصيد"
+    },
+    "methods": {
+      "title": "اختر طريقة الدفع",
+      "yer": "ريال يمني",
+      "accountCode": "الرقم / الكود",
+      "copy": "نسخ",
+      "copied": "تم النسخ ✓",
+      "goToRedeem": "الانتقال إلى استبدال الكود",
+      "claimSubmitted": "تم إرسال طلبك بنجاح. سيتم مراجعته من قبل الإدارة.",
+      "referenceCodeLabel": "الرمز المرجعي",
+      "referenceCodeHint": "اكتب هذا الرمز في ملاحظة التحويل حتى نتمكن من مطابقته.",
+      "done": "تم",
+      "senderName": "اسم المُحوِّل",
+      "senderPhone": "رقم هاتف المُحوِّل",
+      "submittedTxRef": "رقم عملية التحويل (إن وجد)",
+      "notes": "ملاحظات",
+      "submitting": "جارٍ الإرسال...",
+      "submitClaim": "إرسال الطلب"
+    },
+    "claims": {
+      "title": "طلباتي",
+      "empty": "لا توجد طلبات تحويل بعد.",
+      "status": {
+        "pending": "قيد المراجعة",
+        "approved": "تمت الموافقة",
+        "rejected": "مرفوض"
+      }
+    },
+    "pricing": {
+      "model": "النموذج",
+      "tier": "الفئة",
+      "inputPer1k": "رصيد / 1000 (إدخال)",
+      "outputPer1k": "رصيد / 1000 (إخراج)",
+      "empty": "لا توجد نماذج متاحة حالياً."
+    }
   }
 }
