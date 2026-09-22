@@ -12,6 +12,14 @@ interface MobileDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   role: string | null;
+  /** Phase 4d Patch v2: threaded through from `AppShell` so the drawer's
+   *  embedded conversation list (inside `SidebarNav`) matches the
+   *  desktop sidebar exactly — same active row, same New Chat/select
+   *  behaviour, just also closing the drawer afterward (see
+   *  `SidebarNav`'s own `onNavigate` wiring). */
+  activeConversationId: string | undefined;
+  onSelectConversation: (id: string) => void;
+  onNewChat: () => void;
 }
 
 /**
@@ -25,7 +33,14 @@ interface MobileDrawerProps {
  * English); sheet.tsx picks the matching slide animation from the
  * ambient Radix direction.
  */
-export function MobileDrawer({ open, onOpenChange, role }: MobileDrawerProps) {
+export function MobileDrawer({
+  open,
+  onOpenChange,
+  role,
+  activeConversationId,
+  onSelectConversation,
+  onNewChat,
+}: MobileDrawerProps) {
   const t = useTranslations("shell");
 
   return (
@@ -47,7 +62,13 @@ export function MobileDrawer({ open, onOpenChange, role }: MobileDrawerProps) {
             </Button>
           </SheetClose>
         </SheetHeader>
-        <SidebarNav role={role} onNavigate={() => onOpenChange(false)} />
+        <SidebarNav
+          role={role}
+          activeConversationId={activeConversationId}
+          onSelectConversation={onSelectConversation}
+          onNewChat={onNewChat}
+          onNavigate={() => onOpenChange(false)}
+        />
       </SheetContent>
     </Sheet>
   );

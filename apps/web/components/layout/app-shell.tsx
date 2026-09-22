@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { conversationPath } from "@/features/chat/lib/new-chat";
 
 import { AccountMenu } from "./account-menu";
 import { AppSidebar } from "./app-sidebar";
@@ -21,26 +23,48 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
+// Matches "/chat/<segment>" and captures the segment — used only to
+// decide which conversation (if any) is "active" for the embedded
+// sidebar/drawer list. "/chat" and "/chat/all" both correctly resolve
+// to `undefined` below (the latter is excluded explicitly, since it's a
+// real path segment that this regex alone can't tell apart from a
+// conversation id).
+const CHAT_ID_PATTERN = /\/chat\/([^/?#]+)/;
+
 /**
  * Client half of the (app) and (admin) layouts: desktop sidebar, mobile
  * header + drawer, <main>. The server layout has already decided the
  * visitor may be here (lib/guards.ts) — nothing in this component is a
  * security boundary.
  *
- * Phase 2.2 fills the mobile header / adds a desktop top bar
- * (BalanceWidget, AccountMenu, LanguageSwitcher, ThemeToggle).
+ * Phase 4d Patch v2: `AppSidebar`/`MobileDrawer` now embed the
+ * conversation list on every route (not just the two chat pages), so
+ * this is where `activeConversationId`/`onSelectConversation`/
+ * `onNewChat` are derived — once, at the shell level — from
+ * `usePathname()`/`useRouter()`, and handed to both. Neither chat page
+ * owns a `ConversationSidebar` of its own any more (see their own
+ * header comments).
  */
 export function AppShell({ role, children }: AppShellProps) {
   const t = useTranslations("shell");
   const tApp = useTranslations("app");
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Resizing from a phone-sized to a desktop-sized viewport unmounts the
   // drawer; make sure it doesn't come back already open.
   useEffect(() => {
     if (!isMobile) setDrawerOpen(false);
   }, [isMobile]);
+
+  const chatIdMatch = pathname.match(CHAT_ID_PATTERN);
+  const activeConversationId = chatIdMatch && chatIdMatch[1] !== "all" ? chatIdMatch[1] : undefined;
+
+  const selectConversation = (id: string) => router.push(conversationPath(locale, id));
+  const startNewChat = () => router.push(`/${locale}/chat`);
 
   return (
     <div className="flex min-h-dvh bg-background text-foreground">
@@ -51,7 +75,13 @@ export function AppShell({ role, children }: AppShellProps) {
         {t("skipToContent")}
       </a>
 
-      <AppSidebar role={role} className="hidden md:flex" />
+      <AppSidebar
+        role={role}
+        activeConversationId={activeConversationId}
+        onSelectConversation={selectConversation}
+        onNewChat={startNewChat}
+        className="hidden md:flex"
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/*
@@ -92,7 +122,16 @@ export function AppShell({ role, children }: AppShellProps) {
       </div>
 
       {/* Rule 3: rendered by prop, not hidden by CSS. */}
-      {isMobile ? <MobileDrawer open={drawerOpen} onOpenChange={setDrawerOpen} role={role} /> : null}
+      {isMobile ? (
+        <MobileDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          role={role}
+          activeConversationId={activeConversationId}
+          onSelectConversation={selectConversation}
+          onNewChat={startNewChat}
+        />
+      ) : null}
     </div>
   );
 }
