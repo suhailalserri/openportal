@@ -26,7 +26,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "inline-flex w-fit self-start items-center gap-1 overflow-x-auto border-b border-input",
+        "flex w-full items-center gap-1 overflow-x-auto border-b border-input",
         className
       )}
       {...props}
@@ -39,7 +39,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex items-center justify-center gap-1.5 whitespace-nowrap px-[14px] py-[10px] text-[13.5px] font-medium outline-none",
+        "relative inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-[14px] py-[10px] text-[13.5px] font-medium outline-none",
         "text-muted-foreground transition-colors",
         "hover:text-foreground",
         "focus-visible:ring-2 focus-visible:ring-ring/50",

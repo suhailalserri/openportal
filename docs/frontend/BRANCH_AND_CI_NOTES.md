@@ -3882,3 +3882,39 @@ clause to two plain comparators (`or(lt(createdAt, x), and(eq(createdAt,
 x), lt(id, y)))`) instead of a row-constructor tuple — more verbose,
 but built entirely from column-aware operators with no raw-value
 binding at all.
+
+## Phase 5.2 Patch v3 — TabsList: full-width, evenly-distributed (reversal of v2)
+
+**Change of direction, not a bug:** v2 made `TabsList` hug its content
+(`w-fit`/`self-start`) to fix an unwanted full-width stretch. Explicit
+follow-up ask: the opposite is actually wanted — the tab bar should span
+the full width of its container with each tab taking equal space, not
+sit compressed on the leading edge.
+
+**Fix:** `apps/web/components/ui/tabs.tsx`:
+- `TabsList`: `inline-flex w-fit self-start` → `flex w-full`.
+- `TabsTrigger`: added `flex-1` so each of the three (or N) triggers
+  splits the available width evenly, `justify-center` (already there)
+  centers each label within its share.
+
+Shared primitive — same as v2, this affects every `Tabs` consumer, not
+just billing (still the only one today).
+
+### Files changed
+- `apps/web/components/ui/tabs.tsx` (edit)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** `web:type-check`, `web:build` — layout-only class change.
+- **Preview:** `/billing`, mobile and desktop — `Buy Credits / Pricing /
+  History` should now span the full row width, each tab occupying equal
+  space, label centered within its third.
+
+### Not verified
+No browser in this sandbox — same standing limitation as v1/v2 of this
+fix, confirm on the live preview.
