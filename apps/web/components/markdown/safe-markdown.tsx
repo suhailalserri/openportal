@@ -59,7 +59,16 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
   const t = useTranslations("chat");
 
   return (
-    <div className={cn("text-[15px] leading-[1.65] text-foreground", className)}>
+    // `min-w-0 break-words [overflow-wrap:anywhere]`: same fix as
+    // message.tsx's user bubble, applied here for model output — an
+    // unbroken long token (a URL, a hash, a path with no spaces) in a
+    // plain paragraph would otherwise force this whole column wider than
+    // the viewport instead of wrapping. Fenced code blocks are NOT
+    // affected (and must not be — line breaks inside real code would
+    // corrupt it): CodeBlock's own `<pre className="overflow-x-auto">`
+    // already scrolls internally instead of wrapping, so this rule only
+    // ever reaches plain-text nodes (p/li/blockquote/inline code).
+    <div className={cn("min-w-0 break-words [overflow-wrap:anywhere] text-[15px] leading-[1.65] text-foreground", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

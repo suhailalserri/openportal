@@ -72,7 +72,11 @@ export interface ChatViewProps {
 export function ChatView({ conversationId, className }: ChatViewProps) {
   useConversationCacheIdentity();
 
-  const { messages: history, isLoading: isLoadingHistory } = useConversationMessages(conversationId);
+  const {
+    messages: history,
+    isLoading: isLoadingHistory,
+    conversationModelId,
+  } = useConversationMessages(conversationId);
   const historyReady = !conversationId || !isLoadingHistory;
 
   return (
@@ -82,6 +86,7 @@ export function ChatView({ conversationId, className }: ChatViewProps) {
           key={conversationId ?? "new"}
           conversationId={conversationId}
           initialMessages={history}
+          conversationModelId={conversationModelId}
         />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -97,9 +102,13 @@ export function ChatView({ conversationId, className }: ChatViewProps) {
 interface ChatSessionProps {
   conversationId: string | undefined;
   initialMessages: ChatMessage[];
+  /** Phase 4d patch. This existing conversation's own model, once known
+   *  (undefined for a brand-new conversation, or before the network call
+   *  resolves) — see useConversationMessages's own doc comment. */
+  conversationModelId: string | undefined;
 }
 
-function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
+function ChatSession({ conversationId, initialMessages, conversationModelId }: ChatSessionProps) {
   const t = useTranslations("chat");
   const locale = useLocale();
   const router = useRouter();
@@ -117,19 +126,15 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
   // this heuristic is safe in practice — flagged rather than silently
   // assumed, since it is a heuristic and not a field the server sends.
 
-  // NOTE: `useChatModels({})` — deliberately no `conversationModelId`.
-  // That option exists to make an EXISTING conversation's own model win
-  // over the user's last-picked one on load, but the data source that
-  // would supply it here (useConversationMessages) returns only the
-  // message array, not the conversation row's `modelId` column — adding
-  // that would mean widening UseConversationMessagesResult's contract
-  // (and conversation-api.ts's mapping) beyond what this phase's summary
-  // scoped, so it's left as a flagged simplification rather than done
-  // silently: on an existing conversation, the picker falls back to the
-  // user's last-picked model (or the first available one) instead of
-  // that conversation's own, until a follow-up wires the row's modelId
-  // through. See docs/frontend/BRANCH_AND_CI_NOTES.md's 4d entry.
-  const { models, selectedId, select } = useChatModels({});
+  // Phase 4d patch: `conversationModelId` now comes from
+  // useConversationMessages (conversation-api.ts's fetchConversationModelId),
+  // closing the gap flagged in the 4d session — see
+  // docs/frontend/BRANCH_AND_CI_NOTES.md's 4d entry for the prior
+  // simplification this replaces. `resolveSelectedModelId`'s own
+  // precedence (session pick > conversation's own model > last-picked >
+  // first available) is unchanged; this just supplies the middle tier
+  // with real data instead of always leaving it undefined.
+  const { models, selectedId, select } = useChatModels({ conversationModelId });
   const { params, setParams, systemPrompt, setSystemPrompt } = useChatParams({
     conversationId,
     conversationExists,
@@ -188,7 +193,10 @@ function ChatSession({ conversationId, initialMessages }: ChatSessionProps) {
   const isNewChat = !conversationId;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 p-4">
+    // `min-w-0`: closes the same flex-item-default-min-width gap one more
+    // level up (see message-list.tsx's and message.tsx's own comments on
+    // this chain) — this is itself a flex child of AppShell's `<Main>`.
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 p-4">
       <div className="flex flex-col gap-2">
         <OfflineBanner />
         <TabConflictBanner conversationId={conversationId} isSending={isBusy} />

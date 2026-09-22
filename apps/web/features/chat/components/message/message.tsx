@@ -67,7 +67,17 @@ export function Message({
   }
 
   return (
-    <div className={cn("flex max-w-full gap-2.5", isUser && "flex-row-reverse", className)}>
+    // `min-w-0`: a flex item's default min-width is `auto` (its content's
+    // intrinsic width), not 0 — without this, one long unbroken token in
+    // `message.content` (a URL, a path, an id) forces THIS row wider than
+    // the viewport instead of wrapping, and since nothing upstream of
+    // MessageList clips horizontally either, that widened row is what let
+    // the whole page pan left/right on mobile. `min-w-0` here plus
+    // `break-words` on the two content nodes below is the actual fix;
+    // `max-w-full` alone (already present) only bounds a node against a
+    // PARENT that already has a fixed width, it does nothing against a
+    // child forcing its own intrinsic size upward.
+    <div className={cn("flex min-w-0 max-w-full gap-2.5", isUser && "flex-row-reverse", className)}>
       <Avatar
         className={cn(
           "size-[30px] shrink-0 border border-input",
@@ -86,11 +96,19 @@ export function Message({
         )}
       >
         {isUser ? (
-          <div className="rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] text-[15px] leading-[1.65] whitespace-pre-wrap text-foreground">
+          // `break-words [overflow-wrap:anywhere]`: `whitespace-pre-wrap`
+          // alone only preserves the user's own line breaks — it does NOT
+          // wrap a single long unbroken run of characters (Tailwind's
+          // `break-words` maps to `overflow-wrap: break-word`, which still
+          // prefers not to split within a "word"; `anywhere` is the strict
+          // form that forces a break rather than overflow). Both together
+          // are what actually keep this bubble inside its `max-w-[86%]`
+          // parent instead of pushing it wider.
+          <div className="rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] text-[15px] leading-[1.65] whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-foreground">
             {message.content}
           </div>
         ) : (
-          <SafeMarkdown content={message.content} className="pt-1 pb-0.5" />
+          <SafeMarkdown content={message.content} className="min-w-0 pt-1 pb-0.5" />
         )}
 
         {message.isPartial && (

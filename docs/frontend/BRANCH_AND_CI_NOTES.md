@@ -2589,3 +2589,192 @@ in this round's scope touches the dev kitchen-sink page.
     last-picked model: confirm whether the picker shows the
     last-picked/first-available model (expected, per the flagged
     simplification above) rather than treating a mismatch as a bug.
+
+## Phase 4d Patch v2 — Mobile chat nav redesign (conversation list moves to shell level)
+
+- **What changed:** `ConversationSidebar` gained a `limit` prop (caps at
+  10, pinned first, with a "View all chats →" link to `/chat/all` once
+  the real count exceeds it) and a `listClassName` prop so it can be
+  embedded without its own nested scroll region. New
+  `ConversationFullList` + `/chat/all` page give the uncapped view with
+  a round floating "new chat" button (`end-4 bottom-4`, never
+  `right-`/`left-`). `AppSidebar`/`SidebarNav` now embed the (capped)
+  conversation list above the role-filtered nav groups, and render on
+  **every** route via `AppShell`, not just the two chat pages — the
+  inline `ConversationSidebar` in `chat/page.tsx` and `chat/[id]/page.tsx`
+  is gone; both now render only `ChatView`. `AppShell` derives
+  `activeConversationId` from `usePathname()` (excluding the literal
+  `/chat/all` segment) and provides `onSelectConversation`/`onNewChat`
+  via `useRouter()`, passed to both `AppSidebar` and `MobileDrawer`. The
+  `"chat"` entry was removed from `config/nav.ts`'s main group — the
+  embedded list already owns that destination, so a second link to the
+  same place was redundant. `messages/{en,ar}.json` gained
+  `chat.viewAllChats` and `chat.allChatsTitle`, parity-checked (both
+  files have identical key sets after the edit).
+
+- **Admin visibility — confirmed from code, not assumed:**
+  `getNavGroups(role)` in `config/nav.ts` filters the `admin` group by
+  `roles: ADMIN_ROLES`, and `normalizeRole()` fails closed for any
+  unknown/missing role. This was unchanged by this patch and needed no
+  fix — a regular user's embedded sidebar/drawer never renders the admin
+  group; the screenshot the request was built from showed it only
+  because that session was signed in as superadmin.
+
+- **Could not verify without running the code:**
+  - Whether nesting `ConversationSidebar` (with `listClassName=""`,
+    `flex-none`) inside `SidebarNav`'s own `overflow-y-auto` `<nav>`
+    actually lays out as intended (one shared scroll for New
+    Chat/search/list/nav-links together) rather than the list's own
+    `flex flex-col` producing an unexpected height in a parent whose
+    height comes from `overflow-y-auto` content-sizing rather than a
+    hard pixel value. This is exactly the class of thing Phase 4d's
+    original gap (a real-device-only bug) came from, so it needs the
+    same real-phone-width check called out below before being trusted.
+  - Whether `AppShell` now mounting `useConversations` unconditionally
+    on every `(app)`/`(admin)` route (previously only on the two chat
+    pages) causes a visible list flash or extra fetch when navigating
+    away from and back to `/chat` — the hook's cache-first IndexedDB
+    read should mask this, but it wasn't exercised here.
+  - `pnpm install` was not possible in this sandbox (no network egress,
+    no `node_modules` in the provided zip), so none of `type-check`,
+    `lint`, `next build`, or `vitest` were actually run against these
+    changes — CI is the first real execution of any of it.
+
+- **CI:** same jobs as prior phases — `type-check`/`lint` (would catch
+  any prop-mismatch from the `ConversationSidebar` signature change, and
+  Rule 2's lint ban on literal `right-`/`left-` classes on the new FAB
+  and "View all chats" chevron), `next build` (RSC/client-boundary
+  correctness of the new `/chat/all` route and the simplified chat
+  pages), `vitest` (`nav.test.ts` should still pass with `"chat"`
+  removed from `NAV_GROUPS` — nothing in it asserts that entry exists),
+  `i18n-parity` (new `chat.viewAllChats`/`chat.allChatsTitle` keys are
+  present in both locale files).
+
+- **Manual, real phone width, both locales (this is the gap that caused
+  the original bug — do not substitute a resized desktop browser):**
+  - `/chat`, `/chat/[id]`, `/chat/all`, and one non-chat route (e.g.
+    `/admin` for a superadmin account) — confirm the sidebar/drawer
+    content is identical across all of them (same capped list, same
+    "View all chats" link, same nav links below the divider).
+  - Confirm the drawer never renders alongside a second, desktop-only
+    `ConversationSidebar` — there should be exactly one conversation
+    list on screen at any viewport width.
+  - FAB on `/chat/all` and the "View all chats" link/chevron sit on the
+    correct logical side under `dir="rtl"`.
+  - A non-admin test account's drawer and desktop sidebar both show no
+    admin section (expected per the code-confirmed finding above — this
+    is a regression check, not expected to surface anything new).
+  - Selecting a conversation from the drawer closes the drawer AND
+    navigates (both `onSelectConversation` and `onNavigate` firing from
+    the same click, per `SidebarNav`'s wiring).
+
+## Mobile chat layout fix — composer no longer scrolls with the conversation
+
+- **Root cause:** not in the chat feature at all — `components/layout/main.tsx`
+  (`<Main>`) and `AppShell`'s root only ever had `flex-1`/`min-h-dvh`, never a
+  definite, capped height. On mobile, once a conversation's message list grew
+  taller than the viewport, the whole page grew with it (native page scroll)
+  instead of `MessageList`'s own internal `overflow-y-auto` doing the
+  scrolling — dragging the composer up/down with the transcript. Compounding
+  it, `MessageList` was handed `className="flex-1"` with no `min-h-0`, so
+  even if the ancestor chain had been bounded, this element's flex
+  default (`min-height: auto`) would still have let it grow to fit its
+  own content rather than shrink to the space available and scroll.
+
+- **Fix (three files, one chain):**
+  - `AppShell` root: `min-h-dvh` → `h-dvh overflow-hidden` (matches
+    `AppSidebar`'s own `h-dvh`), and its inner column wrapper gained
+    `min-h-0`.
+  - `Main`: `flex-1` → `flex min-h-0 flex-col overflow-y-auto`. This is
+    also what keeps every OTHER page (billing, settings, admin —
+    none of which manage their own height) scrolling normally now that
+    the page/root itself no longer can.
+  - `chat-view.tsx`: `MessageList` and the empty-state/loading-skeleton
+    containers all gained `min-h-0` alongside their existing `flex-1`, so
+    they actually shrink to `ChatSession`'s available height and let
+    their own `overflow-y-auto` engage instead of stretching it.
+  - Net effect: on chat routes, `ChatView` fills `Main`'s `h-full`
+    exactly; `MessageList` (not `Main`, not the page) is the one
+    scrolling region; `ComposerBar` (no `flex-1`) sits at its natural
+    size below it and never moves.
+
+- **Could not verify without running the code:** this is CSS/layout
+  behavior depending on the full flexbox chain resolving at runtime
+  across four nested components — the reasoning is sound and matches
+  the working pattern `AppSidebar` already used (`h-dvh`), but it needs
+  the same real-phone check called out for the nav patch: open a long
+  conversation on an actual device (not a resized desktop browser),
+  scroll up through history, and confirm the composer and header never
+  move. Also worth a once-over on `/billing`, `/settings`, `/admin` to
+  confirm they still scroll normally now that `Main` (not the page body)
+  owns that scroll.
+
+- **CI:** same jobs as before — `type-check`/`lint`/`next build` would
+  catch any JSX/className mistake in these edits; no new job needed;
+  nothing here is unit-testable (pure layout/CSS).
+
+## Phase 4d Patch v3 — horizontal overflow fix + conversation modelId wiring
+
+- **Reported symptom (screenshots):** on mobile, a message bubble could be
+  panned/dragged left and right, cropped at both edges — the page was
+  horizontally scrollable, which it should never be.
+
+- **Root cause:** the vertical-scroll fix in Patch v2 (above) bounded
+  every ancestor's *height*, but nothing in that chain bounded *width*.
+  A flex item's default `min-width` is `auto` (its content's intrinsic
+  width), not `0`. `message.tsx`'s outer row, `SafeMarkdown`'s root
+  `div`, and `MessageList`'s scroll container all omitted `min-w-0`, and
+  the two actual text nodes (the user bubble's `whitespace-pre-wrap` div,
+  and every plain-text node `SafeMarkdown` renders) had no
+  `break-words`/`overflow-wrap` rule at all. One long unbroken token in a
+  message (a URL, a hash, a path) was therefore free to force its row
+  wider than the viewport instead of wrapping, and with nothing upstream
+  clipping horizontally either, that widened row is what let the whole
+  page pan.
+
+- **Fix (four files):**
+  - `message.tsx`: `min-w-0` added to the outer row; `break-words
+    [overflow-wrap:anywhere]` added to the user bubble's content div;
+    `min-w-0` added to the `SafeMarkdown` wrapper via its `className` prop.
+  - `safe-markdown.tsx`: `min-w-0 break-words [overflow-wrap:anywhere]`
+    added to the component's own root `div`. Fenced code blocks are
+    unaffected — `CodeBlock`'s `<pre className="overflow-x-auto">`
+    already scrolls internally rather than wrapping, and this rule never
+    reaches it (only plain-text nodes: p/li/blockquote/inline code).
+  - `message-list.tsx`: `min-w-0 overflow-x-hidden` added to the scroll
+    container as a backstop, one level above the per-message fix.
+  - `chat-view.tsx`: `min-w-0` added to `ChatSession`'s root div, closing
+    the same gap one level further up (it's `Main`'s flex child).
+
+- **Could not verify without running the code:** same caveat as Patch v2
+  — no node_modules/build tooling available in this session, so nothing
+  below was actually run: `pnpm --filter web type-check`,
+  `pnpm --filter web lint`, `pnpm --filter web test`. Only a coarse
+  brace-balance check was done by hand. Needs a real device check too:
+  send a message containing one long unbroken string (~200 chars, no
+  spaces) at a phone-width viewport and confirm it wraps with no
+  horizontal pan, on both `/chat` and an existing long conversation.
+
+- **Also in this patch — conversation modelId wiring** (closes the
+  flagged simplification from the original 4d session, see that entry
+  above `useChatModels({})`): added `fetchConversationModelId` to
+  `conversation-api.ts` (a third independent GET to
+  `/api/conversations/[id]`, same pattern as the existing
+  system-prompt/messages split — see that file's own header comment for
+  why these stay separate functions rather than one widened response).
+  `useConversationMessages` now also returns `conversationModelId`;
+  `chat-view.tsx` passes it into `useChatModels({ conversationModelId })`.
+  A failure on this specific fetch is swallowed to `undefined`, not
+  surfaced as the hook's `isError` — `useChatModels`'s own fallback chain
+  (session pick → conversation's model → last-picked → first available)
+  already degrades gracefully, and this is a cosmetic preselection detail,
+  not something that should block or error out the whole conversation view.
+  Unit-tested in `conversation-api.test.ts` (5 new cases, mirroring the
+  existing `fetchConversationMessages` suite's shape). The hook itself
+  (`use-conversation-messages.ts`) has no test file, consistent with the
+  rest of that file's pattern — not newly introduced by this patch.
+
+- **CI:** `type-check`/`lint`/`test`/`next build` — same jobs as every
+  prior phase, no new job needed. `test` is the one that actually
+  exercises new behavior (`conversation-api.test.ts`); the rest is
+  layout/CSS plus one new hook field with no dedicated test.

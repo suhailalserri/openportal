@@ -85,7 +85,21 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className={cn("flex flex-col gap-5 overflow-y-auto px-1", className)}
+      // `min-w-0`: this is `ChatSession`'s flex child (`className="min-h-0
+      // flex-1"` passed in from chat-view.tsx) — without it, the same
+      // flex-item default-min-width issue documented in message.tsx and
+      // safe-markdown.tsx applies one level up too: a single overlong
+      // message anywhere in `visible` could still stretch THIS container
+      // itself, not just the row inside it. `overflow-x-hidden` is the
+      // belt-and-suspenders backstop — with the min-w-0 chain (this file →
+      // message.tsx → safe-markdown.tsx) and break-words at the leaves
+      // correctly in place there should never be horizontal overflow to
+      // hide, but a third-party markdown/highlight edge case producing an
+      // unbreakable node is now clipped here instead of panning the page.
+      className={cn(
+        "flex min-w-0 flex-col gap-5 overflow-x-hidden overflow-y-auto px-1",
+        className,
+      )}
     >
       {hasMore && (
         <div className="flex flex-col items-center gap-2 pb-2">
