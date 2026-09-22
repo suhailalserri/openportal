@@ -2968,3 +2968,116 @@ in this round's scope touches the dev kitchen-sink page.
 
 - **CI:** `type-check`/`lint`/`test`/`next build` — same jobs, no new
   ones. Nothing here is unit-testable (pure JSX/CSS + prop threading).
+
+## Phase 4d Patch v8 — Streaming re-render/highlight cost, user-message markdown
+
+### Problem reported
+1. Assistant response streaming appears to get slower as it goes on.
+2. Request: render user messages as markdown too (currently plain text
+   by Phase 4d's original design — see the old header comment in
+   message.tsx, now replaced).
+
+### Root cause (1) — not the network, not the reducer
+`stream-reader.ts` calls `onChunk` synchronously per `reader.read()`
+resolution with no batching (correct, unchanged). `chat-stream-
+reducer.ts`'s CHUNK handling is a cheap array `.map()` + string
+concatenation (correct, unchanged). The cost was in `SafeMarkdown`:
+`ReactMarkdown` + `remarkGfm` + `rehypeHighlight` re-parses and
+re-syntax-highlights the ENTIRE accumulated message string on every
+single chunk, and neither `Message` nor `MessageList` was memoized, so
+every other row in the transcript re-rendered on every chunk too. Cost
+per chunk grows with message length → total cost across a stream grows
+roughly quadratically with response length. This reads exactly as
+reported: fine at the start of a response, visibly laggy by the end,
+worse on code-heavy answers (rehypeHighlight is the most expensive part).
+
+### Fix
+- `use-chat-stream.ts`: deltas are now coalesced into a buffer and
+  flushed to the reducer via a single `CHUNK` dispatch per animation
+  frame (`requestAnimationFrame`), instead of one dispatch per network
+  chunk. `onDone`/`onStopped`/`onPartial` synchronously flush any
+  remaining buffered text first (`flushNow`) so no trailing content is
+  ever dropped; `onError` clears the buffer instead of flushing it, so
+  it doesn't change chat-stream-reducer.ts's existing "empty draft on
+  error is dropped" contract (ERROR only checks `content.length === 0`
+  at the moment the action lands). rAF cleanup added to the existing
+  unmount effect.
+  - This bounds re-render/re-highlight frequency to ~60/s regardless of
+    how fast the network delivers bytes. It does NOT change what content
+    ends up on screen or in the reducer — same bytes, same final state,
+    just coalesced into fewer, larger appends. `stream-reader.ts` and
+    `chat-stream-reducer.ts` are both untouched.
+- `message.tsx`: `Message` wrapped in `React.memo` with an explicit
+  field-by-field comparator (documents exactly what streaming vs. user
+  action changes, rather than relying on shallow-equal by accident).
+  Stops every other row in the transcript from re-rendering while one
+  message streams.
+
+### Fix (2) — user messages now render as markdown
+`message.tsx`: user bubble now renders `message.content` through the
+same `SafeMarkdown` component the assistant turn uses, instead of a
+raw `whitespace-pre-wrap` div. `SafeMarkdown`'s own sanitization rules
+(no rehype-raw, no dangerouslySetInnerHTML, blocked remote images,
+forced `rel=noopener noreferrer`) apply identically regardless of who
+authored the string, so no new XSS surface — `safe-markdown.test.tsx`'s
+existing fixtures already cover this renderer, not just its assistant
+call site. Outer bubble div keeps its border/background/padding and
+`min-w-0 break-words [overflow-wrap:anywhere]`; `whitespace-pre-wrap` is
+dropped since markdown's own paragraph/list/line-break handling now
+owns that.
+
+**Known behavior change, on purpose:** a user who literally types `*`,
+`_`, or a lone backtick will now see it consumed as markdown formatting
+instead of shown as-is — including retroactively on already-persisted
+historical messages, since this reads `message.content` directly with
+no "was this sent before/after the switch" flag stored anywhere.
+
+### No new dependencies
+`SafeMarkdown`/`react-markdown`/`remark-gfm`/`rehype-highlight` were
+already dependencies (4a). No new package added for either fix.
+
+### Files changed
+- `apps/web/features/chat/hooks/use-chat-stream.ts`
+- `apps/web/features/chat/components/message/message.tsx`
+
+### DELETE list
+None.
+
+### How to verify
+- CI: `type-check` / `lint` / `test` / `web-build` — no new jobs.
+- Manual: start a long assistant response (ideally one with a fenced
+  code block) and confirm the stream doesn't visibly decelerate near
+  the end; confirm the full response still lands byte-for-byte (compare
+  against Stop→resume-free full completion, or just read the final
+  text). Confirm Stop mid-stream still marks the message `isPartial`
+  with exactly the content received up to that point (no gap from the
+  rAF buffer). Send a user message containing a numbered list, a `*bold*`
+  word, and a fenced code block; confirm it renders formatted, not
+  literal.
+- Preview: `frontend-v2` Vercel preview (per D1's existing rules —
+  dedicated test account, no real-money actions).
+
+### Not verified (no `tsc`/`next build`/browser/network in this sandbox)
+- No `node_modules` installed in this container and no network access,
+  so neither of these changes has been typechecked or built here — only
+  read/reasoned about and brace/structure-checked. Please run CI before
+  merging.
+- The rAF-batching behavior itself was not exercised against a live or
+  mocked stream (no test file existed for `use-chat-stream.ts` before
+  this change, and none was added — see "unresolved" below).
+- Visual check of the user bubble's markdown spacing (`SafeMarkdown`'s
+  default `p`/`li`/`code` margins against the bubble's existing
+  `px-4 py-[13px]` padding) was reasoned from the CSS, not rendered.
+
+### Unresolved / next steps
+- Consider adding a `use-chat-stream.test.ts` that drives `send()` with
+  a fake `runChatStream` to assert the rAF-coalescing behavior directly
+  (chunk count in vs. dispatch count out, final content correctness,
+  Stop-mid-buffer correctness) — flagged rather than built now, to keep
+  this patch's diff scoped to the two reported bugs.
+- If, after this, streaming still feels slow specifically on very long
+  code blocks, the next lever is `rehypeHighlight`'s own re-tokenization
+  cost, not React's re-render cost — e.g. skipping highlighting until a
+  fenced block's closing ``` has actually streamed in, rather than
+  highlighting an incomplete/unclosed block on every frame. Not done
+  here since it wasn't confirmed to still be a problem after the rAF fix.

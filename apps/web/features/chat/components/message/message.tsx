@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -31,21 +32,38 @@ export interface MessageProps {
  * turn a person sees — MessageList filters those out before this
  * component receives one.
  *
- * User content renders as plain text (`whitespace-pre-wrap`), not
- * markdown — it's the person's own literal input, not model output, and
- * treating a stray `*`/`_`/backtick they happened to type as formatting
- * would be surprising. Only the assistant turn goes through
- * `SafeMarkdown` (Rule 7: model output is untrusted, user input isn't
- * subject to the same rule, but also gets no benefit from markdown
- * parsing here).
+ * Post-4d bugfix round: user content now also renders through
+ * `SafeMarkdown`, same as the assistant turn — reverses the original 4d
+ * decision (this comment used to say user content stays plain text
+ * because it's "the person's own literal input, not model output").
+ * Product call: a user who pastes a list, a code snippet, or uses
+ * emphasis in their own message reads it back cleaner rendered than
+ * literal. Rule 7's untrusted/trusted split was about the SANITIZATION
+ * rules (no rehype-raw, no dangerouslySetInnerHTML, blocked remote
+ * images, forced rel=noopener) — those apply equally whether the text
+ * came from a model or from the user's own client, since a `<script>`-
+ * shaped string is inert either way once it goes through
+ * `react-markdown` with no raw-HTML plugin. Only cost: a user who
+ * literally types `*`, `_`, or a lone backtick now sees it consumed as
+ * formatting instead of shown as-is — including on already-persisted
+ * historical messages, since this reads straight from `message.content`
+ * with no stored "rendered as markdown at send time" flag.
  *
  * Phase 4d Patch v6: no avatar. The role is already unambiguous from
  * alignment (user bubbles sit end-aligned, assistant fill-width) plus
  * the per-message model-name/token/cost line under assistant turns —
  * a "U"/"AI" circle added nothing a screen reader or a sighted user
  * didn't already have, and it cost every row 30px + a gap for it.
+ *
+ * `React.memo`'d (post-4d bugfix round): `MessageList` re-renders on
+ * every streamed chunk (the array reference changes each CHUNK action —
+ * see chat-stream-reducer.ts), which previously re-rendered EVERY row
+ * in the transcript on every chunk, not just the one streaming. Only the
+ * fields actually read below are compared; `onCopy`/`onRegenerate`/
+ * `onFeedback` are stable callbacks from chat-view.tsx (useCallback) so
+ * reference equality holds for them across renders.
  */
-export function Message({
+function MessageImpl({
   message,
   onCopy,
   onRegenerate,
@@ -88,16 +106,15 @@ export function Message({
         )}
       >
         {isUser ? (
-          // `break-words [overflow-wrap:anywhere]`: `whitespace-pre-wrap`
-          // alone only preserves the user's own line breaks — it does NOT
-          // wrap a single long unbroken run of characters (Tailwind's
-          // `break-words` maps to `overflow-wrap: break-word`, which still
-          // prefers not to split within a "word"; `anywhere` is the strict
-          // form that forces a break rather than overflow). Both together
-          // are what actually keep this bubble inside its `max-w-[86%]`
-          // parent instead of pushing it wider.
-          <div className="rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] text-[15px] leading-[1.65] whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-foreground">
-            {message.content}
+          // `break-words [overflow-wrap:anywhere]`: still needed here even
+          // though SafeMarkdown carries its own — this is the OUTER bubble
+          // (border/background/padding), which must not stretch past
+          // `max-w-[86%]` regardless of what's inside it. `whitespace-pre-
+          // wrap` dropped: markdown's own paragraph/list/br handling now
+          // owns line-break semantics inside this bubble, same as the
+          // assistant side.
+          <div className="min-w-0 rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] break-words [overflow-wrap:anywhere] text-foreground">
+            <SafeMarkdown content={message.content} className="pt-0" />
           </div>
         ) : (
           <SafeMarkdown content={message.content} className="min-w-0 pt-1 pb-0.5" />
@@ -133,3 +150,33 @@ export function Message({
     </div>
   );
 }
+
+/**
+ * Custom comparator rather than a bare `React.memo(MessageImpl)`: the
+ * default shallow-props check would already skip re-render correctly
+ * for every OTHER row while one message streams, but this is explicit
+ * about exactly which fields streaming mutates (`content`, `isPartial`)
+ * versus fields that only ever change via user action elsewhere
+ * (`feedback`) — anyone touching `ChatMessage` later has one place that
+ * documents what this component actually depends on, instead of relying
+ * on shallow-equal semantics being obviously "good enough" by accident.
+ */
+function messagePropsAreEqual(prev: MessageProps, next: MessageProps): boolean {
+  return (
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.isPartial === next.message.isPartial &&
+    prev.message.feedback === next.message.feedback &&
+    prev.message.creditCost === next.message.creditCost &&
+    prev.message.inputTokens === next.message.inputTokens &&
+    prev.message.outputTokens === next.message.outputTokens &&
+    prev.message.modelId === next.message.modelId &&
+    prev.message.createdAt === next.message.createdAt &&
+    prev.className === next.className &&
+    prev.onCopy === next.onCopy &&
+    prev.onRegenerate === next.onRegenerate &&
+    prev.onFeedback === next.onFeedback
+  );
+}
+
+export const Message = React.memo(MessageImpl, messagePropsAreEqual);

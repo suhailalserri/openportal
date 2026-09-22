@@ -96,6 +96,54 @@ export function useChatStream({
   const stateRef = React.useRef(state);
   stateRef.current = state;
 
+  // Chunk-coalescing buffer for the in-flight stream. `onChunk` below is
+  // called once per `reader.read()` resolution in stream-reader.ts — on a
+  // fast connection / small provider chunks that can be many times a
+  // frame. Every one of those used to go straight to `dispatch`, which
+  // re-renders `MessageList` and re-runs `SafeMarkdown` (react-markdown +
+  // remarkGfm + rehypeHighlight) over the ENTIRE accumulated message
+  // string each time — cost that grows with message length, so more
+  // chunks in = quadratic-ish total work, which is what actually made
+  // long responses visibly slow down partway through (not a network or
+  // reducer issue; both were already correct — see stream-reader.ts and
+  // chat-stream-reducer.ts's own header comments).
+  //
+  // Fix: accumulate deltas here and flush at most once per animation
+  // frame via a single CHUNK dispatch of the coalesced buffer. This
+  // bounds re-render/re-highlight frequency to ~60/s regardless of how
+  // many network chunks arrive in that window, while the reducer's
+  // append-only CHUNK handling means coalescing N deltas into one is
+  // byte-for-byte identical to applying them one at a time — no output
+  // difference, just fewer, larger appends.
+  const pendingDeltaRef = React.useRef("");
+  const flushHandleRef = React.useRef<number | null>(null);
+
+  const scheduleFlush = React.useCallback((id: string) => {
+    if (flushHandleRef.current !== null) return;
+    flushHandleRef.current = requestAnimationFrame(() => {
+      flushHandleRef.current = null;
+      if (pendingDeltaRef.current.length === 0) return;
+      const delta = pendingDeltaRef.current;
+      pendingDeltaRef.current = "";
+      dispatch({ type: "CHUNK", id, delta });
+    });
+  }, []);
+
+  // Synchronously drain whatever hasn't been flushed yet — used at
+  // stream end (onDone/onStopped/onPartial/onError all arrive AFTER the
+  // last onChunk, but a pending rAF flush may not have fired yet) so the
+  // final byte of content is never left stuck in the buffer.
+  const flushNow = React.useCallback((id: string) => {
+    if (flushHandleRef.current !== null) {
+      cancelAnimationFrame(flushHandleRef.current);
+      flushHandleRef.current = null;
+    }
+    if (pendingDeltaRef.current.length === 0) return;
+    const delta = pendingDeltaRef.current;
+    pendingDeltaRef.current = "";
+    dispatch({ type: "CHUNK", id, delta });
+  }, []);
+
   const send = React.useCallback(
     (content: string) => {
       const trimmed = content.trim();
@@ -143,11 +191,39 @@ export function useChatStream({
         },
         controller.signal,
         {
-          onChunk: (delta) => dispatch({ type: "CHUNK", id: assistantMessageId, delta }),
-          onDone: () => dispatch({ type: "DONE", id: assistantMessageId }),
-          onStopped: () => dispatch({ type: "STOP", id: assistantMessageId }),
-          onPartial: () => dispatch({ type: "PARTIAL", id: assistantMessageId }),
-          onError: (error) =>
+          onChunk: (delta) => {
+            pendingDeltaRef.current += delta;
+            scheduleFlush(assistantMessageId);
+          },
+          onDone: () => {
+            flushNow(assistantMessageId);
+            dispatch({ type: "DONE", id: assistantMessageId });
+          },
+          onStopped: () => {
+            flushNow(assistantMessageId);
+            dispatch({ type: "STOP", id: assistantMessageId });
+          },
+          onPartial: () => {
+            flushNow(assistantMessageId);
+            dispatch({ type: "PARTIAL", id: assistantMessageId });
+          },
+          onError: (error) => {
+            // No flushNow here: ERROR's own reducer branch (chat-stream-
+            // reducer.ts) drops the draft entirely when content.length
+            // === 0 at the moment the action lands. Flushing a pending
+            // buffer first would give the draft nonzero content and
+            // change ERROR's behavior for a case it was never meant to
+            // cover (Phase 4b's contract: a gateway error is never a
+            // persisted/partial message). ERROR only ever fires from
+            // stream-reader.ts before any onChunk in practice (a
+            // mid-stream network drop surfaces as onPartial, not
+            // onError) but the buffer is cleared here defensively so a
+            // stale delta can't leak into whatever comes after.
+            pendingDeltaRef.current = "";
+            if (flushHandleRef.current !== null) {
+              cancelAnimationFrame(flushHandleRef.current);
+              flushHandleRef.current = null;
+            }
             dispatch({
               type: "ERROR",
               id: assistantMessageId,
@@ -157,7 +233,8 @@ export function useChatStream({
                 retryable: error.retryable,
                 redirectTo: error.redirectTo,
               },
-            }),
+            });
+          },
         },
       );
     },
@@ -178,7 +255,10 @@ export function useChatStream({
   // late callback never fires into a reducer no component is reading
   // anymore, and so the browser actually stops the network request.
   React.useEffect(() => {
-    return () => controllerRef.current?.abort();
+    return () => {
+      controllerRef.current?.abort();
+      if (flushHandleRef.current !== null) cancelAnimationFrame(flushHandleRef.current);
+    };
   }, []);
 
   return { ...state, send, stop, retry };
