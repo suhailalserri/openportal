@@ -4925,3 +4925,29 @@ before pointing it at production.
 **Tracker:** `B3` not ticked by me — tick once CI (`api-tests`) is green on
 `frontend-v2` and you've dry-run, then run, `db:migrate:manual` somewhere
 non-production first.
+
+---
+
+## Phase 8c — Admin: ops (models, channels, fraud, logs, audit)
+
+**Built:** `features/admin/{models,channels,fraud,logs,audit}/` (hooks + components + index) and five thin routes under `app/[locale]/(admin)/admin/*/page.tsx`. `config/nav.ts`: the five 8c entries flipped to `enabled: true` (`nav.test.ts` verifies each has a page file). New `admin.{models,channels,fraud,logs,audit}Page` message namespaces in `en.json` + `ar.json` (parity: identical key sets, 943 leaf keys each); every key used by the 8c code was checked to exist by script.
+
+**Deviations from the plan / phase summary (small, deliberate):**
+- `models` uses ONE query (`models.listAll`) and filters the tabs client-side, instead of also calling `models.pending`. `pending` is a strict subset of `listAll`; one query = one invalidation target after sync/publish/toggle. Catalog is small (one row per gateway model).
+- `models.toggleAvailability` fires immediately (no `ConfirmDialog`) — reversible, one switch; all Switches disable while one toggle is in flight (no double-fire). `publish`, `resolveFraudEvent`, `clearFraudFlag` DO go through a dialog with disable-while-pending.
+
+**Bugs found & fixed in this pass (not in the original scope):**
+1. **`admin.fraudTypes` was missing 2 of the 7 `fraud_type` enum values** (`REDEEM_DAILY_LIMIT`, `SUSPICIOUS_PATTERN`). The fraud table calls `tTypes(row.type)` — a real event of either type would have thrown a missing-message error and blanked the page. Added to both locales.
+2. **The 3 `admin-money` e2e failures (codes / packages / payment-methods "dialog opens") are a real 8b a11y bug, not flakiness:** the dialog `<Label>`s had no `htmlFor` and the inputs no `id`, so `getByLabel("Batch label" / "Name (English)")` can never resolve (and screen readers can't associate them). Fixed in `codes/index.tsx` (explicit ids), `packages/index.tsx` and `payment-methods/index.tsx` (`Field` helper now uses `useId` + `htmlFor`). "manual payments" passed only because it asserts tabs, not a labelled input.
+3. **Login e2e flake (`Received string: …/en/auth/login`) — probable cause: better-auth rate limiting.** `lib/auth.ts` (frozen) sets `rateLimit: { window: 60, max: 5 }`; the e2e job runs `next start` (production → limiter active) and `admin-money.spec.ts` signed in inside `beforeEach` (4 tests + retries) before `login.spec.ts` ran its 2 sign-ins → >5 sign-ins/min from one IP; rejected sign-ins leave the page on `/en/auth/login`. Fix (no frozen file touched): `e2e/auth.setup.ts` signs in as admin once → `e2e/.auth/admin.json`; `playwright.config.ts` gets a `setup` project the `chromium` project depends on; admin specs use `test.use({ storageState })`. Sign-ins per CI run drop from 10+ to 3. `e2e/.gitignore` ignores `.auth/`. **This is a diagnosis from code, not from the CI logs above the visible tail — see "How to verify".** I deliberately did NOT switch `finishLogin()` to a hard `window.location.assign` (an earlier session's idea): the code shows the client-router race is not what the evidence points to, and it would change UX without a proven cause.
+4. Hardcoded English toasts in `use-models.ts` (sync result) and `use-fraud.ts` ("Fraud flag cleared.") → moved to i18n keys (would have shown English in the Arabic UI).
+5. `ModelFormDialog.handleSubmit` had an unhandled rejection when `models.publish` failed (dialog correctly stayed open but the promise rejection was uncaught) → try/catch; the error still shows via `errorMessage` + the hook's toast.
+6. Fraud user link was a plain `<a>` (full page reload) → `next/link`.
+
+**New e2e:** `e2e/admin-ops.spec.ts` — read-only route smoke (heading renders) for the five pages. `/admin/channels` hits the gateway, unreachable in CI, so only the heading is asserted (it renders its error state there).
+
+**Not verified (no network / node_modules in the authoring environment — same limitation as prior sessions):** `tsc`, ESLint, vitest, `next build`, and Playwright were NOT run. The 8c hooks/components were checked by reading against `models.router.ts`, `admin.router.ts` and `admin-logs.service.ts` (input shapes, enum values, cursor convention), not by compiling. In particular unverified: (a) `cloneElement(children, { id })` in the two `Field` helpers type-checks under `exactOptionalPropertyTypes`; (b) `Select` root (child of `Field` in payment-methods) tolerates the injected `id` prop; (c) the rate-limit diagnosis above; (d) Arabic plural forms in `channelsPage.modelCount`; (e) `next-intl` accepting the ICU strings as written.
+
+**Tracker:** `8c` NOT ticked — tick after CI is green (`check`, `web-build`, `i18n-parity`, `api-tests`, `e2e`) and the preview checks below pass.
+
+**Preview checks:** all five pages load in `/ar` and `/en` and appear enabled in the admin nav; logs: filter by user (full UUID) / model / date, "Load more" adds rows with no duplicates; audit: expand a row → before/after diff; models: Sync → toast in the active language, Publish a pending model → row moves to Published, toggle availability; fraud: Resolve removes the row from Unresolved and it shows under Resolved; Clear flag on a real flagged user (use a test account); channels: renders rows if the gateway token is admin-capable, otherwise the gateway's error message + Retry.

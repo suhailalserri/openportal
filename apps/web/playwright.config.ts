@@ -51,8 +51,12 @@ export default defineConfig({
   },
 
   projects: [
+    // Runs first (dependency below); writes e2e/.auth/admin.json.
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
       name: "chromium",
+      testIgnore: /auth\.setup\.ts/,
+      dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"] },
     },
   ],

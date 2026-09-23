@@ -109,12 +109,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: "manualPayments",
         enabled: true,
       },
-      // 8c — ops
-      { id: "adminModels", href: "/admin/models", labelKey: "adminModels", icon: "models", enabled: false },
-      { id: "adminChannels", href: "/admin/channels", labelKey: "adminChannels", icon: "channels", enabled: false },
-      { id: "adminFraud", href: "/admin/fraud", labelKey: "adminFraud", icon: "fraud", enabled: false },
-      { id: "adminLogs", href: "/admin/logs", labelKey: "adminLogs", icon: "logs", enabled: false },
-      { id: "adminAudit", href: "/admin/audit", labelKey: "adminAudit", icon: "audit", enabled: false },
+      // 8c — ops (landed)
+      { id: "adminModels", href: "/admin/models", labelKey: "adminModels", icon: "models", enabled: true },
+      { id: "adminChannels", href: "/admin/channels", labelKey: "adminChannels", icon: "channels", enabled: true },
+      { id: "adminFraud", href: "/admin/fraud", labelKey: "adminFraud", icon: "fraud", enabled: true },
+      { id: "adminLogs", href: "/admin/logs", labelKey: "adminLogs", icon: "logs", enabled: true },
+      { id: "adminAudit", href: "/admin/audit", labelKey: "adminAudit", icon: "audit", enabled: true },
     ],
   },
 ];
