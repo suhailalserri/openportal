@@ -93,21 +93,21 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       },
       // 8b — money ops
       { id: "adminUsers", href: "/admin/users", labelKey: "adminUsers", icon: "users", enabled: true },
-      { id: "adminCodes", href: "/admin/codes", labelKey: "adminCodes", icon: "codes", enabled: false },
-      { id: "adminPackages", href: "/admin/packages", labelKey: "adminPackages", icon: "packages", enabled: false },
+      { id: "adminCodes", href: "/admin/codes", labelKey: "adminCodes", icon: "codes", enabled: true },
+      { id: "adminPackages", href: "/admin/packages", labelKey: "adminPackages", icon: "packages", enabled: true },
       {
         id: "adminPaymentMethods",
         href: "/admin/payment-methods",
         labelKey: "adminPaymentMethods",
         icon: "paymentMethods",
-        enabled: false,
+        enabled: true,
       },
       {
         id: "adminManualPayments",
         href: "/admin/manual-payments",
         labelKey: "adminManualPayments",
         icon: "manualPayments",
-        enabled: false,
+        enabled: true,
       },
       // 8c — ops
       { id: "adminModels", href: "/admin/models", labelKey: "adminModels", icon: "models", enabled: false },

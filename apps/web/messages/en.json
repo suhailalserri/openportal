@@ -577,6 +577,160 @@
         "amountWhole": "Amount (whole credits)",
         "typeAmountToConfirm": "Type the amount to confirm"
       }
+    },
+    "codesPage": {
+      "title": "Redeem codes",
+      "description": "Generate, review, and revoke redeem code batches.",
+      "batchTitle": "Code batch",
+      "generateCodes": "Generate codes",
+      "generateDescription": "Codes are shown once, right after generation — download the CSV before closing this dialog.",
+      "generated": "{count, plural, one {# code} other {# codes}} generated.",
+      "downloadCsv": "Download CSV",
+      "printSheet": "Print sheet",
+      "revokeBatch": "Revoke batch",
+      "revokeBatchTitle": "Revoke all unused codes in this batch?",
+      "revokeBatchDescription": "{count, plural, one {# unused code} other {# unused codes}} will be revoked. This cannot be undone.",
+      "revokeCode": "Revoke",
+      "revokeCodeTitle": "Revoke this code?",
+      "typeRevokeToConfirm": "Type REVOKE to confirm",
+      "noLabel": "(no label)",
+      "empty": "No code batches yet.",
+      "loadError": "Couldn't load code batches.",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "close": "Close",
+      "credits": "credits",
+      "yer": "YER",
+      "columns": {
+        "label": "Label",
+        "total": "Total",
+        "used": "Used",
+        "expired": "Expired",
+        "actions": "Actions"
+      },
+      "status": {
+        "unused": "Unused",
+        "used": "Used",
+        "expired": "Expired",
+        "revoked": "Revoked"
+      },
+      "csv": {
+        "code": "Code",
+        "status": "Status",
+        "creditAmount": "Credits",
+        "usedBy": "Used by",
+        "createdAt": "Created"
+      },
+      "form": {
+        "label": "Batch label",
+        "count": "Number of codes",
+        "creditValue": "Credit value (per code)",
+        "package": "Link to package (optional)",
+        "noPackage": "No package — use credit value above",
+        "paymentMethod": "Payment method (optional)",
+        "noPaymentMethod": "None"
+      }
+    },
+    "packagesPage": {
+      "title": "Packages",
+      "description": "Top-up packages shown to users on the billing page.",
+      "newPackage": "New package",
+      "editPackage": "Edit package",
+      "formDescription": "Prices are for display; credits are stored in micro-credits.",
+      "empty": "No packages yet.",
+      "loadError": "Couldn't load packages.",
+      "retry": "Retry",
+      "save": "Save",
+      "saved": "Package saved.",
+      "cancel": "Cancel",
+      "active": "Active",
+      "inactive": "Inactive",
+      "yer": "YER",
+      "columns": {
+        "name": "Name",
+        "price": "Price",
+        "credits": "Credits",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Name (English)",
+        "nameAr": "Name (Arabic)",
+        "priceYer": "Price (YER)",
+        "priceUsd": "Price (USD equivalent)",
+        "credits": "Credits",
+        "sortOrder": "Sort order",
+        "description": "Description (English)",
+        "descriptionAr": "Description (Arabic)"
+      },
+      "edit": "Edit"
+    },
+    "paymentMethodsPage": {
+      "title": "Payment methods",
+      "description": "Manual top-up methods shown to users on the billing page.",
+      "newMethod": "New method",
+      "editMethod": "Edit method",
+      "formDescription": "Type can only be set when creating a new method.",
+      "empty": "No payment methods yet.",
+      "loadError": "Couldn't load payment methods.",
+      "retry": "Retry",
+      "save": "Save",
+      "saved": "Payment method saved.",
+      "cancel": "Cancel",
+      "active": "Active",
+      "inactive": "Inactive",
+      "edit": "Edit",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "accountCode": "Account / wallet code",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "types": {
+        "jaib_voucher": "Jaib voucher",
+        "manual_transfer": "Manual transfer"
+      },
+      "form": {
+        "name": "Name (English)",
+        "nameAr": "Name (Arabic)",
+        "type": "Type",
+        "accountCode": "Account / wallet code",
+        "logoUrl": "Logo URL",
+        "sortOrder": "Sort order",
+        "instructions": "Instructions (English)",
+        "instructionsAr": "Instructions (Arabic)"
+      }
+    },
+    "manualPaymentsPage": {
+      "title": "Manual payments",
+      "description": "Review and approve or reject manual-transfer top-up claims.",
+      "tabs": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "filterPlaceholder": "Filter the loaded rows by name, email, or reference…",
+      "filterNote": "Filtering {count, plural, one {# loaded row} other {# loaded rows}} for this tab only — not a full search.",
+      "empty": "No claims in this status.",
+      "loadError": "Couldn't load manual payments.",
+      "retry": "Retry",
+      "approve": "Approve",
+      "approveTitle": "Approve this payment?",
+      "approveDescription": "The user's balance will be credited immediately. This cannot be undone.",
+      "reject": "Reject",
+      "rejectTitle": "Reject this payment?",
+      "rejectReasonLabel": "Reason (shown to the user)",
+      "cancel": "Cancel",
+      "yer": "YER",
+      "columns": {
+        "user": "User",
+        "package": "Package",
+        "method": "Method",
+        "reference": "Reference",
+        "submitted": "Submitted",
+        "actions": "Actions"
+      }
     }
   },
   "status": {

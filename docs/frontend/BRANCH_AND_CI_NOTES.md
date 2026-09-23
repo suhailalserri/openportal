@@ -4667,3 +4667,99 @@ DB. `check`, `web-build`, and `i18n-parity` in CI are the real
 verifiers for this batch.
 
 **Tracker:** not touching `8b`'s tick — batch 2 finishes the phase.
+
+---
+
+## Phase 8b, batch 2 (closes the phase)
+
+Codes, packages, payment methods, manual payments — the remaining four
+money-ops screens. No `apps/api` changes this batch: `admin.router.ts`
+already had every procedure these screens call (`generateCodes`,
+`listCodeBatches`, `getBatchCodes`, `revokeCode`, `revokeCodeBatch`,
+`listPackages`/`createPackage`/`updatePackage`,
+`listPaymentMethods`/`createPaymentMethod`/`updatePaymentMethod`,
+`listManualPayments`/`approveManualPayment`/`rejectManualPayment`) —
+verified by reading the router, not assumed.
+
+**What's new in this batch:**
+- `lib/csv.ts` — client-side CSV builder shared by the codes screens.
+  Formula-injection guard (a cell starting with `=+-@`/tab/CR gets a
+  leading `'`) + RFC 4180 quoting + UTF-8 BOM (Arabic labels in Excel
+  on Windows). The existing 5.2 billing CSV export does **not** have
+  this guard — a known gap, left alone as out of this phase's scope,
+  not fixed here.
+- `features/admin/codes/*` — batches list (aggregates only) + generate
+  dialog (optional package/payment-method link) + batch detail (table +
+  CSV export + print sheet + revoke single/batch). `getBatchCodes` and
+  the generate mutation's result both use `gcTime: 0` — codes are
+  bearer credentials, so a batch of redeemable codes never sits in the
+  query cache once nothing's subscribed to it. Print sheet: added
+  `print:hidden` to `AppShell`'s sidebar and header (the only two
+  pieces of shell chrome); the batch-detail component hides its own
+  screen-only controls/table the same way and shows a print-only card
+  grid instead.
+- `features/admin/packages/*` — list + create/edit/activate-deactivate
+  (no delete procedure). Edit pre-fills the credits field via batch 1's
+  `microToCredits()`.
+- `features/admin/payment-methods/*` — **hooks only were in the
+  batch-2 handoff; the feature component (`index.tsx`) did not exist.**
+  Built here from scratch, deliberately mirroring `../packages/index.tsx`
+  (same create/edit/activate-deactivate shape) so the two screens stay
+  consistent. `type` (jaib_voucher / manual_transfer) is disabled on
+  edit — `updatePaymentMethod`'s input schema has no `type` field, so
+  an edit genuinely cannot change it; the form reflects that rather
+  than silently dropping the value.
+- `features/admin/manual-payments/*` — the claims queue. Status tabs
+  are real server refetches (`listManualPayments({ status, limit: 100
+  })`); the search box filters ONLY the up-to-100 already-loaded rows
+  for the current tab — labeled `filterNote` in the UI as exactly that,
+  since there's no server-side search or total count to search against
+  (point 2 of the original phase summary). Approve/reject both go
+  through `ConfirmDialog`; approve moves real balance
+  (`approveManualPayment` → `creditBalance`), reject requires a reason.
+- `app/[locale]/(admin)/admin/{codes,codes/[batchId],packages,
+  payment-methods,manual-payments}/page.tsx` — thin server pages, same
+  shape as every other admin route (`SectionPage` + a `getTranslations`
+  title/description).
+- `config/nav.ts` — `adminCodes`, `adminPackages`,
+  `adminPaymentMethods`, `adminManualPayments` all flipped to
+  `enabled: true`. `nav.test.ts`'s rule (no enabled entry without a
+  page file) is satisfied by the five page files above.
+- `messages/{en,ar}.json` — four new namespaces:
+  `admin.codesPage`, `admin.packagesPage`, `admin.paymentMethodsPage`,
+  `admin.manualPaymentsPage`. Key parity checked both directions by
+  script (flattened key-set diff, en vs ar) — no gap either way.
+- `lib/csv.test.ts` — new; covers the formula-injection guard (all six
+  risky prefixes), RFC 4180 quoting/escaping, null/undefined cells, and
+  CRLF joins. Pure function, fully covered.
+- `e2e/admin-money.spec.ts` — new; smoke-only (login as seeded admin,
+  each of the four routes renders, primary dialog opens). Deliberately
+  does **not** click Approve/Reject/Revoke on any row — those mutate
+  real balance/codes and there's no seeded fixture data for these
+  screens in `packages/db/src/seed.ts` to safely act on. A full CRUD
+  e2e pass is a follow-up once seed data exists for packages/payment
+  methods/claims.
+
+**⚠️ Preview warning (carried over, now actually relevant):** the
+approve/reject buttons on `/admin/manual-payments` and the revoke
+buttons on `/admin/codes/[batchId]` call real, unguarded mutations
+against whatever DB the preview environment points at. Test accounts /
+scratch data only until this phase gets a staging DB of its own.
+
+**Not independently verified:** no `tsc`, vitest, `next build`, or
+Playwright run here. Every hook against `admin.router.ts` was
+cross-checked line-by-line against the actual procedure input schemas
+(field names, enums, return shapes) by reading the router, not by
+compiling against it — see the delivery message for the specific
+procedures checked. The payment-methods feature component is the one
+piece with no batch-2-author precedent to check against at all (it
+didn't exist); treat it as the least-verified file in this delivery
+and look at it first in review.
+
+**DELETE list:** none. Nothing in this batch replaces or obsoletes a
+previously-shipped file.
+
+**Tracker:** Phase 8b is done as of this batch — flip its tracker
+entry in the phase index the next time that file is touched (not
+edited here, to keep this diff scoped to the phase's own files).
+

@@ -371,6 +371,160 @@
         "amountWhole": "المبلغ (كريدت كاملة)",
         "typeAmountToConfirm": "اكتب المبلغ للتأكيد"
       }
+    },
+    "codesPage": {
+      "title": "أكواد الشحن",
+      "description": "إنشاء ومراجعة وإلغاء دفعات أكواد الشحن.",
+      "batchTitle": "دفعة الأكواد",
+      "generateCodes": "توليد أكواد",
+      "generateDescription": "تظهر الأكواد مرة واحدة فقط بعد التوليد — نزّل ملف CSV قبل إغلاق هذه النافذة.",
+      "generated": "تم توليد {count, plural, one {كود واحد} other {# كود}}.",
+      "downloadCsv": "تنزيل CSV",
+      "printSheet": "طباعة الورقة",
+      "revokeBatch": "إلغاء الدفعة",
+      "revokeBatchTitle": "إلغاء جميع الأكواد غير المستخدمة في هذه الدفعة؟",
+      "revokeBatchDescription": "سيتم إلغاء {count, plural, one {كود واحد غير مستخدم} other {# كود غير مستخدم}}. لا يمكن التراجع عن هذا الإجراء.",
+      "revokeCode": "إلغاء",
+      "revokeCodeTitle": "إلغاء هذا الكود؟",
+      "typeRevokeToConfirm": "اكتب REVOKE للتأكيد",
+      "noLabel": "(بدون تسمية)",
+      "empty": "لا توجد دفعات أكواد بعد.",
+      "loadError": "تعذر تحميل دفعات الأكواد.",
+      "retry": "إعادة المحاولة",
+      "cancel": "إلغاء",
+      "close": "إغلاق",
+      "credits": "رصيد",
+      "yer": "ريال يمني",
+      "columns": {
+        "label": "التسمية",
+        "total": "الإجمالي",
+        "used": "مستخدم",
+        "expired": "منتهي",
+        "actions": "إجراءات"
+      },
+      "status": {
+        "unused": "غير مستخدم",
+        "used": "مستخدم",
+        "expired": "منتهي",
+        "revoked": "ملغي"
+      },
+      "csv": {
+        "code": "الكود",
+        "status": "الحالة",
+        "creditAmount": "الرصيد",
+        "usedBy": "استُخدم بواسطة",
+        "createdAt": "تاريخ الإنشاء"
+      },
+      "form": {
+        "label": "تسمية الدفعة",
+        "count": "عدد الأكواد",
+        "creditValue": "قيمة الرصيد (لكل كود)",
+        "package": "ربط بباقة (اختياري)",
+        "noPackage": "بدون باقة — استخدم قيمة الرصيد أعلاه",
+        "paymentMethod": "طريقة الدفع (اختياري)",
+        "noPaymentMethod": "بدون"
+      }
+    },
+    "packagesPage": {
+      "title": "الباقات",
+      "description": "باقات الشحن المعروضة للمستخدمين في صفحة الفواتير.",
+      "newPackage": "باقة جديدة",
+      "editPackage": "تعديل الباقة",
+      "formDescription": "الأسعار للعرض فقط؛ يُخزَّن الرصيد بوحدات الرصيد الدقيقة.",
+      "empty": "لا توجد باقات بعد.",
+      "loadError": "تعذر تحميل الباقات.",
+      "retry": "إعادة المحاولة",
+      "save": "حفظ",
+      "saved": "تم حفظ الباقة.",
+      "cancel": "إلغاء",
+      "active": "مفعّلة",
+      "inactive": "معطّلة",
+      "yer": "ريال يمني",
+      "columns": {
+        "name": "الاسم",
+        "price": "السعر",
+        "credits": "الرصيد",
+        "status": "الحالة",
+        "actions": "إجراءات"
+      },
+      "form": {
+        "name": "الاسم (إنجليزي)",
+        "nameAr": "الاسم (عربي)",
+        "priceYer": "السعر (ريال يمني)",
+        "priceUsd": "السعر (ما يعادله بالدولار)",
+        "credits": "الرصيد",
+        "sortOrder": "ترتيب العرض",
+        "description": "الوصف (إنجليزي)",
+        "descriptionAr": "الوصف (عربي)"
+      },
+      "edit": "تعديل"
+    },
+    "paymentMethodsPage": {
+      "title": "طرق الدفع",
+      "description": "طرق الشحن اليدوية المعروضة للمستخدمين في صفحة الفواتير.",
+      "newMethod": "طريقة جديدة",
+      "editMethod": "تعديل الطريقة",
+      "formDescription": "لا يمكن تغيير النوع إلا عند الإنشاء.",
+      "empty": "لا توجد طرق دفع بعد.",
+      "loadError": "تعذر تحميل طرق الدفع.",
+      "retry": "إعادة المحاولة",
+      "save": "حفظ",
+      "saved": "تم حفظ طريقة الدفع.",
+      "cancel": "إلغاء",
+      "active": "مفعّلة",
+      "inactive": "معطّلة",
+      "edit": "تعديل",
+      "columns": {
+        "name": "الاسم",
+        "type": "النوع",
+        "accountCode": "رمز الحساب / المحفظة",
+        "status": "الحالة",
+        "actions": "إجراءات"
+      },
+      "types": {
+        "jaib_voucher": "قسيمة جيب",
+        "manual_transfer": "تحويل يدوي"
+      },
+      "form": {
+        "name": "الاسم (إنجليزي)",
+        "nameAr": "الاسم (عربي)",
+        "type": "النوع",
+        "accountCode": "رمز الحساب / المحفظة",
+        "logoUrl": "رابط الشعار",
+        "sortOrder": "ترتيب العرض",
+        "instructions": "التعليمات (إنجليزي)",
+        "instructionsAr": "التعليمات (عربي)"
+      }
+    },
+    "manualPaymentsPage": {
+      "title": "المدفوعات اليدوية",
+      "description": "مراجعة طلبات الشحن عبر التحويل اليدوي والموافقة عليها أو رفضها.",
+      "tabs": {
+        "pending": "قيد الانتظار",
+        "approved": "موافَق عليها",
+        "rejected": "مرفوضة"
+      },
+      "filterPlaceholder": "تصفية الصفوف المحمّلة بالاسم أو البريد أو الرقم المرجعي…",
+      "filterNote": "تصفية {count, plural, one {صف واحد محمّل} other {# صف محمّل}} لهذا التبويب فقط — وليس بحثاً شاملاً.",
+      "empty": "لا توجد طلبات بهذه الحالة.",
+      "loadError": "تعذر تحميل المدفوعات اليدوية.",
+      "retry": "إعادة المحاولة",
+      "approve": "موافقة",
+      "approveTitle": "الموافقة على هذا الدفع؟",
+      "approveDescription": "سيُضاف الرصيد لحساب المستخدم فوراً. لا يمكن التراجع عن هذا الإجراء.",
+      "reject": "رفض",
+      "rejectTitle": "رفض هذا الدفع؟",
+      "rejectReasonLabel": "السبب (يظهر للمستخدم)",
+      "cancel": "إلغاء",
+      "yer": "ريال يمني",
+      "columns": {
+        "user": "المستخدم",
+        "package": "الباقة",
+        "method": "الطريقة",
+        "reference": "الرقم المرجعي",
+        "submitted": "تاريخ الإرسال",
+        "actions": "إجراءات"
+      }
     }
   },
   "settings": {
