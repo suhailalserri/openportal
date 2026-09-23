@@ -2,6 +2,10 @@ import type { ComponentType } from "react";
 
 import { ProfileSection } from "./sections/profile";
 import { SecuritySection } from "./sections/security";
+import { PreferencesSection } from "./sections/preferences";
+import { ApiAccessSection } from "./sections/api-access";
+import { ReferralSection } from "./sections/referral";
+import { DataPrivacySection } from "./sections/data-privacy";
 
 /**
  * apps/web/features/settings/registry.ts (Phase 7.1)
@@ -29,11 +33,11 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
   // 7.1 — landed
   { id: "profile", titleKey: "profile", component: ProfileSection, visible: true },
   { id: "security", titleKey: "security", component: SecuritySection, visible: true },
-  // 7.2
-  { id: "preferences", titleKey: "preferences", component: null, visible: false },
-  { id: "apiAccess", titleKey: "apiAccess", component: null, visible: false },
-  { id: "referral", titleKey: "referral", component: null, visible: false },
-  { id: "data", titleKey: "data", component: null, visible: false },
+  // 7.2 — landed
+  { id: "preferences", titleKey: "preferences", component: PreferencesSection, visible: true },
+  { id: "apiAccess", titleKey: "apiAccess", component: ApiAccessSection, visible: true },
+  { id: "referral", titleKey: "referral", component: ReferralSection, visible: true },
+  { id: "data", titleKey: "data", component: DataPrivacySection, visible: true },
 ];
 
 export function getVisibleSections(): SettingsSectionDef[] {

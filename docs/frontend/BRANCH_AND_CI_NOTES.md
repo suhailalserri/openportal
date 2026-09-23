@@ -4404,3 +4404,113 @@ error and a direct read of `form.tsx`'s `useFormField` source (confirmed
 the thrown message matches verbatim), not by reproducing and re-rendering
 the page here. This should be the last item in this crash's chain, but
 next preview load is the real confirmation.
+
+## 2026-09-23 — Phase 7.2 (Preferences, API access, referral, privacy)
+
+Landed `preferences`, `apiAccess`, `referral`, and `data` as the four
+remaining settings sections `registry.ts` pre-declared (disabled) in
+7.1. All four are additive UI wired to tRPC procedures already frozen
+in the plan's Appendix C (`updateProfile`, `generateApiKey`,
+`revokeApiKey`, `getApiKeyInfo`, `getReferralStats`) — no `apps/api`
+router changes this session.
+
+**Frozen-zone violation, resolved by splitting into its own backend PR:**
+an earlier part of this same effort (across two sessions) edited
+`apps/web/app/api/user/delete-account/route.ts` — inside `app/api/**`,
+which §4's frozen-zone list and §7's "backend changes happen only in
+§7 [backend-track] sessions" rule both cover — to add the 2FA-code gate
+the plan's own 7.2 text calls for ("delete account (password confirm;
+2FA code if enabled)"). That's a genuine contradiction between two
+plan rules that should have been surfaced *before* building, not
+after.
+
+Rather than let it ride inside the `frontend-v2` branch (process
+violation) or revert it outright (ships a delete-account flow that's
+silently broken for every 2FA-enabled user), the route change has been
+**pulled out of this phase's deliverable** and handed over as a
+standalone backend change — same shape as a B-track PR (B1–B3), just
+unscheduled in the plan's own list, closest in spirit to B4 ("Hardening
+extras", open timeframe before 9.1). It targets `main` directly, gets
+its own review/Testcontainers pass, and deploys via Render's normal
+push-to-`main` path — independent of this frontend PR.
+
+**This frontend PR does not depend on that backend PR landing first**,
+in either order:
+- `delete-account-dialog.tsx` only shows the 2FA step if the server
+  actually returns `TWO_FACTOR_REQUIRED`. Deployed against the
+  *current* (unpatched) route, a 2FA-enabled account simply deletes on
+  password alone, same as every account did before this phase — no
+  error, no crash, just the pre-existing (weaker) behavior until the
+  backend PR ships.
+- Once the backend PR lands, the already-shipped frontend code picks
+  up the 2FA step automatically — no frontend redeploy needed.
+
+The change itself (unaudited further here beyond the earlier review):
+additive only, backward-compatible, checked via better-auth's own
+`auth.api.verifyTOTP`/`verifyBackupCode` rather than a hand-rolled
+comparison. See the separate backend deliverable's own notes for the
+outstanding "not verified" caveat on the exact better-auth method
+names.
+
+**Preset list is genuinely just one entry today** (`AVAILABLE_PRESETS`
+in `lib/theme-preset.ts` = `["gateway"]`), not the "3 presets" some
+earlier planning docs implied. The Preferences UI renders whatever
+that list contains, so a second/third preset lights up automatically
+once its CSS exists — no further frontend wiring needed.
+
+**`NEXT_PUBLIC_API_BASE_URL` is not yet set anywhere** (root
+`.env.example`, Vercel project settings) — that file lives outside
+`apps/web` and is therefore itself frozen for this session. Until it's
+set, the API Access card shows a "not configured yet" state instead of
+a curl example with a placeholder host. One-line addition for whoever
+owns the root env files / Vercel project.
+
+### Files changed (this frontend PR)
+- `apps/web/features/settings/registry.ts` — 7.2 sections flipped to `visible: true`
+- `apps/web/features/settings/registry.test.ts` — updated visible-sections assertion
+- `apps/web/features/settings/sections/preferences/**` (new)
+- `apps/web/features/settings/sections/api-access/**` (new)
+- `apps/web/features/settings/sections/referral/**` (new) + `lib.test.ts` (new)
+- `apps/web/features/settings/sections/data-privacy/**` (new), including
+  `delete-account-logic.ts` (new — pure step-transition logic extracted
+  out of `delete-account-dialog.tsx`, both for testability and to stop
+  a local variable from shadowing the 2FA-code input state) +
+  `delete-account-logic.test.ts` (new)
+- `apps/web/lib/theme-preset.ts` (new), `apps/web/providers/theme-preset-sync.tsx` (new)
+- `apps/web/app/[locale]/layout.tsx` — wired in `<ThemePresetSync />`, preset attribute is now switchable
+- `apps/web/messages/{en,ar}.json` — added `settings.{preferences,apiAccess,referral,data}` (parity-checked: 123 leaf keys each side, zero mismatch)
+
+**Not included in this frontend PR** (shipped separately, see above):
+`apps/web/app/api/user/delete-account/route.ts`.
+
+### Not verified
+- No preview/browser available here: the actual `/settings` render
+  with all six sections, the delete flow's password-only path (today's
+  behavior against the unpatched route), RTL layout for the four new
+  cards, and the "key shown once" behavior are all unexercised beyond
+  static review.
+- The 2FA-gated delete path specifically can't be exercised from this
+  PR alone until the companion backend PR merges — see that PR's own
+  verify list.
+
+### How to verify
+- CI: `Type-check & Lint`, `web-unit` (new tests: `registry.test.ts`,
+  `referral/lib.test.ts`, `data-privacy/delete-account-logic.test.ts`),
+  `i18n-parity`.
+- Preview `/settings` (both locales, both breakpoints): all six
+  sections render, tabs (desktop) and accordion (mobile) both show the
+  four new cards.
+- Preferences: switch language, theme, and default model; confirm the
+  header's theme toggle and the chat model picker both reflect the
+  change (shared state).
+- API Access: generate a key → shown once → dialog closes → refetch
+  shows only the prefix; revoke → key disappears; confirm the docs
+  copy never says "OpenAI-compatible".
+- Referral: copy the link, confirm the `?ref=` query param matches the
+  account's code; numbers match a real referred/paid test account.
+- Data & Privacy: export downloads a JSON file; delete-account
+  completes with just a password (current route behavior for every
+  account, 2FA-enabled or not, until the companion backend PR merges).
+  Once that PR is live: re-verify that a 2FA throwaway account instead
+  demands a valid TOTP or backup code and rejects an invalid one before
+  completing.

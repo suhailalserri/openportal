@@ -142,8 +142,8 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 | B2 | Backend: user usage + index | [x] |
 | 6.1 | Dashboard | [x] |
 | 6.2 | Usage log | [ ] |
-| 7.1 | Settings: registry + profile + security | [ ] |
-| 7.2 | Settings: preferences, API, referral, privacy | [ ] |
+| 7.1 | Settings: registry + profile + security | [x] |
+| 7.2 | Settings: preferences, API, referral, privacy | [x] |
 | 8a | Admin: shell + data-table | [ ] |
 | 8b | Admin: money ops | [ ] |
 | B3 | Backend: admin logs + audit | [ ] |

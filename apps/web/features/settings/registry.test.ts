@@ -32,7 +32,9 @@ describe("settings registry integrity", () => {
     }
   });
 
-  it("7.1 ships profile and security as the only visible sections", () => {
-    expect(getVisibleSections().map((s) => s.id).sort()).toEqual(["profile", "security"]);
+  it("7.1 + 7.2 ship all six sections as visible", () => {
+    expect(getVisibleSections().map((s) => s.id).sort()).toEqual([
+      "apiAccess", "data", "preferences", "profile", "referral", "security",
+    ]);
   });
 });

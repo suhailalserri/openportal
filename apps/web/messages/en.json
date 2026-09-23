@@ -335,6 +335,98 @@
         "unknownDevice": "Unknown device",
         "error": "Couldn't load your sessions. Please try again."
       }
+    },
+    "preferences": {
+      "title": "Preferences",
+      "language": "Language",
+      "arabic": "العربية",
+      "english": "English",
+      "theme": "Theme",
+      "themeOptions": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "preset": "Theme preset",
+      "presets": {
+        "gateway": "Gateway"
+      },
+      "defaultModel": "Default model",
+      "defaultModelPlaceholder": "Choose a model",
+      "defaultModelHint": "Used to pre-select a model when you start a new chat."
+    },
+    "apiAccess": {
+      "title": "API access",
+      "description": "Generate a key to call the API directly from your own code.",
+      "generate": "Generate key",
+      "generating": "Generating…",
+      "revoke": "Revoke",
+      "regenerateHint": "Generating a new key immediately revokes the current one.",
+      "errors": {
+        "generic": "Couldn't generate a key. Please try again."
+      },
+      "docsTitle": "Using your key",
+      "docsDescription": "This key calls our own chat endpoint directly — it is not an OpenAI-compatible API.",
+      "docsNotConfigured": "API access isn't configured for this environment yet.",
+      "dialog": {
+        "title": "Your new API key",
+        "description": "Copy this now — you won't be able to see it again.",
+        "copy": "Copy",
+        "done": "Done"
+      },
+      "revokeDialog": {
+        "title": "Revoke API key?",
+        "description": "Any code using this key will stop working immediately.",
+        "cancel": "Cancel",
+        "confirm": "Revoke"
+      }
+    },
+    "referral": {
+      "title": "Referral",
+      "rules": "Share your link. When a friend you refer makes their first payment, you both get a bonus.",
+      "copy": "Copy link",
+      "copied": "Copied!",
+      "share": "Share",
+      "noCode": "Your referral link isn't ready yet. Please try again shortly.",
+      "referredCount": "Friends referred",
+      "bonusesAwarded": "Bonuses earned",
+      "totalEarned": "Total earned"
+    },
+    "data": {
+      "title": "Data & Privacy",
+      "exportTitle": "Export your data",
+      "exportDescription": "Download a copy of your account data as a JSON file.",
+      "export": "Export data",
+      "exporting": "Exporting…",
+      "errors": {
+        "exportGeneric": "Couldn't export your data. Please try again."
+      },
+      "legal": {
+        "title": "Legal",
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy",
+        "acceptableUse": "Acceptable Use Policy"
+      },
+      "deleteTitle": "Delete account",
+      "deleteDescription": "This permanently disables sign-in and removes your personal data. This cannot be undone.",
+      "deleteDialog": {
+        "trigger": "Delete account",
+        "title": "Delete your account",
+        "description": "Enter your password to continue. This cannot be undone.",
+        "passwordLabel": "Password",
+        "continue": "Continue",
+        "checking": "Checking…",
+        "twoFactorTitle": "Enter your 2FA code",
+        "twoFactorDescription": "Your account has two-factor authentication enabled. Enter a code from your authenticator app, or a backup code.",
+        "codeLabel": "Code",
+        "confirmDelete": "Delete my account",
+        "errors": {
+          "incorrectPassword": "Incorrect password.",
+          "invalidCode": "Invalid code. Please try again.",
+          "tooMany": "Too many attempts. Please try again later.",
+          "generic": "Something went wrong. Please try again."
+        }
+      }
     }
   },
   "common": {
