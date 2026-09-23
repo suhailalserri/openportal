@@ -4555,3 +4555,47 @@ environment to run `tsc --noEmit` or `next build` locally. Recommend a full
 
 **Untouched**: `E2E (Playwright)` was also red in the same GitHub Actions
 run, but no log was provided for it — separate issue, not investigated.
+
+## Phase 8a — Admin shell + reusable DataTable
+
+**Built:**
+- `components/data-table/{types,data-table-url-state,use-data-table-url-state,data-table}` —
+  generic, server-driven DataTable: search + column-visibility + sortable
+  headers + pagination, all synced to URL search params (namespaced by an
+  optional `prefix` so more than one table can live on a page later).
+  URL parse/serialize/sort-toggle logic is split into pure functions
+  (`data-table-url-state.ts`) with full vitest coverage; the
+  `next/navigation`-dependent hook itself is a thin wrapper this sandbox
+  cannot unit-test (same constraint noted throughout this file for any
+  `useRouter`/`useSearchParams` code).
+- `components/shared/confirm-dialog.tsx` — controlled (not
+  Radix-auto-closing) confirm dialog with an optional "type X to confirm"
+  gate, for 8b's money/destructive actions. Built on the plain `Dialog`
+  primitive to match `delete-account-dialog.tsx`'s (7.2) existing
+  precedent, not `alert-dialog.tsx` (unused elsewhere in this codebase).
+- `features/admin/overview/*` — replaces the 2.1 placeholder body at
+  `/admin` with a live "recent users" DataTable preview against the real
+  `admin.listUsers` procedure, read-only (no row actions yet — that's
+  8b). This is what makes 8a's "table survives reload with filters kept
+  in the URL" checkable on the actual preview instead of only in vitest.
+
+**Plan-vs-code note:** 8a's plan text says the DataTable supports
+"server pagination/sort/filter via URL search params." `admin.listUsers`
+(the only admin list procedure that exists at this point) only accepts
+`{ limit, offset, search }` — no `sortBy`/`sortDir`. `DataTable`'s `sort`
+prop is fully implemented and unit-tested, but the admin overview page
+does not pass it (would be a fake control with nothing to sort by
+server-side). 8b/8c can wire `sort` once a procedure actually accepts a
+sort column; no plan or code change needed to enable it later — it's an
+unused prop today, not a missing feature.
+
+**Not independently verified** (no `node_modules`/network in this
+environment, same constraint as 7.2's fix): the vitest file for
+`data-table-url-state.ts` was written to what I'm confident is correct
+Vitest/TS, but not actually executed here. `next build`/`tsc` should be
+the real check, same as every prior phase's note in this file.
+
+**Tracker:** NOT ticking `8a` in `docs/FRONTEND_REBUILD_PLAN.md` myself —
+per the plan's own rule 4, a session is only done once CI is green on
+`frontend-v2` and the preview's "Done when" checklist passes. Tick it
+once that's confirmed.

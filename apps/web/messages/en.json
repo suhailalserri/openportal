@@ -497,6 +497,36 @@
       "SHARED_IP_MULTI_ACCOUNT": "Multiple accounts from one IP",
       "REDEEM_BRUTE_FORCE": "Redeem code brute-force attempts",
       "HIGH_SPEND_VELOCITY": "Suspiciously high spend velocity"
+    },
+    "dataTable": {
+      "search": "Search…",
+      "columns": "Columns",
+      "rowsPerPage": "Rows per page",
+      "pageOf": "Page {page}",
+      "previous": "Previous",
+      "next": "Next",
+      "empty": "No results.",
+      "error": "Couldn't load this data.",
+      "retry": "Retry"
+    },
+    "overview": {
+      "comingSoon": "The full admin dashboard (revenue, users, codes, fraud, and more) lands in upcoming phases. This page currently previews the shared data table against live user data.",
+      "recentUsersTitle": "Recent users",
+      "recentUsersDescription": "A live preview of the users table — search and pagination stay in the URL, so a reload or a shared link returns to the same view.",
+      "searchPlaceholder": "Search by email…",
+      "noName": "No name",
+      "columns": {
+        "email": "Email",
+        "name": "Name",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined"
+      },
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "pending_verification": "Pending verification"
+      }
     }
   },
   "status": {
