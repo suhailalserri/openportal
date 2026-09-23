@@ -23,6 +23,12 @@ export const DEFAULT_MODEL_SORT: { key: ModelBreakdownSortKey; direction: SortDi
  * "tokens" sorts by inputTokens + outputTokens combined — the table
  * shows the two side by side with no single "tokens" column value, so
  * their sum is the only sensible total to sort by.
+ *
+ * `modelId` is typed `string | null` on `UsageByModelRow` (`usage.service.ts`,
+ * frozen — a transaction can carry a null modelId). Compared via `?? ""`,
+ * which is a comparator-only string-compare fallback, not a display value;
+ * null rows just sort first/last alphabetically. `model-breakdown.tsx` is
+ * responsible for what a null id actually renders as.
  */
 export function sortModelRows(
   rows: readonly UsageByModelRow[],
@@ -33,7 +39,7 @@ export function sortModelRows(
   return [...rows].sort((a, b) => {
     switch (key) {
       case "model":
-        return factor * a.modelId.localeCompare(b.modelId);
+        return factor * (a.modelId ?? "").localeCompare(b.modelId ?? "");
       case "requests":
         return factor * (a.requestCount - b.requestCount);
       case "tokens":
