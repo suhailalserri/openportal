@@ -149,16 +149,16 @@ export function AdminCodes() {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 flex flex-col gap-1.5">
-                <Label>{t("form.label")}</Label>
-                <Input value={label} onChange={(e) => setLabel(e.target.value)} />
+                <Label htmlFor="codes-label">{t("form.label")}</Label>
+                <Input id="codes-label" value={label} onChange={(e) => setLabel(e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>{t("form.count")}</Label>
-                <Input type="number" value={count} onChange={(e) => setCount(Number(e.target.value))} />
+                <Label htmlFor="codes-count">{t("form.count")}</Label>
+                <Input id="codes-count" type="number" value={count} onChange={(e) => setCount(Number(e.target.value))} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>{t("form.creditValue")}</Label>
-                <Input
+                <Label htmlFor="codes-credit-value">{t("form.creditValue")}</Label>
+                <Input id="codes-credit-value"
                   type="number"
                   value={creditValue}
                   onChange={(e) => setCreditValue(Number(e.target.value))}
@@ -166,9 +166,9 @@ export function AdminCodes() {
                 />
               </div>
               <div className="col-span-2 flex flex-col gap-1.5">
-                <Label>{t("form.package")}</Label>
+                <Label htmlFor="codes-package">{t("form.package")}</Label>
                 <Select value={packageId} onValueChange={setPackageId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="codes-package"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>{t("form.noPackage")}</SelectItem>
                     {packages.map((pkg) => (
@@ -180,9 +180,9 @@ export function AdminCodes() {
                 </Select>
               </div>
               <div className="col-span-2 flex flex-col gap-1.5">
-                <Label>{t("form.paymentMethod")}</Label>
+                <Label htmlFor="codes-payment-method">{t("form.paymentMethod")}</Label>
                 <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="codes-payment-method"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>{t("form.noPaymentMethod")}</SelectItem>
                     {methods.map((method) => (

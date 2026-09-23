@@ -496,7 +496,9 @@
       "MULTIPLE_IPS": "Multiple IP addresses",
       "SHARED_IP_MULTI_ACCOUNT": "Multiple accounts from one IP",
       "REDEEM_BRUTE_FORCE": "Redeem code brute-force attempts",
-      "HIGH_SPEND_VELOCITY": "Suspiciously high spend velocity"
+      "HIGH_SPEND_VELOCITY": "Suspiciously high spend velocity",
+      "REDEEM_DAILY_LIMIT": "Daily redeem limit reached",
+      "SUSPICIOUS_PATTERN": "Suspicious activity pattern"
     },
     "dataTable": {
       "search": "Search…",
@@ -733,6 +735,172 @@
         "reference": "Reference",
         "submitted": "Submitted",
         "actions": "Actions"
+      }
+    },
+    "modelsPage": {
+      "title": "Models",
+      "description": "Review discovered models, publish them with pricing, and control availability.",
+      "tabs": {
+        "all": "All",
+        "pending": "Pending",
+        "published": "Published",
+        "disabled": "Disabled"
+      },
+      "sync": "Sync from gateway",
+      "syncing": "Syncing…",
+      "syncResult": "Discovered {discovered}, deactivated {deactivated}, {pending} still pending review.",
+      "empty": "No models in this view.",
+      "loadError": "Couldn't load models.",
+      "retry": "Retry",
+      "publish": "Publish",
+      "edit": "Edit",
+      "columns": {
+        "model": "Model",
+        "provider": "Provider",
+        "tier": "Tier",
+        "status": "Status",
+        "available": "Available",
+        "actions": "Actions"
+      },
+      "status": {
+        "pending": "Pending",
+        "published": "Published",
+        "disabled": "Disabled"
+      },
+      "form": {
+        "publishTitle": "Publish model",
+        "editTitle": "Edit model",
+        "displayName": "Display name (English)",
+        "displayNameAr": "Display name (Arabic)",
+        "badge": "Badge (max 10 chars)",
+        "tier": "Tier",
+        "tierStandard": "Standard",
+        "tierPremium": "Premium",
+        "contextWindow": "Context window (tokens)",
+        "maxOutputTokens": "Max output tokens",
+        "markupMultiplier": "Markup multiplier",
+        "rateLimitPerUserDaily": "Daily limit per user",
+        "rateLimitPlaceholder": "No limit",
+        "wholesaleCostInputPerM": "Wholesale cost, input (per 1M tokens)",
+        "wholesaleCostOutputPerM": "Wholesale cost, output (per 1M tokens)",
+        "supportsVision": "Supports image input",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…"
+      }
+    },
+    "channelsPage": {
+      "title": "Channels",
+      "description": "Read-only health of the gateway's upstream channels.",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "status": "Status",
+        "responseTime": "Response time",
+        "models": "Models"
+      },
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "msValue": "{ms} ms",
+      "modelCount": "{count, plural, one {# model} other {# models}}",
+      "empty": "No channels reported by the gateway.",
+      "loadError": "Couldn't load channels.",
+      "retry": "Retry"
+    },
+    "fraudPage": {
+      "title": "Fraud",
+      "description": "Review fraud events and clear user flags.",
+      "tabs": {
+        "unresolved": "Unresolved",
+        "resolved": "Resolved"
+      },
+      "columns": {
+        "type": "Type",
+        "severity": "Severity",
+        "user": "User",
+        "date": "Date",
+        "actions": "Actions"
+      },
+      "severity": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical"
+      },
+      "resolve": "Resolve",
+      "resolveTitle": "Mark this event as resolved?",
+      "resolveDescription": "The event stays in the log under Resolved. The user's fraud flag is not changed.",
+      "clearFlag": "Clear flag",
+      "clearFlagTitle": "Clear this user's fraud flag?",
+      "clearFlagDescription": "The user is no longer marked as flagged. Their unresolved events are not resolved.",
+      "flagCleared": "Fraud flag cleared.",
+      "cancel": "Cancel",
+      "empty": "No events in this view.",
+      "loadError": "Couldn't load fraud events.",
+      "retry": "Retry"
+    },
+    "logsPage": {
+      "title": "Usage logs",
+      "description": "Every usage charge across all users, newest first.",
+      "loadError": "Couldn't load usage logs.",
+      "retry": "Retry",
+      "filters": {
+        "from": "From",
+        "to": "To",
+        "userId": "User ID",
+        "userIdPlaceholder": "Full user UUID",
+        "modelId": "Model",
+        "modelIdPlaceholder": "e.g. gpt-4o",
+        "clear": "Clear filters"
+      },
+      "table": {
+        "date": "Date",
+        "user": "User",
+        "model": "Model",
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "tokensValue": "{input} in / {output} out",
+        "unknownModel": "Unknown",
+        "empty": "No usage logs match these filters.",
+        "loadMore": "Load more",
+        "loadingMore": "Loading…"
+      }
+    },
+    "auditPage": {
+      "title": "Audit log",
+      "description": "Every admin action, with before/after values.",
+      "loadError": "Couldn't load the audit log.",
+      "retry": "Retry",
+      "filters": {
+        "from": "From",
+        "to": "To",
+        "adminId": "Admin ID",
+        "adminIdPlaceholder": "Full admin UUID",
+        "action": "Action",
+        "actionPlaceholder": "e.g. user.clearFraudFlag",
+        "targetType": "Target type",
+        "targetTypePlaceholder": "e.g. user",
+        "targetId": "Target ID",
+        "targetIdPlaceholder": "Full target UUID",
+        "clear": "Clear filters"
+      },
+      "table": {
+        "date": "Date",
+        "admin": "Admin",
+        "action": "Action",
+        "target": "Target",
+        "details": "Details",
+        "view": "View",
+        "hide": "Hide",
+        "empty": "No audit entries match these filters.",
+        "loadMore": "Load more",
+        "loadingMore": "Loading…"
+      },
+      "diff": {
+        "field": "Field",
+        "before": "Before",
+        "after": "After",
+        "noFields": "No recorded values."
       }
     }
   },

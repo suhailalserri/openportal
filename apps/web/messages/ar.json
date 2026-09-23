@@ -290,7 +290,9 @@
       "MULTIPLE_IPS": "عناوين IP متعددة",
       "SHARED_IP_MULTI_ACCOUNT": "حسابات متعددة من نفس IP",
       "REDEEM_BRUTE_FORCE": "محاولات اختراق الأكواد",
-      "HIGH_SPEND_VELOCITY": "إنفاق مرتفع بشكل مشبوه"
+      "HIGH_SPEND_VELOCITY": "إنفاق مرتفع بشكل مشبوه",
+      "REDEEM_DAILY_LIMIT": "تجاوز الحد اليومي لاسترداد الأكواد",
+      "SUSPICIOUS_PATTERN": "نمط نشاط مشبوه"
     },
     "dataTable": {
       "search": "بحث…",
@@ -527,6 +529,172 @@
         "reference": "الرقم المرجعي",
         "submitted": "تاريخ الإرسال",
         "actions": "إجراءات"
+      }
+    },
+    "modelsPage": {
+      "title": "النماذج",
+      "description": "راجع النماذج المكتشفة وانشرها مع التسعير وتحكّم في توفرها.",
+      "tabs": {
+        "all": "الكل",
+        "pending": "قيد المراجعة",
+        "published": "منشورة",
+        "disabled": "معطّلة"
+      },
+      "sync": "مزامنة من البوابة",
+      "syncing": "جارٍ المزامنة…",
+      "syncResult": "تم اكتشاف {discovered}، وتعطيل {deactivated}، و{pending} لا تزال قيد المراجعة.",
+      "empty": "لا توجد نماذج في هذا العرض.",
+      "loadError": "تعذّر تحميل النماذج.",
+      "retry": "إعادة المحاولة",
+      "publish": "نشر",
+      "edit": "تعديل",
+      "columns": {
+        "model": "النموذج",
+        "provider": "المزوّد",
+        "tier": "الفئة",
+        "status": "الحالة",
+        "available": "متاح",
+        "actions": "الإجراءات"
+      },
+      "status": {
+        "pending": "قيد المراجعة",
+        "published": "منشور",
+        "disabled": "معطّل"
+      },
+      "form": {
+        "publishTitle": "نشر النموذج",
+        "editTitle": "تعديل النموذج",
+        "displayName": "الاسم المعروض (إنجليزي)",
+        "displayNameAr": "الاسم المعروض (عربي)",
+        "badge": "الشارة (10 أحرف كحد أقصى)",
+        "tier": "الفئة",
+        "tierStandard": "عادية",
+        "tierPremium": "مميزة",
+        "contextWindow": "نافذة السياق (بالرموز)",
+        "maxOutputTokens": "الحد الأقصى لرموز المخرجات",
+        "markupMultiplier": "معامل الهامش",
+        "rateLimitPerUserDaily": "الحد اليومي لكل مستخدم",
+        "rateLimitPlaceholder": "بلا حد",
+        "wholesaleCostInputPerM": "تكلفة الجملة للمدخلات (لكل مليون رمز)",
+        "wholesaleCostOutputPerM": "تكلفة الجملة للمخرجات (لكل مليون رمز)",
+        "supportsVision": "يدعم إدخال الصور",
+        "cancel": "إلغاء",
+        "save": "حفظ",
+        "saving": "جارٍ الحفظ…"
+      }
+    },
+    "channelsPage": {
+      "title": "القنوات",
+      "description": "حالة قنوات البوابة الأساسية (للعرض فقط).",
+      "columns": {
+        "name": "الاسم",
+        "type": "النوع",
+        "status": "الحالة",
+        "responseTime": "زمن الاستجابة",
+        "models": "النماذج"
+      },
+      "statusEnabled": "مفعّلة",
+      "statusDisabled": "معطّلة",
+      "msValue": "{ms} م.ث",
+      "modelCount": "{count, plural, zero {لا نماذج} one {نموذج واحد} two {نموذجان} few {# نماذج} many {# نموذجًا} other {# نموذج}}",
+      "empty": "لم تُبلغ البوابة عن أي قنوات.",
+      "loadError": "تعذّر تحميل القنوات.",
+      "retry": "إعادة المحاولة"
+    },
+    "fraudPage": {
+      "title": "مكافحة الاحتيال",
+      "description": "راجع أحداث الاحتيال وأزل علامات التنبيه عن المستخدمين.",
+      "tabs": {
+        "unresolved": "غير معالجة",
+        "resolved": "تمت معالجتها"
+      },
+      "columns": {
+        "type": "النوع",
+        "severity": "الخطورة",
+        "user": "المستخدم",
+        "date": "التاريخ",
+        "actions": "الإجراءات"
+      },
+      "severity": {
+        "low": "منخفضة",
+        "medium": "متوسطة",
+        "high": "عالية",
+        "critical": "حرجة"
+      },
+      "resolve": "تمت المعالجة",
+      "resolveTitle": "تحديد هذا الحدث كمُعالَج؟",
+      "resolveDescription": "يبقى الحدث في السجل ضمن «تمت معالجتها». لا تتغير علامة الاحتيال على المستخدم.",
+      "clearFlag": "إزالة العلامة",
+      "clearFlagTitle": "إزالة علامة الاحتيال عن هذا المستخدم؟",
+      "clearFlagDescription": "لن يُعتبر المستخدم مُبلَّغًا عنه بعد الآن. لا تتم معالجة أحداثه غير المعالجة.",
+      "flagCleared": "تمت إزالة علامة الاحتيال.",
+      "cancel": "إلغاء",
+      "empty": "لا توجد أحداث في هذا العرض.",
+      "loadError": "تعذّر تحميل أحداث الاحتيال.",
+      "retry": "إعادة المحاولة"
+    },
+    "logsPage": {
+      "title": "سجلات الاستخدام",
+      "description": "كل عمليات خصم الاستخدام لجميع المستخدمين، الأحدث أولًا.",
+      "loadError": "تعذّر تحميل سجلات الاستخدام.",
+      "retry": "إعادة المحاولة",
+      "filters": {
+        "from": "من",
+        "to": "إلى",
+        "userId": "معرّف المستخدم",
+        "userIdPlaceholder": "معرّف المستخدم الكامل (UUID)",
+        "modelId": "النموذج",
+        "modelIdPlaceholder": "مثال: gpt-4o",
+        "clear": "مسح التصفية"
+      },
+      "table": {
+        "date": "التاريخ",
+        "user": "المستخدم",
+        "model": "النموذج",
+        "tokens": "الرموز",
+        "cost": "التكلفة",
+        "tokensValue": "{input} دخل / {output} خرج",
+        "unknownModel": "غير معروف",
+        "empty": "لا توجد سجلات تطابق هذه التصفية.",
+        "loadMore": "تحميل المزيد",
+        "loadingMore": "جارٍ التحميل…"
+      }
+    },
+    "auditPage": {
+      "title": "سجل التدقيق",
+      "description": "كل إجراءات المشرفين مع القيم قبل التعديل وبعده.",
+      "loadError": "تعذّر تحميل سجل التدقيق.",
+      "retry": "إعادة المحاولة",
+      "filters": {
+        "from": "من",
+        "to": "إلى",
+        "adminId": "معرّف المشرف",
+        "adminIdPlaceholder": "معرّف المشرف الكامل (UUID)",
+        "action": "الإجراء",
+        "actionPlaceholder": "مثال: user.clearFraudFlag",
+        "targetType": "نوع الهدف",
+        "targetTypePlaceholder": "مثال: user",
+        "targetId": "معرّف الهدف",
+        "targetIdPlaceholder": "معرّف الهدف الكامل (UUID)",
+        "clear": "مسح التصفية"
+      },
+      "table": {
+        "date": "التاريخ",
+        "admin": "المشرف",
+        "action": "الإجراء",
+        "target": "الهدف",
+        "details": "التفاصيل",
+        "view": "عرض",
+        "hide": "إخفاء",
+        "empty": "لا توجد إدخالات تطابق هذه التصفية.",
+        "loadMore": "تحميل المزيد",
+        "loadingMore": "جارٍ التحميل…"
+      },
+      "diff": {
+        "field": "الحقل",
+        "before": "قبل",
+        "after": "بعد",
+        "noFields": "لا توجد قيم مسجّلة."
       }
     }
   },

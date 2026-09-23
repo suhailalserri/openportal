@@ -22,13 +22,9 @@ import { test, expect } from "@playwright/test";
  * warning about preview/test-account use of these actions).
  */
 test.describe("admin money ops", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/en/auth/login");
-    await page.getByLabel("Email address").fill("admin@localhost.dev");
-    await page.getByLabel("Password").fill("Admin123!");
-    await page.getByRole("button", { name: "Sign In" }).click();
-    await page.waitForURL(/\/en\/chat/);
-  });
+  // Session comes from e2e/auth.setup.ts (one sign-in per run — see the
+  // rate-limit note there), not a per-test login.
+  test.use({ storageState: "e2e/.auth/admin.json" });
 
   test("codes: batches list renders and generate dialog opens", async ({ page }) => {
     await page.goto("/en/admin/codes");

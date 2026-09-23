@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { cloneElement, isValidElement, useId, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -253,10 +253,17 @@ export function AdminPaymentMethods() {
 }
 
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  // Associate <label> with its control (htmlFor/id). Without this,
+  // getByLabel() (Playwright) and screen readers can't resolve the input
+  // from its label text — the root cause of the 3 admin-money e2e failures.
+  const id = useId();
+  const control = isValidElement<{ id?: string }>(children)
+    ? cloneElement(children, { id: children.props.id ?? id })
+    : children;
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {control}
     </div>
   );
 }
