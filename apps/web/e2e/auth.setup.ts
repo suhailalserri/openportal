@@ -1,25 +1,29 @@
 import { test as setup, expect } from "@playwright/test";
 
 /**
- * apps/web/e2e/auth.setup.ts (Phase 8c fix)
+ * apps/web/e2e/auth.setup.ts
  *
- * Signs in as the seeded admin ONCE and saves the session to
- * e2e/.auth/admin.json; admin specs reuse it via `test.use({ storageState })`.
+ * Signs in as the seeded admin and the seeded user ONCE each and saves
+ * the sessions to e2e/.auth/{admin,user}.json; specs reuse them via
+ * `test.use({ storageState })` instead of signing in per test.
  *
- * Why: admin-money.spec.ts used to sign in inside beforeEach — 4 tests +
- * 1 retry each + login.spec.ts's 2 = 10+ sign-ins per CI run against a
- * production build (`next start`), where better-auth's rate limiter is
- * active (`rateLimit: { window: 60, max: 5 }` in lib/auth.ts). Sign-ins
- * past the limit are rejected and the page stays on /en/auth/login —
- * exactly the "Received string: …/en/auth/login" failure in CI.
+ * Why: sign-ins inside beforeEach multiplied into 10+ per CI run against a
+ * production build, where better-auth's limiter (lib/auth.ts:
+ * `rateLimit: { window: 60, max: 5 }`) may reject them (diagnosis from
+ * code — see BRANCH_AND_CI_NOTES.md, 8c). Two sign-ins per run here.
  */
-const ADMIN_STATE = "e2e/.auth/admin.json";
+const STATES = {
+  admin: { email: "admin@localhost.dev", password: "Admin123!", path: "e2e/.auth/admin.json" },
+  user: { email: "user@localhost.dev", password: "User123!", path: "e2e/.auth/user.json" },
+} as const;
 
-setup("sign in as admin", async ({ page }) => {
-  await page.goto("/en/auth/login");
-  await page.getByLabel("Email address").fill("admin@localhost.dev");
-  await page.getByLabel("Password").fill("Admin123!");
-  await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page).toHaveURL(/\/en\/chat$/, { timeout: 15_000 });
-  await page.context().storageState({ path: ADMIN_STATE });
-});
+for (const [name, cred] of Object.entries(STATES)) {
+  setup(`sign in as ${name}`, async ({ page }) => {
+    await page.goto("/en/auth/login");
+    await page.getByLabel("Email address").fill(cred.email);
+    await page.getByLabel("Password").fill(cred.password);
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(page).toHaveURL(/\/en\/chat$/, { timeout: 15_000 });
+    await page.context().storageState({ path: cred.path });
+  });
+}

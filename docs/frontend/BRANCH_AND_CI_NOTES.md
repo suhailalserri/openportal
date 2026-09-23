@@ -4992,3 +4992,29 @@ non-production first.
 **Not verified (no network / node_modules / browser — same as prior sessions):** `tsc`, ESLint, vitest, `next build`, e2e were NOT run. Specifically unverified: (a) the CSP itself — that Turnstile, chat streaming, charts, QR and logos raise zero violations (this is exactly what Report-Only is for); (b) `NEXT_PUBLIC_API_BASE_URL` is set at build/start on the deployment (if unset, `connect-src` omits the API origin and cross-origin chat calls would be reported); (c) the `React.useEffect` live-region announces once per reply under React strict mode; (d) the new primary looks acceptable in light mode; (e) HSTS isn't duplicated by Caddy/Vercel.
 
 **Tracker:** `9.1` NOT ticked — tick after CI is green, the checklist §1 shows zero violations (then flip CSP to enforcing), and §2/§3 human passes are signed off.
+
+---
+
+## Phase 9.2a — E2E critical flows (monitoring/Sentry = 9.2b, not started)
+
+**Unfrozen for this phase (you approved):** the `e2e` job in `.github/workflows/deploy.yml` only. **Re-freeze after.** Changes in that job: a `redis:7-alpine` service; `REDIS_URL` → the real Redis; `GATEWAY_URL` → `http://localhost:4010` (mock); `INTERNAL_API_URL` → `http://localhost:4000` (apps/api); `TURNSTILE_SECRET_KEY` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` → empty (server check no-ops, widget reports a placeholder token — verified in `lib/turnstile-server.ts`, `components/auth/turnstile-widget.tsx`). All other jobs untouched.
+
+**Built (all under `apps/web`):**
+- `e2e/mock-gateway/server.mjs` — zero-dep Node mock of New API: SSE `/v1/chat/completions` (fixed reply "Hello from the mock gateway.", fixed usage 12 in / 6 out), `/v1/models`, `/api/channel/`, `/health`.
+- `playwright.config.ts` — `webServer` is now an array: mock gateway (:4010) → apps/api (:4000, `NODE_ENV` unset so no background workers) → web (:3100).
+- `e2e/support/db.ts` — `psql` helper (no new dependency ⇒ no lockfile change). Specs that need it `test.skip` without `DATABASE_URL`.
+- `e2e/auth.setup.ts` — now also saves `e2e/.auth/user.json` (2 sign-ins per run total).
+- New specs: `chat-stream` (browser → web → API → mock; text streams; exactly one `usage_debit`), `redeem` (seeded `seed-batch` code credits the exact `credit_amount` once; reuse rejected, balance unchanged), `register-login` (real register form → `/auth/verify` → DB-mark-verified → real login → `/chat`), `manual-payment-approve` (SQL-seeded package/method/claim; admin approves via UI with a deliberate **double-click**; balance rises by exactly the package credits once; one `payment` transaction), `admin-role-guard` (signed-out → login; regular user can't stay on `/admin`).
+- New specs set `x-forwarded-for` per file so each has its own better-auth rate-limit bucket (insurance; see the 8c note — that diagnosis was from code, not confirmed).
+
+**Deviations / honest limits:**
+- `register-login` does **not** test email delivery or the verification link — CI has no mailbox; verification is a direct SQL update (same as the manual workaround).
+- `manual-payment-approve` and `redeem` assert balance **deltas** on `user@localhost.dev`: run with `--workers=1` (CI already does) or parallel specs will corrupt each other's deltas.
+- Redeem/manual-payment specs read/write the DB with `psql` → only ever point `DATABASE_URL` at a throwaway database.
+- "Green three runs in a row" is yours to confirm by re-running the job; I can't run CI.
+
+**Verified here:** the mock gateway was started and curled (health, SSE stream shape incl. usage chunk, 401 without a bearer, channel list) and `deploy.yml` parses as YAML with the redis service and new env. **Not verified (no network / node_modules / browser here — same as every prior session):** the specs and the API boot were not executed. Specifically unconfirmed, and the likeliest places for a first-run failure: (a) the API boots with `pnpm --filter @ai-platform/api start` (tsx) under the job env and `/health` answers without extra env; (b) selectors: chat `Type your message...` + `Send`, redeem input/submit/`already been used` alert, register labels/checkbox/`Create Account`, manual-payments row/`Approve` dialog — taken from the en message file and component source, not from a rendered page; (c) the redeem form's submit is enabled with the placeholder Turnstile token; (d) the first message in a brand-new chat may need a model auto-selected before Send is enabled; (e) `dblclick` on a dialog that closes mid-action doesn't error; (f) `payment_id` on the `transactions` row equals the claim id (assertion in the approve spec); (g) `Locator.and()` (Playwright ≥1.34; repo has ^1.48).
+
+**How to run locally:** Postgres + Redis up, `pnpm --filter @ai-platform/db db:migrate` (+ the raw SQL migrations and both seeds, as in the CI job), export the same env as the `e2e` job (with `GATEWAY_URL=http://localhost:4010`, `INTERNAL_API_URL=http://localhost:4000`, empty Turnstile keys, real `REDIS_URL`/`DATABASE_URL`), `pnpm build`, then `pnpm exec playwright test --workers=1` in `apps/web`.
+
+**Tracker:** `9.2` stays open until 9.2b (Sentry) is done and the e2e job is green three runs in a row.

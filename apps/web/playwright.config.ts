@@ -9,18 +9,11 @@ import { defineConfig, devices } from "@playwright/test";
  * end-to-end against a real Postgres, not mocked. More specs are added
  * to e2e/ in later phases as more surfaces stabilize.
  *
- * WHAT THIS DOES NOT BOOT: apps/api (the standalone Fastify server on
- * :4000) is never started for these tests. Confirmed by reading the
- * actual code, not assumed: apps/web/app/api/trpc/[trpc]/route.ts calls
- * `@/server/router`'s appRouter in-process (no HTTP call to :4000), and
- * apps/web/lib/auth.ts's betterAuth() instance talks to Postgres
- * directly via drizzleAdapter(db, ...) — also in-process. Login and the
- * landing page (this phase's two new surfaces) only exercise apps/web,
- * so only apps/web + a real Postgres are needed here. A future e2e spec
- * that needs actual AI-provider proxying (chat) would need to add
- * apps/api back into this harness — it deliberately isn't here now
- * because nothing this phase built requires it, and booting a Fastify
- * server that no test touches only adds CI time and failure surface.
+ * WHAT THIS BOOTS (updated in Phase 9.2a): apps/web (`next start`), the
+ * real apps/api Fastify server on :4000 (chat/billing run end to end; it
+ * needs Redis + Postgres) and a zero-dependency mock gateway on :4010
+ * (e2e/mock-gateway/server.mjs). Before 9.2a only apps/web was started
+ * because login/landing never touched the API.
  *
  * `webServer` runs `next start` against the already-built app (CI builds
  * with a real DATABASE_URL first, see the new `e2e` job in
@@ -61,10 +54,36 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: `PORT=${PORT} pnpm start`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  // Three servers (Phase 9.2a). Playwright starts them in order and waits
+  // for each `url` to answer before running tests.
+  //  1. mock gateway — stands in for New API (see e2e/mock-gateway/server.mjs)
+  //  2. apps/api     — the real Fastify server, so chat / billing run end to
+  //                    end. Needs REDIS_URL + DATABASE_URL, GATEWAY_URL
+  //                    pointing at the mock (http://localhost:4010) and
+  //                    INTERNAL_API_URL=http://localhost:4000 for the web app.
+  //                    NODE_ENV is left unset → "development" → no background
+  //                    workers (they only start in production).
+  //  3. apps/web     — `next start` on the production build.
+  webServer: [
+    {
+      command: "node e2e/mock-gateway/server.mjs",
+      env: { MOCK_GATEWAY_PORT: "4010" },
+      url: "http://localhost:4010/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 15_000,
+    },
+    {
+      command: "PORT=4000 pnpm --filter @ai-platform/api start",
+      cwd: "../..",
+      url: "http://localhost:4000/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+    {
+      command: `PORT=${PORT} pnpm start`,
+      url: baseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 });
