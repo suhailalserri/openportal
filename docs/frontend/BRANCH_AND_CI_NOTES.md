@@ -4160,3 +4160,93 @@ disabled), so:
   `usage.table.tokensValue` (`"{input} in / {output} out"`) mirrors
   `dashboard.cards.tokensValue`'s already-shipped pattern exactly, so it
   should render the same way, but wasn't executed here either.
+
+## Phase 7.1 — Settings: registry + profile + security
+
+### Files (new/changed)
+- `apps/web/components/ui/accordion.tsx` (new — shadcn/Radix primitive, not on the 1.2 list)
+- `apps/web/features/settings/registry.ts` (new)
+- `apps/web/features/settings/registry.test.ts` (new)
+- `apps/web/features/settings/index.tsx` (new — `SettingsView`: Tabs ≥md / Accordion <md, both driven by `registry.ts`)
+- `apps/web/features/settings/hooks/use-form-dirty-guard.ts` (new)
+- `apps/web/features/settings/sections/profile/index.tsx` (new — `ProfileSection`)
+- `apps/web/features/settings/sections/security/index.tsx` (new — `SecuritySection`)
+- `apps/web/features/settings/sections/security/change-password-form.tsx` (new)
+- `apps/web/features/settings/sections/security/two-factor-section.tsx` (new)
+- `apps/web/features/settings/sections/security/active-sessions-list.tsx` (new)
+- `apps/web/app/[locale]/(app)/settings/page.tsx` (new — thin route)
+- `apps/web/config/nav.ts` (edit — `settings` entry `enabled: false → true`)
+- `apps/web/messages/en.json` (edit — flat `settings.*` placeholder replaced with nested `settings.nav/profile/security.*`)
+- `apps/web/messages/ar.json` (edit — same)
+- `apps/web/package.json` (edit — two new deps, see below)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. Read but not edited: `apps/api/src/routers/user.router.ts`
+(`getProfile`/`updateProfile`), `apps/web/lib/auth-client.ts` (confirmed
+`twoFactor` plugin registered, `changePassword` exported), `apps/web/lib/
+password-rules.ts`, `apps/web/lib/map-auth-error.ts`, and all three
+`app/api/user/sessions*` routes — all already complete for this phase's
+needs, confirmed by reading each file directly before building against it.
+
+### Two new dependencies (declared in `package.json`, not installed/run here)
+- `qrcode.react` (`^4.1.0`) — for `QRCodeSVG`, no `dangerouslySetInnerHTML`
+  QR renderer for the 2FA `totpURI`. No QR primitive existed in the repo.
+- `@radix-ui/react-accordion` (`^1.2.0`) — the primitive backing
+  `components/ui/accordion.tsx`. **This one was missed in the original
+  phase summary**, which only flagged `qrcode.react` as new; caught during
+  packaging by checking `package.json` before assuming `@radix-ui/react-*`
+  was already covered by the existing accordion animation keyframes
+  (`tw-animate-css`, already installed, supplies `animate-accordion-up/
+  down` — that part was fine; the Radix package itself was not installed).
+  Same "add to package.json, verify in CI" precedent as `recharts` in 6.1.
+
+### How to verify
+- **CI:** `check`, `web-build`, `web-unit` (new `registry.test.ts`),
+  `i18n-parity` — all four must stay green on `frontend-v2`. `web-build`
+  will fail closed if either new dependency isn't actually resolvable
+  once `pnpm install` runs in CI — that's the first thing to watch.
+- **Preview, `/ar/settings` and `/en/settings`, both themes, 360px and desktop:**
+  - display name update persists and reflects in the account menu
+  - change password with a live session: succeeds with a valid new
+    password, rejects a weak one with the mirrored client-side message
+    before hitting the server
+  - enable 2FA → QR renders → correct code verifies → backup codes shown
+    exactly once → sign out → sign back in requires TOTP
+  - disable 2FA requires password
+  - revoke one non-current session logs that device out; "sign out all
+    other devices" doesn't touch the current session; attempting to
+    revoke the current session's own row is blocked (the route's
+    existing 400)
+  - dirty-form guard warns on a full reload/tab-close mid-edit (see "not
+    verified" below for what it does NOT cover)
+  - at 360px, Settings renders as an Accordion with "Profile" open by
+    default; at desktop width, as Tabs; switching sections doesn't drop
+    in-progress edits in the other section (both stay mounted)
+  - sidebar "Settings" entry is now a real link, not a disabled "soon"
+    row, in both locales
+
+### Not verified
+No browser, `pnpm install`, or database in this sandbox (network
+disabled), so:
+- The exact request/response field names of `authClient.twoFactor.enable`
+  / `verifyTotp` / `disable` on this repo's pinned `better-auth` version —
+  followed the plan's own assumed shape (`enable → QR → verify → backup
+  codes`), cross-checked that `twoFactorClient()` is registered in
+  `lib/auth-client.ts`, but never executed against the real client.
+- `qrcode.react`'s `QRCodeSVG` actually rendering a `totpURI` string
+  correctly — untested without a browser.
+- `use-form-dirty-guard.ts`'s `beforeunload`-only scope: it does NOT
+  intercept in-app Next.js route transitions (e.g. sidebar → another
+  page while a form is dirty) — flagged in the hook's own comment as the
+  one open gap, not half-built to cover it this session.
+- The `change-password-form.tsx` actually shipped checks
+  `status === 401 || 400 → t("errors.incorrectCurrent")` locally, rather
+  than extending `map-auth-error.ts` with an `INVALID_PASSWORD` code as
+  the phase summary originally described — functionally equivalent, but
+  the two don't match verbatim; noted here rather than silently
+  reconciled.
+- Whether CI's `web-build` dummy-env-var job needs anything new for
+  `qrcode.react` (pure client component, should need nothing) — not run.

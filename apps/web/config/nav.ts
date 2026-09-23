@@ -72,8 +72,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { id: "dashboard", href: "/dashboard", labelKey: "dashboard", icon: "dashboard", enabled: true },
       // 6.2 — usage log (landed)
       { id: "usage", href: "/usage", labelKey: "usage", icon: "usage", enabled: true },
-      // 7.1
-      { id: "settings", href: "/settings", labelKey: "settings", icon: "settings", enabled: false },
+      // 7.1 — landed
+      { id: "settings", href: "/settings", labelKey: "settings", icon: "settings", enabled: true },
     ],
   },
   {

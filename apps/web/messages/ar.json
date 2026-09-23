@@ -294,23 +294,85 @@
     }
   },
   "settings": {
-    "profile": "الملف الشخصي",
-    "security": "الأمان",
-    "preferences": "التفضيلات",
-    "apiAccess": "وصول API",
-    "data": "بياناتي",
-    "language": "اللغة",
-    "defaultModel": "النموذج الافتراضي",
-    "changePassword": "تغيير كلمة المرور",
-    "twoFactor": "التحقق بخطوتين",
-    "activeSessions": "الجلسات النشطة",
-    "logoutAll": "تسجيل الخروج من كل الأجهزة",
-    "generateApiKey": "إنشاء مفتاح API",
-    "revokeApiKey": "إلغاء مفتاح API",
-    "apiKeyWarning": "سيُعرض المفتاح مرة واحدة فقط. احتفظ به في مكان آمن.",
-    "exportData": "تصدير بياناتي",
-    "deleteAccount": "حذف الحساب",
-    "deleteWarning": "سيتم حذف جميع بياناتك خلال 30 يوماً. هذا الإجراء لا يمكن التراجع عنه."
+    "nav": {
+      "pageTitle": "الإعدادات",
+      "profile": "الملف الشخصي",
+      "security": "الأمان",
+      "preferences": "التفضيلات",
+      "apiAccess": "الوصول إلى API",
+      "referral": "الإحالة",
+      "data": "بياناتي"
+    },
+    "profile": {
+      "title": "الملف الشخصي",
+      "displayName": "الاسم المعروض",
+      "displayNamePlaceholder": "اسمك",
+      "email": "البريد الإلكتروني",
+      "save": "حفظ",
+      "saving": "جارٍ الحفظ…",
+      "saved": "تم الحفظ.",
+      "errors": {
+        "generic": "تعذّر حفظ ملفك الشخصي. حاول مرة أخرى."
+      }
+    },
+    "security": {
+      "password": {
+        "title": "تغيير كلمة المرور",
+        "current": "كلمة المرور الحالية",
+        "new": "كلمة المرور الجديدة",
+        "confirm": "تأكيد كلمة المرور الجديدة",
+        "rules": {
+          "minLength": "{count} أحرف على الأقل",
+          "uppercase": "حرف كبير واحد",
+          "digit": "رقم واحد"
+        },
+        "save": "تحديث كلمة المرور",
+        "saving": "جارٍ التحديث…",
+        "success": "تم تحديث كلمة المرور.",
+        "errors": {
+          "incorrectCurrent": "كلمة المرور الحالية غير صحيحة.",
+          "generic": "تعذّر تحديث كلمة المرور. حاول مرة أخرى.",
+          "mismatch": "كلمتا المرور غير متطابقتين."
+        }
+      },
+      "twoFactor": {
+        "title": "المصادقة الثنائية",
+        "description": "أضِف طبقة حماية إضافية لحسابك باستخدام تطبيق مصادقة.",
+        "statusOn": "مُفعّلة",
+        "statusOff": "غير مُفعّلة",
+        "enable": "تفعيل",
+        "disable": "تعطيل",
+        "errors": {
+          "generic": "حدث خطأ ما. حاول مرة أخرى.",
+          "invalidCode": "رمز غير صحيح. حاول مرة أخرى."
+        },
+        "dialog": {
+          "scanTitle": "امسح رمز الاستجابة السريعة",
+          "scanDescription": "امسح الرمز باستخدام تطبيق المصادقة، ثم أدخل الرمز المكوّن من 6 أرقام.",
+          "codeLabel": "رمز مكوّن من 6 أرقام",
+          "verify": "تحقّق",
+          "backupTitle": "احفظ رموز النسخ الاحتياطي",
+          "backupDescription": "احفظ هذه الرموز في مكان آمن. يمكن استخدام كل رمز مرة واحدة إذا فقدت الوصول إلى تطبيق المصادقة.",
+          "copyBackupCodes": "نسخ الرموز",
+          "savedConfirm": "لقد حفظت هذه الرموز",
+          "done": "تم",
+          "passwordTitle": "أكّد كلمة المرور",
+          "passwordLabel": "كلمة المرور",
+          "disableTitle": "تعطيل المصادقة الثنائية",
+          "continue": "متابعة"
+        }
+      },
+      "sessions": {
+        "title": "الجلسات النشطة",
+        "thisDevice": "هذا الجهاز",
+        "lastActive": "آخر نشاط",
+        "revoke": "إلغاء",
+        "revoking": "جارٍ الإلغاء…",
+        "revokeAllOthers": "تسجيل الخروج من جميع الأجهزة الأخرى",
+        "unknownDevice": "جهاز غير معروف",
+        "error": "تعذّر تحميل جلساتك. حاول مرة أخرى."
+      }
+    }
   },
   "status": {
     "allGood": "جميع الأنظمة تعمل بشكل طبيعي ✅",

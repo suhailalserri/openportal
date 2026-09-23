@@ -257,23 +257,85 @@
     "latencyTooltip": "Average response time across active gateway channels for this model"
   },
   "settings": {
-    "profile": "Profile",
-    "security": "Security",
-    "preferences": "Preferences",
-    "apiAccess": "API Access",
-    "data": "My Data",
-    "language": "Language",
-    "defaultModel": "Default Model",
-    "changePassword": "Change Password",
-    "twoFactor": "Two-Factor Auth",
-    "activeSessions": "Active Sessions",
-    "logoutAll": "Sign out of all devices",
-    "generateApiKey": "Generate API Key",
-    "revokeApiKey": "Revoke API Key",
-    "apiKeyWarning": "The key will only be shown once. Store it securely.",
-    "exportData": "Export My Data",
-    "deleteAccount": "Delete Account",
-    "deleteWarning": "All your data will be deleted within 30 days. This cannot be undone."
+    "nav": {
+      "pageTitle": "Settings",
+      "profile": "Profile",
+      "security": "Security",
+      "preferences": "Preferences",
+      "apiAccess": "API Access",
+      "referral": "Referral",
+      "data": "My Data"
+    },
+    "profile": {
+      "title": "Profile",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "Your name",
+      "email": "Email",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved.",
+      "errors": {
+        "generic": "Couldn't save your profile. Please try again."
+      }
+    },
+    "security": {
+      "password": {
+        "title": "Change password",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "rules": {
+          "minLength": "At least {count} characters",
+          "uppercase": "One uppercase letter",
+          "digit": "One digit"
+        },
+        "save": "Update password",
+        "saving": "Updating…",
+        "success": "Password updated.",
+        "errors": {
+          "incorrectCurrent": "Current password is incorrect.",
+          "generic": "Couldn't update your password. Please try again.",
+          "mismatch": "Passwords do not match."
+        }
+      },
+      "twoFactor": {
+        "title": "Two-factor authentication",
+        "description": "Add an extra layer of security to your account with an authenticator app.",
+        "statusOn": "Enabled",
+        "statusOff": "Disabled",
+        "enable": "Enable",
+        "disable": "Disable",
+        "errors": {
+          "generic": "Something went wrong. Please try again.",
+          "invalidCode": "Invalid code. Please try again."
+        },
+        "dialog": {
+          "scanTitle": "Scan this QR code",
+          "scanDescription": "Scan with your authenticator app, then enter the 6-digit code it shows.",
+          "codeLabel": "6-digit code",
+          "verify": "Verify",
+          "backupTitle": "Save your backup codes",
+          "backupDescription": "Store these somewhere safe. Each code can be used once if you lose access to your authenticator app.",
+          "copyBackupCodes": "Copy codes",
+          "savedConfirm": "I've saved these codes",
+          "done": "Done",
+          "passwordTitle": "Confirm your password",
+          "passwordLabel": "Password",
+          "disableTitle": "Disable two-factor authentication",
+          "continue": "Continue"
+        }
+      },
+      "sessions": {
+        "title": "Active sessions",
+        "thisDevice": "This device",
+        "lastActive": "Last active",
+        "revoke": "Revoke",
+        "revoking": "Revoking…",
+        "revokeAllOthers": "Sign out of all other devices",
+        "unknownDevice": "Unknown device",
+        "error": "Couldn't load your sessions. Please try again."
+      }
+    }
   },
   "common": {
     "save": "Save",
