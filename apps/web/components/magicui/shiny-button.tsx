@@ -51,27 +51,27 @@ export const ShinyButton = ({
     <motion.button
       type="button"
       initial={{ "--x": "100%", scale: 1 } as never}
-      animate={reduced ? undefined : ({ "--x": "-100%" } as never)}
-      whileTap={reduced ? undefined : { scale: 0.97 }}
-      transition={
-        reduced
-          ? undefined
-          : {
+      {...(reduced
+        ? {}
+        : {
+            animate: { "--x": "-100%" } as never,
+            whileTap: { scale: 0.97 },
+            transition: {
               repeat: Infinity,
-              repeatType: "loop",
+              repeatType: "loop" as const,
               repeatDelay: 1,
-              type: "spring",
+              type: "spring" as const,
               stiffness: 20,
               damping: 15,
               mass: 2,
               scale: {
-                type: "spring",
+                type: "spring" as const,
                 stiffness: 200,
                 damping: 5,
                 mass: 0.5,
               },
-            }
-      }
+            },
+          })}
       className={cn(
         "relative inline-flex items-center justify-center rounded-[var(--radius-md)]",
         "border border-border bg-card px-6 py-2.5",

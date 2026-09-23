@@ -84,6 +84,7 @@ export function AdminUserDetail({ userId }: Props) {
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
   const parsedAmount = Number(creditsAmount);
   const amountValid = Number.isInteger(parsedAmount) && parsedAmount > 0;
+  const reasonValid = creditsReason.trim().length > 0;
 
   async function handleConfirmStatus() {
     await updateStatus.updateStatus(userId, nextStatus, suspendReason || undefined);
@@ -92,8 +93,8 @@ export function AdminUserDetail({ userId }: Props) {
   }
 
   async function handleConfirmCredits() {
-    if (!amountValid) return;
-    await adjustCredits.adjust({ userId, amount: parsedAmount, type: creditsType, reason: creditsReason });
+    if (!amountValid || !reasonValid) return;
+    await adjustCredits.adjust({ userId, amount: parsedAmount, type: creditsType, reason: creditsReason.trim() });
     setCreditsDialogOpen(false);
     setCreditsAmount("");
     setCreditsReason("");
@@ -219,6 +220,7 @@ export function AdminUserDetail({ userId }: Props) {
         cancelLabel={t("detail.cancel")}
         isPending={adjustCredits.isPending}
         errorMessage={adjustCredits.error?.message}
+        confirmDisabled={!amountValid || !reasonValid}
         requireTypedConfirmation={amountValid ? { targetText: creditsAmount, label: t("detail.typeAmountToConfirm") } : undefined}
         onConfirm={handleConfirmCredits}
       >

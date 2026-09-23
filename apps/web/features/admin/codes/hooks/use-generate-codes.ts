@@ -8,9 +8,9 @@ export interface GenerateCodesInput {
   count: number;
   creditValue: number;
   label: string;
-  expiresAt?: string;
-  packageId?: string;
-  paymentMethodId?: string;
+  expiresAt?: string | undefined;
+  packageId?: string | undefined;
+  paymentMethodId?: string | undefined;
 }
 
 /**

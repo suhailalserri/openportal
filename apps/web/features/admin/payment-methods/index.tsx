@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import type { PaymentMethod } from "@ai-platform/db";
+import type { PaymentMethodRow } from "./types";
 import { usePaymentMethods } from "./hooks/use-payment-methods";
 import { useSavePaymentMethod, type PaymentMethodFormValues } from "./hooks/use-save-payment-method";
 
@@ -58,7 +58,7 @@ export function AdminPaymentMethods() {
     setDialogOpen(true);
   }
 
-  function openEdit(method: PaymentMethod) {
+  function openEdit(method: PaymentMethodRow) {
     setEditingId(method.id);
     setForm({
       name: method.name,
@@ -88,7 +88,7 @@ export function AdminPaymentMethods() {
     }
   }
 
-  async function handleToggleActive(method: PaymentMethod) {
+  async function handleToggleActive(method: PaymentMethodRow) {
     try {
       await save.setActive(method.id, !method.isActive);
     } catch {

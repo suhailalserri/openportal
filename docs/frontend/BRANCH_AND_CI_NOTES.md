@@ -4763,3 +4763,43 @@ previously-shipped file.
 entry in the phase index the next time that file is touched (not
 edited here, to keep this diff scoped to the phase's own files).
 
+
+---
+
+## Phase 8b — CI green-up (post-delivery, from the failing-job logs)
+
+8b's features were already in the repo; CI on `frontend-v2` was red on
+`check`, `web-build` and `E2E (Playwright)`. Root causes, read from the
+job logs (screenshots), fixed without touching the frozen zone:
+
+| Log error | Cause | Fix |
+|---|---|---|
+| `features/admin/packages/index.tsx(139,81)`, `(140,99)`; `payment-methods/index.tsx(144,81)`, `(145,102)` — TS2345 `createdAt: string` vs `Date` | Rows typed with `CreditPackage` / `PaymentMethod` from `@ai-platform/db` (`Date`), but tRPC has no transformer so the client gets ISO strings | New `types.ts` in each feature: `inferRouterOutputs<AppRouter>["admin"][...][number]` (same pattern as `features/dashboard/types.ts`); `index.tsx` uses `PackageRow` / `PaymentMethodRow` |
+| `features/admin/users/detail.tsx(187,8)`, `(214,8)` — TS2375 | `ConfirmDialog.requireTypedConfirmation?:` did not accept `undefined` under `exactOptionalPropertyTypes` | Prop types widened with `\| undefined` (`requireTypedConfirmation`, `isPending`, `destructive`); no behaviour change |
+| `features/admin/codes/index.tsx(55,46)` — TS2379 | `GenerateCodesInput.packageId/paymentMethodId/expiresAt` optional but caller passes `undefined` | Widened with `\| undefined` in `use-generate-codes.ts` |
+| `components/magicui/border-beam.tsx(98,8)`, `shiny-button.tsx(51,6)` — TS2375 (`animate` incompatible) | `animate={reduced ? undefined : …}` (and `transition`, `whileTap`) pass `undefined` explicitly | Conditional spread `{...(reduced ? {} : {animate, transition, …})}` — props omitted under reduced motion, same runtime behaviour |
+| `components/magicui/lens.tsx(139,14)` — TS2345 `string \| undefined` | `order[nextIndex]` under `noUncheckedIndexedAccess` | `if (nextValue === undefined) return;` before `select()` |
+| `features/landing/index.tsx` — `Module not found: ./components/models-section` (web-build, e2e build step, type-check TS2307) | **The file was missing from the repo** (imported, referenced by `e2e/landing.spec.ts` as `#models`, but never delivered) | Recreated `models-section.tsx` (server component, `id="models"`, `landing.modelsHeading`, wraps `ModelsTable`); new `landing.noModelsAvailable` key in ar + en |
+
+**Also changed (approved add-on):** the adjust-credits dialog now requires
+a non-empty reason (plan 8b: "mandatory reason") — `ConfirmDialog` gained an
+optional `confirmDisabled` prop, and the Confirm button stays disabled until
+amount AND reason are valid. The gate rule is now a pure function,
+`components/shared/confirm-gate.ts`, with `confirm-gate.test.ts` covering:
+pending blocks, not-ready blocks, typed text must match exactly
+(case-sensitive), and a typed match never overrides pending/not-ready.
+
+**Not verified (no node_modules/network here):** `tsc`, vitest, `next build`
+and Playwright were not run. I could only syntax-check the changed files with
+a global `tsc` and confirm both message JSONs still parse and stay in key
+parity. The Type-check screenshots showed every error up to `payment-methods
+(145,102)` and then the `detail.tsx`/landing ones; if CI shows an error not in
+the table above, paste it. Whether `packages/index.tsx` compiles cleanly
+against the inferred row type (e.g. `pkg.priceUsdEquivalent` is a string)
+is inferred from the router, not compiled.
+
+**Standing warning (D1):** preview uses the production DB — test accounts
+only for approve/reject/revoke/adjust.
+
+**Tracker:** `8b` (and the stale 6.1–8a rows) NOT ticked by me — tick after CI
+is green on `frontend-v2` and the preview checks below pass.

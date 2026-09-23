@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCredits, formatYer, microToCredits } from "@/lib/format";
-import type { CreditPackage } from "@ai-platform/db";
+import type { PackageRow } from "./types";
 import { usePackages } from "./hooks/use-packages";
 import { useSavePackage, type PackageFormValues } from "./hooks/use-save-package";
 
@@ -54,7 +54,7 @@ export function AdminPackages() {
     setDialogOpen(true);
   }
 
-  function openEdit(pkg: CreditPackage) {
+  function openEdit(pkg: PackageRow) {
     setEditingId(pkg.id);
     setForm({
       name: pkg.name,
@@ -83,7 +83,7 @@ export function AdminPackages() {
     }
   }
 
-  async function handleToggleActive(pkg: CreditPackage) {
+  async function handleToggleActive(pkg: PackageRow) {
     try {
       await save.setActive(pkg.id, !pkg.isActive);
     } catch {

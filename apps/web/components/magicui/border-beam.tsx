@@ -111,18 +111,21 @@ export const BorderBeam = ({
           } as MotionStyle
         }
         initial={{ offsetDistance: `${initialOffset}%` }}
-        animate={reduced ? undefined : { offsetDistance: offsets }}
-        transition={
-          reduced
-            ? undefined
-            : {
+        // exactOptionalPropertyTypes: `animate`/`transition` cannot be
+        // passed as `undefined`, so under reduced motion the props are
+        // omitted entirely via a conditional spread.
+        {...(reduced
+          ? {}
+          : {
+              animate: { offsetDistance: offsets },
+              transition: {
                 repeat: Infinity,
                 ease: "linear",
                 duration,
                 delay: -delay,
                 ...transition,
-              }
-        }
+              },
+            })}
       />
     </div>
   );

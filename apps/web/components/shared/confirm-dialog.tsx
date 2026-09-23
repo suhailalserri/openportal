@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isConfirmBlocked } from "./confirm-gate";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface ConfirmDialogProps {
@@ -16,8 +17,13 @@ interface ConfirmDialogProps {
   cancelLabel: string;
   onConfirm: () => void | Promise<void>;
   /** Disables the confirm button, shows a spinner-state label, while a mutation is in flight. */
-  isPending?: boolean;
-  destructive?: boolean;
+  isPending?: boolean | undefined;
+  destructive?: boolean | undefined;
+  /**
+   * Caller-side "form not ready" gate (e.g. a mandatory reason is still
+   * empty). Combined with `isPending` and the typed-confirmation match.
+   */
+  confirmDisabled?: boolean | undefined;
   /**
    * "Type X to confirm" gate for money/destructive actions (8b: suspend
    * user, revoke a code batch, adjust credits). The confirm button stays
@@ -25,7 +31,7 @@ interface ConfirmDialogProps {
    * partial-match leniency, since the whole point is deliberate friction
    * before an irreversible or financial action.
    */
-  requireTypedConfirmation?: { targetText: string; label: string };
+  requireTypedConfirmation?: { targetText: string; label: string } | undefined;
   errorMessage?: React.ReactNode;
   /**
    * Extra form fields rendered between the description and the typed-
@@ -65,6 +71,7 @@ export function ConfirmDialog({
   isPending = false,
   destructive = false,
   requireTypedConfirmation,
+  confirmDisabled: callerDisabled = false,
   errorMessage,
   children,
 }: ConfirmDialogProps) {
@@ -74,8 +81,12 @@ export function ConfirmDialog({
     if (!open) setTypedText("");
   }, [open]);
 
-  const gatedButNotYetMatched = Boolean(requireTypedConfirmation) && typedText !== requireTypedConfirmation?.targetText;
-  const confirmDisabled = isPending || gatedButNotYetMatched;
+  const confirmDisabled = isConfirmBlocked({
+    isPending,
+    confirmDisabled: callerDisabled,
+    requireTypedConfirmation,
+    typedText,
+  });
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isPending && onOpenChange(next)}>

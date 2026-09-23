@@ -136,6 +136,7 @@ export function Lens({
       else nextIndex = (current + dir + order.length) % order.length;
 
       const nextValue = order[nextIndex];
+      if (nextValue === undefined) return;
       select(nextValue);
 
       // Move DOM focus to the sibling so tabbing continues from there.
