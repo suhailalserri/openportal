@@ -226,7 +226,7 @@ export function LensItem({ value, children, className }: LensItemProps) {
           : { type: "spring", stiffness: 260, damping: 26 }
       }
       className={cn(
-        "relative flex-1 min-w-0 rounded-[var(--radius-lg)] p-4 text-left",
+        "relative flex-1 min-w-0 rounded-[var(--radius-lg)] p-4 text-start",
         "border bg-card text-card-foreground",
         "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
         "hover:opacity-100",

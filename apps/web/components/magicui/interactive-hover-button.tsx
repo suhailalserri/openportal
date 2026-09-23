@@ -62,9 +62,9 @@ export function InteractiveHoverButton({
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-1 top-1/2 size-2 -translate-y-1/2 rounded-full",
+          "absolute start-1 top-1/2 size-2 -translate-y-1/2 rounded-full",
           "bg-primary transition-all duration-[var(--duration-slow)] ease-[var(--ease-standard)]",
-          "group-hover:left-0 group-hover:top-0 group-hover:size-full group-hover:translate-y-0 group-hover:rounded-[var(--radius-md)]",
+          "group-hover:start-0 group-hover:top-0 group-hover:size-full group-hover:translate-y-0 group-hover:rounded-[var(--radius-md)]",
         )}
       />
 
@@ -73,7 +73,7 @@ export function InteractiveHoverButton({
         <span
           className={cn(
             "transition-transform duration-[var(--duration-slow)] ease-[var(--ease-standard)]",
-            "group-hover:translate-x-3",
+            "group-hover:translate-x-3 rtl:group-hover:-translate-x-3",
           )}
         >
           {children}
@@ -82,9 +82,9 @@ export function InteractiveHoverButton({
         <ArrowRight
           aria-hidden="true"
           className={cn(
-            "size-4 -translate-x-4 opacity-0",
+            "size-4 -translate-x-4 opacity-0 rtl:translate-x-4 rtl:-scale-x-100",
             "transition-all duration-[var(--duration-slow)] ease-[var(--ease-standard)]",
-            "group-hover:translate-x-1 group-hover:opacity-100",
+            "group-hover:translate-x-1 rtl:group-hover:-translate-x-1 group-hover:opacity-100",
             // On hover the fill is primary, so the arrow + text need the
             // paired foreground to stay legible. `currentColor` keeps this
             // a single class change rather than a colour swap.

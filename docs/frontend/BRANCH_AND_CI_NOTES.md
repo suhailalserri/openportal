@@ -4803,3 +4803,28 @@ only for approve/reject/revoke/adjust.
 
 **Tracker:** `8b` (and the stale 6.1–8a rows) NOT ticked by me — tick after CI
 is green on `frontend-v2` and the preview checks below pass.
+
+## Phase 8b — CI green-up round 2 (lint: physical-direction classes)
+
+The round-1 fixes worked: the `Type check` step in `Type-check & Lint` is now
+green, and `next build` gets past "Compiled successfully". What remained was
+the Rule 2 ESLint ban (`no-restricted-syntax`), which `next lint` (inside the
+Lint step, Web Build and E2E's build) enforces:
+
+- `components/magicui/interactive-hover-button.tsx` (65:11): `left-1` /
+  `group-hover:left-0` -> `start-1` / `group-hover:start-0`. While there, the
+  slide/arrow animation was direction-implying in RTL, so added `rtl:`
+  variants (`rtl:group-hover:-translate-x-3` on the label, mirrored arrow
+  offset and `rtl:-scale-x-100` on the arrow) per Rule 2's "direction icons
+  flip in RTL".
+- `components/magicui/lens.tsx` (229:9): `text-left` -> `text-start`.
+
+Both files are copied Magic UI components (round 1 also touched them for the
+`exactOptionalPropertyTypes` errors), which is why they slipped past the
+ban. I re-ran the ESLint regex from `.eslintrc.json` over every string
+literal in `apps/web/**/*.tsx` (excluding tests/dev pages): zero hits left.
+That is a regex approximation of the rule, not ESLint itself.
+
+**Not verified:** no lint/build/Playwright run here. The `rtl:` hover
+animation is unchecked visually — look at it once on `/ar` if that button is
+used on a page you care about.
