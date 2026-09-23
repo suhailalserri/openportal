@@ -171,7 +171,7 @@ export function PreferencesSection() {
             <Skeleton className="h-9 w-full sm:w-64" />
           ) : (
             <Select
-              value={defaultModel}
+              {...(defaultModel !== undefined ? { value: defaultModel } : {})}
               onValueChange={(id) => {
                 setDefaultModel(id);
                 writeLastModel(id);

@@ -4514,3 +4514,44 @@ owns the root env files / Vercel project.
   Once that PR is live: re-verify that a 2FA throwaway account instead
   demands a valid TOTP or backup code and rejects an invalid one before
   completing.
+
+## Phase 7.2 — build fix: exactOptionalPropertyTypes vs. Select `value`
+
+**Symptom**: `frontend-v2` CI (`Type-check & Lint`) and the Vercel `next build`
+both failed at the same spot:
+
+```
+features/settings/sections/preferences/index.tsx:173:14 — TS2375
+Type '{ value: string | undefined; ... }' is not assignable to type
+'{ value?: string; ... }' with 'exactOptionalPropertyTypes: true'.
+```
+
+**Cause**: Next.js's tsconfig auto-reconfiguration turned on
+`exactOptionalPropertyTypes: true`. Under that flag, an optional prop
+(`value?: string`) can be *omitted* but not explicitly passed as
+`undefined` — TS treats those as different things. `defaultModel` is
+`useState<string | undefined>`, and it was being spread straight into
+`<Select value={defaultModel}>`, sending an explicit `undefined` on first
+render (before `readLastModel()` resolves in the effect).
+
+**Fix**: conditionally spread the `value` prop so it's fully omitted, not
+`undefined`, when there's no default model yet:
+
+```tsx
+<Select
+  {...(defaultModel !== undefined ? { value: defaultModel } : {})}
+  onValueChange={(id) => { ... }}
+>
+```
+
+No behavior change — `SelectValue placeholder` still renders when unset.
+
+**File changed**: `apps/web/features/settings/sections/preferences/index.tsx`
+(single-line fix at the `<Select>` for default model, ~line 173).
+
+**Not independently verified**: no `node_modules` / network access in this
+environment to run `tsc --noEmit` or `next build` locally. Recommend a full
+`pnpm --filter @ai-platform/web type-check` pass in CI as real verification.
+
+**Untouched**: `E2E (Playwright)` was also red in the same GitHub Actions
+run, but no log was provided for it — separate issue, not investigated.
