@@ -139,8 +139,8 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 | 4d | Chat: conversations + cache | [x] |
 | 5.1 | Billing: wallet + redeem | [x] |
 | 5.2 | Billing: buy flow + history | [x] |
-| B2 | Backend: user usage + index | [ ] delivered, pending CI confirmation |
-| 6.1 | Dashboard | [ ] |
+| B2 | Backend: user usage + index | [x] |
+| 6.1 | Dashboard | [x] |
 | 6.2 | Usage log | [ ] |
 | 7.1 | Settings: registry + profile + security | [ ] |
 | 7.2 | Settings: preferences, API, referral, privacy | [ ] |

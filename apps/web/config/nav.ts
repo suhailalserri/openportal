@@ -68,8 +68,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       // place and add nothing.
       // 5.1 — wallet + redeem (landed)
       { id: "billing", href: "/billing", labelKey: "billing", icon: "billing", enabled: true },
-      // 6.1
-      { id: "dashboard", href: "/dashboard", labelKey: "dashboard", icon: "dashboard", enabled: false },
+      // 6.1 — dashboard (landed)
+      { id: "dashboard", href: "/dashboard", labelKey: "dashboard", icon: "dashboard", enabled: true },
       // 6.2
       { id: "usage", href: "/usage", labelKey: "usage", icon: "usage", enabled: false },
       // 7.1

@@ -561,5 +561,38 @@
       "outputPer1k": "Credits / 1K (output)",
       "empty": "No models available right now."
     }
+  },
+  "dashboard": {
+    "period": {
+      "label": "Time period",
+      "days": "{count, plural, one {# day} other {# days}}"
+    },
+    "cards": {
+      "spent": "Spent",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "tokensValue": "{input} in / {output} out",
+      "avgCost": "Avg. cost / request",
+      "topModel": "Top model",
+      "none": "—"
+    },
+    "chart": {
+      "title": "Spend over time",
+      "empty": "No spend in this period."
+    },
+    "models": {
+      "title": "By model",
+      "model": "Model",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "tokensValue": "{input} in / {output} out",
+      "spent": "Spent",
+      "empty": "No usage in this period."
+    },
+    "empty": {
+      "title": "No usage yet",
+      "description": "Once you send a few messages, your spend, tokens and top models will show up here. Try a longer period if you expect to see data."
+    },
+    "error": "Couldn't load your dashboard right now. Please try again."
   }
 }

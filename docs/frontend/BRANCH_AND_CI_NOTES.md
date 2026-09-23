@@ -3918,3 +3918,128 @@ Not touched.
 ### Not verified
 No browser in this sandbox — same standing limitation as v1/v2 of this
 fix, confirm on the live preview.
+
+## Phase B2 — User usage + index (backend, before 6.1)
+
+**Status: verified.** `usageSummary`, `usageTimeseries`, `usageByModel`,
+`listUsage` all confirmed via manual `curl` against the `frontend-v2`
+Vercel preview, using a real session cookie: correct, user-scoped JSON,
+numbers reconciling against the raw `transactions` rows for the test
+account (e.g. `nex-agi/nex-n2.5-pro:free` totals ≈245.5M micro-credits
+across 8 requests matched the sum of the individual debit rows). CSV
+export (`GET /api/usage/export`) also confirmed. GitHub Actions green on
+`frontend-v2`.
+
+**Non-issue noted during verification:** an early pass of `curl` against
+`usageTimeseries` / `usageByModel` without a `?input=` query param
+returned a 400 `"expected object, received undefined"` — this is correct
+tRPC-over-HTTP behavior (a `GET` query's `z.object({...})` input, even
+with every field optional, still needs an `input` query param; only
+`listUsage`'s test command included one). Not a router bug — no code
+changed for this. A later pass with `?input=%7B%22json%22%3A%7B%7D%7D`
+succeeded for all three. A one-off `jq: parse error` on a subsequent
+retry (stale cookie / shell quoting) also resolved itself on the next
+attempt with no server-side change.
+
+**Tracker:** B2 flipped from `[x] delivered, pending CI confirmation` to
+`[x]` (fully verified) in `docs/FRONTEND_REBUILD_PLAN.md` §5.
+
+---
+
+## Phase 6.1 — Dashboard
+
+**Build:** `apps/web/features/dashboard/**` (index, hooks, components,
+lib, types), thin route `app/[locale]/(app)/dashboard/page.tsx`, `config/
+nav.ts` dashboard entry flipped `enabled: false → true`, `dashboard`
+message namespace added to both `messages/en.json` and `messages/ar.json`
+(parity-checked locally: 471/471 keys both locales), `recharts@^2.13.0`
+added to `apps/web/package.json` (D4 — no chart lib existed in the repo
+before this phase).
+
+Summary cards, spend-over-time chart, and per-model breakdown all read
+from `billing.usageSummary` / `usageTimeseries` / `usageByModel` (B2),
+batched into one HTTP request by the existing `httpBatchLink`. No
+client-side re-bucketing of dates and no credit math outside
+`formatCredits` (Rule 1) — the chart and table render the server's
+numbers as-is.
+
+### Deviation from the plan
+None functionally. Added `features/dashboard/lib/period-range.test.ts` +
+`period-range.ts` as a pure, directly-testable period→date-range helper —
+the plan's 6.1 entry doesn't call this out explicitly, but Rule 10 /
+phase-summary point 3 asked for a concrete verification step, and the
+day-boundary math (local "today" vs. the server's UTC bucketing) is the
+one place in this phase a silent off-by-one was plausible.
+
+Also added `features/dashboard/types.ts` (local `inferRouterOutputs`
+re-export) rather than adding a shared `RouterOutputs` helper to the
+frozen `lib/trpc.ts` — no such helper existed in the repo before this
+phase, and this session deliberately avoided touching the frozen zone to
+add one repo-wide.
+
+### Files changed
+- `apps/web/features/dashboard/index.tsx` (new)
+- `apps/web/features/dashboard/types.ts` (new)
+- `apps/web/features/dashboard/hooks/use-dashboard-data.ts` (new)
+- `apps/web/features/dashboard/lib/period-range.ts` (new)
+- `apps/web/features/dashboard/lib/period-range.test.ts` (new)
+- `apps/web/features/dashboard/components/period-switch.tsx` (new)
+- `apps/web/features/dashboard/components/summary-cards.tsx` (new)
+- `apps/web/features/dashboard/components/spend-chart.tsx` (new)
+- `apps/web/features/dashboard/components/model-breakdown.tsx` (new)
+- `apps/web/features/dashboard/components/dashboard-empty-state.tsx` (new)
+- `apps/web/app/[locale]/(app)/dashboard/page.tsx` (new)
+- `apps/web/config/nav.ts` (edit — `dashboard` entry `enabled: true`)
+- `apps/web/messages/en.json` (edit — `dashboard` namespace added)
+- `apps/web/messages/ar.json` (edit — `dashboard` namespace added)
+- `apps/web/package.json` (edit — `recharts` dependency added)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. (`lib/trpc.ts`, `server/**`, `app/api/**` all untouched —
+`features/dashboard/types.ts` reads `AppRouter`'s inferred output types
+but does not modify any frozen file.)
+
+### How to verify
+- **CI:** `check` (type-check + lint), `web-build`, `web-unit` (new
+  `period-range.test.ts`), `i18n-parity` — all four must stay green on
+  `frontend-v2`.
+- **Preview, `/ar/dashboard` and `/en/dashboard`, both themes:**
+  - summary card totals match the `usageSummary` numbers already
+    confirmed against B2
+  - spend chart's per-day values match `usageTimeseries`
+  - per-model table matches `usageByModel`, sorted by spend descending
+  - period switch (7/30/90) refetches and updates all three sections
+    together
+  - a period with genuinely zero usage shows the empty state, not a
+    broken chart
+  - chart x-axis reads chronologically oldest→newest in both `ar` and
+    `en`; in `ar` the chart's rendering direction (not the data order)
+    is mirrored
+  - sidebar "Dashboard" entry is now a real link, not a disabled "soon"
+    row, in both locales
+
+### Not verified
+No browser or `pnpm install` in this sandbox (network disabled), so:
+- `recharts`' `reversed` prop on `XAxis` combined with a raw ISO-string
+  `dataKey`, and whether `orientation="top"` is the right way to mirror
+  the axis in `ar` without also flipping the gridlines oddly, is
+  **unverified** — this is the one part of 6.1 most likely to need a
+  visual tweak on the actual RTL preview.
+- Field names (`totalSpentMicroCredits`, `requestCount`, `inputTokens`,
+  `outputTokens`, `avgCostMicroCredits`, `topModelId` / `date`,
+  `spentMicroCredits`, `requestCount` / `modelId`, `spentMicroCredits`,
+  `requestCount`, `inputTokens`, `outputTokens`) were cross-checked
+  directly against `apps/api/src/services/usage.service.ts`'s return
+  type declarations (not just your pasted `curl` output), so these
+  should match `tsc` exactly. One nuance: `usageByModel`'s `modelId` is
+  typed `string | null` in the service — `ModelBreakdown` renders it
+  as-is (renders nothing for a null id, no crash) but doesn't special-
+  case it with fallback text; flag if you'd rather it show something
+  like "—" for that row.
+- `next-intl`'s ICU plural syntax for `dashboard.period.days` (`{count,
+  plural, one {# day} other {# days}}`) was not run through the actual
+  `next-intl` formatter here — should render correctly (it's the
+  standard documented syntax) but wasn't executed.
