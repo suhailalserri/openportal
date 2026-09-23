@@ -8,7 +8,12 @@ describe("periodToRange", () => {
 
   it("7-day window spans exactly 7 calendar days ending today, inclusive", () => {
     const { from, to } = periodToRange(7, now);
-    const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+    // Math.floor, not Math.round: `to` is 23:59:59.999 and `from` is 00:00:00.000,
+    // so the true span is 6 full days plus a ~1ms-short 7th (fractional) day.
+    // Rounding to the nearest whole day would incorrectly count that fractional
+    // day as a full 7th day; flooring reflects "6 full days between boundaries +
+    // the fractional last day" as the comment below describes.
+    const days = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
     // 6 full days between the two boundaries + the fractional last day = ~7d.
     expect(days).toBe(6);
     expect(to.getHours()).toBe(23);
@@ -20,8 +25,9 @@ describe("periodToRange", () => {
   it("30-day and 90-day windows scale the same way", () => {
     const r30 = periodToRange(30, now);
     const r90 = periodToRange(90, now);
-    expect(Math.round((r30.to.getTime() - r30.from.getTime()) / 86_400_000)).toBe(29);
-    expect(Math.round((r90.to.getTime() - r90.from.getTime()) / 86_400_000)).toBe(89);
+    // Same Math.floor reasoning as the 7-day case above.
+    expect(Math.floor((r30.to.getTime() - r30.from.getTime()) / 86_400_000)).toBe(29);
+    expect(Math.floor((r90.to.getTime() - r90.from.getTime()) / 86_400_000)).toBe(89);
   });
 
   it("`to` always includes all of 'today', even called just after midnight", () => {
