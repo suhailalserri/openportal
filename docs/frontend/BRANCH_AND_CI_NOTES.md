@@ -4250,3 +4250,50 @@ disabled), so:
   reconciled.
 - Whether CI's `web-build` dummy-env-var job needs anything new for
   `qrcode.react` (pure client component, should need nothing) — not run.
+
+## Phase 7.1 Patch v1 — `exactOptionalPropertyTypes` build failure + `twoFactor.enable()` union type, both caught by CI
+
+Real CI run on `frontend-v2` (`Type-check & Lint` and `Web Build`, both
+red) caught two things the sandbox's read-only checks couldn't:
+
+- **`features/settings/index.tsx:38` (TS2375).** `sections[0]?.id` is
+  `string | undefined`; `Tabs`/`Accordion`'s `defaultValue` prop is typed
+  as plain `string` on this pinned version, and under
+  `exactOptionalPropertyTypes: true` an explicit `undefined` can't flow
+  into an optional prop even though omitting the prop entirely is legal.
+  Same 5.2 Patch v1 category of bug. Fixed with `sections[0]?.id ?? ""`
+  — safe in practice since `registry.test.ts` already asserts `profile`
+  and `security` are always the visible set, so `sections[0]` is never
+  actually absent at runtime.
+- **`two-factor-section.tsx:81-82` (TS2339).** `authClient.twoFactor
+  .enable()`'s return type is a discriminated union on `method`:
+  `{ method: "otp" }` vs `{ method: "totp"; totpURI; backupCodes }`.
+  The original code read `data.totpURI`/`data.backupCodes` unconditionally
+  — compiles fine without the union narrowing under a looser tsconfig,
+  fails here. This was exactly the "not verified without running code"
+  risk flagged in the original 7.1 summary (exact response shape of
+  `enable()`/`verifyTotp()`/`disable()` on the pinned `better-auth`
+  version). Fixed by checking `data.method !== "totp"` and falling back
+  to the generic error before reading either field — this flow is QR-only
+  by design, so an `"otp"` response is treated as unexpected rather than
+  silently rendering an empty QR code.
+
+### Files changed
+- `apps/web/features/settings/index.tsx`
+- `apps/web/features/settings/sections/security/two-factor-section.tsx`
+
+### How to verify
+- CI: `Type-check & Lint` and `Web Build (next build)` must go green;
+  the other four jobs (`API Tests`, `Web Unit Tests`, `i18n Key Parity`,
+  `Legal Docs In Sync`) were already green and untouched by this patch.
+- Preview: re-check the 2FA enable flow specifically — confirm the
+  account's `twoFactor()` server plugin config (`lib/auth.ts`, frozen)
+  always returns the `totp` branch for this app (no OTP-via-email/SMS
+  method configured), so the new `!== "totp"` guard is dead code in
+  practice rather than a silent failure path users actually hit.
+
+### Not verified
+Still no browser/`pnpm install` in this sandbox — this patch was written
+directly against the CI log's error text and better-auth's documented
+`twoFactor.enable()` union shape, not compiled locally. First real
+confirmation is the next CI run.
