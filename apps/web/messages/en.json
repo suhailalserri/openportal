@@ -136,8 +136,16 @@
       "admin_credit": "Admin Credit",
       "admin_debit": "Admin Debit",
       "payment": "Payment",
-      "referral_bonus": "Referral Bonus"
-    }
+      "referral_bonus": "Referral Bonus",
+      "refund": "Refund",
+      "unknown": "Other"
+    },
+    "typeColumn": "Type",
+    "amountColumn": "Amount",
+    "balanceColumn": "Balance After",
+    "exportCsv": "Export CSV",
+    "prevPage": "Previous",
+    "nextPage": "Next"
   },
   "redeem": {
     "title": "Redeem a Code",
@@ -505,5 +513,100 @@
     "message": "We only use essential cookies needed for sign-in and to run the platform.",
     "learnMore": "Learn more",
     "accept": "Got it"
+  },
+  "billing": {
+    "tabs": {
+      "buy": "Buy Credits",
+      "pricing": "Pricing",
+      "history": "History"
+    },
+    "packages": {
+      "title": "Choose a package",
+      "empty": "No packages available right now.",
+      "bestValue": "Best Value",
+      "yer": "YER",
+      "creditsGranted": "{amount} credits"
+    },
+    "methods": {
+      "title": "Choose a payment method",
+      "yer": "YER",
+      "accountCode": "Account / Code",
+      "copy": "Copy",
+      "copied": "Copied ✓",
+      "goToRedeem": "Go to redeem a code",
+      "claimSubmitted": "Your claim was submitted. An admin will review it shortly.",
+      "referenceCodeLabel": "Reference code",
+      "referenceCodeHint": "Write this code as your transfer note so we can match it.",
+      "done": "Done",
+      "senderName": "Sender name",
+      "senderPhone": "Sender phone",
+      "submittedTxRef": "Transfer reference (if any)",
+      "notes": "Notes",
+      "submitting": "Submitting...",
+      "submitClaim": "Submit claim"
+    },
+    "claims": {
+      "title": "My Claims",
+      "empty": "No transfer claims yet.",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      }
+    },
+    "pricing": {
+      "model": "Model",
+      "tier": "Tier",
+      "inputPer1k": "Credits / 1K (input)",
+      "outputPer1k": "Credits / 1K (output)",
+      "empty": "No models available right now."
+    }
+  },
+  "dashboard": {
+    "period": {
+      "label": "Time period",
+      "days": "{count, plural, one {# day} other {# days}}"
+    },
+    "cards": {
+      "spent": "Spent",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "tokensValue": "{input} in / {output} out",
+      "avgCost": "Avg. cost / request",
+      "topModel": "Top model",
+      "none": "—",
+      "tokensIn": "In",
+      "tokensOut": "Out",
+      "tokensHint": "Total input + output tokens processed in this period. A raw count, not a cost.",
+      "hintLabel": "What does {label} mean?",
+      "spentHint": "Total spent in this period, in platform credits — the internal usage unit, not Yemeni Rial (YER). Credits are only ever purchased or redeemed in YER; usage itself is always billed in credits.",
+      "requestsHint": "Number of chat requests sent in this period. A plain count, not a cost.",
+      "avgCostHint": "Average credit cost per request in this period (total spent ÷ requests), in platform credits — not YER."
+    },
+    "chart": {
+      "title": "Spend over time",
+      "empty": "No spend in this period."
+    },
+    "models": {
+      "title": "By model",
+      "model": "Model",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "tokensValue": "{input} in / {output} out",
+      "spent": "Spent",
+      "empty": "No usage in this period.",
+      "hintLabel": "What do these columns mean?",
+      "hint": "Requests and Tokens are plain counts. Spent is in platform credits, the internal usage unit — not Yemeni Rial (YER). Tap a column header to sort.",
+      "sortBy": "Sort by {column}"
+    },
+    "empty": {
+      "title": "No usage yet",
+      "description": "Once you send a few messages, your spend, tokens and top models will show up here. Try a longer period if you expect to see data."
+    },
+    "error": "Couldn't load your dashboard right now. Please try again.",
+    "topModel": {
+      "hintLabel": "What is this?",
+      "hint": "The model you used the most in this period, by number of requests."
+    }
   }
 }

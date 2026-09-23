@@ -10,6 +10,18 @@ import { submitManualPayment } from "../services/manual-payment.service";
 import { stripUndefined }      from "../utils/strip-undefined";
 import { checkLimit }          from "../utils/rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
+import {
+  getUsageSummary, getUsageTimeseries, getUsageByModel, listUsage,
+} from "../services/usage.service";
+
+// B2: shared input shape for every usage.* procedure — range ≤ 90 days,
+// enforced inside usage.service.ts's clampRange() (server-side, not just
+// a client-side default that could be bypassed by a hand-built request).
+const usageRangeInput = {
+  from:    z.coerce.date().optional(),
+  to:      z.coerce.date().optional(),
+  modelId: z.string().max(100).optional(),
+};
 
 export const billingRouter = router({
 
@@ -131,6 +143,30 @@ export const billingRouter = router({
       }
       return result;
     }),
+
+  // ── B2: user-scoped usage analytics (Phase 6 dashboard/usage log) ───
+  // Every procedure below is protectedProcedure and every query inside
+  // usage.service.ts filters on ctx.user.id — never a client-supplied
+  // id — which is what usage.service.test.ts's IDOR test asserts.
+  usageSummary: protectedProcedure
+    .input(z.object(usageRangeInput))
+    .query(({ ctx, input }) => getUsageSummary(ctx.user.id, input)),
+
+  usageTimeseries: protectedProcedure
+    .input(z.object(usageRangeInput))
+    .query(({ ctx, input }) => getUsageTimeseries(ctx.user.id, input)),
+
+  usageByModel: protectedProcedure
+    .input(z.object(usageRangeInput))
+    .query(({ ctx, input }) => getUsageByModel(ctx.user.id, input)),
+
+  listUsage: protectedProcedure
+    .input(z.object({
+      ...usageRangeInput,
+      limit:  z.number().min(1).max(100).default(20),
+      cursor: z.string().uuid().optional(),
+    }))
+    .query(({ ctx, input }) => listUsage(ctx.user.id, input)),
 });
 
 /**

@@ -3472,3 +3472,574 @@ bundle behavior, `pnpm install`, `tsc --noEmit`, `next build`, and
 - Per **0.2's D1 decision**, `frontend-v2` previews hit the production
   database — please redeem-test only with a dedicated test account and a
   purpose-generated test code batch, not a real user's code.
+
+## Phase 5.2 — Billing: buy flow (Jaib + manual transfer), history, pricing
+
+Built on top of 5.1's `features/billing/` folder (merged onto the
+5.1-era `frontend-v2` state — no repo re-export happened between the two
+phases in this session). Adds the package picker, the Jaib/manual-transfer
+payment method dialog, the buyer's own claim list, transaction history
+with client-side CSV export, and a public pricing table — all reading
+from tRPC procedures that already existed and were unchanged
+(`billing.listPackages`, `listPaymentMethods`, `submitManualPayment`,
+`myManualPayments`, `getTransactions`, `models.list`).
+
+### i18n gap found and fixed
+`balance.types` (messages/{ar,en}.json) covered 6 of the real 7
+`tx_type` enum values (`packages/db/src/schema/enums.ts`) — `refund` had
+no translation key. Added `balance.types.refund` (and `.unknown`, for
+`transaction-labels.ts`'s safe fallback on any future enum value the
+frontend doesn't recognize yet) to both locale files. Confirmed full
+key-set parity between `ar.json`/`en.json` after the edit (450 keys
+each, zero one-sided keys) — `i18n-parity` should pass as a real check
+this time, not a pass-through.
+
+### Payment method fork
+`paymentMethodTypeEnum` has exactly two values. `payment-method-dialog.tsx`
+forks on `method.type`:
+- `jaib_voucher` → instructions + `accountCode` panel, then a **scroll**
+  (not a tab switch) to the always-visible 5.1 redeem box
+  (`REDEEM_SECTION_ID`, exported from `features/billing/index.tsx`).
+  Jaib buys a pre-issued code out-of-band; the existing redeem box
+  already handles that.
+- `manual_transfer` → the claim form (`submittedTxRef`, `senderPhone`,
+  `senderName`, `notes` — **no screenshot field**, deferred), calling
+  `billing.submitManualPayment`, then showing the server-generated
+  `referenceCode` prominently as the transfer memo the buyer must use.
+
+`submitManualPayment` already hard-rejects any method that isn't
+`manual_transfer` server-side, so a client-side fork mistake here is a
+confusing-UI bug at worst, never a money bug.
+
+### Page layout change
+`features/billing/index.tsx` (edited, not `page.tsx` — that file still
+just renders `<BillingView />`, unchanged): the 5.1 `BalanceCard` +
+`RedeemForm` grid stays at the top, always visible. Below it, a `Tabs`
+(`Buy Credits` / `Pricing` / `History`) holds the new sections, so the
+page doesn't become one long scroll.
+
+### Payment method logos — no upload endpoint exists yet
+`paymentMethods.logoUrl` is a nullable `text` column, validated as
+`z.string().url()` by `admin.paymentMethods.create/update` — but there
+is **no file-upload endpoint anywhere in this codebase** (grepped both
+apps; infra/docker-compose mentions MinIO, nothing in `apps/web` or
+`apps/api` calls it). There is also no admin UI yet for payment methods
+at all (`/admin/payment-methods` is `enabled: false` in `config/nav.ts`,
+Phase 8b). So today, adding a payment method's logo means:
+1. Host the PNG/SVG somewhere with a stable HTTPS URL (a static host, a
+   public bucket, even a CDN-fronted GitHub raw link short-term).
+2. Paste that URL into `paymentMethods.logoUrl` directly (via a DB seed/
+   migration, or `admin.paymentMethods.update` called from a script) —
+   the tRPC procedure already accepts it, there's just no form for it.
+`features/billing/components/payment-method-logo.tsx` renders the logo
+if `logoUrl` is set, otherwise a neutral wallet-icon placeholder — never
+a broken-image glyph. **Real fix**: a future backend session should add
+an actual upload endpoint (MinIO, since it's already in the docker-compose
+stack and unused) plus the Phase 8b admin form; until then this is a
+manual, DB-level step, worth flagging to Fras before real Jaib/bank logos
+are needed for launch.
+
+### Magic UI
+Not a new package.json dependency — Magic UI ships as copy-in component
+source (`shadcn add @magicui/...`), and this repo already vendors four
+components under `components/magicui/` from earlier phases
+(`confetti.tsx`, `border-beam.tsx`, `magic-card.tsx`,
+`shimmer-button.tsx`, `animated-shiny-text.tsx`). `package-picker.tsx`
+reuses the existing `MagicCard` for the package cards' pointer-following
+spotlight rather than adding a new component or a package install step.
+If a future phase wants a Magic UI component not already vendored here,
+the pattern is the same: copy the component source into
+`components/magicui/`, not an npm install — `magic-card.tsx`'s own
+header comment documents the adaptation notes (theme tokens,
+`framer-motion` vs `motion` package) to follow for any new one.
+
+### Files changed
+- `apps/web/features/billing/types.ts` (edit — added
+  `CreditPackageRow`/`PaymentMethodRow`/`PendingManualPaymentRow`/
+  `TransactionRow`/`ManualPaymentSubmit*` local interfaces, mirroring DB
+  row shapes rather than importing from outside `apps/web`, consistent
+  with this file's own 5.1 header comment about a zero-import-into-
+  frozen-zone policy for this feature folder)
+- `apps/web/features/billing/lib/transaction-labels.ts` (new)
+- `apps/web/features/billing/lib/transaction-labels.test.ts` (new)
+- `apps/web/features/billing/hooks/use-manual-payment.ts` (new)
+- `apps/web/features/billing/components/payment-method-logo.tsx` (new)
+- `apps/web/features/billing/components/package-picker.tsx` (new)
+- `apps/web/features/billing/components/pricing-table.tsx` (new)
+- `apps/web/features/billing/components/payment-method-dialog.tsx` (new)
+- `apps/web/features/billing/components/my-claims-list.tsx` (new)
+- `apps/web/features/billing/components/transaction-history.tsx` (new)
+- `apps/web/features/billing/components/buy-credits-section.tsx` (new)
+- `apps/web/features/billing/index.tsx` (edit — Tabs layout, see above)
+- `apps/web/messages/ar.json` / `en.json` (edit — new `billing.*`
+  namespace + `balance.types.refund`/`.unknown` + a few `balance.*`
+  table/pagination strings; see i18n gap note above)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. No edits under `app/api/**`, `server/**`, the listed
+`lib/*.ts` files, `middleware.ts`, `i18n/request.ts`, `next.config.ts`,
+`Dockerfile`, or anything outside `apps/web`. `app/[locale]/(app)/billing/page.tsx`
+was **not** edited this phase — it already only renders `<BillingView />`
+and that contract didn't need to change.
+
+### How to verify
+- **CI:** `check` · `web-unit` (new `transaction-labels.test.ts`, 6
+  cases) · `i18n-parity` (now exercised by real new keys) · `web-build`.
+- **Preview, both locales:**
+  - `/billing`: redeem box unchanged at top; `Buy Credits` tab shows
+    package cards (MagicCard spotlight on hover/pointer-move), best-value
+    badge on the highest-credit package.
+  - Pick a package → dialog lists payment methods with logo-or-placeholder
+    icon → pick Jaib → instructions + account code with a working copy
+    button → "Go to redeem" smooth-scrolls to the redeem box.
+  - Pick manual transfer instead → fill the claim form → submit → success
+    panel shows a reference code → claim appears in "My Claims" as
+    Pending immediately (no refresh) → double-click submit doesn't create
+    two rows client-side (button disables on `isPending`; server-side
+    rate limits are the real guarantee, untouched).
+  - `Pricing` tab: table renders every published+available model with
+    its markup-applied credits/1K figures (server-computed, not
+    recomputed here).
+  - `History` tab: paginates via Prev/Next, every row has a real badge
+    label including `refund` if you seed one, CSV export downloads the
+    currently-loaded page only (filename says the offset range).
+  - RTL: dialog fields default to LTR where the content is
+    Latin/numeric (phone, tx ref), matching the code-block LTR
+    convention elsewhere.
+
+### Not verified
+No network/`node_modules` in this sandbox — `pnpm install`, `tsc --noEmit`,
+`next build`, `vitest`, and `eslint` were not run. Specifically:
+- Could not confirm `trpc.billing.submitManualPayment.useMutation()`'s
+  inferred input/output types line up byte-for-byte with the local
+  `ManualPaymentSubmitInput`/`ManualPaymentSubmitApiResult` interfaces in
+  `types.ts` — they're hand-mirrored from the router/schema source, not
+  imported, so a real drift would only surface as a `tsc` structural-typing
+  error, not a runtime one. If CI's type-check fails here, the fix is
+  updating the interface to match, not the component.
+- `navigator.clipboard.writeText()` in the Jaib panel's copy button has
+  the same secure-context caveat 5.1 already flagged for
+  `readText()` — should work fine on the HTTPS preview domain, not
+  exercised here.
+- Did not confirm `Table`'s default cell padding/wrapping looks right at
+  narrow (mobile) widths with the pricing/history tables' 4 columns —
+  `overflow-x-auto` wrapper is there as a safety net, not visually
+  checked.
+- `MagicCard`'s pointer-following spotlight requires an actual pointer
+  device to see; keyboard/touch-only navigation still works (the whole
+  card is a `<button>`), just without the visual flourish — not verified
+  on an actual touch device.
+
+## Phase 5.2 Patch v1 — `exactOptionalPropertyTypes` build failure fixed
+
+**Symptom (from the actual Vercel/CI logs, not predicted):** `web:type-check`
+and `web:build` both failed on `payment-method-dialog.tsx:196` —
+`TS2379: ... not assignable ... with 'exactOptionalPropertyTypes: true'`.
+The other 5.2 jobs (`Web Unit Tests`, `i18n Key Parity`, `API Tests`,
+`Legal Docs In Sync`) passed; `E2E (Playwright)` also failed, almost
+certainly as a downstream effect of the same build failure rather than a
+separate bug (a broken `next build` means the app the E2E suite hits
+doesn't come up) — worth confirming once the build is green again, but
+not treated as a second issue here.
+
+**Root cause:** this repo's `tsconfig.json` has `exactOptionalPropertyTypes: true`
+(not visible from the schema/router source alone — only shows up at
+`tsc` time, which this sandbox can't run, hence "Not verified" in the
+original 5.2 delivery flagged exactly this class of risk, just not this
+specific line). Under that flag, an optional property (`field?: string`)
+may be *omitted* but never explicitly assigned `undefined` — `{ field:
+undefined }` is a type error; only leaving the key out satisfies it. The
+submit handler did `submittedTxRef: submittedTxRef.trim() || undefined`,
+which explicitly assigns `undefined` for an empty field instead of
+omitting the key.
+
+**Fix:** new `features/billing/lib/manual-payment-input.ts` —
+`buildManualPaymentInput()` only adds an optional key to the returned
+object when the trimmed value is non-empty, so empty fields are absent
+from the object entirely rather than present-with-`undefined`. Required
+fields (`packageId`, `paymentMethodId`) are always included.
+`payment-method-dialog.tsx`'s submit handler now calls this instead of
+constructing the payload inline. Added
+`features/billing/lib/manual-payment-input.test.ts` (3 cases: blank
+fields omitted, trimmed non-blank fields included, required fields
+always present) to `web-unit` so this exact class of regression fails
+fast next time instead of only surfacing at `tsc`/build time.
+
+### Files changed (this patch)
+- `apps/web/features/billing/lib/manual-payment-input.ts` (new)
+- `apps/web/features/billing/lib/manual-payment-input.test.ts` (new)
+- `apps/web/features/billing/components/payment-method-dialog.tsx` (edit
+  — submit handler now uses `buildManualPaymentInput()`; no behavior
+  change for the buyer, same fields, same validation, same server call)
+
+### Frozen zone
+Not touched — same as the original 5.2 delivery.
+
+### How to verify
+- **CI:** `check`/`web:type-check` should now pass on this exact line —
+  re-run the failed `Type-check & Lint` and `Web Build (next build)`
+  jobs from the same PR/commit. `web-unit` gains 3 new passing cases.
+- **Manual:** submit the manual-transfer claim form with every optional
+  field left blank → succeeds, reference code shown (previously this
+  exact case is what produced the `undefined` values that failed the
+  build, so it's the one worth re-checking on the live preview once
+  deployed). Then submit again with all fields filled → still succeeds,
+  values reach the claim as before.
+
+### Not verified
+Still no `node_modules`/`tsc` in this sandbox — this fix is inferred
+directly from the pasted compiler error text (exact file, line, and
+message), not re-run locally. If another optional-field-assigned-
+`undefined` pattern exists elsewhere in the 5.2 files (there wasn't one
+in a re-read of the other new components — only this form has multiple
+optional-from-empty-string fields), the same `tsc` flag would catch it
+the same way; worth a full `pnpm type-check` before merging even after
+this patch, since this fix addresses the one reported line, not a
+project-wide sweep.
+
+## Phase 5.2 Patch v2 — TabsList full-width layout fix
+
+**Symptom:** on the `/billing` preview, the `Buy Credits / Pricing /
+History` tab strip rendered stretched edge-to-edge with large gaps
+between items (screenshot from user, mobile Chrome), instead of a
+compact left/leading-aligned tab bar.
+
+**Fix:** `apps/web/components/ui/tabs.tsx` — `TabsList` gets
+`self-start` added alongside the existing `w-fit` (belt-and-suspenders
+against the parent `Tabs`'s `flex flex-col` cross-axis stretch), and
+`gap-0.5` tightened to `gap-1`. Shared primitive, so any other tab
+usage in the app gets the same fix, not just billing.
+
+### Files changed
+- `apps/web/components/ui/tabs.tsx` (edit)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** `web:type-check`, `web:build` — layout-only class change,
+  no logic touched, no new test expected to fail or be needed.
+- **Preview:** `/billing`, both mobile width and desktop width — tab
+  strip (`Buy Credits`/`Pricing`/`History`) should hug its content on
+  the leading edge (left in LTR, right in RTL) with tight spacing
+  between items, not spread across the full container width.
+
+### Not verified
+No browser/`next build` in this sandbox — could not screenshot-diff
+mobile vs. desktop myself. `self-start` + `w-fit` is the standard fix
+for this exact flex-col stretch pattern, but if the preview still
+shows stretching after this, the next thing to check (not yet
+inspected) is whether `TabsPrimitive.List` from `@radix-ui/react-tabs`
+renders any inline `style="width: ..."` of its own that would need an
+explicit `!w-fit` override instead.
+
+## B2 — Backend: user usage + index
+
+**Goal:** tRPC procedures + REST export + DB index that Phase 6
+(Dashboard & Usage Log) needs. Scoped to `type = 'usage_debit'`
+transactions only (the rows with modelId/token metadata) — redeems,
+admin credits, refunds, payments, referral bonuses are deliberately
+excluded; that's the full ledger already served by
+`billing.getTransactions` (5.2's History tab), not "usage."
+
+### Files changed
+- `packages/db/src/migrations/0009_usage_index.sql` (new) —
+  `idx_transactions_type_date ON transactions(type, created_at DESC)`,
+  per plan §7 F13.
+- `apps/api/src/services/usage.service.ts` (new) — `getUsageSummary`,
+  `getUsageTimeseries`, `getUsageByModel`, `listUsage` (keyset/cursor
+  pagination on `(created_at, id)`, not offset — avoids skip/dup rows
+  under concurrent writes), `listUsageForExport` (hard-capped 5,000
+  rows, used by the REST route below). Every exported function takes
+  `userId` as a required first argument and every query filters on it —
+  no path returns another user's rows.
+- `apps/api/src/routers/billing.router.ts` (edit) — added
+  `usageSummary` / `usageTimeseries` / `usageByModel` / `listUsage`
+  procedures, all `protectedProcedure`, all pass `ctx.user.id` (never
+  client input) into usage.service.ts. Shared `usageRangeInput` (from/to/
+  modelId) added.
+- `apps/api/package.json` (edit) — new export map entry
+  `"./services/usage"` (matches the existing `./services/redeem` /
+  `./services/fraud` naming convention — key drops the `.service`
+  suffix the filename has).
+- `apps/web/app/api/usage/export/route.ts` (new) — REST `GET`, session
+  auth via `auth.api.getSession` (same pattern as
+  `apps/web/app/api/redeem/route.ts`), calls `listUsageForExport`
+  directly (same service the trpc procedures use, so export can never
+  diverge from what the UI shows), returns CSV with a
+  `Content-Disposition: attachment` filename encoding the date range.
+- `apps/api/src/services/usage.service.test.ts` (new) — Testcontainers,
+  same pattern as `redeem.service.test.ts`. Covers: IDOR (4 tests — one
+  per exported function, including a "foreign cursor" case where user A
+  pages using user B's transaction id as `cursor` and must get an empty
+  result, not an error or a leak), non-usage transaction types excluded,
+  summary/avg/top-model aggregation correctness, keyset pagination
+  (no skipped/duplicate rows across two pages), 90-day range clamp.
+
+### DELETE list
+None.
+
+### Frozen zone
+`app/api/usage/export/route.ts` is a new file under `apps/web/app/api/**`
+— that path is frozen for *frontend* phase sessions, but B-sessions are
+the explicitly sanctioned exception (§7: "separate small PRs to main");
+`apps/web/app/api/redeem/route.ts` already established this exact
+precedent (direct DB/service access, session-checked, outside any
+frontend phase). No `server/**`, `middleware.ts`, `i18n/request.ts`, or
+`next.config.ts` touched.
+
+### How to verify
+- **CI:** new `usage.service.test.ts` should run under whatever job runs
+  `apps/api`'s existing `*.service.test.ts` files (Testcontainers, real
+  Postgres) — confirm it's picked up by the same vitest config as
+  `redeem.service.test.ts` (no new config needed if so). `web:type-check`
+  should resolve `@ai-platform/api/services/usage` via the new
+  `package.json` export.
+- **Manual, against a seeded account with some chat usage:**
+  - tRPC: `billing.usageSummary` / `usageTimeseries` / `usageByModel` /
+    `listUsage` all return only that account's rows; `listUsage` with a
+    `cursor` param pages correctly with no repeats.
+  - REST: `GET /api/usage/export` (logged in, browser or `curl -b
+    <session cookie>`) downloads a CSV; try `?from=2020-01-01` — either
+    clamped to 90 days server-side or returns nothing beyond that window
+    (this is the one behavior I could not exercise here — see below).
+  - Confirm migration `0009` applies cleanly against a copy of the real
+    DB (`IF NOT EXISTS`, so safe to run twice).
+
+### Not verified
+No `node_modules`/`tsc`/`vitest`/`next build` run in this sandbox —
+same limitation as every prior phase here. Specifically:
+- The new test file is written against the same Testcontainers/factory
+  pattern as `redeem.service.test.ts`, but was not actually executed —
+  if `drizzle-kit push` (which the test harness uses to build the schema
+  fresh) or the SQL row-constructor comparison
+  (`(created_at, id) < (cursorRow.createdAt, cursorRow.id)`) behaves
+  differently than expected under Drizzle's `postgres-js` driver, the
+  keyset-cursor tests are the ones most likely to need adjustment.
+- Did not confirm `z.coerce.date()` (used for the `from`/`to` query
+  params on the trpc procedures) is available in this repo's exact Zod
+  version — Phase 1's stack doc says "Zod v4," which has it, but the
+  lockfile wasn't checked.
+- Did not confirm `exactOptionalPropertyTypes` (the flag that broke the
+  5.2 build once already) has any issue with this file's optional
+  `from`/`to`/`modelId`/`cursor` fields — they're all read via `?? `
+  fallbacks or passed straight through from Zod's `.optional()` output,
+  not manually assigned `undefined` the way the 5.2 bug did, but a real
+  `tsc` run is the only way to be sure.
+- `listUsageForExport`'s 5,000-row cap is a judgment call, not something
+  from the plan text — worth confirming it's generous enough once real
+  usage volume exists.
+
+## B2 Patch v1 — `postgres-js` Date-binding crash in listUsage's cursor
+
+**Symptom (from actual CI logs, not predicted):** `API Tests
+(Testcontainers)` failed — `usage.service.test.ts > listUsage paginates
+with a stable keyset cursor` — `TypeError: The "string" argument must be
+of type string or an instance of Buffer or ArrayBuffer. Received an
+instance of Date`, thrown inside `node_modules/postgres/src/bytes.js`
+during bind. Everything else in the suite passed (86/87).
+
+**Root cause:** `listUsage`'s keyset-cursor clause interpolated a plain
+`Date` object (`cursorRow.createdAt`) directly into a raw `sql\`...\``
+tuple. Drizzle's column-aware comparators (`gte`, `lte`, used elsewhere
+in this same file) know how to serialize a `Date` for `postgres-js`;
+a bare value inside a hand-written `sql` template does not get that
+treatment and `postgres-js` fails trying to bind it.
+
+**Fix:** `apps/api/src/services/usage.service.ts` — the cursor clause
+now converts `cursorRow.createdAt` to `.toISOString()` and casts it
+explicitly as `::timestamptz` in the SQL string, instead of passing the
+`Date` object through.
+
+### Files changed (this patch)
+- `apps/api/src/services/usage.service.ts` (edit — `listUsage`'s cursor
+  clause only; no other query in the file touched, since only this one
+  builds a raw tuple comparison)
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** re-run `API Tests (Testcontainers)` — `usage.service.test.ts`
+  should go from 1 failed / 86 passed to 87/87.
+- No other job in the run needs re-checking — Type-check & Lint, Web
+  Build, Web Unit Tests, i18n Key Parity, Legal Docs In Sync all already
+  passed; E2E was still amber/running in the screenshot, unrelated to
+  this file.
+
+### Not verified
+Still no local `vitest`/Postgres in this sandbox — this fix is inferred
+directly from the pasted stack trace (exact error text + file), not
+re-run here. If `postgres-js` still rejects the cast for any reason
+(e.g. a driver version quirk), the fallback is switching the cursor
+clause to two plain comparators (`or(lt(createdAt, x), and(eq(createdAt,
+x), lt(id, y)))`) instead of a row-constructor tuple — more verbose,
+but built entirely from column-aware operators with no raw-value
+binding at all.
+
+## Phase 5.2 Patch v3 — TabsList: full-width, evenly-distributed (reversal of v2)
+
+**Change of direction, not a bug:** v2 made `TabsList` hug its content
+(`w-fit`/`self-start`) to fix an unwanted full-width stretch. Explicit
+follow-up ask: the opposite is actually wanted — the tab bar should span
+the full width of its container with each tab taking equal space, not
+sit compressed on the leading edge.
+
+**Fix:** `apps/web/components/ui/tabs.tsx`:
+- `TabsList`: `inline-flex w-fit self-start` → `flex w-full`.
+- `TabsTrigger`: added `flex-1` so each of the three (or N) triggers
+  splits the available width evenly, `justify-center` (already there)
+  centers each label within its share.
+
+Shared primitive — same as v2, this affects every `Tabs` consumer, not
+just billing (still the only one today).
+
+### Files changed
+- `apps/web/components/ui/tabs.tsx` (edit)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched.
+
+### How to verify
+- **CI:** `web:type-check`, `web:build` — layout-only class change.
+- **Preview:** `/billing`, mobile and desktop — `Buy Credits / Pricing /
+  History` should now span the full row width, each tab occupying equal
+  space, label centered within its third.
+
+### Not verified
+No browser in this sandbox — same standing limitation as v1/v2 of this
+fix, confirm on the live preview.
+
+## Phase B2 — User usage + index (backend, before 6.1)
+
+**Status: verified.** `usageSummary`, `usageTimeseries`, `usageByModel`,
+`listUsage` all confirmed via manual `curl` against the `frontend-v2`
+Vercel preview, using a real session cookie: correct, user-scoped JSON,
+numbers reconciling against the raw `transactions` rows for the test
+account (e.g. `nex-agi/nex-n2.5-pro:free` totals ≈245.5M micro-credits
+across 8 requests matched the sum of the individual debit rows). CSV
+export (`GET /api/usage/export`) also confirmed. GitHub Actions green on
+`frontend-v2`.
+
+**Non-issue noted during verification:** an early pass of `curl` against
+`usageTimeseries` / `usageByModel` without a `?input=` query param
+returned a 400 `"expected object, received undefined"` — this is correct
+tRPC-over-HTTP behavior (a `GET` query's `z.object({...})` input, even
+with every field optional, still needs an `input` query param; only
+`listUsage`'s test command included one). Not a router bug — no code
+changed for this. A later pass with `?input=%7B%22json%22%3A%7B%7D%7D`
+succeeded for all three. A one-off `jq: parse error` on a subsequent
+retry (stale cookie / shell quoting) also resolved itself on the next
+attempt with no server-side change.
+
+**Tracker:** B2 flipped from `[x] delivered, pending CI confirmation` to
+`[x]` (fully verified) in `docs/FRONTEND_REBUILD_PLAN.md` §5.
+
+---
+
+## Phase 6.1 — Dashboard
+
+**Build:** `apps/web/features/dashboard/**` (index, hooks, components,
+lib, types), thin route `app/[locale]/(app)/dashboard/page.tsx`, `config/
+nav.ts` dashboard entry flipped `enabled: false → true`, `dashboard`
+message namespace added to both `messages/en.json` and `messages/ar.json`
+(parity-checked locally: 471/471 keys both locales), `recharts@^2.13.0`
+added to `apps/web/package.json` (D4 — no chart lib existed in the repo
+before this phase).
+
+Summary cards, spend-over-time chart, and per-model breakdown all read
+from `billing.usageSummary` / `usageTimeseries` / `usageByModel` (B2),
+batched into one HTTP request by the existing `httpBatchLink`. No
+client-side re-bucketing of dates and no credit math outside
+`formatCredits` (Rule 1) — the chart and table render the server's
+numbers as-is.
+
+### Deviation from the plan
+None functionally. Added `features/dashboard/lib/period-range.test.ts` +
+`period-range.ts` as a pure, directly-testable period→date-range helper —
+the plan's 6.1 entry doesn't call this out explicitly, but Rule 10 /
+phase-summary point 3 asked for a concrete verification step, and the
+day-boundary math (local "today" vs. the server's UTC bucketing) is the
+one place in this phase a silent off-by-one was plausible.
+
+Also added `features/dashboard/types.ts` (local `inferRouterOutputs`
+re-export) rather than adding a shared `RouterOutputs` helper to the
+frozen `lib/trpc.ts` — no such helper existed in the repo before this
+phase, and this session deliberately avoided touching the frozen zone to
+add one repo-wide.
+
+### Files changed
+- `apps/web/features/dashboard/index.tsx` (new)
+- `apps/web/features/dashboard/types.ts` (new)
+- `apps/web/features/dashboard/hooks/use-dashboard-data.ts` (new)
+- `apps/web/features/dashboard/lib/period-range.ts` (new)
+- `apps/web/features/dashboard/lib/period-range.test.ts` (new)
+- `apps/web/features/dashboard/components/period-switch.tsx` (new)
+- `apps/web/features/dashboard/components/summary-cards.tsx` (new)
+- `apps/web/features/dashboard/components/spend-chart.tsx` (new)
+- `apps/web/features/dashboard/components/model-breakdown.tsx` (new)
+- `apps/web/features/dashboard/components/dashboard-empty-state.tsx` (new)
+- `apps/web/app/[locale]/(app)/dashboard/page.tsx` (new)
+- `apps/web/config/nav.ts` (edit — `dashboard` entry `enabled: true`)
+- `apps/web/messages/en.json` (edit — `dashboard` namespace added)
+- `apps/web/messages/ar.json` (edit — `dashboard` namespace added)
+- `apps/web/package.json` (edit — `recharts` dependency added)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. (`lib/trpc.ts`, `server/**`, `app/api/**` all untouched —
+`features/dashboard/types.ts` reads `AppRouter`'s inferred output types
+but does not modify any frozen file.)
+
+### How to verify
+- **CI:** `check` (type-check + lint), `web-build`, `web-unit` (new
+  `period-range.test.ts`), `i18n-parity` — all four must stay green on
+  `frontend-v2`.
+- **Preview, `/ar/dashboard` and `/en/dashboard`, both themes:**
+  - summary card totals match the `usageSummary` numbers already
+    confirmed against B2
+  - spend chart's per-day values match `usageTimeseries`
+  - per-model table matches `usageByModel`, sorted by spend descending
+  - period switch (7/30/90) refetches and updates all three sections
+    together
+  - a period with genuinely zero usage shows the empty state, not a
+    broken chart
+  - chart x-axis reads chronologically oldest→newest in both `ar` and
+    `en`; in `ar` the chart's rendering direction (not the data order)
+    is mirrored
+  - sidebar "Dashboard" entry is now a real link, not a disabled "soon"
+    row, in both locales
+
+### Not verified
+No browser or `pnpm install` in this sandbox (network disabled), so:
+- `recharts`' `reversed` prop on `XAxis` combined with a raw ISO-string
+  `dataKey`, and whether `orientation="top"` is the right way to mirror
+  the axis in `ar` without also flipping the gridlines oddly, is
+  **unverified** — this is the one part of 6.1 most likely to need a
+  visual tweak on the actual RTL preview.
+- Field names (`totalSpentMicroCredits`, `requestCount`, `inputTokens`,
+  `outputTokens`, `avgCostMicroCredits`, `topModelId` / `date`,
+  `spentMicroCredits`, `requestCount` / `modelId`, `spentMicroCredits`,
+  `requestCount`, `inputTokens`, `outputTokens`) were cross-checked
+  directly against `apps/api/src/services/usage.service.ts`'s return
+  type declarations (not just your pasted `curl` output), so these
+  should match `tsc` exactly. One nuance: `usageByModel`'s `modelId` is
+  typed `string | null` in the service — `ModelBreakdown` renders it
+  as-is (renders nothing for a null id, no crash) but doesn't special-
+  case it with fallback text; flag if you'd rather it show something
+  like "—" for that row.
+- `next-intl`'s ICU plural syntax for `dashboard.period.days` (`{count,
+  plural, one {# day} other {# days}}`) was not run through the actual
+  `next-intl` formatter here — should render correctly (it's the
+  standard documented syntax) but wasn't executed.

@@ -7,6 +7,7 @@
     "./routers": "./src/routers/index.ts",
     "./services/redeem": "./src/services/redeem.service.ts",
     "./services/fraud": "./src/services/fraud.service.ts",
+    "./services/usage": "./src/services/usage.service.ts",
     "./utils/rate-limiter": "./src/utils/rate-limiter.ts"
   },
   "scripts": {
