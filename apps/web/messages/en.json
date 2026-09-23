@@ -597,7 +597,8 @@
       "empty": "No usage in this period.",
       "hintLabel": "What do these columns mean?",
       "hint": "Requests and Tokens are plain counts. Spent is in platform credits, the internal usage unit — not Yemeni Rial (YER). Tap a column header to sort.",
-      "sortBy": "Sort by {column}"
+      "sortBy": "Sort by {column}",
+      "unknownModel": "Unknown model"
     },
     "empty": {
       "title": "No usage yet",

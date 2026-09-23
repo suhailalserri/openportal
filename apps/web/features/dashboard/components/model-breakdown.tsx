@@ -146,16 +146,21 @@ export function ModelBreakdown({ data, isLoading }: ModelBreakdownProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sorted.map((row) => {
-                  const catalogEntry = byId.get(row.modelId);
+                {sorted.map((row, index) => {
+                  // `row.modelId` is `string | null` on UsageByModelRow (usage.service.ts,
+                  // frozen — a transaction can carry a null modelId). `byId.get` requires a
+                  // string key, so the lookup is guarded; a null id also has no raw id to
+                  // fall back to, so it renders the same "—" as an empty/none value elsewhere
+                  // on this page instead of the (never-true) empty string.
+                  const catalogEntry = row.modelId ? byId.get(row.modelId) : undefined;
                   const displayName = catalogEntry
                     ? locale === "ar"
                       ? catalogEntry.displayNameAr
                       : catalogEntry.displayName
-                    : row.modelId;
+                    : (row.modelId ?? t("unknownModel"));
 
                   return (
-                    <TableRow key={row.modelId}>
+                    <TableRow key={row.modelId ?? `unknown-${index}`}>
                       <TableCell className="max-w-40">
                         <div className="flex items-center gap-1.5">
                           <span
