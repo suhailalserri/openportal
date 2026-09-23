@@ -28,7 +28,13 @@ import { getVisibleSections } from "./registry";
 export function SettingsView() {
   const t = useTranslations("settings.nav");
   const sections = getVisibleSections();
-  const firstId = sections[0]?.id;
+  // registry.test.ts asserts profile+security are always visible, so
+  // sections[0] always exists in practice; the `?? ""` is only here to
+  // satisfy `exactOptionalPropertyTypes` (Tabs/Accordion's `defaultValue`
+  // is `string`, not `string | undefined` — passing `undefined` through
+  // explicitly is a type error under that flag even though the prop
+  // itself is optional).
+  const firstId = sections[0]?.id ?? "";
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-6">

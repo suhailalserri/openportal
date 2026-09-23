@@ -78,6 +78,17 @@ export function TwoFactorSection() {
       setError(err?.status === 401 || err?.status === 400 ? t("errors.incorrectPassword") : t("errors.generic"));
       return;
     }
+    // better-auth's `enable()` response is a discriminated union on
+    // `method`: `{ method: "otp" }` (no QR/backup codes — only returned
+    // when the account's two-factor config omits `totpOptions`, which
+    // lib/auth.ts's server plugin config does not do here) or
+    // `{ method: "totp"; totpURI; backupCodes }`. This flow is QR-only,
+    // so treat anything else as the generic error rather than silently
+    // rendering an empty QR.
+    if (data.method !== "totp") {
+      setError(t("errors.generic"));
+      return;
+    }
     setTotpURI(data.totpURI);
     setBackupCodes(data.backupCodes ?? []);
     setStep("scan");
