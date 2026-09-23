@@ -26,12 +26,19 @@ import { BorderBeam } from "./border-beam";
  * in `cn()` resolves it over MagicCard's own default), inner content
  * gets `rounded-[inherit]` so it never needs to know the radius itself.
  *
- * `BorderBeam` needs no `prefers-reduced-motion` guard here — it already
- * no-ops under it via theme.css's global animation-duration override
- * (established in balance-card.tsx, Phase 5.1). The radius it inherits
- * comes from magic-card.tsx's own `rounded-[inherit]` wrapper (see that
- * file's header, point 4) — without that one-line addition the beam's
- * corners would inherit a square (unset) radius instead of this card's.
+ * Reduced-motion: `BorderBeam` carries its OWN `useReducedMotion()`
+ * guard internally (see border-beam.tsx, header point 3). This file used
+ * to claim no guard was needed on the theory that theme.css's global
+ * `animation-duration: 0.01ms` override would reach the beam — that's
+ * wrong, the override only touches CSS animations, and BorderBeam is a
+ * Framer Motion JS loop. Fixed at the source instead of papering over it
+ * here.
+ *
+ * The radius BorderBeam inherits comes from magic-card.tsx's own
+ * `rounded-[inherit]` wrapper (see that file's header, point 4 — same
+ * numbering as magic-card.tsx's file header). Without that one-line
+ * addition the beam's corners would inherit a square (unset) radius
+ * instead of this card's.
  */
 interface SpotlightCardProps {
   children: ReactNode;

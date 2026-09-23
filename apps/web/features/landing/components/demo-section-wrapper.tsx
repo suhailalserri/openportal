@@ -19,7 +19,7 @@ export function DemoSectionWrapper({ locale }: { locale: string }) {
   if (!content) return null;
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">
+    <section className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6">
       <Reveal direction="up">
         <DemoSection locale={locale} content={content} />
       </Reveal>

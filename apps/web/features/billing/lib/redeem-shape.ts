@@ -27,33 +27,47 @@
 /** No ambiguous chars: 0/O, 1/I/L are excluded. Mirrors the server alphabet exactly. */
 export const REDEEM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+/**
+ * The LAST group (the checksum) is NOT drawn from the 31-char alphabet: the
+ * server builds it as `hmac.digest("hex").slice(0, 4).toUpperCase()`
+ * (apps/api/src/services/redeem.service.ts), i.e. characters 0-9 and A-F.
+ * That is why real codes legitimately end in things like "EE19" — with a
+ * 1 and a 0 that the body alphabet excludes. Treating the checksum group
+ * with the body alphabet silently deleted those characters while typing or
+ * pasting, so a valid code could never be entered (reported bug).
+ */
+export const REDEEM_CHECKSUM_ALPHABET = "0123456789ABCDEF";
+
 const ALPHABET_SET = new Set(REDEEM_CODE_ALPHABET.split(""));
+const CHECKSUM_SET = new Set(REDEEM_CHECKSUM_ALPHABET.split(""));
 
 export const REDEEM_CODE_GROUP_LENGTH = 4;
 export const REDEEM_CODE_GROUP_COUNT = 4; // 3 body groups + 1 checksum group
 export const REDEEM_CODE_MAX_CHARS = REDEEM_CODE_GROUP_LENGTH * REDEEM_CODE_GROUP_COUNT;
+const BODY_CHARS = REDEEM_CODE_GROUP_LENGTH * (REDEEM_CODE_GROUP_COUNT - 1);
 
 const SHAPE_PATTERN = new RegExp(
   `^[${REDEEM_CODE_ALPHABET}]{${REDEEM_CODE_GROUP_LENGTH}}(-[${REDEEM_CODE_ALPHABET}]{${REDEEM_CODE_GROUP_LENGTH}}){${
-    REDEEM_CODE_GROUP_COUNT - 1
-  }}$`
+    REDEEM_CODE_GROUP_COUNT - 2
+  }}-[${REDEEM_CHECKSUM_ALPHABET}]{${REDEEM_CODE_GROUP_LENGTH}}$`
 );
 
 /**
  * Formats raw keystrokes/paste input into `XXXX-XXXX-XXXX-XXXX`:
- * uppercases, drops any character outside the alphabet (this silently
- * eats ambiguous chars like 0/O/1/I/L along with punctuation/whitespace
- * — a user who mistypes those just doesn't see them appear, which is
- * gentler than an inline error while typing), inserts a dash after
- * every 4 characters, and caps at 16 alphabet characters total.
+ * uppercases, drops characters that are not valid AT THEIR POSITION (the
+ * first 12 must be in the body alphabet, which excludes 0/O/1/I/L; the
+ * last 4 are the hex checksum, 0-9 A-F — see REDEEM_CHECKSUM_ALPHABET),
+ * silently eats punctuation/whitespace, inserts a dash after every 4
+ * characters, and caps at 16 characters total.
  */
 export function formatRedeemInput(raw: string): string {
-  const cleaned = raw
-    .toUpperCase()
-    .split("")
-    .filter((ch) => ALPHABET_SET.has(ch))
-    .slice(0, REDEEM_CODE_MAX_CHARS)
-    .join("");
+  const kept: string[] = [];
+  for (const ch of raw.toUpperCase()) {
+    if (kept.length >= REDEEM_CODE_MAX_CHARS) break;
+    const allowed = kept.length < BODY_CHARS ? ALPHABET_SET : CHECKSUM_SET;
+    if (allowed.has(ch)) kept.push(ch);
+  }
+  const cleaned = kept.join("");
 
   const groups: string[] = [];
   for (let i = 0; i < cleaned.length; i += REDEEM_CODE_GROUP_LENGTH) {

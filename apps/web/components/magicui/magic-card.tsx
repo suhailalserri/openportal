@@ -24,9 +24,16 @@ import { cn } from "@/lib/utils";
  *  3. The two `useMotionTemplate` calls are hoisted to the top of the
  *     component (the original calls them inside JSX; same behaviour,
  *     but hooks now run unconditionally, as the rules of hooks require).
+ *  4. **Orb-mode defaults themed.** The registry version falls back to
+ *     Magic UI's orange/purple (`#ee4f27` / `#6b21ef`) for the orb-mode
+ *     glow. Gradient mode already used theme tokens (point 2), but orb
+ *     mode was left on the library's brand — a `<MagicCard mode="orb" />`
+ *     with no explicit colours would have rendered purple on parchment
+ *     or amber. Now falls back to `--chart-1` / `--primary`, same as
+ *     gradient mode. Callers wanting the original look pass the hexes.
  *
  * Re-running `shadcn add @magicui/magic-card` will overwrite this file;
- * re-apply the three notes above if you do.
+ * re-apply the four notes above if you do.
  */
 
 interface MagicCardBaseProps {
@@ -84,8 +91,10 @@ export function MagicCard(props: MagicCardProps) {
     mode = "gradient",
   } = props;
 
-  const glowFrom = isOrbMode(props) ? (props.glowFrom ?? "#ee4f27") : "#ee4f27";
-  const glowTo = isOrbMode(props) ? (props.glowTo ?? "#6b21ef") : "#6b21ef";
+  // Theme-token defaults for both modes (see file header, point 4).
+  // Gradient mode ignores these; only orb mode reads them.
+  const glowFrom = isOrbMode(props) ? (props.glowFrom ?? "var(--chart-1)") : "var(--chart-1)";
+  const glowTo = isOrbMode(props) ? (props.glowTo ?? "var(--primary)") : "var(--primary)";
   const glowAngle = isOrbMode(props) ? (props.glowAngle ?? 90) : 90;
   const glowSize = isOrbMode(props) ? (props.glowSize ?? 420) : 420;
   const glowBlur = isOrbMode(props) ? (props.glowBlur ?? 60) : 60;

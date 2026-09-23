@@ -32,6 +32,22 @@ export function formatCredits(microCredits: number, locale: Locale = "ar"): stri
 }
 
 /**
+ * The inverse of `formatCredits`'s division, as a plain number rather
+ * than a locale string — for pre-filling an editable form field (8b:
+ * package edit forms store `creditValue` in micro-credits but the admin
+ * types/edits whole credits). Rounds to 2 decimal places so a
+ * non-exact-million `microCredits` (shouldn't normally happen, but
+ * defends against it) doesn't render float noise like `10.000000004` in
+ * an input.
+ *
+ * Kept next to `formatCredits` rather than inline at each call site —
+ * Rule 1 (money math lives in exactly one place).
+ */
+export function microToCredits(microCredits: number): number {
+  return Math.round((microCredits / MICRO_CREDIT) * 100) / 100;
+}
+
+/**
  * YER (Yemeni rial) — the live payment currency per F8 (Jaib vouchers +
  * manual transfer; Moyasar/SAR is disabled). No minor unit in everyday
  * circulation, so this always renders whole rials.

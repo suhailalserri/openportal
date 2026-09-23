@@ -9,6 +9,7 @@ import { AppThemeProvider } from "@/providers/theme-provider";
 import { AppDirectionProvider } from "@/providers/direction-provider";
 import { TRPCQueryProvider } from "@/providers/trpc-query-provider";
 import { AppToastProvider } from "@/providers/toast-provider";
+import { ThemePresetSync } from "@/providers/theme-preset-sync";
 import "@/styles/index.css";
 
 const SUPPORTED_LOCALES = ["ar", "en"] as const;
@@ -52,10 +53,14 @@ export default async function LocaleLayout({ children, params }: Props) {
     // suppressHydrationWarning only covers that one attribute, which
     // next-themes intentionally sets client-side pre-paint.
     //
-    // data-theme-preset="gateway" is static: 1.2 ships exactly one
-    // preset (theme-presets.css), so there's no runtime choice to make
-    // yet and no hydration-mismatch risk. A preset switcher is Phase
-    // 7.2's job — this attribute is what it will start toggling.
+    // data-theme-preset="gateway" is the server-rendered DEFAULT only.
+    // Phase 7.2's Settings → Preferences preset picker
+    // (lib/theme-preset.ts) can override it per visitor; ThemePresetSync
+    // (mounted in <body> below) applies the stored choice on mount,
+    // same "read in an effect, not at render time" reasoning as
+    // next-themes itself for the light/dark class — see suppressHydration-
+    // Warning below, which already covers attribute changes on this
+    // element.
     //
     // fontVariables (lib/fonts.ts) replaces the Google Fonts <link>
     // tags that used to live in <head>, including the broken
@@ -81,6 +86,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           <AppThemeProvider>
             <AppDirectionProvider>
               <TRPCQueryProvider>
+                <ThemePresetSync />
                 {children}
                 <AppToastProvider />
               </TRPCQueryProvider>

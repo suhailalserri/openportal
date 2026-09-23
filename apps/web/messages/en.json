@@ -335,6 +335,98 @@
         "unknownDevice": "Unknown device",
         "error": "Couldn't load your sessions. Please try again."
       }
+    },
+    "preferences": {
+      "title": "Preferences",
+      "language": "Language",
+      "arabic": "العربية",
+      "english": "English",
+      "theme": "Theme",
+      "themeOptions": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "preset": "Theme preset",
+      "presets": {
+        "gateway": "Gateway"
+      },
+      "defaultModel": "Default model",
+      "defaultModelPlaceholder": "Choose a model",
+      "defaultModelHint": "Used to pre-select a model when you start a new chat."
+    },
+    "apiAccess": {
+      "title": "API access",
+      "description": "Generate a key to call the API directly from your own code.",
+      "generate": "Generate key",
+      "generating": "Generating…",
+      "revoke": "Revoke",
+      "regenerateHint": "Generating a new key immediately revokes the current one.",
+      "errors": {
+        "generic": "Couldn't generate a key. Please try again."
+      },
+      "docsTitle": "Using your key",
+      "docsDescription": "This key calls our own chat endpoint directly — it is not an OpenAI-compatible API.",
+      "docsNotConfigured": "API access isn't configured for this environment yet.",
+      "dialog": {
+        "title": "Your new API key",
+        "description": "Copy this now — you won't be able to see it again.",
+        "copy": "Copy",
+        "done": "Done"
+      },
+      "revokeDialog": {
+        "title": "Revoke API key?",
+        "description": "Any code using this key will stop working immediately.",
+        "cancel": "Cancel",
+        "confirm": "Revoke"
+      }
+    },
+    "referral": {
+      "title": "Referral",
+      "rules": "Share your link. When a friend you refer makes their first payment, you both get a bonus.",
+      "copy": "Copy link",
+      "copied": "Copied!",
+      "share": "Share",
+      "noCode": "Your referral link isn't ready yet. Please try again shortly.",
+      "referredCount": "Friends referred",
+      "bonusesAwarded": "Bonuses earned",
+      "totalEarned": "Total earned"
+    },
+    "data": {
+      "title": "Data & Privacy",
+      "exportTitle": "Export your data",
+      "exportDescription": "Download a copy of your account data as a JSON file.",
+      "export": "Export data",
+      "exporting": "Exporting…",
+      "errors": {
+        "exportGeneric": "Couldn't export your data. Please try again."
+      },
+      "legal": {
+        "title": "Legal",
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy",
+        "acceptableUse": "Acceptable Use Policy"
+      },
+      "deleteTitle": "Delete account",
+      "deleteDescription": "This permanently disables sign-in and removes your personal data. This cannot be undone.",
+      "deleteDialog": {
+        "trigger": "Delete account",
+        "title": "Delete your account",
+        "description": "Enter your password to continue. This cannot be undone.",
+        "passwordLabel": "Password",
+        "continue": "Continue",
+        "checking": "Checking…",
+        "twoFactorTitle": "Enter your 2FA code",
+        "twoFactorDescription": "Your account has two-factor authentication enabled. Enter a code from your authenticator app, or a backup code.",
+        "codeLabel": "Code",
+        "confirmDelete": "Delete my account",
+        "errors": {
+          "incorrectPassword": "Incorrect password.",
+          "invalidCode": "Invalid code. Please try again.",
+          "tooMany": "Too many attempts. Please try again later.",
+          "generic": "Something went wrong. Please try again."
+        }
+      }
     }
   },
   "common": {
@@ -405,6 +497,243 @@
       "SHARED_IP_MULTI_ACCOUNT": "Multiple accounts from one IP",
       "REDEEM_BRUTE_FORCE": "Redeem code brute-force attempts",
       "HIGH_SPEND_VELOCITY": "Suspiciously high spend velocity"
+    },
+    "dataTable": {
+      "search": "Search…",
+      "columns": "Columns",
+      "rowsPerPage": "Rows per page",
+      "pageOf": "Page {page}",
+      "previous": "Previous",
+      "next": "Next",
+      "empty": "No results.",
+      "error": "Couldn't load this data.",
+      "retry": "Retry"
+    },
+    "overview": {
+      "comingSoon": "The full admin dashboard (revenue, users, codes, fraud, and more) lands in upcoming phases. This page currently previews the shared data table against live user data.",
+      "recentUsersTitle": "Recent users",
+      "recentUsersDescription": "A live preview of the users table — search and pagination stay in the URL, so a reload or a shared link returns to the same view.",
+      "searchPlaceholder": "Search by email…",
+      "noName": "No name",
+      "columns": {
+        "email": "Email",
+        "name": "Name",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined"
+      },
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "pending_verification": "Pending verification"
+      }
+    },
+    "usersPage": {
+      "title": "Users",
+      "description": "Search, review, suspend/reactivate, and adjust credits for any user.",
+      "searchPlaceholder": "Search by email or name…",
+      "noName": "No name",
+      "columns": {
+        "email": "Email",
+        "name": "Name",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined"
+      },
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "pending_verification": "Pending verification"
+      },
+      "detail": {
+        "title": "User detail",
+        "loadError": "Couldn't load this user.",
+        "retry": "Retry",
+        "role": "Role",
+        "joined": "Joined",
+        "balance": "Balance (credits)",
+        "adjustCredits": "Adjust credits",
+        "recentTxns": "Recent transactions",
+        "noTxns": "No transactions yet.",
+        "columns": {
+          "date": "Date",
+          "type": "Type",
+          "amount": "Amount",
+          "description": "Description"
+        },
+        "suspend": "Suspend account",
+        "reactivate": "Reactivate account",
+        "suspendTitle": "Suspend this account?",
+        "reactivateTitle": "Reactivate this account?",
+        "suspendDescription": "The user will immediately lose access. This can be reversed from this page.",
+        "cancel": "Cancel",
+        "reason": "Reason (visible in the audit log)",
+        "typeEmailToConfirm": "Type the user's email to confirm",
+        "adjustCreditsTitle": "Adjust credits",
+        "confirmAdjust": "Confirm adjustment",
+        "direction": "Direction",
+        "addCredits": "Add credits",
+        "deductCredits": "Deduct credits",
+        "amountWhole": "Amount (whole credits)",
+        "typeAmountToConfirm": "Type the amount to confirm"
+      }
+    },
+    "codesPage": {
+      "title": "Redeem codes",
+      "description": "Generate, review, and revoke redeem code batches.",
+      "batchTitle": "Code batch",
+      "generateCodes": "Generate codes",
+      "generateDescription": "Codes are shown once, right after generation — download the CSV before closing this dialog.",
+      "generated": "{count, plural, one {# code} other {# codes}} generated.",
+      "downloadCsv": "Download CSV",
+      "printSheet": "Print sheet",
+      "revokeBatch": "Revoke batch",
+      "revokeBatchTitle": "Revoke all unused codes in this batch?",
+      "revokeBatchDescription": "{count, plural, one {# unused code} other {# unused codes}} will be revoked. This cannot be undone.",
+      "revokeCode": "Revoke",
+      "revokeCodeTitle": "Revoke this code?",
+      "typeRevokeToConfirm": "Type REVOKE to confirm",
+      "noLabel": "(no label)",
+      "empty": "No code batches yet.",
+      "loadError": "Couldn't load code batches.",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "close": "Close",
+      "credits": "credits",
+      "yer": "YER",
+      "columns": {
+        "label": "Label",
+        "total": "Total",
+        "used": "Used",
+        "expired": "Expired",
+        "actions": "Actions"
+      },
+      "status": {
+        "unused": "Unused",
+        "used": "Used",
+        "expired": "Expired",
+        "revoked": "Revoked"
+      },
+      "csv": {
+        "code": "Code",
+        "status": "Status",
+        "creditAmount": "Credits",
+        "usedBy": "Used by",
+        "createdAt": "Created"
+      },
+      "form": {
+        "label": "Batch label",
+        "count": "Number of codes",
+        "creditValue": "Credit value (per code)",
+        "package": "Link to package (optional)",
+        "noPackage": "No package — use credit value above",
+        "paymentMethod": "Payment method (optional)",
+        "noPaymentMethod": "None"
+      }
+    },
+    "packagesPage": {
+      "title": "Packages",
+      "description": "Top-up packages shown to users on the billing page.",
+      "newPackage": "New package",
+      "editPackage": "Edit package",
+      "formDescription": "Prices are for display; credits are stored in micro-credits.",
+      "empty": "No packages yet.",
+      "loadError": "Couldn't load packages.",
+      "retry": "Retry",
+      "save": "Save",
+      "saved": "Package saved.",
+      "cancel": "Cancel",
+      "active": "Active",
+      "inactive": "Inactive",
+      "yer": "YER",
+      "columns": {
+        "name": "Name",
+        "price": "Price",
+        "credits": "Credits",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Name (English)",
+        "nameAr": "Name (Arabic)",
+        "priceYer": "Price (YER)",
+        "priceUsd": "Price (USD equivalent)",
+        "credits": "Credits",
+        "sortOrder": "Sort order",
+        "description": "Description (English)",
+        "descriptionAr": "Description (Arabic)"
+      },
+      "edit": "Edit"
+    },
+    "paymentMethodsPage": {
+      "title": "Payment methods",
+      "description": "Manual top-up methods shown to users on the billing page.",
+      "newMethod": "New method",
+      "editMethod": "Edit method",
+      "formDescription": "Type can only be set when creating a new method.",
+      "empty": "No payment methods yet.",
+      "loadError": "Couldn't load payment methods.",
+      "retry": "Retry",
+      "save": "Save",
+      "saved": "Payment method saved.",
+      "cancel": "Cancel",
+      "active": "Active",
+      "inactive": "Inactive",
+      "edit": "Edit",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "accountCode": "Account / wallet code",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "types": {
+        "jaib_voucher": "Jaib voucher",
+        "manual_transfer": "Manual transfer"
+      },
+      "form": {
+        "name": "Name (English)",
+        "nameAr": "Name (Arabic)",
+        "type": "Type",
+        "accountCode": "Account / wallet code",
+        "logoUrl": "Logo URL (optional)",
+        "logoUrlHint": "Optional. Leave empty to show the default wallet icon.",
+        "logoUrlHintEdit": "Optional. Emptying this field keeps the current logo; it does not remove it.",
+        "logoUrlInvalid": "Enter a valid link starting with https:// (or leave it empty).",
+        "sortOrder": "Sort order",
+        "instructions": "Instructions (English)",
+        "instructionsAr": "Instructions (Arabic)"
+      }
+    },
+    "manualPaymentsPage": {
+      "title": "Manual payments",
+      "description": "Review and approve or reject manual-transfer top-up claims.",
+      "tabs": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "filterPlaceholder": "Filter the loaded rows by name, email, or reference…",
+      "filterNote": "Filtering {count, plural, one {# loaded row} other {# loaded rows}} for this tab only — not a full search.",
+      "empty": "No claims in this status.",
+      "loadError": "Couldn't load manual payments.",
+      "retry": "Retry",
+      "approve": "Approve",
+      "approveTitle": "Approve this payment?",
+      "approveDescription": "The user's balance will be credited immediately. This cannot be undone.",
+      "reject": "Reject",
+      "rejectTitle": "Reject this payment?",
+      "rejectReasonLabel": "Reason (shown to the user)",
+      "cancel": "Cancel",
+      "yer": "YER",
+      "columns": {
+        "user": "User",
+        "package": "Package",
+        "method": "Method",
+        "reference": "Reference",
+        "submitted": "Submitted",
+        "actions": "Actions"
+      }
     }
   },
   "status": {
@@ -450,6 +779,7 @@
     "heroPill": "✨ Pay only for what you use",
     "heroCta": "Create your free account",
     "modelsHeading": "Available models",
+    "noModelsAvailable": "No models are available right now.",
     "packagesHeading": "Top-up packages",
     "noPackagesAvailable": "No packages are available right now — please check back later",
     "yer": "YER",
@@ -554,7 +884,15 @@
       "outputTokens": "{count} output tokens",
       "totalCost": "Cost: {price} YER",
       "replay": "Replay",
-      "thinking": "Assistant is typing"
+      "thinking": "Assistant is typing",
+      "modelTabsLabel": "Model",
+      "thinkingAs": "Asking {model}…",
+      "deviceTabsLabel": "Device preview",
+      "devices": {
+        "desktop": "Desktop",
+        "iphone": "iPhone",
+        "android": "Android"
+      }
     },
     "packages": {
       "bestValue": "Best value"

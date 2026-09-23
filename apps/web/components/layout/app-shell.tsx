@@ -93,7 +93,7 @@ export function AppShell({ role, children }: AppShellProps) {
         activeConversationId={activeConversationId}
         onSelectConversation={selectConversation}
         onNewChat={startNewChat}
-        className="hidden md:flex"
+        className="hidden md:flex print:hidden"
       />
 
       {/* min-h-0: without it, a flex child's default min-height:auto would
@@ -112,7 +112,7 @@ export function AppShell({ role, children }: AppShellProps) {
           MobileDrawer itself (Radix Sheet) has to be conditionally
           rendered, not this trigger.
         */}
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-3 print:hidden">
           <div className="flex items-center gap-2 md:hidden">
             <Button
               variant="ghost"

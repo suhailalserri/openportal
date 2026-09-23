@@ -205,3 +205,53 @@ p {
     width: 100%;
   }
 }
+
+/*
+ * Circular theme reveal — ThemeToggle (components/layout/theme-toggle.tsx).
+ *
+ * Uses the View Transitions API to animate a circle expanding from the
+ * toggle button when the user picks an option that actually changes the
+ * effective theme. The component skips the transition when nothing is
+ * changing (e.g. picking "Light" while already in light mode) and when
+ * `prefers-reduced-motion` is set — see that file's header for the full
+ * rationale.
+ *
+ * Browser support: Chrome 111+, Edge 111+, Safari 18+. Firefox has not
+ * shipped it yet; there the toggle falls back to an instant theme swap
+ * with no error and no visual degradation.
+ *
+ * The --theme-tx / --theme-ty custom properties are written on <html>
+ * by the component at click time to the centre of its trigger button,
+ * so the circle always emanates from the control the user pressed. The
+ * `50%` fallbacks only matter in the impossible case where the
+ * properties are missing when a transition starts.
+ *
+ * `::view-transition-old(root)` is pinned to `animation: none` so the
+ * outgoing snapshot stays perfectly still while the incoming one
+ * reveals over it — without this, the default cross-fade plays UNDER
+ * the clip-path and the circle's edges look muddy.
+ */
+@keyframes theme-toggle-reveal {
+  from {
+    clip-path: circle(0% at var(--theme-tx, 50%) var(--theme-ty, 50%));
+  }
+  to {
+    clip-path: circle(150% at var(--theme-tx, 50%) var(--theme-ty, 50%));
+  }
+}
+
+::view-transition-old(root) {
+  animation: none;
+}
+
+::view-transition-new(root) {
+  animation: theme-toggle-reveal 450ms cubic-bezier(0.16, 1, 0.3, 1);
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}

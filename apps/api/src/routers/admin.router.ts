@@ -6,7 +6,7 @@ import {
   redeemCodes, fraudEvents, auditLogs,
   creditPackages, paymentMethods, pendingManualPayments,
 } from "@ai-platform/db";
-import { eq, desc, count, and, sql } from "drizzle-orm";
+import { eq, desc, count, and, or, ilike, sql } from "drizzle-orm";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
 import { approveManualPayment, rejectManualPayment } from "../services/manual-payment.service";
@@ -18,6 +18,17 @@ import {
 } from "../services/dashboard.service";
 import { stripUndefined }  from "../utils/strip-undefined";
 import { fetchGatewayChannels } from "../services/gateway-channels.service";
+import { listUsageLogs, listAuditLogs } from "../services/admin-logs.service";
+
+// B3: shared range/cursor shape for the two log-viewer procedures below —
+// same convention as billing.router.ts's usageRangeInput (range clamped
+// server-side to 90 days inside admin-logs.service.ts's clampRange()).
+const logRangeInput = {
+  from:   z.coerce.date().optional(),
+  to:     z.coerce.date().optional(),
+  limit:  z.number().int().min(1).max(100).default(50),
+  cursor: z.string().uuid().optional(),
+};
 
 export const adminRouter = router({
 
@@ -113,7 +124,20 @@ export const adminRouter = router({
       search: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      // 8b: `search` was accepted but silently ignored (see
+      // BRANCH_AND_CI_NOTES.md's 8b entry for the plan-vs-code note).
+      // Fixed here rather than shipping a dead search box, since finding
+      // a user by email/name is core to the money-ops flows this phase
+      // adds (adjustCredits, suspend). `ilike` is case-insensitive and
+      // substring-matches both columns; a leading/trailing `%` means no
+      // index is used, which is fine at the current table size — revisit
+      // with a trigram index (pg_trgm) if this table grows large enough
+      // for it to matter.
+      const term = input.search?.trim();
+      const where = term ? or(ilike(users.email, `%${term}%`), ilike(users.displayName, `%${term}%`)) : undefined;
+
       const rows = await db.query.users.findMany({
+        where,
         limit:   input.limit,
         offset:  input.offset,
         orderBy: [desc(users.createdAt)],
@@ -525,6 +549,27 @@ export const adminRouter = router({
       });
       return updated;
     }),
+
+  // ── Logs & audit (B3, docs/FRONTEND_REBUILD_PLAN.md §7) ─────────────
+  // Admin-wide (no implicit user scoping — see admin-logs.service.ts's
+  // header for why that's correct here, unlike billing.usage*).
+  listUsageLogs: adminProcedure
+    .input(z.object({
+      ...logRangeInput,
+      userId:  z.string().uuid().optional(),
+      modelId: z.string().max(100).optional(),
+    }))
+    .query(({ input }) => listUsageLogs(input)),
+
+  listAuditLogs: adminProcedure
+    .input(z.object({
+      ...logRangeInput,
+      adminId:    z.string().uuid().optional(),
+      action:     z.string().max(100).optional(),
+      targetType: z.string().max(50).optional(),
+      targetId:   z.string().uuid().optional(),
+    }))
+    .query(({ input }) => listAuditLogs(input)),
 
   // ── Manual-transfer approval queue (PAYMENT_METHODS_PLAN.md §7.10) ──
   listManualPayments: adminProcedure

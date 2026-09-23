@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, type MotionStyle, type Transition } from "framer-motion";
+import type { CSSProperties } from "react";
+import { motion, useReducedMotion, type MotionStyle, type Transition } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
@@ -8,10 +9,37 @@ import { cn } from "@/lib/utils";
  * apps/web/components/magicui/border-beam.tsx
  *
  * Magic UI "Border Beam" — https://magicui.design/docs/components/border-beam
- * (MIT, © Magic UI). Copied from `https://magicui.design/r/border-beam.json`.
- * Only change: `motion/react` -> `framer-motion` (this repo does not
- * install the `motion` package). The parent must be `relative` and
- * `overflow-hidden`, with its own border radius (the beam inherits it).
+ * (MIT, © Magic UI). Copied from `https://magicui.design/r/border-beam.json`
+ * and adapted for this repo:
+ *
+ *  1. `motion/react` -> `framer-motion` (this repo depends on
+ *     framer-motion 11; the `motion` package is not installed, and the
+ *     APIs used here are identical).
+ *  2. Colour defaults swapped from Magic UI's orange/purple
+ *     (`#ffaa40` / `#9c40ff`) to theme tokens (`--chart-1` — amber in
+ *     light, gold in dark; `--primary` — gate) so a bare `<BorderBeam />`
+ *     matches Gateway instead of clashing with it, and follows light/dark
+ *     + the preset switcher automatically. Call sites that want the
+ *     original MagicUI look pass the hexes explicitly.
+ *  3. `useReducedMotion()` guard added. Framer Motion's `animate` prop is
+ *     a JS-driven loop — the `@media (prefers-reduced-motion: reduce)`
+ *     block in theme.css only reaches *CSS* animations, so without this
+ *     guard the beam spins forever for users who opted out of motion.
+ *     When reduced, the beam renders at its `initialOffset` and holds
+ *     still — it stays visible as an accent, it just doesn't move.
+ *  4. Type-only import of `CSSProperties` (the registry version writes
+ *     `React.CSSProperties` without importing React; harmless with a
+ *     permissive tsconfig, a type error with a strict one).
+ *
+ * The parent must be `relative` and `overflow-hidden`, with its own
+ * border radius (the beam inherits it via `rounded-[inherit]`).
+ *
+ * Note for future readers: the offset-path square gives the beam a
+ * "moving blob" look with corners that don't follow the radius cleanly.
+ * A conic-gradient-behind-a-mask rewrite is possible and would let
+ * `borderWidth` (thickness) be tuned independently of `size` (length),
+ * but requires a CSS `@property` + `@keyframes` pair in styles/index.css.
+ * Deliberately NOT done here — out of scope of this fix.
  */
 
 interface BorderBeamProps {
@@ -30,7 +58,7 @@ interface BorderBeamProps {
   /** The class name of the border beam. */
   className?: string;
   /** The style of the border beam. */
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   /** Whether to reverse the animation direction. */
   reverse?: boolean;
   /** The initial offset position (0-100). */
@@ -44,21 +72,27 @@ export const BorderBeam = ({
   size = 50,
   delay = 0,
   duration = 6,
-  colorFrom = "#ffaa40",
-  colorTo = "#9c40ff",
+  colorFrom = "var(--chart-1)",
+  colorTo = "var(--primary)",
   transition,
   style,
   reverse = false,
   initialOffset = 0,
   borderWidth = 1,
 }: BorderBeamProps) => {
+  const reduced = useReducedMotion();
+
+  const offsets = reverse
+    ? [`${100 - initialOffset}%`, `${-initialOffset}%`]
+    : [`${initialOffset}%`, `${100 + initialOffset}%`];
+
   return (
     <div
       className="pointer-events-none absolute inset-0 rounded-[inherit] border-(length:--border-beam-width) border-transparent mask-[linear-gradient(transparent,transparent),linear-gradient(#000,#000)] mask-intersect [mask-clip:padding-box,border-box]"
       style={
         {
           "--border-beam-width": `${borderWidth}px`,
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <motion.div
@@ -77,18 +111,21 @@ export const BorderBeam = ({
           } as MotionStyle
         }
         initial={{ offsetDistance: `${initialOffset}%` }}
-        animate={{
-          offsetDistance: reverse
-            ? [`${100 - initialOffset}%`, `${-initialOffset}%`]
-            : [`${initialOffset}%`, `${100 + initialOffset}%`],
-        }}
-        transition={{
-          repeat: Infinity,
-          ease: "linear",
-          duration,
-          delay: -delay,
-          ...transition,
-        }}
+        // exactOptionalPropertyTypes: `animate`/`transition` cannot be
+        // passed as `undefined`, so under reduced motion the props are
+        // omitted entirely via a conditional spread.
+        {...(reduced
+          ? {}
+          : {
+              animate: { offsetDistance: offsets },
+              transition: {
+                repeat: Infinity,
+                ease: "linear",
+                duration,
+                delay: -delay,
+                ...transition,
+              },
+            })}
       />
     </div>
   );
