@@ -18,6 +18,17 @@ import {
 } from "../services/dashboard.service";
 import { stripUndefined }  from "../utils/strip-undefined";
 import { fetchGatewayChannels } from "../services/gateway-channels.service";
+import { listUsageLogs, listAuditLogs } from "../services/admin-logs.service";
+
+// B3: shared range/cursor shape for the two log-viewer procedures below —
+// same convention as billing.router.ts's usageRangeInput (range clamped
+// server-side to 90 days inside admin-logs.service.ts's clampRange()).
+const logRangeInput = {
+  from:   z.coerce.date().optional(),
+  to:     z.coerce.date().optional(),
+  limit:  z.number().int().min(1).max(100).default(50),
+  cursor: z.string().uuid().optional(),
+};
 
 export const adminRouter = router({
 
@@ -538,6 +549,27 @@ export const adminRouter = router({
       });
       return updated;
     }),
+
+  // ── Logs & audit (B3, docs/FRONTEND_REBUILD_PLAN.md §7) ─────────────
+  // Admin-wide (no implicit user scoping — see admin-logs.service.ts's
+  // header for why that's correct here, unlike billing.usage*).
+  listUsageLogs: adminProcedure
+    .input(z.object({
+      ...logRangeInput,
+      userId:  z.string().uuid().optional(),
+      modelId: z.string().max(100).optional(),
+    }))
+    .query(({ input }) => listUsageLogs(input)),
+
+  listAuditLogs: adminProcedure
+    .input(z.object({
+      ...logRangeInput,
+      adminId:    z.string().uuid().optional(),
+      action:     z.string().max(100).optional(),
+      targetType: z.string().max(50).optional(),
+      targetId:   z.string().uuid().optional(),
+    }))
+    .query(({ input }) => listAuditLogs(input)),
 
   // ── Manual-transfer approval queue (PAYMENT_METHODS_PLAN.md §7.10) ──
   listManualPayments: adminProcedure

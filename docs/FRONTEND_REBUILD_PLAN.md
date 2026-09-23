@@ -146,7 +146,7 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 | 7.2 | Settings: preferences, API, referral, privacy | [x] |
 | 8a | Admin: shell + data-table | [ ] |
 | 8b | Admin: money ops | [ ] |
-| B3 | Backend: admin logs + audit | [ ] |
+| B3 | Backend: admin logs + audit | [x] |
 | 8c | Admin: ops (models, channels, fraud, logs, audit) | [ ] |
 | 8d | Admin: settings decision | [ ] |
 | 9.1 | Hardening: RTL, a11y, perf, security | [ ] |

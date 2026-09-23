@@ -4859,3 +4859,69 @@ no storage in the repo and every option touches the frozen zone / backend.
 
 Verified by actually executing the pure functions in Node (type-stripped),
 not by vitest/tsc/next build, which I can't run here.
+
+## Backend B3 — Admin logs + audit
+
+**Built:** `admin-logs.service.ts` (`listUsageLogs`, `listAuditLogs`, both
+keyset-paginated on `(created_at, id)`, same pattern as B2's
+`usage.service.ts`) and two new `adminProcedure`s in `admin.router.ts`.
+Unlike `usage.service.ts`, `listUsageLogs` is deliberately **admin-wide** —
+no implicit `userId` scope — since the whole point is a cross-user view;
+`admin-logs.service.test.ts` asserts that directly (one call surfaces two
+different users' rows), which is the mirror image of B2's IDOR test.
+`apps/web/app/api/admin/logs/route.ts` (the old unfiltered-200-rows REST
+route) is untouched — 8c switches the UI to the new procedure; removing the
+REST route is a 9.3 cleanup item, not this one.
+
+**Migration `0010_audit_logs_index.sql`:** `audit_logs` had no index beyond
+its PK; added `(admin_id, created_at desc)` and `(action, created_at desc)`
+for the new filtered/sorted admin reads — same reasoning as B2's
+`idx_transactions_type_date` for F13.
+
+**Migration-runner correction (important — read before running anything):**
+I initially told the user `0001`–`0009` being absent from
+`migrations/meta/_journal.json` was a bug and offered to fold them into
+drizzle-kit's own journal. That was wrong and I corrected it in the same
+turn before building. Every one of those files' own header says "Execute
+with: psql $DATABASE_URL < ..." and every statement in them is written
+idempotent (`IF NOT EXISTS`, `DO $$ ... EXCEPTION WHEN duplicate_object`,
+same-value `UPDATE`s) — that's a deliberate second track, not drizzle-kit's
+migration history. `0000` is the only file drizzle-kit owns and the journal
+is correct as-is; I left it untouched.
+
+What I built instead: `packages/db/src/scripts/run-manual-migrations.ts`
+(`pnpm --filter @ai-platform/db db:migrate:manual`, `--dry-run` supported).
+It creates a small `_manual_migrations(filename, hash, applied_at)`
+tracking table, finds the current head (the last recorded file), and
+applies only what's newer, each in its own transaction, then records it.
+It also hash-checks every *already-recorded* file against what's on disk
+and refuses to run if one has been hand-edited after the fact (forces a new
+migration file instead of mutating an applied one). First run against an
+existing database (e.g. production, where `0001`–`0009` were applied by
+hand via `psql` and never recorded anywhere) is safe *because* those files
+are idempotent — it re-applies them as no-ops and then records them, so
+every run after that only touches what's actually new (right now, just
+`0010`). This does not change how `0000`/`db:migrate` works.
+
+**Tests:** `admin-logs.service.test.ts`, Testcontainers, mirrors
+`usage.service.test.ts`'s setup (dynamic import after `startTestDb()`).
+Covers: the admin-wide/two-users property, `userId`/`modelId`/`adminId`/
+`action`/`targetType` filters, `usage_debit`-only filtering, keyset
+pagination (no dupes/gaps across pages, strictly newest-first), an unknown
+cursor being ignored rather than erroring, and the 90-day range clamp.
+
+**Not verified here (no network/node_modules — same limitation as every
+prior session):** vitest itself was not run, so the tests above are
+reviewed, not executed. The `run-manual-migrations.ts` script was
+bracket/syntax-reviewed only, not run against a real Postgres — in
+particular I could not confirm `sql.begin(...)` + `tx.unsafe(...)` behaves
+as expected with `postgres@^3.4.0` for a multi-statement `.sql` file (some
+of the existing files, e.g. `0002_model_sync.sql`, contain several
+statements separated by `;` in one file) — `postgres-js`'s `unsafe()` is
+documented to support multi-statement strings, but this should be smoke-
+tested with `--dry-run` first, then for real against a disposable database,
+before pointing it at production.
+
+**Tracker:** `B3` not ticked by me — tick once CI (`api-tests`) is green on
+`frontend-v2` and you've dry-run, then run, `db:migrate:manual` somewhere
+non-production first.
