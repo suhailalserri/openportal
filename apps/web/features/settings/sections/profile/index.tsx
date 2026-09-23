@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { useFormDirtyGuard } from "../../hooks/use-form-dirty-guard";
@@ -111,10 +112,10 @@ export function ProfileSection() {
               )}
             />
 
-            <FormItem>
-              <FormLabel>{t("email")}</FormLabel>
-              <Input value={profile.email} readOnly disabled />
-            </FormItem>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="profile-email">{t("email")}</Label>
+              <Input id="profile-email" value={profile.email} readOnly disabled />
+            </div>
 
             <div className="flex justify-end">
               <Button type="submit" disabled={!form.formState.isDirty || update.isPending}>

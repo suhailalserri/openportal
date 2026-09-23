@@ -4297,3 +4297,110 @@ Still no browser/`pnpm install` in this sandbox — this patch was written
 directly against the CI log's error text and better-auth's documented
 `twoFactor.enable()` union shape, not compiled locally. First real
 confirmation is the next CI run.
+
+## Phase 7.1 Patch v2 — two i18n keys silently dropped from the original messages patch
+
+Root cause of the drop: the key-extraction step that built the original
+`settings.*` messages patch used a greedy regex (`t\("([^"]+)".*`)
+against lines containing more than one `t("...")` call. On a line like
+`err?.status === 401 ? t("errors.incorrectPassword") : t("errors.generic")`,
+greedy `.*` matching swallowed past the first call's closing quote, so
+only the second, later key in the line was ever captured — the first
+was silently lost. Two keys were missed this way:
+
+- `settings.security.twoFactor.errors.incorrectPassword` — referenced
+  in `two-factor-section.tsx` (enable-password and disable-password
+  error paths)
+- `settings.security.twoFactor.dialog.verifying` — referenced as the
+  busy-state label on three buttons in the same file (TOTP verify,
+  disable-password confirm)
+
+Both are now added to `messages/en.json` and `messages/ar.json`. Also
+re-checked every `t("...")` call across all five 7.1 files against both
+locale files with a non-greedy extraction this time — no other keys
+missing.
+
+**This was found while investigating an "An error occurred. Please try
+again." (Next.js's generic client-side error boundary, no stack trace)
+reported on `/settings` in production.** It's a real, worth-fixing bug,
+but it is very unlikely to be *this* crash: both missing keys are only
+read inside the 2FA password-confirmation flow (button labels /
+conditional error strings triggered after a user submits a password),
+not on `/settings`'s initial render. **The actual cause of the reported
+crash is still open** — a bare screenshot of that error page doesn't
+carry the thrown error or stack trace, so nothing in this patch should
+be read as "found and fixed" for that report. Next step: pull the
+browser console error (or the Vercel Runtime Logs entry for the request
+that 500'd, if this was a server-side throw) and paste the actual
+message/stack in the next session.
+
+### Files changed
+- `apps/web/messages/en.json`
+- `apps/web/messages/ar.json`
+
+### How to verify
+- CI: `i18n Key Parity` should already have been green (it only checks
+  key parity between `en`/`ar`, not against code — this bug was a gap
+  between code and messages, which that job cannot catch); confirm it's
+  still green after this patch. `Web Build`/`Type-check & Lint` are
+  unaffected (JSON-only change).
+- Preview: exercise the 2FA enable flow with a deliberately wrong
+  password, and the disable flow the same way, in both `en` and `ar` —
+  confirm a real "Incorrect password." message renders instead of a
+  crash or a raw `MISSING_MESSAGE` string.
+
+### Not verified
+The actual root cause of the `/settings` "An error occurred" report —
+see above. Need the real error/stack trace to proceed.
+
+## Phase 7.1 Patch v3 — root cause of the `/settings` crash found: `FormLabel` used outside `<FormField>`
+
+Browser console (provided directly, not guessed at) gave the real error:
+`Error: useFormField must be used within <FormField>`, thrown from
+`components/ui/form.tsx`'s `useFormField()` (frozen? no — `components/
+ui/form.tsx` is a NEW-ish shadcn primitive from an earlier phase, not
+in the frozen list; read but not edited here). `FormLabel`, `FormControl`,
+and `FormMessage` all call `useFormField()` internally, which reads
+React context provided only by an enclosing `<FormField>` — using any
+of them inside a bare `<FormItem>` with no `<FormField>` wrapper throws
+immediately on mount, not conditionally.
+
+Root cause: `sections/profile/index.tsx`'s **read-only email row**
+used `<FormItem><FormLabel>…</FormLabel><Input readOnly /></FormItem>`
+directly — never wrapped in `<FormField control name=…>` because email
+isn't a react-hook-form-managed field (it's static display data from
+`user.getProfile`, not part of `profileSchema`). Since `ProfileSection`
+is always one of the two 7.1 sections mounted on `/settings` (both Tabs
+and Accordion mount every visible section up front — see `index.tsx`'s
+own comment), this threw on every single visit to the page, which is
+exactly the "crashes immediately, no interaction needed" behavior
+reported.
+
+Fixed by dropping the Form primitives for that one static row and using
+the plain `Label`/`Input` pair instead (same `components/ui/label.tsx`
+primitive already used un-form-bound in `two-factor-section.tsx`'s
+password/code inputs) — correct, since this field was never part of
+the controlled form to begin with.
+
+Audited the other two files that use these primitives
+(`change-password-form.tsx`'s three fields) — all three are correctly
+inside their own `<FormField>`; this was the one instance of the bug.
+
+### Files changed
+- `apps/web/features/settings/sections/profile/index.tsx`
+
+### How to verify
+- Preview `/settings` (both locales, both breakpoints): page must render
+  without the error boundary; profile card shows the read-only email
+  field styled the same as before (label + disabled input, no visual
+  change intended).
+- CI: `Type-check & Lint`, `Web Build` unaffected in kind (already
+  green after Patch v1) but should be re-run to confirm nothing else
+  regressed.
+
+### Not verified
+No browser in this sandbox — fixed directly from the pasted console
+error and a direct read of `form.tsx`'s `useFormField` source (confirmed
+the thrown message matches verbatim), not by reproducing and re-rendering
+the page here. This should be the last item in this crash's chain, but
+next preview load is the real confirmation.
