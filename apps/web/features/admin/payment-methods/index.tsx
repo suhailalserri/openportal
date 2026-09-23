@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import type { PaymentMethodRow } from "./types";
+import { parseLogoUrl } from "./lib/logo-url";
 import { usePaymentMethods } from "./hooks/use-payment-methods";
 import { useSavePaymentMethod, type PaymentMethodFormValues } from "./hooks/use-save-payment-method";
 
@@ -49,16 +50,19 @@ export function AdminPaymentMethods() {
   const save = useSavePaymentMethod();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [logoInvalid, setLogoInvalid] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<PaymentMethodFormValues>(EMPTY_FORM);
 
   function openCreate() {
+    setLogoInvalid(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
     setDialogOpen(true);
   }
 
   function openEdit(method: PaymentMethodRow) {
+    setLogoInvalid(false);
     setEditingId(method.id);
     setForm({
       name: method.name,
@@ -74,12 +78,21 @@ export function AdminPaymentMethods() {
   }
 
   async function handleSave() {
+    // Logo is OPTIONAL: blank means "omit the key" (the server rejects "").
+    const logo = parseLogoUrl(form.logoUrl ?? "");
+    if (!logo.ok) {
+      setLogoInvalid(true);
+      return;
+    }
+    setLogoInvalid(false);
+    const { logoUrl: _logoUrl, ...withoutLogo } = form;
+    const payload = logo.value === undefined ? withoutLogo : { ...withoutLogo, logoUrl: logo.value };
     try {
       if (editingId) {
-        const { type: _type, ...rest } = form;
-        await save.update(editingId, rest);
+        const { type: _type, ...updatePayload } = payload;
+        await save.update(editingId, updatePayload);
       } else {
-        await save.create(form);
+        await save.create(payload);
       }
       setDialogOpen(false);
       toast.success(t("saved"));
@@ -185,7 +198,21 @@ export function AdminPaymentMethods() {
               />
             </Field>
             <Field label={t("form.logoUrl")} className="col-span-2">
-              <Input value={form.logoUrl} onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))} />
+              <Input
+                type="url"
+                inputMode="url"
+                dir="ltr"
+                placeholder="https://"
+                value={form.logoUrl}
+                aria-invalid={logoInvalid}
+                onChange={(e) => {
+                  setLogoInvalid(false);
+                  setForm((f) => ({ ...f, logoUrl: e.target.value }));
+                }}
+              />
+              <p className={logoInvalid ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+                {logoInvalid ? t("form.logoUrlInvalid") : editingId ? t("form.logoUrlHintEdit") : t("form.logoUrlHint")}
+              </p>
             </Field>
             <Field label={t("form.sortOrder")}>
               <Input

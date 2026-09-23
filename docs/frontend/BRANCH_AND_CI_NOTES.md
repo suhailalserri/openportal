@@ -4828,3 +4828,34 @@ That is a regex approximation of the rule, not ESLint itself.
 **Not verified:** no lint/build/Playwright run here. The `rtl:` hover
 animation is unchecked visually — look at it once on `/ar` if that button is
 used on a page you care about.
+
+## Phase 8b / 5.1 — two bugs found on the green preview
+
+**1. Redeem: valid code lost its "1" (`JUHP-XFSR-J936-EE19` -> `...EE9`).**
+Root cause: `formatRedeemInput` (5.1) filtered EVERY character through the
+31-char body alphabet (no 0/O/1/I/L). The last group is the checksum, built
+server-side as `hmac.digest("hex").slice(0, 4).toUpperCase()` — i.e. hex
+0-9A-F — so roughly half of all real codes contain a 0 or 1 in that group
+and could not be typed or pasted. My 5.1 implementation was wrong: I treated
+"4 groups of 4" as one alphabet. Fix (`features/billing/lib/redeem-shape.ts`):
+position-aware filter — first 12 chars body alphabet, last 4 hex — and the
+shape regex matches. Still shape-only, checksum stays server-side (Rule 5).
+Tests updated/added in `redeem-shape.test.ts` (including this exact code).
+Note: the old 5.1 test "first 16 chars of the alphabet round-trip" encoded
+the wrong assumption and was replaced by a first-12 version.
+
+**2. Payment method: Logo URL was effectively required.**
+`admin.createPaymentMethod`/`updatePaymentMethod` take
+`logoUrl: z.string().url().max(2048).optional()`; the form sent `""`, which
+fails `.url()` (the raw zod JSON the admin saw). Fix: blank -> key omitted;
+non-blank must be an http(s) URL, checked client-side with an inline
+message (`features/admin/payment-methods/lib/logo-url.ts` + tests; new i18n
+keys `form.logoUrlHint/HintEdit/Invalid`, ar+en).
+Known limit (needs a backend change, not done): on EDIT, emptying the field
+keeps the current logo — the update schema has no way to clear it
+(`.optional()`, not `.nullable()`); the form says so.
+**Logo upload from device: NOT built** — see the delivery message; there is
+no storage in the repo and every option touches the frozen zone / backend.
+
+Verified by actually executing the pure functions in Node (type-stripped),
+not by vitest/tsc/next build, which I can't run here.

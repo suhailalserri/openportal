@@ -696,7 +696,10 @@
         "nameAr": "Name (Arabic)",
         "type": "Type",
         "accountCode": "Account / wallet code",
-        "logoUrl": "Logo URL",
+        "logoUrl": "Logo URL (optional)",
+        "logoUrlHint": "Optional. Leave empty to show the default wallet icon.",
+        "logoUrlHintEdit": "Optional. Emptying this field keeps the current logo; it does not remove it.",
+        "logoUrlInvalid": "Enter a valid link starting with https:// (or leave it empty).",
         "sortOrder": "Sort order",
         "instructions": "Instructions (English)",
         "instructionsAr": "Instructions (Arabic)"
