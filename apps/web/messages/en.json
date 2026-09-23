@@ -609,5 +609,40 @@
       "hintLabel": "What is this?",
       "hint": "The model you used the most in this period, by number of requests."
     }
+  },
+  "usage": {
+    "filters": {
+      "model": "Model",
+      "allModels": "All models",
+      "from": "From",
+      "to": "To",
+      "clear": "Clear filters",
+      "export": "Export CSV"
+    },
+    "table": {
+      "date": "Date",
+      "model": "Model",
+      "tokens": "Tokens",
+      "tokensValue": "{input} in / {output} out",
+      "cost": "Cost",
+      "unknownModel": "Unknown model",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…"
+    },
+    "detail": {
+      "title": "Request details",
+      "date": "Date",
+      "model": "Model",
+      "cost": "Cost",
+      "tokensIn": "Input tokens",
+      "tokensOut": "Output tokens",
+      "requestId": "Request ID",
+      "unknownModel": "Unknown model"
+    },
+    "empty": {
+      "title": "No usage found",
+      "description": "No requests match the current filters. Try widening the date range or clearing the model filter."
+    },
+    "error": "Couldn't load your usage log right now. Please try again."
   }
 }

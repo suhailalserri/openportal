@@ -70,8 +70,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { id: "billing", href: "/billing", labelKey: "billing", icon: "billing", enabled: true },
       // 6.1 — dashboard (landed)
       { id: "dashboard", href: "/dashboard", labelKey: "dashboard", icon: "dashboard", enabled: true },
-      // 6.2
-      { id: "usage", href: "/usage", labelKey: "usage", icon: "usage", enabled: false },
+      // 6.2 — usage log (landed)
+      { id: "usage", href: "/usage", labelKey: "usage", icon: "usage", enabled: true },
       // 7.1
       { id: "settings", href: "/settings", labelKey: "settings", icon: "settings", enabled: false },
     ],

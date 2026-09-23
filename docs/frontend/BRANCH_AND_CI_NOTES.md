@@ -4043,3 +4043,120 @@ No browser or `pnpm install` in this sandbox (network disabled), so:
   plural, one {# day} other {# days}}`) was not run through the actual
   `next-intl` formatter here — should render correctly (it's the
   standard documented syntax) but wasn't executed.
+
+## Phase 6.2 — Usage log
+
+**Build:** `apps/web/features/usage/**` (index, types, hooks, components,
+lib), thin route `app/[locale]/(app)/usage/page.tsx`, `config/nav.ts`
+`usage` entry flipped `enabled: false → true` (id/labelKey/icon already
+existed as a placeholder since 6.1), `usage` message namespace added to
+both `messages/en.json` and `messages/ar.json` (parity-checked locally —
+509/509 keys both locales, flat-key diff empty both directions).
+
+No backend PR was needed for this session: B2 (already `[x]`/verified
+per this doc's own earlier entry) had already shipped `billing.listUsage`
+(cursor-paginated, filterable by `modelId`/`from`/`to`) and
+`GET /api/usage/export` ahead of when 6.1 consumed the rest of B2's
+procedures, so 6.2 only had frontend work to do — matches what the
+approved phase summary said before building.
+
+Table pagination uses `trpc.billing.listUsage.useInfiniteQuery` (tRPC's
+react-query integration supports this natively since the procedure's
+input already has an optional `cursor` field and the output has
+`nextCursor` — no hand-rolled offset/page-number state, which the phase
+summary flagged as the specific risk to avoid given `listUsage`'s keyset
+design). The model filter and CSV export button both read `models.list`
+via a small local `use-model-catalog.ts`, a deliberate near-duplicate of
+`features/dashboard/hooks/use-model-catalog.ts` (6.1) rather than a
+cross-feature import — see that file's own comment for why (feature
+folders are meant to be self-contained per §4 of the plan; the
+underlying query is still deduped by React Query's cache either way).
+
+### Deviation from the plan
+None functionally. As flagged in the phase summary, added
+`features/usage/lib/build-export-url.ts` + its vitest file as the one
+piece of hand-written (non-server-echoed) logic in this phase — it's
+also the mechanism that keeps the CSV export link and the on-screen
+filtered table from disagreeing, since both `UsageFilterBar`'s export
+`<a href>` and `useUsageLog`'s query input read the exact same `filters`
+object owned by `UsageLogView`. Used a plain `<a href="/api/usage/export?...">`
+rather than a JS-triggered blob download (contrast with 5.2's
+`TransactionHistory`, which builds a client-side blob because
+`billing.getTransactions` has no REST export route) — B2's route is a
+real downloadable URL, so no client-side CSV construction was needed or
+appropriate here.
+
+Date range filtering uses two native `<input type="date">` fields rather
+than a calendar-picker component — no such component exists in
+`components/ui/` yet and the plan's own wording for 6.2 just says "date
+range", so this avoids adding a new dependency for it; native date
+inputs also get free RTL/locale rendering from the browser.
+
+### Files changed
+- `apps/web/features/usage/index.tsx` (new)
+- `apps/web/features/usage/types.ts` (new)
+- `apps/web/features/usage/hooks/use-usage-log.ts` (new)
+- `apps/web/features/usage/hooks/use-model-catalog.ts` (new)
+- `apps/web/features/usage/lib/build-export-url.ts` (new)
+- `apps/web/features/usage/lib/build-export-url.test.ts` (new)
+- `apps/web/features/usage/components/usage-filter-bar.tsx` (new)
+- `apps/web/features/usage/components/usage-table.tsx` (new)
+- `apps/web/features/usage/components/usage-row-detail.tsx` (new)
+- `apps/web/features/usage/components/usage-empty-state.tsx` (new)
+- `apps/web/app/[locale]/(app)/usage/page.tsx` (new)
+- `apps/web/config/nav.ts` (edit — `usage` entry `enabled: true`)
+- `apps/web/messages/en.json` (edit — `usage` namespace added)
+- `apps/web/messages/ar.json` (edit — `usage` namespace added)
+
+### DELETE list
+None.
+
+### Frozen zone
+Not touched. `billing.listUsage` (apps/api) and
+`app/api/usage/export/route.ts` were read but not edited — both were
+already complete for this phase's needs (confirmed against
+`usage.service.ts` and the B2 entry above before building).
+
+### How to verify
+- **CI:** `check` (type-check + lint), `web-build`, `web-unit` (new
+  `build-export-url.test.ts`), `i18n-parity` — all four must stay green
+  on `frontend-v2`.
+- **Preview, `/ar/usage` and `/en/usage`, both themes:**
+  - table rows match the same account's `usageByModel`/`usageSummary`
+    figures already confirmed against B2
+  - "Load more" appends the next cursor page with no skipped or
+    duplicated rows across the boundary
+  - model filter and date-range filters narrow the table; "Clear
+    filters" only appears once a filter is set and resets to the
+    unfiltered view
+  - clicking/tapping (and Enter/Space on keyboard focus) a row opens the
+    detail Sheet with matching model/date/cost/tokens/request id; Sheet
+    slides from the correct physical side in `ar` vs `en`
+  - the Export CSV link's downloaded file matches exactly the rows
+    currently on screen under the active filters (the plan's literal
+    "Done when" for 6.2)
+  - sidebar "Usage" entry is now a real link, not a disabled "soon" row,
+    in both locales
+
+### Not verified
+No browser, `pnpm install`, or database in this sandbox (network
+disabled), so:
+- `trpc.billing.listUsage.useInfiniteQuery`'s actual network behavior
+  (correct `nextCursor` threading across pages, request batching via the
+  existing `httpBatchLink`) was reasoned about from
+  `apps/api/src/services/usage.service.ts`'s implementation and from
+  `@trpc/react-query`'s documented `useInfiniteQuery` contract, not
+  executed — this is the single riskiest unverified piece of this phase
+  and the first thing to check on the live preview.
+- Field names on `UsageListItem` (`id`, `createdAt`, `modelId`,
+  `inputTokens`, `outputTokens`, `amount`, `requestId`) were cross-checked
+  directly against `usage.service.ts`'s `UsageListItem`/`listUsage`
+  return type, so these should match `tsc` exactly, but weren't run
+  through the compiler here.
+- `SheetContent`'s direction-aware slide side (used as-is, default
+  `side="end"`) was confirmed by reading `components/ui/sheet.tsx`'s
+  logic, not by opening the Sheet in an actual RTL browser.
+- `next-intl`'s ICU plural/positional interpolation for
+  `usage.table.tokensValue` (`"{input} in / {output} out"`) mirrors
+  `dashboard.cards.tokensValue`'s already-shipped pattern exactly, so it
+  should render the same way, but wasn't executed here either.
