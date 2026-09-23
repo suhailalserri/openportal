@@ -118,7 +118,8 @@
       "resetOne": "Reset {label} to default",
       "decrease": "Decrease",
       "increase": "Increase"
-    }
+    },
+    "responseReady": "Response complete"
   },
   "balance": {
     "current": "Your Balance",

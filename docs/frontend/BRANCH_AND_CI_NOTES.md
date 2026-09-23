@@ -4951,3 +4951,44 @@ non-production first.
 **Tracker:** `8c` NOT ticked — tick after CI is green (`check`, `web-build`, `i18n-parity`, `api-tests`, `e2e`) and the preview checks below pass.
 
 **Preview checks:** all five pages load in `/ar` and `/en` and appear enabled in the admin nav; logs: filter by user (full UUID) / model / date, "Load more" adds rows with no duplicates; audit: expand a row → before/after diff; models: Sync → toast in the active language, Publish a pending model → row moves to Published, toggle availability; fraud: Resolve removes the row from Unresolved and it shows under Resolved; Clear flag on a real flagged user (use a test account); channels: renders rows if the gateway token is admin-capable, otherwise the gateway's error message + Retry.
+
+---
+
+## Phase 8d — Admin settings decision (D7)
+
+**Decision:** omit, per the plan's default. Recorded as **ADR-010** in `docs/architecture/decisions.md`. Docs-only phase: no code, no nav change (there is no `adminSettings` nav entry and no route to remove), no messages.
+
+**Verified by reading the repo:** `apps/web/app/[locale]/(admin)/admin/` has no `settings` folder; `config/nav.ts` has no settings entry under the admin group.
+
+**Not verified:** nothing executable in this phase. CI is unaffected (no code, no `docs/legal` change).
+
+**Open items logged here so they aren't lost:**
+- **B5** (platform settings + enforcement) — post-cutover backlog; ADR-010 is the revisit trigger.
+- **Manual email confirmation (unplanned, requested during 8c testing):** new `admin.verifyUserEmail` procedure in `apps/api` (sets `email_verified = true` AND `status = 'active'`, writes an `audit_logs` row, with a Testcontainers test) + a "Confirm email manually" button on the admin user detail page and a "Pending verification" filter. Needs its own backend session before the UI. Root cause of the need: Resend delivers only to the account owner until a domain is verified — verifying the sending domain removes the need for day-to-day use. Interim workaround: SQL `UPDATE users SET email_verified = true, status = 'active', updated_at = now() WHERE email = '…';`.
+- The plan's tracker in the uploaded copy of `FRONTEND_REBUILD_PLAN.md` is stale (6.1–8b unticked though code exists). Left untouched.
+
+**Tracker:** `8d` ready to tick (docs-only). `8c` — tick once its CI is green.
+
+---
+
+## Phase 9.1 — Hardening (security headers, RTL, a11y, performance)
+
+**Decision (yours: "whatever is better long-term"):** I edited `headers()` in the frozen `next.config.ts` — not Caddy — because the plan deploys the frontend to Vercel, where Caddy headers wouldn't apply; in-app headers travel with the code. Scope of the edit: the `headers()` list plus a small helper (`buildCsp`, `originOf`) and a `CSP_HEADER_NAME` constant above `nextConfig`; nothing else in the file changed. **Re-freeze `next.config.ts` after this.**
+
+**Built:**
+- Headers: `Referrer-Policy`, `Permissions-Policy` (camera/mic/geolocation off), `Strict-Transport-Security` (1 year, no `includeSubDomains`/preload — deliberately conservative), and a CSP that allows Turnstile (`challenges.cloudflare.com` for script/frame/connect), the API origin from `NEXT_PUBLIC_API_BASE_URL`, `img-src https:` (admin-pasted logos). **Report-Only** until the preview is clean; the enforcing flip is one constant.
+- a11y: screen-reader announcements for chat replies (start + finish) in `chat-view.tsx`; new key `chat.responseReady` (en + ar).
+- Contrast: light-mode primary `#B9791F` → `#98641A` (was 3.61:1 for white-on-gold buttons and 3.28:1 for gold text; now 5.03 / 4.58). Visible brand change; see the checklist for how to revert.
+- `docs/frontend/HARDENING_CHECKLIST.md` — per-page sign-off sheet, CSP verification steps, contrast table, empty budget table.
+
+**Found, no change needed (static):** RTL is already clean — physical-direction classes outside `components/ui` are comments or decorative `magicui`; chevrons have `rtl:rotate-180`.
+
+**Deviations from the plan:**
+- **Budgets not set** — needs a real `next build`; I did not invent numbers. Checklist has the table to fill from the `web-build` log.
+- **`@next/bundle-analyzer` not added** — a new dependency would break CI's frozen lockfile until `pnpm-lock.yaml` is regenerated (`update-lockfile` workflow). Not worth blocking 9.1 on; the `First Load JS` column in the build log gives the same route numbers.
+- **shiki lazy-loading skipped** — repo uses `rehype-highlight`; only worth doing if `/chat` is over budget once measured.
+- **Markdown fixtures not re-reviewed** (listed for a human in the checklist).
+
+**Not verified (no network / node_modules / browser — same as prior sessions):** `tsc`, ESLint, vitest, `next build`, e2e were NOT run. Specifically unverified: (a) the CSP itself — that Turnstile, chat streaming, charts, QR and logos raise zero violations (this is exactly what Report-Only is for); (b) `NEXT_PUBLIC_API_BASE_URL` is set at build/start on the deployment (if unset, `connect-src` omits the API origin and cross-origin chat calls would be reported); (c) the `React.useEffect` live-region announces once per reply under React strict mode; (d) the new primary looks acceptable in light mode; (e) HSTS isn't duplicated by Caddy/Vercel.
+
+**Tracker:** `9.1` NOT ticked — tick after CI is green, the checklist §1 shows zero violations (then flip CSP to enforcing), and §2/§3 human passes are signed off.

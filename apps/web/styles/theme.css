@@ -53,7 +53,7 @@
   --faint-foreground:   #716D77; /* adjusted for AA — see header note */
 
   /* ── Brand / primary (the "gate") ─────────────────────────────── */
-  --primary:             #B9791F;
+  --primary:             #98641A;
   --primary-foreground: #FFFFFF;
   --accent:              rgba(185, 121, 31, 0.10); /* gate-wash */
   --accent-foreground:  #9C6516; /* gate-strong */
@@ -92,7 +92,7 @@
        .conv-item.active / .new-chat-btn rules) ─────────────────────── */
   --sidebar:                    #EFEBE0; /* bg-inset */
   --sidebar-foreground:        #1B1A20;
-  --sidebar-primary:            #B9791F; /* gate */
+  --sidebar-primary:            #98641A; /* gate */
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent:             rgba(185, 121, 31, 0.10); /* active conv-item bg */
   --sidebar-accent-foreground: #1B1A20;                    /* active conv-item text */

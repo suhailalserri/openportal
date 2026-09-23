@@ -35,7 +35,7 @@
   --muted-foreground:   #63606B;
   --faint-foreground:   #716D77;
 
-  --primary:             #B9791F;
+  --primary:             #98641A;
   --primary-foreground: #FFFFFF;
   --accent:              rgba(185, 121, 31, 0.10);
   --accent-foreground:  #9C6516;
@@ -65,7 +65,7 @@
 
   --sidebar:                    #EFEBE0;
   --sidebar-foreground:        #1B1A20;
-  --sidebar-primary:            #B9791F;
+  --sidebar-primary:            #98641A;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent:             rgba(185, 121, 31, 0.10);
   --sidebar-accent-foreground: #1B1A20;

@@ -118,7 +118,8 @@
       "resetOne": "إعادة {label} إلى الافتراضي",
       "decrease": "إنقاص",
       "increase": "زيادة"
-    }
+    },
+    "responseReady": "اكتمل الرد"
   },
   "balance": {
     "current": "رصيدك",
