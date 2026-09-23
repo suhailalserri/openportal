@@ -4599,3 +4599,71 @@ the real check, same as every prior phase's note in this file.
 per the plan's own rule 4, a session is only done once CI is green on
 `frontend-v2` and the preview's "Done when" checklist passes. Tick it
 once that's confirmed.
+
+---
+
+## Phase 8b (in progress — batch 1 of 2)
+
+This entry covers only the first delivered slice: the `admin.listUsers`
+search fix and the `/admin/users` list + detail pages. Codes, packages,
+payment methods, manual payments, nav/messages for those, tests, e2e,
+and the tracker tick land in batch 2 and will extend this entry rather
+than replace it.
+
+**Plan-vs-code resolutions (all three approved by the person, "best for
+the project" on each):**
+1. **`admin.listUsers` search fixed for real**, not dropped. Added an
+   `ilike` on `email` OR `displayName` in `apps/api/src/routers/
+   admin.router.ts` — the one scoped edit to the otherwise-frozen API in
+   this phase. Consequence: 8a's overview "recent users" preview table
+   now has a genuinely working search box, so it was NOT stripped as
+   the phase summary's default proposed — stripping it would now be
+   removing working functionality.
+2. CRUD = create/edit/activate-deactivate (batch 2; no delete procedure
+   exists for packages/payment methods). Claims queue gets status tabs
+   + a client-side filter on the loaded page only, labeled as such
+   (batch 2).
+3. Preview approve/adjust actions hit the production DB — test accounts
+   only on preview; this is the warning line satisfying that note.
+
+**What's new in this batch:**
+- `apps/api/src/routers/admin.router.ts` — `listUsers` now filters by
+  `search` via `ilike(email) OR ilike(displayName)`. No index added;
+  fine at current scale, flagged in-code for a future pg_trgm index if
+  the table grows.
+- `lib/format.ts` — `microToCredits()`, the inverse of `formatCredits`'s
+  division, as a plain number for pre-filling editable amount fields.
+  Needed now for `adjustCredits`'s amount input; will be reused by
+  batch 2's package-edit form (Rule 1: one conversion helper, not
+  inline math at each call site).
+- `components/shared/confirm-dialog.tsx` — added an optional `children`
+  slot (rendered between `description` and the typed-confirmation
+  input) so a dialog can carry a small form, not just a target string.
+  Additive/optional prop — no change to any 8a caller's behavior.
+- `features/admin/users/*` + `app/.../admin/users/[[id]]` — the real
+  users list (DataTable, row click → detail) and detail page (suspend/
+  reactivate, adjust credits), both via `ConfirmDialog`.
+  - Self-suspend is hidden (not just disabled) on the detail page when
+    the signed-in admin views their own account — the server still
+    allows it (point 4 of the phase summary), this is a UI-only guard.
+  - `adjustCredits` has no server-side idempotency key/cap (point 4).
+    Client-side mitigation, in `use-adjust-credits.ts`: typed
+    confirmation of the exact amount, PLUS a synchronous `useRef` lock
+    that blocks a second `mutate` call fired before React's `isPending`
+    state has re-rendered (a fast double-click race that `isPending`
+    alone doesn't close). This is still a UX-layer guard, not a
+    substitute for a real idempotency key — a follow-up for whoever
+    next touches this API router.
+- `config/nav.ts` — `adminUsers` flipped to `enabled: true`.
+- `messages/{en,ar}.json` — new `admin.usersPage` namespace (parity
+  checked: no key diff either direction).
+
+**Not independently verified** (same standing constraint as every
+phase in this file — no `node_modules`/network/DB here): the `ilike`
+query, all new components, and the message JSON were written and
+cross-checked against the existing schema/types/conventions by reading
+the repo, not by running `tsc`, vitest, `next build`, or against a real
+DB. `check`, `web-build`, and `i18n-parity` in CI are the real
+verifiers for this batch.
+
+**Tracker:** not touching `8b`'s tick — batch 2 finishes the phase.

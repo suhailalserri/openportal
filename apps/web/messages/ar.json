@@ -321,6 +321,56 @@
         "suspended": "موقوف",
         "pending_verification": "بانتظار التحقق"
       }
+    },
+    "usersPage": {
+      "title": "المستخدمون",
+      "description": "ابحث عن أي مستخدم وراجع بياناته وقم بتعليق/إعادة تفعيل حسابه وتعديل رصيده.",
+      "searchPlaceholder": "بحث بالبريد الإلكتروني أو الاسم…",
+      "noName": "بدون اسم",
+      "columns": {
+        "email": "البريد الإلكتروني",
+        "name": "الاسم",
+        "role": "الدور",
+        "status": "الحالة",
+        "joined": "تاريخ الانضمام"
+      },
+      "status": {
+        "active": "نشط",
+        "suspended": "موقوف",
+        "pending_verification": "بانتظار التحقق"
+      },
+      "detail": {
+        "title": "تفاصيل المستخدم",
+        "loadError": "تعذر تحميل بيانات هذا المستخدم.",
+        "retry": "إعادة المحاولة",
+        "role": "الدور",
+        "joined": "تاريخ الانضمام",
+        "balance": "الرصيد (كريدت)",
+        "adjustCredits": "تعديل الرصيد",
+        "recentTxns": "أحدث المعاملات",
+        "noTxns": "لا توجد معاملات بعد.",
+        "columns": {
+          "date": "التاريخ",
+          "type": "النوع",
+          "amount": "المبلغ",
+          "description": "الوصف"
+        },
+        "suspend": "تعليق الحساب",
+        "reactivate": "إعادة تفعيل الحساب",
+        "suspendTitle": "هل تريد تعليق هذا الحساب؟",
+        "reactivateTitle": "هل تريد إعادة تفعيل هذا الحساب؟",
+        "suspendDescription": "سيفقد المستخدم الوصول فورًا. يمكن التراجع عن هذا من هذه الصفحة.",
+        "cancel": "إلغاء",
+        "reason": "السبب (يظهر في سجل التدقيق)",
+        "typeEmailToConfirm": "اكتب البريد الإلكتروني للمستخدم للتأكيد",
+        "adjustCreditsTitle": "تعديل الرصيد",
+        "confirmAdjust": "تأكيد التعديل",
+        "direction": "الاتجاه",
+        "addCredits": "إضافة رصيد",
+        "deductCredits": "خصم رصيد",
+        "amountWhole": "المبلغ (كريدت كاملة)",
+        "typeAmountToConfirm": "اكتب المبلغ للتأكيد"
+      }
     }
   },
   "settings": {
@@ -676,7 +726,15 @@
       "outputTokens": "{count} رمز إخراج",
       "totalCost": "التكلفة: {price} ريال",
       "replay": "إعادة التشغيل",
-      "thinking": "المساعد يكتب"
+      "thinking": "المساعد يكتب",
+      "modelTabsLabel": "النموذج",
+      "thinkingAs": "جارٍ سؤال {model}…",
+      "deviceTabsLabel": "معاينة الجهاز",
+      "devices": {
+        "desktop": "سطح المكتب",
+        "iphone": "آيفون",
+        "android": "أندرويد"
+      }
     },
     "packages": {
       "bestValue": "الأفضل قيمة"

@@ -527,6 +527,56 @@
         "suspended": "Suspended",
         "pending_verification": "Pending verification"
       }
+    },
+    "usersPage": {
+      "title": "Users",
+      "description": "Search, review, suspend/reactivate, and adjust credits for any user.",
+      "searchPlaceholder": "Search by email or name…",
+      "noName": "No name",
+      "columns": {
+        "email": "Email",
+        "name": "Name",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined"
+      },
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "pending_verification": "Pending verification"
+      },
+      "detail": {
+        "title": "User detail",
+        "loadError": "Couldn't load this user.",
+        "retry": "Retry",
+        "role": "Role",
+        "joined": "Joined",
+        "balance": "Balance (credits)",
+        "adjustCredits": "Adjust credits",
+        "recentTxns": "Recent transactions",
+        "noTxns": "No transactions yet.",
+        "columns": {
+          "date": "Date",
+          "type": "Type",
+          "amount": "Amount",
+          "description": "Description"
+        },
+        "suspend": "Suspend account",
+        "reactivate": "Reactivate account",
+        "suspendTitle": "Suspend this account?",
+        "reactivateTitle": "Reactivate this account?",
+        "suspendDescription": "The user will immediately lose access. This can be reversed from this page.",
+        "cancel": "Cancel",
+        "reason": "Reason (visible in the audit log)",
+        "typeEmailToConfirm": "Type the user's email to confirm",
+        "adjustCreditsTitle": "Adjust credits",
+        "confirmAdjust": "Confirm adjustment",
+        "direction": "Direction",
+        "addCredits": "Add credits",
+        "deductCredits": "Deduct credits",
+        "amountWhole": "Amount (whole credits)",
+        "typeAmountToConfirm": "Type the amount to confirm"
+      }
     }
   },
   "status": {
@@ -676,7 +726,15 @@
       "outputTokens": "{count} output tokens",
       "totalCost": "Cost: {price} YER",
       "replay": "Replay",
-      "thinking": "Assistant is typing"
+      "thinking": "Assistant is typing",
+      "modelTabsLabel": "Model",
+      "thinkingAs": "Asking {model}…",
+      "deviceTabsLabel": "Device preview",
+      "devices": {
+        "desktop": "Desktop",
+        "iphone": "iPhone",
+        "android": "Android"
+      }
     },
     "packages": {
       "bestValue": "Best value"

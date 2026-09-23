@@ -6,7 +6,7 @@ import {
   redeemCodes, fraudEvents, auditLogs,
   creditPackages, paymentMethods, pendingManualPayments,
 } from "@ai-platform/db";
-import { eq, desc, count, and, sql } from "drizzle-orm";
+import { eq, desc, count, and, or, ilike, sql } from "drizzle-orm";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
 import { approveManualPayment, rejectManualPayment } from "../services/manual-payment.service";
@@ -113,7 +113,20 @@ export const adminRouter = router({
       search: z.string().optional(),
     }))
     .query(async ({ input }) => {
+      // 8b: `search` was accepted but silently ignored (see
+      // BRANCH_AND_CI_NOTES.md's 8b entry for the plan-vs-code note).
+      // Fixed here rather than shipping a dead search box, since finding
+      // a user by email/name is core to the money-ops flows this phase
+      // adds (adjustCredits, suspend). `ilike` is case-insensitive and
+      // substring-matches both columns; a leading/trailing `%` means no
+      // index is used, which is fine at the current table size — revisit
+      // with a trigram index (pg_trgm) if this table grows large enough
+      // for it to matter.
+      const term = input.search?.trim();
+      const where = term ? or(ilike(users.email, `%${term}%`), ilike(users.displayName, `%${term}%`)) : undefined;
+
       const rows = await db.query.users.findMany({
+        where,
         limit:   input.limit,
         offset:  input.offset,
         orderBy: [desc(users.createdAt)],

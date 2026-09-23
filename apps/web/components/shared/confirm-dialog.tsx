@@ -27,6 +27,12 @@ interface ConfirmDialogProps {
    */
   requireTypedConfirmation?: { targetText: string; label: string };
   errorMessage?: React.ReactNode;
+  /**
+   * Extra form fields rendered between the description and the typed-
+   * confirmation input (8b: a suspend reason textarea, an adjust-credits
+   * amount/direction/reason form). Optional — 8a's callers pass none.
+   */
+  children?: React.ReactNode;
 }
 
 /**
@@ -60,6 +66,7 @@ export function ConfirmDialog({
   destructive = false,
   requireTypedConfirmation,
   errorMessage,
+  children,
 }: ConfirmDialogProps) {
   const [typedText, setTypedText] = useState("");
 
@@ -77,6 +84,8 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
+
+        {children}
 
         {requireTypedConfirmation && (
           <div className="flex flex-col gap-2">

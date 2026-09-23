@@ -12,6 +12,7 @@ import { PaymentMarquee } from "./components/payment-marquee";
 import { ComparisonSection } from "./components/comparison-section";
 import { DemoSectionWrapper } from "./components/demo-section-wrapper";
 import { LandingFooter } from "./components/landing-footer";
+import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { ConsentBanner } from "@/features/consent";
 import { getLandingData } from "./lib/landing-data";
 
@@ -30,8 +31,8 @@ import { getLandingData } from "./lib/landing-data";
  * Component receiving already-finished data; only the small
  * interactive slices (search/filter, the calculator's model/size
  * picker, the LiveBench load-on-click button, the demo's typing
- * effect) are client components, and none of them fetch anything
- * themselves.
+ * effect, the demo's device toggle) are client components, and none of
+ * them fetch anything themselves.
  *
  * GRACEFUL DEGRADATION: getLandingData never throws — each of its three
  * underlying reads is settled independently (Promise.allSettled) and a
@@ -40,11 +41,19 @@ import { getLandingData } from "./lib/landing-data";
  * own empty states (ModelsSection, PackagesSection, CalculatorSection
  * hiding entirely when calculator is null).
  *
- * ORDER: hero -> intro -> stats -> models table -> LiveBench -> pay-per-use
- * calculator -> packages -> payment marquee -> comparison -> demo (hidden
- * until real/simulated content exists) -> footer. This follows the plan's
- * "also in the build" list order (docs/FRONTEND_REBUILD_PLAN.md Phase 3.3
- * summary) rather than an arbitrary arrangement.
+ * ORDER (revised this session): hero -> DEMO -> intro -> stats -> models
+ * -> cost ranking -> LiveBench -> calculator -> packages -> payment
+ * marquee -> comparison -> footer. The demo moved from LAST place
+ * (where almost nobody scrolled to it) to SECOND place, right after the
+ * hero. Rationale: a chat demo is self-explanatory evidence and is the
+ * single strongest piece of proof on the page — it answers "what is
+ * this?" better than any paragraph, and putting it before any numbers
+ * means a visitor sees the product working before being asked to read
+ * about it. Intro/stats stay right below the demo because they are
+ * CONTEXT (who we are, how big we are), and context reads better after
+ * evidence than before it. LiveBench keeps its position between the
+ * models table and the cost chart — an external validation cue belongs
+ * exactly there, next to the thing it validates.
  *
  * CONSTELLATION BACKGROUND: mounted ONCE here, at the page root, not
  * inside LandingHero — a follow-up round of this phase moved it from
@@ -54,26 +63,35 @@ import { getLandingData } from "./lib/landing-data";
  * covers the full page regardless of scroll length; every section below
  * it in the DOM sits in normal flow above it with no z-index needed on
  * their part.
+ *
+ * SCROLL PROGRESS (added this session): a thin gradient bar pinned to
+ * the top of the viewport, `fixed inset-x-0 top-0 z-50`, driven by
+ * framer-motion's `useScroll` — a direct readout of scroll position, not
+ * an animation, so it is deliberately NOT gated by `useReducedMotion()`.
+ * Placed at the page root here rather than the layout so it only renders
+ * on the landing page, and at `z-50` it sits above the constellation's
+ * `-z-10` without any interaction — they never overlap in stacking order.
  */
 export async function LandingPage({ locale }: { locale: string }) {
   const data = await getLandingData(locale);
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <ScrollProgress />
       <ConstellationBackground />
       <LandingHeader locale={locale} />
       <main className="flex-1">
         <LandingHero locale={locale} />
+        <DemoSectionWrapper locale={locale} />
         <LandingIntro locale={locale} />
+        <PaymentMarquee locale={locale} methods={data.paymentMethods} />
+        <PackagesSection locale={locale} packages={data.packages} />
         <StatsStrip locale={locale} modelCount={data.modelCount} totalUsers={data.totalUsers} />
         <ModelsSection locale={locale} models={data.models} />
         <CostRankingSection locale={locale} view={data.costRanking} />
         <LiveBenchSection />
         <CalculatorSection locale={locale} calculator={data.calculator} />
-        <PackagesSection locale={locale} packages={data.packages} />
-        <PaymentMarquee locale={locale} methods={data.paymentMethods} />
         <ComparisonSection locale={locale} />
-        <DemoSectionWrapper locale={locale} />
       </main>
       <LandingFooter locale={locale} />
       <ConsentBanner locale={locale} />

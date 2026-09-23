@@ -92,7 +92,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         exact: true,
       },
       // 8b — money ops
-      { id: "adminUsers", href: "/admin/users", labelKey: "adminUsers", icon: "users", enabled: false },
+      { id: "adminUsers", href: "/admin/users", labelKey: "adminUsers", icon: "users", enabled: true },
       { id: "adminCodes", href: "/admin/codes", labelKey: "adminCodes", icon: "codes", enabled: false },
       { id: "adminPackages", href: "/admin/packages", labelKey: "adminPackages", icon: "packages", enabled: false },
       {
