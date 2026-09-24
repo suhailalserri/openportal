@@ -21,7 +21,11 @@
     "MINIO_ENDPOINT",
     "MINIO_ACCESS_KEY",
     "MINIO_SECRET_KEY",
-    "FRONTEND_URL"
+    "FRONTEND_URL",
+    "HIDE_KITCHEN_SINK",
+    "SENTRY_AUTH_TOKEN",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT"
   ],
   "tasks": {
     "build": {
