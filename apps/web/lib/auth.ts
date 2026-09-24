@@ -30,6 +30,57 @@ function generateReferralCode(): string {
   return Array.from(bytes).map((b) => CHARS[b % CHARS.length]).join("");
 }
 
+/**
+ * Google sign-in is optional: with no client id/secret the provider simply
+ * isn't registered (CI, e2e and local runs keep working untouched).
+ */
+const googleClientId     = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+/**
+ * Idempotent per-user setup, run every time a session is created.
+ *
+ * Why it exists: everything that used to happen at signup assumed the
+ * email/password flow — `users.status` was flipped to "active" by
+ * `emailVerification.afterEmailVerification`, and the balances row +
+ * referral code were written from `databaseHooks.user.create.after`. A
+ * Google account never triggers the email-verification hook (Google already
+ * verified the address), so without this its status would stay
+ * "pending_verification" and chat would answer 403. And for social logins
+ * `user.create.after` can run before the user row is visible (the
+ * better-auth#7260 timing issue noted below), so the balances row and
+ * referral code may be missing.
+ *
+ * Safe to run repeatedly, never throws (a failure must not block a login),
+ * and only ever activates a "pending_verification" user whose email is
+ * verified — a suspended user is left suspended.
+ */
+async function ensureUserSetup(userId: string): Promise<void> {
+  try {
+    await db.insert(balances)
+      .values({ userId, credits: SIGNUP_BONUS_MICRO_CREDITS })
+      .onConflictDoNothing();
+
+    const row = await db.query.users.findFirst({
+      where:   eq(users.id, userId),
+      columns: { status: true, emailVerified: true, referralCode: true },
+    });
+    if (!row) return;
+
+    const patch: { status?: "active"; referralCode?: string } = {};
+    if (row.status === "pending_verification" && row.emailVerified) {
+      patch.status = "active";
+    }
+    if (!row.referralCode) patch.referralCode = generateReferralCode();
+
+    if (Object.keys(patch).length > 0) {
+      await db.update(users).set(patch).where(eq(users.id, userId));
+    }
+  } catch (err) {
+    console.error("ensureUserSetup failed (login still succeeds):", err);
+  }
+}
+
 export const auth = betterAuth({
   // Used as the default TOTP issuer name shown in authenticator apps
   // (Google Authenticator, Authy, etc.) for the twoFactor plugin below.
@@ -76,6 +127,15 @@ export const auth = betterAuth({
     // that already gates sign-up behind Turnstile.
   },
 
+  // Google sign-in. Redirect URI to register in Google Cloud Console:
+  //   {BETTER_AUTH_URL}/api/auth/callback/google
+  // Google needs EXACT redirect URIs, so it only works on the production
+  // domain (and localhost), never on per-deployment Vercel preview URLs.
+  socialProviders:
+    googleClientId && googleClientSecret
+      ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+      : {},
+
   session: {
     expiresIn:   60 * 60 * 24 * 7,  // 7 days
     updateAge:   60 * 60 * 24,      // Refresh after 1 day of use
@@ -108,15 +168,29 @@ export const auth = betterAuth({
   // Create the row the moment the user account exists so credits can always
   // land on it later, regardless of verification status.
   databaseHooks: {
+    session: {
+      create: {
+        after: async (session: { userId: string }) => {
+          await ensureUserSetup(session.userId);
+        },
+      },
+    },
     user: {
       create: {
         after: async (
           user: { id: string },
           ctx?: { request?: Request | undefined; headers?: Headers | undefined } | null
         ) => {
-          await db.insert(balances)
-            .values({ userId: user.id, credits: SIGNUP_BONUS_MICRO_CREDITS })
-            .onConflictDoNothing();
+          // Wrapped: for a Google signup this can run before the user row is
+          // committed (FK failure). ensureUserSetup() in the session hook
+          // below creates the row on the first login instead.
+          try {
+            await db.insert(balances)
+              .values({ userId: user.id, credits: SIGNUP_BONUS_MICRO_CREDITS })
+              .onConflictDoNothing();
+          } catch (err) {
+            console.error("Balance row insert deferred to first login:", err);
+          }
 
           // Referral capture (decisions.md ADR-009). Deliberately placed
           // here rather than in `create.before`'s `{ data }` return: this
@@ -124,7 +198,7 @@ export const auth = betterAuth({
           // committed row for email/password signup (see the balances
           // insert immediately above) — the known databaseHooks timing
           // issue (better-auth#7260) is specific to social-login/OAuth,
-          // which this app doesn't use. The `x-referral-code` header
+          // which this app now also uses (Google) — see ensureUserSetup() above. The `x-referral-code` header
           // travels the same way `x-turnstile-token` does below: better-
           // auth's sign-up schema doesn't accept arbitrary extra body
           // fields, so it can't just be a normal field.

@@ -10,8 +10,10 @@ import { z } from "zod";
 
 import { signUp } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
+import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { checkPasswordRules, PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
+import { GoogleSignIn } from "@/components/auth/google-sign-in";
 import { PasswordRuleRow } from "@/components/auth/password-rule-row";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
@@ -47,7 +49,9 @@ function RegisterForm() {
   // Trimmed/uppercased server-side already; sent as-is here.
   const referralCode = searchParams.get("ref");
 
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(
+    searchParams.get("error") ? t("errors.generic") : null
+  );
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -261,6 +265,37 @@ function RegisterForm() {
             </Button>
           </form>
         </Form>
+        <GoogleSignIn
+          callbackURL={resolvePostLoginTarget(null, locale)}
+          errorCallbackURL={`/${locale}/auth/register?error=oauth`}
+          onError={setServerError}
+        />
+        {process.env.NEXT_PUBLIC_GOOGLE_SIGNIN === "true" ? (
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            {t.rich("googleTermsNotice", {
+              terms: (chunks) => (
+                <Link
+                  href={`/${locale}/legal/terms`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2"
+                >
+                  {chunks}
+                </Link>
+              ),
+              privacy: (chunks) => (
+                <Link
+                  href={`/${locale}/legal/privacy`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2"
+                >
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </p>
+        ) : null}
         <p className="mt-4 text-center text-sm text-muted-foreground">
           {t("haveAccount")}{" "}
           <Link href={`/${locale}/auth/login`} className="text-foreground underline underline-offset-4">

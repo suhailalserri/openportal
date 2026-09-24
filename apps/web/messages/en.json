@@ -181,6 +181,7 @@
     "haveAccount": "Already have an account?",
     "noAccount": "Don't have an account?",
     "orContinueWith": "Or continue with",
+    "googleTermsNotice": "By continuing with Google you agree to the <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>.",
     "verifyEmail": "Verify your email",
     "verifyMessage": "We sent a verification link to {email}.",
     "resendVerification": "Resend verification email",

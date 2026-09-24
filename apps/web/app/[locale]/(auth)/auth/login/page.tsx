@@ -12,6 +12,7 @@ import { signIn, twoFactor } from "@/lib/auth-client";
 import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { mapAuthError } from "@/lib/map-auth-error";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
+import { GoogleSignIn } from "@/components/auth/google-sign-in";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -50,7 +51,11 @@ function LoginForm() {
 
   const [step, setStep] = useState<"credentials" | "totp">("credentials");
   const [totpMode, setTotpMode] = useState<"code" | "backup">("code");
-  const [serverError, setServerError] = useState<string | null>(null);
+  // `?error=` is where better-auth sends a failed/cancelled Google flow
+  // (see errorCallbackURL below) — show the generic message for it.
+  const [serverError, setServerError] = useState<string | null>(
+    searchParams.get("error") ? t("errors.generic") : null
+  );
   const [totpSubmitting, setTotpSubmitting] = useState(false);
   const [totpValue, setTotpValue] = useState("");
 
@@ -204,6 +209,11 @@ function LoginForm() {
             </Button>
           </form>
         </Form>
+        <GoogleSignIn
+          callbackURL={resolvePostLoginTarget(next, locale)}
+          errorCallbackURL={`/${locale}/auth/login?error=oauth`}
+          onError={setServerError}
+        />
         <p className="mt-4 text-center text-sm text-muted-foreground">
           {t("noAccount")}{" "}
           <Link href={`/${locale}/auth/register`} className="text-foreground underline underline-offset-4">
