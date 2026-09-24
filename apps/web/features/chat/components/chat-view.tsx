@@ -146,6 +146,23 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
 
   const isBusy = stream.status === "sending" || stream.status === "streaming";
 
+  // Screen-reader announcement (9.1). Deliberately NOT a live region over
+  // the streaming text itself — that would re-read the whole growing
+  // message on every token. Announce once when the reply starts and once
+  // when it finishes; the transcript stays a normal, navigable list.
+  const tLive = useTranslations("chat");
+  const wasBusy = React.useRef(false);
+  const [liveMessage, setLiveMessage] = React.useState("");
+  React.useEffect(() => {
+    if (isBusy) {
+      wasBusy.current = true;
+      setLiveMessage(tLive("thinking"));
+    } else if (wasBusy.current) {
+      wasBusy.current = false;
+      setLiveMessage(tLive("responseReady"));
+    }
+  }, [isBusy, tLive]);
+
   // Redirect on a 401 surfaced mid-stream (use-chat-stream.ts's own
   // contract: this hook never redirects itself). sanitizeNext() is the
   // same gate the login flow itself uses (Rule 4) — an untrusted
@@ -233,6 +250,9 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
     // the "fade" look at its own top/bottom edges rather than a hard
     // padding edge — see that file's header comment.
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {liveMessage}
+      </div>
       <div className="flex flex-col gap-2 px-4">
         <OfflineBanner />
         <TabConflictBanner conversationId={conversationId} isSending={isBusy} />

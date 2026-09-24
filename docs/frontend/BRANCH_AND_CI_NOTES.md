@@ -4951,3 +4951,107 @@ non-production first.
 **Tracker:** `8c` NOT ticked — tick after CI is green (`check`, `web-build`, `i18n-parity`, `api-tests`, `e2e`) and the preview checks below pass.
 
 **Preview checks:** all five pages load in `/ar` and `/en` and appear enabled in the admin nav; logs: filter by user (full UUID) / model / date, "Load more" adds rows with no duplicates; audit: expand a row → before/after diff; models: Sync → toast in the active language, Publish a pending model → row moves to Published, toggle availability; fraud: Resolve removes the row from Unresolved and it shows under Resolved; Clear flag on a real flagged user (use a test account); channels: renders rows if the gateway token is admin-capable, otherwise the gateway's error message + Retry.
+
+---
+
+## Phase 8d — Admin settings decision (D7)
+
+**Decision:** omit, per the plan's default. Recorded as **ADR-010** in `docs/architecture/decisions.md`. Docs-only phase: no code, no nav change (there is no `adminSettings` nav entry and no route to remove), no messages.
+
+**Verified by reading the repo:** `apps/web/app/[locale]/(admin)/admin/` has no `settings` folder; `config/nav.ts` has no settings entry under the admin group.
+
+**Not verified:** nothing executable in this phase. CI is unaffected (no code, no `docs/legal` change).
+
+**Open items logged here so they aren't lost:**
+- **B5** (platform settings + enforcement) — post-cutover backlog; ADR-010 is the revisit trigger.
+- **Manual email confirmation (unplanned, requested during 8c testing):** new `admin.verifyUserEmail` procedure in `apps/api` (sets `email_verified = true` AND `status = 'active'`, writes an `audit_logs` row, with a Testcontainers test) + a "Confirm email manually" button on the admin user detail page and a "Pending verification" filter. Needs its own backend session before the UI. Root cause of the need: Resend delivers only to the account owner until a domain is verified — verifying the sending domain removes the need for day-to-day use. Interim workaround: SQL `UPDATE users SET email_verified = true, status = 'active', updated_at = now() WHERE email = '…';`.
+- The plan's tracker in the uploaded copy of `FRONTEND_REBUILD_PLAN.md` is stale (6.1–8b unticked though code exists). Left untouched.
+
+**Tracker:** `8d` ready to tick (docs-only). `8c` — tick once its CI is green.
+
+---
+
+## Phase 9.1 — Hardening (security headers, RTL, a11y, performance)
+
+**Decision (yours: "whatever is better long-term"):** I edited `headers()` in the frozen `next.config.ts` — not Caddy — because the plan deploys the frontend to Vercel, where Caddy headers wouldn't apply; in-app headers travel with the code. Scope of the edit: the `headers()` list plus a small helper (`buildCsp`, `originOf`) and a `CSP_HEADER_NAME` constant above `nextConfig`; nothing else in the file changed. **Re-freeze `next.config.ts` after this.**
+
+**Built:**
+- Headers: `Referrer-Policy`, `Permissions-Policy` (camera/mic/geolocation off), `Strict-Transport-Security` (1 year, no `includeSubDomains`/preload — deliberately conservative), and a CSP that allows Turnstile (`challenges.cloudflare.com` for script/frame/connect), the API origin from `NEXT_PUBLIC_API_BASE_URL`, `img-src https:` (admin-pasted logos). **Report-Only** until the preview is clean; the enforcing flip is one constant.
+- a11y: screen-reader announcements for chat replies (start + finish) in `chat-view.tsx`; new key `chat.responseReady` (en + ar).
+- Contrast: light-mode primary `#B9791F` → `#98641A` (was 3.61:1 for white-on-gold buttons and 3.28:1 for gold text; now 5.03 / 4.58). Visible brand change; see the checklist for how to revert.
+- `docs/frontend/HARDENING_CHECKLIST.md` — per-page sign-off sheet, CSP verification steps, contrast table, empty budget table.
+
+**Found, no change needed (static):** RTL is already clean — physical-direction classes outside `components/ui` are comments or decorative `magicui`; chevrons have `rtl:rotate-180`.
+
+**Deviations from the plan:**
+- **Budgets not set** — needs a real `next build`; I did not invent numbers. Checklist has the table to fill from the `web-build` log.
+- **`@next/bundle-analyzer` not added** — a new dependency would break CI's frozen lockfile until `pnpm-lock.yaml` is regenerated (`update-lockfile` workflow). Not worth blocking 9.1 on; the `First Load JS` column in the build log gives the same route numbers.
+- **shiki lazy-loading skipped** — repo uses `rehype-highlight`; only worth doing if `/chat` is over budget once measured.
+- **Markdown fixtures not re-reviewed** (listed for a human in the checklist).
+
+**Not verified (no network / node_modules / browser — same as prior sessions):** `tsc`, ESLint, vitest, `next build`, e2e were NOT run. Specifically unverified: (a) the CSP itself — that Turnstile, chat streaming, charts, QR and logos raise zero violations (this is exactly what Report-Only is for); (b) `NEXT_PUBLIC_API_BASE_URL` is set at build/start on the deployment (if unset, `connect-src` omits the API origin and cross-origin chat calls would be reported); (c) the `React.useEffect` live-region announces once per reply under React strict mode; (d) the new primary looks acceptable in light mode; (e) HSTS isn't duplicated by Caddy/Vercel.
+
+**Tracker:** `9.1` NOT ticked — tick after CI is green, the checklist §1 shows zero violations (then flip CSP to enforcing), and §2/§3 human passes are signed off.
+
+---
+
+## Phase 9.2a — E2E critical flows (monitoring/Sentry = 9.2b, not started)
+
+**Unfrozen for this phase (you approved):** the `e2e` job in `.github/workflows/deploy.yml` only. **Re-freeze after.** Changes in that job: a `redis:7-alpine` service; `REDIS_URL` → the real Redis; `GATEWAY_URL` → `http://localhost:4010` (mock); `INTERNAL_API_URL` → `http://localhost:4000` (apps/api); `TURNSTILE_SECRET_KEY` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` → empty (server check no-ops, widget reports a placeholder token — verified in `lib/turnstile-server.ts`, `components/auth/turnstile-widget.tsx`). All other jobs untouched.
+
+**Built (all under `apps/web`):**
+- `e2e/mock-gateway/server.mjs` — zero-dep Node mock of New API: SSE `/v1/chat/completions` (fixed reply "Hello from the mock gateway.", fixed usage 12 in / 6 out), `/v1/models`, `/api/channel/`, `/health`.
+- `playwright.config.ts` — `webServer` is now an array: mock gateway (:4010) → apps/api (:4000, `NODE_ENV` unset so no background workers) → web (:3100).
+- `e2e/support/db.ts` — `psql` helper (no new dependency ⇒ no lockfile change). Specs that need it `test.skip` without `DATABASE_URL`.
+- `e2e/auth.setup.ts` — now also saves `e2e/.auth/user.json` (2 sign-ins per run total).
+- New specs: `chat-stream` (browser → web → API → mock; text streams; exactly one `usage_debit`), `redeem` (seeded `seed-batch` code credits the exact `credit_amount` once; reuse rejected, balance unchanged), `register-login` (real register form → `/auth/verify` → DB-mark-verified → real login → `/chat`), `manual-payment-approve` (SQL-seeded package/method/claim; admin approves via UI with a deliberate **double-click**; balance rises by exactly the package credits once; one `payment` transaction), `admin-role-guard` (signed-out → login; regular user can't stay on `/admin`).
+- New specs set `x-forwarded-for` per file so each has its own better-auth rate-limit bucket (insurance; see the 8c note — that diagnosis was from code, not confirmed).
+
+**Deviations / honest limits:**
+- `register-login` does **not** test email delivery or the verification link — CI has no mailbox; verification is a direct SQL update (same as the manual workaround).
+- `manual-payment-approve` and `redeem` assert balance **deltas** on `user@localhost.dev`: run with `--workers=1` (CI already does) or parallel specs will corrupt each other's deltas.
+- Redeem/manual-payment specs read/write the DB with `psql` → only ever point `DATABASE_URL` at a throwaway database.
+- "Green three runs in a row" is yours to confirm by re-running the job; I can't run CI.
+
+**Verified here:** the mock gateway was started and curled (health, SSE stream shape incl. usage chunk, 401 without a bearer, channel list) and `deploy.yml` parses as YAML with the redis service and new env. **Not verified (no network / node_modules / browser here — same as every prior session):** the specs and the API boot were not executed. Specifically unconfirmed, and the likeliest places for a first-run failure: (a) the API boots with `pnpm --filter @ai-platform/api start` (tsx) under the job env and `/health` answers without extra env; (b) selectors: chat `Type your message...` + `Send`, redeem input/submit/`already been used` alert, register labels/checkbox/`Create Account`, manual-payments row/`Approve` dialog — taken from the en message file and component source, not from a rendered page; (c) the redeem form's submit is enabled with the placeholder Turnstile token; (d) the first message in a brand-new chat may need a model auto-selected before Send is enabled; (e) `dblclick` on a dialog that closes mid-action doesn't error; (f) `payment_id` on the `transactions` row equals the claim id (assertion in the approve spec); (g) `Locator.and()` (Playwright ≥1.34; repo has ^1.48).
+
+**How to run locally:** Postgres + Redis up, `pnpm --filter @ai-platform/db db:migrate` (+ the raw SQL migrations and both seeds, as in the CI job), export the same env as the `e2e` job (with `GATEWAY_URL=http://localhost:4010`, `INTERNAL_API_URL=http://localhost:4000`, empty Turnstile keys, real `REDIS_URL`/`DATABASE_URL`), `pnpm build`, then `pnpm exec playwright test --workers=1` in `apps/web`.
+
+**Tracker:** `9.2` stays open until 9.2b (Sentry) is done and the e2e job is green three runs in a row.
+
+---
+
+## Phase 9.2b — Error monitoring (Sentry)
+
+**Scope source:** the plan has no "9.2b" heading; scope = 9.2a note + plan §9.2 line ("Sentry or similar") + `LAUNCH_CHECKLIST.md` item. The uploaded plan's tracker was stale vs the repo copy; the repo copy was used.
+
+**Unfrozen for this phase (you approved):** `apps/web/next.config.ts`, two edits only — (1) `buildCsp()` `connect-src` now includes the origin of `NEXT_PUBLIC_SENTRY_DSN`; (2) the export is wrapped in `withSentryConfig` **only when `SENTRY_AUTH_TOKEN` is set** (source-map upload), so CI/e2e/local exports are unchanged. **Re-freeze after.** Also touched outside `apps/web` (approved): `.env.example`, `docs/legal/PRIVACY_POLICY.md` (+ synced `apps/web/content/legal/privacy.md`), this file, the plan's 9.2 tracker row.
+
+**Built (`apps/web`):**
+- `lib/monitoring/config.ts` — pure (no SDK import): `isMonitoringEnabled`, `shouldIgnoreError`, `scrubEvent`, `beforeSend`, `procedureFromKey`, `redactText`. Ignores: `AbortError`, `NEXT_REDIRECT/NOT_FOUND`, network drops ("Failed to fetch", "Load failed"), ResizeObserver noise, tRPC UNAUTHORIZED/FORBIDDEN/BAD_REQUEST/NOT_FOUND/CONFLICT/PRECONDITION_FAILED/PAYLOAD_TOO_LARGE/UNPROCESSABLE_CONTENT/TOO_MANY_REQUESTS/CLIENT_CLOSED_REQUEST. Scrubs: cookies, all headers except user-agent/accept-language/content-type, request body, query string and hash (URLs + breadcrumbs), console breadcrumb arguments, user → id only, emails / bearer tokens / redeem-code-shaped strings in messages.
+- `lib/monitoring/report.ts` — `reportError(error, {source, tags})`; never throws; no-op without DSN.
+- `instrumentation.ts` (server + edge init, `onRequestError = Sentry.captureRequestError`), `instrumentation-client.ts` (browser init). Errors only: no replay, no tracing, `sendDefaultPii: false`.
+- `app/global-error.tsx` (new — none existed): static ar+en fallback, inline styles, reports.
+- Edited `components/layout/route-error.tsx` (reports) and `providers/trpc-query-provider.tsx` (Query/MutationCache `onError` → `reportError`; tag = procedure path only).
+- `app/[locale]/dev/monitoring-test/` — 5 checks, gated by `HIDE_KITCHEN_SINK` (now the 4th page on that var; the `HIDE_DEV_PAGES` split is still open).
+- `lib/monitoring/config.test.ts` — 15 cases.
+- `package.json`: `@sentry/nextjs ^10.0.0`.
+
+**Manual steps, in order:**
+1. **Run the `Update Lockfile` workflow on `frontend-v2`.** Until then `check` / `web-build` / `web-unit` fail with `ERR_PNPM_OUTDATED_LOCKFILE`.
+2. Sentry project (Next.js): enable *Prevent Storing of IP Addresses*, keep Data Scrubbing on, set retention ≤ 90 days (the Privacy Policy now says "up to 90 days"; free-plan default is 30).
+3. Vercel env: `NEXT_PUBLIC_SENTRY_DSN` (+ `NEXT_PUBLIC_SENTRY_ENVIRONMENT` = `preview` / `production`) for Preview first; `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` as build-only (no `NEXT_PUBLIC_`). `NEXT_PUBLIC_*` is inlined at build → redeploy after setting.
+4. Preview checks: see "How to verify" in the delivery message.
+
+**Deviations / honest limits:**
+- **Not covered:** `apps/api` (Fastify — where most chat/billing faults originate) and anything caught-and-returned as JSON by `app/api/**` handlers (e.g. `UPSTREAM_UNREACHABLE`) — `onRequestError` only sees unhandled errors. Needs a backend session (B4-style) with its own SDK + `Sentry.setupFastifyErrorHandler`.
+- `useChatStream` failures are user-visible states and are **not** reported (would need an edit inside `features/chat`); candidate follow-up.
+- No `tunnelRoute`: ad-blockers will drop some browser reports. Trade-off chosen to avoid proxying every report through our server.
+- A server-rendered error can appear twice (server via `onRequestError`, client via `route-error`); they share the `digest` tag. Chosen over risking a lost report.
+- `(auth)` and `(public)` groups still have no `error.tsx`; their errors fall to `global-error`. Not changed here.
+- Docker path: `Dockerfile` (frozen) passes no build args, so `NEXT_PUBLIC_SENTRY_DSN` must be present at image build — same limitation as `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Vercel is unaffected.
+- Privacy Policy: added an "Error Monitoring Provider" subsection, two table rows, and bumped "Last Updated" to Sept 24, 2026. §9 promises 14 days' email notice for *material* changes — whether adding a processor counts is your/lawyer's call. `LAUNCH_CHECKLIST.md` monitoring item deliberately **not** ticked until a real DSN is live.
+
+**Verified here:** `config.ts` + `config.test.ts` were executed under Node 22 (type-stripping) with a minimal vitest shim → 15/15 pass; `package.json` parses; `privacy.md` is byte-identical to `docs/legal/PRIVACY_POLICY.md` (what `legal-docs-sync` checks). **Not verified (no network / node_modules / browser — same as every prior session):** `tsc`, ESLint, real vitest, `next build`, e2e; that `@sentry/nextjs@^10` resolves and is compatible with Next 15.5 / React 19 / the pnpm 9 install (its `@sentry/cli` postinstall needs network); that `onRequestError` fires for middleware errors; that the edge bundle of `middleware.ts` stays within the host's size limit with the SDK in `instrumentation.ts`; that the browser SDK sets no cookie/storage (matters for the consent banner copy); that `withSentryConfig` options (`sourcemaps.deleteSourcemapsAfterUpload`, `telemetry`) are valid for the resolved version; that the DSN origin passes the CSP with zero Report-Only violations; that readable stack traces appear in Sentry.
+
+**Tracker:** `9.2` NOT ticked — tick after (a) lockfile regenerated + CI green, (b) the e2e job green three runs in a row (9.2a), (c) preview checks 1–5 pass with a real DSN. `9.1` is also still open (CSP still Report-Only; when you flip it, Sentry is already in `connect-src`).

@@ -136,3 +136,25 @@
   own try/catch that can never block a real signup over a bad/missing
   header or a lookup hiccup — the balances insert above it is
   unconditional and always runs first.
+
+## ADR-010: Admin "Settings" page omitted from v2 (D7)
+- **Date:** Phase 8d
+- **Decision:** The v2 admin panel has no Settings page. There is no
+  `/admin/settings` route, no `adminSettings` entry in
+  `apps/web/config/nav.ts`, and no settings procedures. The legacy page is
+  removed as part of the 9.3 cleanup, not rebuilt.
+- **Reasoning:** The legacy page (finding F12) kept every value in local
+  `useState` — nothing persisted, and no settings table or procedure
+  exists. Controls like "maintenance mode" or "welcome credits" were
+  never enforced anywhere: `/chat` and the sign-up hook do not read them.
+  A page that looks like it works but changes nothing is worse than no
+  page — during an incident an admin could flip "maintenance mode" and
+  believe traffic was blocked.
+- **Trade-off:** Admins cannot change platform-wide behaviour from the UI;
+  those remain code/env changes (`apps/api/src/config.ts`, deploy env).
+- **Mitigation / revisit trigger:** Backlog item B5 — a `platform_settings`
+  table, admin procedures with audit-log rows, and enforcement in `/chat`
+  (maintenance mode) and the sign-up hook (welcome credits), all with
+  Testcontainers tests. Only after B5 is approved does a Settings page come
+  back, post-cutover. Until then no UI may present a setting that the
+  backend does not read.

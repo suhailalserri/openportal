@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, getTRPCClient } from "@/lib/trpc";
 import { isUnauthorizedError } from "@/lib/trpc-error";
+import { procedureFromKey } from "@/lib/monitoring/config";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * Carries over the working tRPC + React Query wiring from the deleted
@@ -27,11 +29,26 @@ import { isUnauthorizedError } from "@/lib/trpc-error";
  * whole route. `retry` mirrors the same narrowing — retrying a 401 up to
  * 3 times before it's rethrown would just add a few hundred ms of visible
  * delay to a failure that is never going to succeed on retry.
+ *
+ * Phase 9.2b: the query/mutation caches report failures that survive all
+ * retries to `reportError`. Expected codes (401/403/400/404/429, aborts,
+ * offline) are dropped inside `reportError`; the tag carries the procedure
+ * path only ("billing.getBalance"), never the input.
  */
 export function TRPCQueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        queryCache: new QueryCache({
+          onError: (error, query) =>
+            reportError(error, {
+              source: "trpc-query",
+              tags: { procedure: procedureFromKey(query.queryKey) ?? "unknown" },
+            }),
+        }),
+        mutationCache: new MutationCache({
+          onError: (error) => reportError(error, { source: "trpc-mutation" }),
+        }),
         defaultOptions: {
           queries: {
             throwOnError: isUnauthorizedError,

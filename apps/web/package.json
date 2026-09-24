@@ -17,6 +17,7 @@
     "@ai-platform/config": "workspace:*",
     "@ai-platform/db": "workspace:*",
     "@ai-platform/types": "workspace:*",
+    "@sentry/nextjs": "^10.0.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-dropdown-menu": "^2.1.0",
     "@radix-ui/react-dialog": "^1.1.0",

@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, LogIn, RotateCw } from "lucide-react";
 
 import { isUnauthorizedError } from "@/lib/trpc-error";
+import { reportError } from "@/lib/monitoring/report";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -27,6 +28,13 @@ import { Button } from "@/components/ui/button";
  * to users never leak stack traces or internal paths. `error.message`/
  * `error.digest` are logged to the console for local debugging only —
  * never rendered.
+ *
+ * Phase 9.2b: the error is also handed to `reportError` (no-op without a
+ * DSN; expired-session 401s and other expected errors are filtered there).
+ * Next does NOT forward errors caught by an error.tsx to Sentry on its own.
+ * A server-rendered error reaches here with only a `digest`; the real
+ * message was already captured server-side by `onRequestError`, so the same
+ * failure can appear twice — the shared `digest` tag links the two.
  */
 export function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const t = useTranslations("errors");
@@ -37,6 +45,7 @@ export function RouteError({ error, reset }: { error: Error & { digest?: string 
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error(error);
+    reportError(error, { source: "route-error" });
   }, [error]);
 
   if (isUnauthorizedError(error)) {
