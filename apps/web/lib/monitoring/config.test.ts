@@ -125,8 +125,8 @@ describe("scrubEvent", () => {
     expect(e.request.url).toBe("https://x.test/en/billing");
     expect(Object.keys(e.request.headers).sort()).toEqual(["Accept-Language", "User-Agent"]);
     expect(e.user).toEqual({ id: "42" });
-    expect(e.breadcrumbs[1].data).toEqual({ url: "/api/redeem" });
-    expect(e.breadcrumbs[2].data).toEqual({ from: "/a", to: "/c" });
+    expect(e.breadcrumbs[1]?.data).toEqual({ url: "/api/redeem" });
+    expect(e.breadcrumbs[2]?.data).toEqual({ from: "/a", to: "/c" });
   });
 
   it("removes a user object that has no id", () => {
