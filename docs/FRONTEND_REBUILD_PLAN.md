@@ -150,7 +150,7 @@ Each feature folder follows the New API convention: `components/ hooks/ lib/ typ
 | 8c | Admin: ops (models, channels, fraud, logs, audit) | [ ] |
 | 8d | Admin: settings decision | [ ] |
 | 9.1 | Hardening: RTL, a11y, perf, security | [ ] |
-| 9.2 | E2E + monitoring | [ ] |
+| 9.2 | E2E + monitoring | [ ] 9.2a + 9.2b delivered — pending CI (lockfile regen, e2e ×3) + Sentry preview check |
 | 9.3 | Cutover + cleanup | [ ] |
 
 ~28 sessions. Backend sessions (B*) run just before the phase that needs them.

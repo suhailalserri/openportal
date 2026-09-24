@@ -1,9 +1,20 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 /**
+ * Phase 9.2b — UNFROZEN for two small edits, then re-frozen:
+ *   1. `buildCsp()` connect-src also allows the origin of
+ *      NEXT_PUBLIC_SENTRY_DSN. Without it, flipping the CSP below to
+ *      enforcing would silently block every Sentry report.
+ *   2. The export is wrapped in `withSentryConfig` ONLY when
+ *      SENTRY_AUTH_TOKEN is set (source-map upload). CI, e2e and local
+ *      builds have no token, so they export exactly what they did before.
+ * The Sentry ingest origin is derived from the DSN, never hard-coded, so
+ * EU/US/self-hosted projects all work.
+ *
  * Phase 9.1 — only the `headers()` block below was edited (the rest of
  * this file stays frozen). See docs/frontend/HARDENING_CHECKLIST.md.
  *
@@ -34,6 +45,7 @@ function originOf(url: string | undefined): string | null {
 function buildCsp(): string {
   const isDev = process.env.NODE_ENV !== "production";
   const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_BASE_URL);
+  const sentryOrigin = originOf(process.env.NEXT_PUBLIC_SENTRY_DSN);
   const turnstile = "https://challenges.cloudflare.com";
   return [
     "default-src 'self'",
@@ -41,7 +53,7 @@ function buildCsp(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${apiOrigin ?? ""} ${turnstile}`.replace(/\s+/g, " ").trim(),
+    `connect-src 'self' ${apiOrigin ?? ""} ${sentryOrigin ?? ""} ${turnstile}`.replace(/\s+/g, " ").trim(),
     `frame-src ${turnstile}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
@@ -77,4 +89,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+const withIntl = withNextIntl(nextConfig);
+
+export default process.env.SENTRY_AUTH_TOKEN
+  ? withSentryConfig(withIntl, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      telemetry: false,
+      // Upload a wider set of client files so more stack frames resolve.
+      widenClientFileUpload: true,
+      // Maps are uploaded, then removed from the build output (not served).
+      sourcemaps: { deleteSourcemapsAfterUpload: true },
+      // No tunnelRoute: it would proxy every report through our server.
+    })
+  : withIntl;

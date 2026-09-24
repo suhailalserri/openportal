@@ -5018,3 +5018,40 @@ non-production first.
 **How to run locally:** Postgres + Redis up, `pnpm --filter @ai-platform/db db:migrate` (+ the raw SQL migrations and both seeds, as in the CI job), export the same env as the `e2e` job (with `GATEWAY_URL=http://localhost:4010`, `INTERNAL_API_URL=http://localhost:4000`, empty Turnstile keys, real `REDIS_URL`/`DATABASE_URL`), `pnpm build`, then `pnpm exec playwright test --workers=1` in `apps/web`.
 
 **Tracker:** `9.2` stays open until 9.2b (Sentry) is done and the e2e job is green three runs in a row.
+
+---
+
+## Phase 9.2b — Error monitoring (Sentry)
+
+**Scope source:** the plan has no "9.2b" heading; scope = 9.2a note + plan §9.2 line ("Sentry or similar") + `LAUNCH_CHECKLIST.md` item. The uploaded plan's tracker was stale vs the repo copy; the repo copy was used.
+
+**Unfrozen for this phase (you approved):** `apps/web/next.config.ts`, two edits only — (1) `buildCsp()` `connect-src` now includes the origin of `NEXT_PUBLIC_SENTRY_DSN`; (2) the export is wrapped in `withSentryConfig` **only when `SENTRY_AUTH_TOKEN` is set** (source-map upload), so CI/e2e/local exports are unchanged. **Re-freeze after.** Also touched outside `apps/web` (approved): `.env.example`, `docs/legal/PRIVACY_POLICY.md` (+ synced `apps/web/content/legal/privacy.md`), this file, the plan's 9.2 tracker row.
+
+**Built (`apps/web`):**
+- `lib/monitoring/config.ts` — pure (no SDK import): `isMonitoringEnabled`, `shouldIgnoreError`, `scrubEvent`, `beforeSend`, `procedureFromKey`, `redactText`. Ignores: `AbortError`, `NEXT_REDIRECT/NOT_FOUND`, network drops ("Failed to fetch", "Load failed"), ResizeObserver noise, tRPC UNAUTHORIZED/FORBIDDEN/BAD_REQUEST/NOT_FOUND/CONFLICT/PRECONDITION_FAILED/PAYLOAD_TOO_LARGE/UNPROCESSABLE_CONTENT/TOO_MANY_REQUESTS/CLIENT_CLOSED_REQUEST. Scrubs: cookies, all headers except user-agent/accept-language/content-type, request body, query string and hash (URLs + breadcrumbs), console breadcrumb arguments, user → id only, emails / bearer tokens / redeem-code-shaped strings in messages.
+- `lib/monitoring/report.ts` — `reportError(error, {source, tags})`; never throws; no-op without DSN.
+- `instrumentation.ts` (server + edge init, `onRequestError = Sentry.captureRequestError`), `instrumentation-client.ts` (browser init). Errors only: no replay, no tracing, `sendDefaultPii: false`.
+- `app/global-error.tsx` (new — none existed): static ar+en fallback, inline styles, reports.
+- Edited `components/layout/route-error.tsx` (reports) and `providers/trpc-query-provider.tsx` (Query/MutationCache `onError` → `reportError`; tag = procedure path only).
+- `app/[locale]/dev/monitoring-test/` — 5 checks, gated by `HIDE_KITCHEN_SINK` (now the 4th page on that var; the `HIDE_DEV_PAGES` split is still open).
+- `lib/monitoring/config.test.ts` — 15 cases.
+- `package.json`: `@sentry/nextjs ^10.0.0`.
+
+**Manual steps, in order:**
+1. **Run the `Update Lockfile` workflow on `frontend-v2`.** Until then `check` / `web-build` / `web-unit` fail with `ERR_PNPM_OUTDATED_LOCKFILE`.
+2. Sentry project (Next.js): enable *Prevent Storing of IP Addresses*, keep Data Scrubbing on, set retention ≤ 90 days (the Privacy Policy now says "up to 90 days"; free-plan default is 30).
+3. Vercel env: `NEXT_PUBLIC_SENTRY_DSN` (+ `NEXT_PUBLIC_SENTRY_ENVIRONMENT` = `preview` / `production`) for Preview first; `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` as build-only (no `NEXT_PUBLIC_`). `NEXT_PUBLIC_*` is inlined at build → redeploy after setting.
+4. Preview checks: see "How to verify" in the delivery message.
+
+**Deviations / honest limits:**
+- **Not covered:** `apps/api` (Fastify — where most chat/billing faults originate) and anything caught-and-returned as JSON by `app/api/**` handlers (e.g. `UPSTREAM_UNREACHABLE`) — `onRequestError` only sees unhandled errors. Needs a backend session (B4-style) with its own SDK + `Sentry.setupFastifyErrorHandler`.
+- `useChatStream` failures are user-visible states and are **not** reported (would need an edit inside `features/chat`); candidate follow-up.
+- No `tunnelRoute`: ad-blockers will drop some browser reports. Trade-off chosen to avoid proxying every report through our server.
+- A server-rendered error can appear twice (server via `onRequestError`, client via `route-error`); they share the `digest` tag. Chosen over risking a lost report.
+- `(auth)` and `(public)` groups still have no `error.tsx`; their errors fall to `global-error`. Not changed here.
+- Docker path: `Dockerfile` (frozen) passes no build args, so `NEXT_PUBLIC_SENTRY_DSN` must be present at image build — same limitation as `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Vercel is unaffected.
+- Privacy Policy: added an "Error Monitoring Provider" subsection, two table rows, and bumped "Last Updated" to Sept 24, 2026. §9 promises 14 days' email notice for *material* changes — whether adding a processor counts is your/lawyer's call. `LAUNCH_CHECKLIST.md` monitoring item deliberately **not** ticked until a real DSN is live.
+
+**Verified here:** `config.ts` + `config.test.ts` were executed under Node 22 (type-stripping) with a minimal vitest shim → 15/15 pass; `package.json` parses; `privacy.md` is byte-identical to `docs/legal/PRIVACY_POLICY.md` (what `legal-docs-sync` checks). **Not verified (no network / node_modules / browser — same as every prior session):** `tsc`, ESLint, real vitest, `next build`, e2e; that `@sentry/nextjs@^10` resolves and is compatible with Next 15.5 / React 19 / the pnpm 9 install (its `@sentry/cli` postinstall needs network); that `onRequestError` fires for middleware errors; that the edge bundle of `middleware.ts` stays within the host's size limit with the SDK in `instrumentation.ts`; that the browser SDK sets no cookie/storage (matters for the consent banner copy); that `withSentryConfig` options (`sourcemaps.deleteSourcemapsAfterUpload`, `telemetry`) are valid for the resolved version; that the DSN origin passes the CSP with zero Report-Only violations; that readable stack traces appear in Sentry.
+
+**Tracker:** `9.2` NOT ticked — tick after (a) lockfile regenerated + CI green, (b) the e2e job green three runs in a row (9.2a), (c) preview checks 1–5 pass with a real DSN. `9.1` is also still open (CSP still Report-Only; when you flip it, Sentry is already in `connect-src`).

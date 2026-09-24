@@ -1,6 +1,6 @@
 # Privacy Policy — AI Platform / منصة الذكاء الاصطناعي
 
-**Last Updated:** June 18, 2026
+**Last Updated:** September 24, 2026
 
 ---
 
@@ -22,6 +22,7 @@
 - IP address (for security and fraud prevention)
 - Browser type and device information (User-Agent)
 - Login timestamps
+- Automatic error reports when the app fails (page path, browser type, technical error details; see Section 3)
 
 ---
 
@@ -33,6 +34,7 @@
 | Conversations | Delivering AI responses, storing your history |
 | Usage logs | Billing accuracy, fraud prevention |
 | IP address | Security, fraud detection, rate limiting |
+| Error reports | Finding and fixing technical faults |
 
 ---
 
@@ -51,6 +53,14 @@ email address or account details with AI providers.
 
 **We do NOT use your conversations to train AI models.**
 
+### Error Monitoring Provider
+
+When the app fails, an automatic error report may be sent to **Sentry** (sentry.io/privacy)
+so we can fix the problem. A report contains technical details only: the page path, browser
+and device type, and the technical trace of the error. It may also include your IP address as
+seen by Sentry's servers. We configure it to exclude your messages, cookies and request
+contents, and we do not use it for advertising or tracking.
+
 ---
 
 ## 4. Data Retention
@@ -62,6 +72,7 @@ email address or account details with AI providers.
 | Conversations (paid users) | 12 months |
 | Transaction records | 5 years (legal requirement) |
 | System logs | 30 days |
+| Error reports | Up to 90 days |
 | IP addresses | 90 days |
 
 ---
