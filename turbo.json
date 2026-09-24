@@ -25,7 +25,10 @@
     "HIDE_KITCHEN_SINK",
     "SENTRY_AUTH_TOKEN",
     "SENTRY_ORG",
-    "SENTRY_PROJECT"
+    "SENTRY_PROJECT",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "NEXT_PUBLIC_GOOGLE_SIGNIN"
   ],
   "tasks": {
     "build": {

@@ -181,6 +181,7 @@
     "haveAccount": "لديك حساب؟",
     "noAccount": "ليس لديك حساب؟",
     "orContinueWith": "أو تابع بـ",
+    "googleTermsNotice": "بالمتابعة عبر Google فإنك توافق على <terms>شروط الخدمة</terms> و<privacy>سياسة الخصوصية</privacy>.",
     "verifyEmail": "تأكيد البريد الإلكتروني",
     "verifyMessage": "أرسلنا رابط تأكيد إلى {email}. تحقق من بريدك الإلكتروني.",
     "resendVerification": "إعادة إرسال رابط التأكيد",
