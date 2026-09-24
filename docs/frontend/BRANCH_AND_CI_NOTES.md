@@ -5079,3 +5079,13 @@ non-production first.
 **Benign warning, no action:** `Critical dependency: require function is used in a way in which dependencies cannot be statically extracted` from `require-in-the-middle` via `@sentry/node` — a known Sentry + Next server-bundle warning; the build still compiles ("Compiled with warnings").
 
 **Not verified:** that the override + fresh lockfile removes the duplicate (still unrun); that source maps upload once the token reaches the build (check the Vercel log for Sentry upload lines and readable stacks in an event).
+
+### 9.2b follow-up 3 — GitHub Actions `Web Build` shows the same duplicate `drizzle-orm`
+
+**What CI showed:** `Web Build (next build)` failed at the identical type error (`app/api/admin/fraud/[id]/resolve/route.ts:17`, `...@opentelemetry+api@1.9.0_...` vs `...@1.9.1_...`); `E2E` failed too (it needs the same build); `API Tests`, `Web Unit Tests`, `i18n`, `Legal Docs` green. The log alone cannot show whether the earlier override was in that run.
+
+**Likely mechanism (inferred from the dirnames, not verified):** every peer of `drizzle-orm` (`kysely`, `react`, `@types/react`, `postgres`, `@opentelemetry/api`) appears in the instance key, so pnpm is auto-installing peers per importer. `apps/web` already had `@opentelemetry/api@1.9.0` in its graph and reused it; `packages/db` had none and got the newest, `1.9.1`. An override alone may not be honoured for an auto-installed peer.
+
+**Change (belt and braces):** the root `package.json` now ALSO lists `"@opentelemetry/api": "1.9.0"` in `devDependencies`. pnpm resolves every workspace project's peers from the workspace root's dependencies (`resolve-peers-from-workspace-root`, default on since pnpm 8), so all three drizzle importers (`apps/web`, `apps/api`, `packages/db`) get the same version regardless of what else is in their graphs. The `pnpm.overrides` entry stays. **Requires regenerating `pnpm-lock.yaml`.**
+
+**Check after the lockfile regen:** in `pnpm-lock.yaml` search `drizzle-orm@0.31.4_` — exactly one distinct suffix should remain, containing `@opentelemetry+api@1.9.0`. **Not verified:** everything above (cannot run pnpm here).
