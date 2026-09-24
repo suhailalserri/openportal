@@ -1,5 +1,6 @@
 import { createAuthClient }  from "better-auth/react";
 import { twoFactorClient }   from "better-auth/client/plugins";
+import { passkeyClient }     from "@better-auth/passkey/client";
 
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined"
@@ -10,7 +11,7 @@ export const authClient = createAuthClient({
   // the login page checks `result.data?.twoFactorRedirect` on the sign-in
   // call itself and swaps to an inline code-entry step, rather than
   // navigating to a separate route.
-  plugins: [twoFactorClient()],
+  plugins: [twoFactorClient(), passkeyClient()],
 });
 
 export const {

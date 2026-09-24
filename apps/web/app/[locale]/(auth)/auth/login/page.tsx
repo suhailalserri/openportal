@@ -13,6 +13,7 @@ import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { mapAuthError } from "@/lib/map-auth-error";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
+import { PasskeySignIn } from "@/components/auth/passkey-sign-in";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -210,6 +211,7 @@ function LoginForm() {
             </Button>
           </form>
         </Form>
+        <PasskeySignIn onSuccess={finishLogin} onError={setServerError} />
         <GoogleSignIn
           callbackURL={resolvePostLoginTarget(next, locale)}
           errorCallbackURL={`/${locale}/auth/login?error=oauth`}

@@ -2,10 +2,12 @@ import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { twoFactor }       from "better-auth/plugins";
+import { passkey }          from "@better-auth/passkey";
 import { db }              from "@ai-platform/db";
 import {
   users, sessions, accounts, verifications, balances,
   twoFactor as twoFactorTable,
+  passkeys as passkeyTable,
 } from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
 import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
@@ -29,6 +31,27 @@ function generateReferralCode(): string {
   crypto.getRandomValues(bytes);
   return Array.from(bytes).map((b) => CHARS[b % CHARS.length]).join("");
 }
+
+// Same expression the `baseURL` option used inline before; hoisted so the
+// passkey plugin below derives its relying-party id / origin from it too.
+const appBaseUrl = (
+  process.env.BETTER_AUTH_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+).replace(/\/$/, "");
+
+// Passkeys are cryptographically bound to this domain (the WebAuthn "RP ID").
+// A passkey registered on one domain never works on another, and moving to a
+// new domain later orphans every registered passkey — set PASSKEY_RP_ID (or
+// BETTER_AUTH_URL) to the production domain you intend to keep. Per-deployment
+// Vercel preview URLs can't use passkeys for the same reason.
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "localhost"; // a malformed BETTER_AUTH_URL must not crash module load
+  }
+}
+const passkeyRpId = process.env.PASSKEY_RP_ID || hostnameOf(appBaseUrl);
 
 /**
  * Google sign-in is optional: with no client id/secret the provider simply
@@ -138,8 +161,7 @@ export const auth = betterAuth({
   // http://localhost:3000 instead of failing loudly. Setting it explicitly,
   // with the same VERCEL_URL fallback used below in trustedOrigins, means a
   // missing env var degrades to *this* deployment's real URL instead.
-  baseURL: process.env.BETTER_AUTH_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
+  baseURL: appBaseUrl,
 
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -158,6 +180,9 @@ export const auth = betterAuth({
       // match exactly, same rule as user/session/account/verification
       // above. See packages/db/src/schema/two-factor.ts for the table.
       twoFactor:    twoFactorTable,
+      // Passkey plugin's canonical model name; table in
+      // packages/db/src/schema/passkey.ts (migration 0011_passkey.sql).
+      passkey:      passkeyTable,
     },
   }),
 
@@ -389,7 +414,14 @@ export const auth = betterAuth({
   // so no `user.fields` remapping is needed for it (unlike displayName/
   // avatarUrl below); the secret/backup codes live in the separate
   // `twoFactor` table mapped above.
-  plugins: [twoFactor()],
+  plugins: [
+    twoFactor(),
+    passkey({
+      rpID:   passkeyRpId,
+      rpName: "OpenPortal",
+      origin: appBaseUrl,
+    }),
+  ],
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {

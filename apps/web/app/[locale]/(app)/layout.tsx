@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { PasskeyOfferDialog } from "@/components/auth/passkey-offer-dialog";
 import { AppShell } from "@/components/layout/app-shell";
 import { decideAppGuard, getSessionRole } from "@/lib/guards";
 import { getRequestPath, getServerSession } from "@/lib/session";
@@ -25,5 +26,12 @@ export default async function AppLayout({ children, params }: Props) {
   const decision = decideAppGuard({ locale, session, requestPath });
   if (decision.action === "redirect") redirect(decision.to);
 
-  return <AppShell role={getSessionRole(session)}>{children}</AppShell>;
+  return (
+    <>
+      <AppShell role={getSessionRole(session)}>{children}</AppShell>
+      {/* One-time "set up a passkey?" card for brand-new accounts. Client
+          component; renders nothing unless passkeys are enabled. */}
+      <PasskeyOfferDialog />
+    </>
+  );
 }
