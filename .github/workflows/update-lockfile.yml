@@ -4,6 +4,11 @@ name: Update Lockfile
 # starts failing with ERR_PNPM_OUTDATED_LOCKFILE.
 on:
   workflow_dispatch:
+    inputs:
+      fresh:
+        description: "Delete pnpm-lock.yaml first and resolve everything from scratch"
+        type: boolean
+        default: false
 
 jobs:
   update-lockfile:
@@ -33,8 +38,28 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Delete old lockfile (only when "fresh" is ticked)
+        if: ${{ inputs.fresh }}
+        run: rm -f pnpm-lock.yaml
+
       - name: Install without cache (regenerates lockfile)
         run: pnpm install --no-frozen-lockfile
+
+      # Collapses any package that ended up resolved twice.
+      - name: Dedupe
+        run: pnpm dedupe
+
+      # Fails the job (before anything is committed) if drizzle-orm is still
+      # split across peer-dependency variants, which is what breaks type-check.
+      - name: Verify a single drizzle-orm copy
+        run: |
+          echo "drizzle-orm variants in lockfile:"
+          grep -E "^  drizzle-orm@0\.31\.4\(" pnpm-lock.yaml || true
+          count=$(grep -cE "^  drizzle-orm@0\.31\.4\(" pnpm-lock.yaml || true)
+          if [ "$count" != "1" ]; then
+            echo "::error::Expected exactly 1 drizzle-orm variant, found $count. Re-run with 'fresh' ticked."
+            exit 1
+          fi
 
       - name: Commit updated lockfile
         run: |

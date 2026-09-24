@@ -91,11 +91,17 @@ const nextConfig: NextConfig = {
 
 const withIntl = withNextIntl(nextConfig);
 
-export default process.env.SENTRY_AUTH_TOKEN
+// tsconfig.base.json sets exactOptionalPropertyTypes, so an optional Sentry
+// option must be ABSENT rather than `undefined` — hence the conditional spreads.
+const sentryToken = process.env.SENTRY_AUTH_TOKEN;
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+
+export default sentryToken
   ? withSentryConfig(withIntl, {
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
+      ...(sentryOrg ? { org: sentryOrg } : {}),
+      ...(sentryProject ? { project: sentryProject } : {}),
+      authToken: sentryToken,
       silent: !process.env.CI,
       telemetry: false,
       // Upload a wider set of client files so more stack frames resolve.

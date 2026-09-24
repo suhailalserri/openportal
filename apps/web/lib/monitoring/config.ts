@@ -23,8 +23,10 @@ function isObject(value: unknown): value is Loose {
   return typeof value === "object" && value !== null;
 }
 
-/** DSN is public by design (NEXT_PUBLIC_*). Unset/malformed ⇒ monitoring off. */
-export function isMonitoringEnabled(dsn: string | undefined | null): boolean {
+/** DSN is public by design (NEXT_PUBLIC_*). Unset/malformed ⇒ monitoring off.
+ * Type predicate so callers can pass the narrowed `string` to Sentry.init
+ * (exactOptionalPropertyTypes rejects `string | undefined` for `dsn?: string`). */
+export function isMonitoringEnabled(dsn: string | undefined | null): dsn is string {
   if (typeof dsn !== "string" || dsn.trim() === "") return false;
   try {
     return new URL(dsn.trim()).protocol === "https:";
