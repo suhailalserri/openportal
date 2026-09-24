@@ -38,6 +38,36 @@ const googleClientId     = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 /**
+ * Google signups can't send the `x-referral-code` header the email flow uses
+ * (the account is created in the OAuth callback — a plain browser redirect
+ * back from Google, with no custom headers). The register page instead
+ * drops the code into a short-lived `ref_code` cookie just before the
+ * redirect to Google (see components/auth/google-sign-in.tsx), and it comes
+ * back on the callback request. Validated to the referral-code alphabet and
+ * length so a tampered cookie can't inject anything.
+ */
+function readReferralCookie(headers: Headers | null | undefined): string | null {
+  const raw = headers?.get("cookie");
+  if (!raw) return null;
+  for (const part of raw.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name !== "ref_code") continue;
+    try {
+      const value = decodeURIComponent(rest.join("=")).trim().toUpperCase();
+      return /^[A-Z0-9]{4,12}$/.test(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// A referral may only be attributed to an account created moments ago —
+// otherwise an existing user could "adopt" a referrer just by logging in
+// through a ?ref= link.
+const REFERRAL_WINDOW_MS = 10 * 60 * 1000;
+
+/**
  * Idempotent per-user setup, run every time a session is created.
  *
  * Why it exists: everything that used to happen at signup assumed the
@@ -55,7 +85,7 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
  * and only ever activates a "pending_verification" user whose email is
  * verified — a suspended user is left suspended.
  */
-async function ensureUserSetup(userId: string): Promise<void> {
+async function ensureUserSetup(userId: string, headers?: Headers | null): Promise<void> {
   try {
     await db.insert(balances)
       .values({ userId, credits: SIGNUP_BONUS_MICRO_CREDITS })
@@ -63,15 +93,30 @@ async function ensureUserSetup(userId: string): Promise<void> {
 
     const row = await db.query.users.findFirst({
       where:   eq(users.id, userId),
-      columns: { status: true, emailVerified: true, referralCode: true },
+      columns: {
+        status: true, emailVerified: true, referralCode: true,
+        referredByUserId: true, createdAt: true,
+      },
     });
     if (!row) return;
 
-    const patch: { status?: "active"; referralCode?: string } = {};
+    const patch: { status?: "active"; referralCode?: string; referredByUserId?: string } = {};
     if (row.status === "pending_verification" && row.emailVerified) {
       patch.status = "active";
     }
     if (!row.referralCode) patch.referralCode = generateReferralCode();
+
+    // Referral attribution for social signups (see readReferralCookie).
+    if (!row.referredByUserId && row.createdAt.getTime() > Date.now() - REFERRAL_WINDOW_MS) {
+      const refCode = readReferralCookie(headers);
+      if (refCode) {
+        const referrer = await db.query.users.findFirst({
+          where:   eq(users.referralCode, refCode),
+          columns: { id: true },
+        });
+        if (referrer && referrer.id !== userId) patch.referredByUserId = referrer.id;
+      }
+    }
 
     if (Object.keys(patch).length > 0) {
       await db.update(users).set(patch).where(eq(users.id, userId));
@@ -170,8 +215,11 @@ export const auth = betterAuth({
   databaseHooks: {
     session: {
       create: {
-        after: async (session: { userId: string }) => {
-          await ensureUserSetup(session.userId);
+        after: async (
+          session: { userId: string },
+          ctx?: { request?: Request | undefined; headers?: Headers | undefined } | null
+        ) => {
+          await ensureUserSetup(session.userId, ctx?.headers ?? ctx?.request?.headers);
         },
       },
     },

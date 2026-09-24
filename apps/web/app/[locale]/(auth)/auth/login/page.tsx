@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const credentialsSchema = z.object({
   email: z.string().min(1).email(),
@@ -198,7 +199,7 @@ function LoginForm() {
                     </Link>
                   </div>
                   <FormControl>
-                    <Input type="password" autoComplete="current-password" {...field} />
+                    <PasswordInput autoComplete="current-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
