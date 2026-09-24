@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const registerSchema = z.object({
   email:           z.string().min(1).email(),
@@ -176,7 +177,7 @@ function RegisterForm() {
                 <FormItem>
                   <FormLabel>{t("password")}</FormLabel>
                   <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   {/* Live checklist mirroring the server's rules (lib/auth.ts,
                       frozen) — see lib/password-rules.ts for why this is a
@@ -200,7 +201,7 @@ function RegisterForm() {
                 <FormItem>
                   <FormLabel>{t("confirmPassword")}</FormLabel>
                   <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -268,6 +269,7 @@ function RegisterForm() {
         <GoogleSignIn
           callbackURL={resolvePostLoginTarget(null, locale)}
           errorCallbackURL={`/${locale}/auth/register?error=oauth`}
+          referralCode={referralCode}
           onError={setServerError}
         />
         {process.env.NEXT_PUBLIC_GOOGLE_SIGNIN === "true" ? (

@@ -2,10 +2,12 @@ import { betterAuth }      from "better-auth";
 import { drizzleAdapter }  from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { twoFactor }       from "better-auth/plugins";
+import { passkey }          from "@better-auth/passkey";
 import { db }              from "@ai-platform/db";
 import {
   users, sessions, accounts, verifications, balances,
   twoFactor as twoFactorTable,
+  passkeys as passkeyTable,
 } from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
 import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
@@ -30,12 +32,63 @@ function generateReferralCode(): string {
   return Array.from(bytes).map((b) => CHARS[b % CHARS.length]).join("");
 }
 
+// Same expression the `baseURL` option used inline before; hoisted so the
+// passkey plugin below derives its relying-party id / origin from it too.
+const appBaseUrl = (
+  process.env.BETTER_AUTH_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+).replace(/\/$/, "");
+
+// Passkeys are cryptographically bound to this domain (the WebAuthn "RP ID").
+// A passkey registered on one domain never works on another, and moving to a
+// new domain later orphans every registered passkey — set PASSKEY_RP_ID (or
+// BETTER_AUTH_URL) to the production domain you intend to keep. Per-deployment
+// Vercel preview URLs can't use passkeys for the same reason.
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "localhost"; // a malformed BETTER_AUTH_URL must not crash module load
+  }
+}
+const passkeyRpId = process.env.PASSKEY_RP_ID || hostnameOf(appBaseUrl);
+
 /**
  * Google sign-in is optional: with no client id/secret the provider simply
  * isn't registered (CI, e2e and local runs keep working untouched).
  */
 const googleClientId     = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+/**
+ * Google signups can't send the `x-referral-code` header the email flow uses
+ * (the account is created in the OAuth callback — a plain browser redirect
+ * back from Google, with no custom headers). The register page instead
+ * drops the code into a short-lived `ref_code` cookie just before the
+ * redirect to Google (see components/auth/google-sign-in.tsx), and it comes
+ * back on the callback request. Validated to the referral-code alphabet and
+ * length so a tampered cookie can't inject anything.
+ */
+function readReferralCookie(headers: Headers | null | undefined): string | null {
+  const raw = headers?.get("cookie");
+  if (!raw) return null;
+  for (const part of raw.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name !== "ref_code") continue;
+    try {
+      const value = decodeURIComponent(rest.join("=")).trim().toUpperCase();
+      return /^[A-Z0-9]{4,12}$/.test(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// A referral may only be attributed to an account created moments ago —
+// otherwise an existing user could "adopt" a referrer just by logging in
+// through a ?ref= link.
+const REFERRAL_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * Idempotent per-user setup, run every time a session is created.
@@ -55,7 +108,7 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
  * and only ever activates a "pending_verification" user whose email is
  * verified — a suspended user is left suspended.
  */
-async function ensureUserSetup(userId: string): Promise<void> {
+async function ensureUserSetup(userId: string, headers?: Headers | null): Promise<void> {
   try {
     await db.insert(balances)
       .values({ userId, credits: SIGNUP_BONUS_MICRO_CREDITS })
@@ -63,15 +116,30 @@ async function ensureUserSetup(userId: string): Promise<void> {
 
     const row = await db.query.users.findFirst({
       where:   eq(users.id, userId),
-      columns: { status: true, emailVerified: true, referralCode: true },
+      columns: {
+        status: true, emailVerified: true, referralCode: true,
+        referredByUserId: true, createdAt: true,
+      },
     });
     if (!row) return;
 
-    const patch: { status?: "active"; referralCode?: string } = {};
+    const patch: { status?: "active"; referralCode?: string; referredByUserId?: string } = {};
     if (row.status === "pending_verification" && row.emailVerified) {
       patch.status = "active";
     }
     if (!row.referralCode) patch.referralCode = generateReferralCode();
+
+    // Referral attribution for social signups (see readReferralCookie).
+    if (!row.referredByUserId && row.createdAt.getTime() > Date.now() - REFERRAL_WINDOW_MS) {
+      const refCode = readReferralCookie(headers);
+      if (refCode) {
+        const referrer = await db.query.users.findFirst({
+          where:   eq(users.referralCode, refCode),
+          columns: { id: true },
+        });
+        if (referrer && referrer.id !== userId) patch.referredByUserId = referrer.id;
+      }
+    }
 
     if (Object.keys(patch).length > 0) {
       await db.update(users).set(patch).where(eq(users.id, userId));
@@ -93,8 +161,7 @@ export const auth = betterAuth({
   // http://localhost:3000 instead of failing loudly. Setting it explicitly,
   // with the same VERCEL_URL fallback used below in trustedOrigins, means a
   // missing env var degrades to *this* deployment's real URL instead.
-  baseURL: process.env.BETTER_AUTH_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
+  baseURL: appBaseUrl,
 
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -113,6 +180,9 @@ export const auth = betterAuth({
       // match exactly, same rule as user/session/account/verification
       // above. See packages/db/src/schema/two-factor.ts for the table.
       twoFactor:    twoFactorTable,
+      // Passkey plugin's canonical model name; table in
+      // packages/db/src/schema/passkey.ts (migration 0011_passkey.sql).
+      passkey:      passkeyTable,
     },
   }),
 
@@ -170,8 +240,11 @@ export const auth = betterAuth({
   databaseHooks: {
     session: {
       create: {
-        after: async (session: { userId: string }) => {
-          await ensureUserSetup(session.userId);
+        after: async (
+          session: { userId: string },
+          ctx?: { request?: Request | undefined; headers?: Headers | undefined } | null
+        ) => {
+          await ensureUserSetup(session.userId, ctx?.headers ?? ctx?.request?.headers);
         },
       },
     },
@@ -341,7 +414,14 @@ export const auth = betterAuth({
   // so no `user.fields` remapping is needed for it (unlike displayName/
   // avatarUrl below); the secret/backup codes live in the separate
   // `twoFactor` table mapped above.
-  plugins: [twoFactor()],
+  plugins: [
+    twoFactor(),
+    passkey({
+      rpID:   passkeyRpId,
+      rpName: "OpenPortal",
+      origin: appBaseUrl,
+    }),
+  ],
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
