@@ -27,7 +27,11 @@ import { Fraunces, IBM_Plex_Sans_Arabic, Inter, JetBrains_Mono } from "next/font
 // Inter — the single biggest visible gap versus the reference file.
 export const fontDisplay = Fraunces({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  // Fraunces is a variable font; not every weight has a static italic
+  // instance published (e.g. 500/italic), which crashes next/font/google's
+  // static-face lookup with "Cannot read properties of null (reading '1')".
+  // "variable" loads the full weight axis instead of enumerating instances.
+  weight: "variable",
   style: ["normal", "italic"],
   variable: "--font-display",
   display: "swap",
