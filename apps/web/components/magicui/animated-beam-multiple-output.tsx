@@ -8,47 +8,23 @@ import { AnimatedBeam } from "./animated-beam";
 /**
  * apps/web/components/magicui/animated-beam-multiple-output.tsx
  *
- * Rebuilt from scratch to match Magic UI's own "Animated Beam Multiple
- * Outputs" reference demo — https://magicui.design/docs/components/animated-beam
- * — both in structure (three-column layout, `Circle` node, container
- * sizing) and in visual style (white circle nodes with a soft shadow),
- * rather than the earlier bespoke version this repo had.
+ * Magic UI "Animated Beam" — Multiple Outputs layout, adapted for this
+ * product: user -> OpenPortal -> five model providers.
  *
- * The only change from the reference demo is *what* sits in each column,
- * to match this product instead of the demo's generic "5 apps -> OpenAI
- * hub -> user" example:
- *
- *     [ user ] ── beam ──▶ [ OpenPortal hub ] ── 5 beams ──▶ [ provider × 5 ]
- *
- * (Same three-column skeleton as the reference, just narrating this
- * product's actual flow: the visitor's request goes into OpenPortal,
- * which fans it out to whichever of the five providers is picked.)
- *
- * Node styling matches the reference demo's `Circle` component exactly
- * (size-12, rounded-full, border-2, shadow-[0_0_20px_-12px_...], white
- * background) — swapped from a literal `bg-white` to `bg-card` so it
- * still adapts to this repo's dark theme instead of always being white.
- *
- * PROVIDER ICONS: the reference demo uses real brand SVGs (Notion,
- * OpenAI, Google Drive, etc). This repo can't ship those same
- * trademarked marks without a license, so provider nodes render small
- * original geometric glyphs instead — see PROVIDER_LOGO_SOURCING.md (or
- * ask for it) for how to source real ones via @lobehub/icons if wanted.
- *
- * BEAM TIMING: unrelated to the reference demo (which just uses
- * duration=3 on every beam with no delay/repeatDelay, so its six beams
- * only coincidentally start in sync and drift apart on every loop after
- * the first). This version deliberately gives every beam the same
- * `duration` + `repeatDelay` so they stay phase-locked on *every* cycle,
- * with `delay` only staggering the very first pass so the outbound five
- * visibly cascade off the inbound one.
+ * The `AnimatedBeam` engine itself (./animated-beam.tsx) is the exact
+ * upstream Magic UI implementation. This file is the "Multiple Outputs"
+ * demo's layout (Circle node + three-column skeleton), re-skinned with
+ * this repo's actual copy/branding instead of the reference demo's
+ * generic Notion/Drive/WhatsApp icon set, and using theme tokens
+ * (`bg-card`, `border-border`, `text-muted-foreground`) instead of a
+ * hardcoded white circle so it still works on the dark theme.
  */
 
-const Node = forwardRef<
+const Circle = forwardRef<
   HTMLDivElement,
-  { className?: string; children?: ReactNode; label?: string }
->(({ className, children, label }, ref) => (
-  <div className="flex flex-col items-center gap-2">
+  { className?: string; children?: ReactNode }
+>(({ className, children }, ref) => {
+  return (
     <div
       ref={ref}
       className={cn(
@@ -58,17 +34,20 @@ const Node = forwardRef<
     >
       {children}
     </div>
-    {label ? (
-      <span className="font-mono text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </span>
-    ) : null}
-  </div>
-));
-Node.displayName = "Node";
+  );
+});
+Circle.displayName = "Circle";
 
-/** Original glyphs — geometric marks, not reproductions of any provider's logo. */
-const ProviderGlyph = {
+function NodeLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="font-mono text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+      {children}
+    </span>
+  );
+}
+
+/** Original geometric glyphs — not reproductions of any provider's trademarked logo. */
+const ProviderIcon = {
   openai: (
     <svg viewBox="0 0 24 24" fill="none" className="size-full" aria-hidden="true">
       <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
@@ -110,16 +89,27 @@ const ProviderGlyph = {
   ),
 } as const;
 
+const UserIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="size-full text-muted-foreground"
+    aria-hidden="true"
+  >
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
 export function AnimatedBeamMultipleOutput({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Column 1 — user
   const userRef = useRef<HTMLDivElement>(null);
-
-  // Column 2 — the platform hub
   const platformRef = useRef<HTMLDivElement>(null);
-
-  // Column 3 — 5 providers
   const openaiRef = useRef<HTMLDivElement>(null);
   const anthropicRef = useRef<HTMLDivElement>(null);
   const geminiRef = useRef<HTMLDivElement>(null);
@@ -135,83 +125,76 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
       )}
     >
       <div className="flex size-full max-w-lg flex-row items-stretch justify-between gap-10">
-        {/* ── Column 1: user ─────────────────────────────────────── */}
-        <div className="flex flex-col justify-center">
-          <Node ref={userRef} label="You">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-full text-muted-foreground"
-              aria-hidden="true"
-            >
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </Node>
+        {/* Column 1 — user */}
+        <div className="flex flex-col items-center justify-center gap-2">
+          <Circle ref={userRef}>{UserIcon}</Circle>
+          <NodeLabel>You</NodeLabel>
         </div>
 
-        {/* ── Column 2: platform hub ─────────────────────────────── */}
-        <div className="flex flex-col justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Node ref={platformRef} className="size-16 border-primary/40">
-              {/* CSS brand mark — same cross motif as the site header's .brand-mark */}
-              <span className="relative block size-7">
-                <span
-                  className="absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 55%, black))",
-                  }}
-                />
-                <span
-                  className="absolute start-0 top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full opacity-55"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 55%, black))",
-                  }}
-                />
-              </span>
-            </Node>
-            <span className="font-mono text-[10px] font-medium tracking-wider text-primary uppercase">
-              OpenPortal
+        {/* Column 2 — the platform hub */}
+        <div className="flex flex-col items-center justify-center gap-3">
+          <Circle ref={platformRef} className="size-16 border-primary/40">
+            <span className="relative block size-7">
+              <span
+                className="absolute left-1/2 top-0 h-full w-[3px] -translate-x-1/2 rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 55%, black))",
+                }}
+              />
+              <span
+                className="absolute start-0 top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full opacity-55"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 55%, black))",
+                }}
+              />
             </span>
-          </div>
+          </Circle>
+          <span className="font-mono text-[10px] font-medium tracking-wider text-primary uppercase">
+            OpenPortal
+          </span>
         </div>
 
-        {/* ── Column 3: providers ────────────────────────────────── */}
+        {/* Column 3 — providers */}
         <div className="flex flex-col justify-center gap-2">
-          <Node ref={openaiRef} label="OpenAI" className="text-foreground">
-            {ProviderGlyph.openai}
-          </Node>
-          <Node ref={anthropicRef} label="Anthropic" className="text-foreground">
-            {ProviderGlyph.anthropic}
-          </Node>
-          <Node ref={geminiRef} label="Gemini" className="text-foreground">
-            {ProviderGlyph.gemini}
-          </Node>
-          <Node ref={deepseekRef} label="DeepSeek" className="text-foreground">
-            {ProviderGlyph.deepseek}
-          </Node>
-          <Node ref={qwenRef} label="Qwen" className="text-foreground">
-            {ProviderGlyph.qwen}
-          </Node>
+          <div className="flex items-center gap-2">
+            <Circle ref={openaiRef} className="text-foreground">
+              {ProviderIcon.openai}
+            </Circle>
+            <NodeLabel>OpenAI</NodeLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle ref={anthropicRef} className="text-foreground">
+              {ProviderIcon.anthropic}
+            </Circle>
+            <NodeLabel>Anthropic</NodeLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle ref={geminiRef} className="text-foreground">
+              {ProviderIcon.gemini}
+            </Circle>
+            <NodeLabel>Gemini</NodeLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle ref={deepseekRef} className="text-foreground">
+              {ProviderIcon.deepseek}
+            </Circle>
+            <NodeLabel>DeepSeek</NodeLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <Circle ref={qwenRef} className="text-foreground">
+              {ProviderIcon.qwen}
+            </Circle>
+            <NodeLabel>Qwen</NodeLabel>
+          </div>
         </div>
       </div>
 
-      {/* ── Beams ─────────────────────────────────────────────────────
-         Every beam is measured relative to `containerRef`, so the mesh
-         re-routes itself automatically on resize (same AnimatedBeam this
-         repo already uses elsewhere — not the reference demo's plain
-         version). Curvature fans outward symmetrically from the middle
-         (Gemini) row.
-
-         TIMING: every beam shares the same `duration` + `repeatDelay`,
-         so they stay phase-locked on every cycle rather than drifting
-         apart. `delay` only staggers each beam's very first start. */}
+      {/* Beams: user -> OpenPortal -> each provider, fanning out from the
+         middle (Gemini) row. Curvature is a direct pixel offset in the
+         Magic UI engine (not a multiple of dx), so values are tuned in
+         raw px, not fractions. */}
       <AnimatedBeam
         containerRef={containerRef}
         fromRef={userRef}
@@ -229,7 +212,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.3}
-        curvature={-0.35}
+        curvature={-75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
@@ -240,7 +223,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.45}
-        curvature={-0.15}
+        curvature={-35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-3)"
       />
@@ -262,7 +245,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.75}
-        curvature={0.15}
+        curvature={35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-5)"
       />
@@ -273,7 +256,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.9}
-        curvature={0.35}
+        curvature={75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
