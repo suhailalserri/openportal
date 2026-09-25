@@ -163,7 +163,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
                     }}
                   />
                   <span
-                    className="absolute left-0 top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full opacity-55"
+                    className="absolute start-0 top-1/2 h-[3px] w-full -translate-y-1/2 rounded-full opacity-55"
                     style={{
                       background:
                         "linear-gradient(135deg, var(--color-primary), color-mix(in oklab, var(--color-primary) 55%, black))",
