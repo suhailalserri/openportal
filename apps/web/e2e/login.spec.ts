@@ -35,7 +35,7 @@ test.describe("login", () => {
     await page.goto("/en/auth/login");
 
     await page.getByLabel("Email address").fill("user@localhost.dev");
-    await page.getByLabel("Password").fill("User123!");
+    await page.getByLabel("Password", { exact: true }).fill("User123!");
     await page.getByRole("button", { name: "Sign In" }).click();
 
     // resolvePostLoginTarget(null, "en") === "/en/chat"
@@ -50,7 +50,7 @@ test.describe("login", () => {
     await page.goto("/en/auth/login");
 
     await page.getByLabel("Email address").fill("user@localhost.dev");
-    await page.getByLabel("Password").fill("definitely-wrong-password");
+    await page.getByLabel("Password", { exact: true }).fill("definitely-wrong-password");
     await page.getByRole("button", { name: "Sign In" }).click();
 
     // Does not assert the exact error copy (mapAuthError's wording is

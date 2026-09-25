@@ -28,6 +28,11 @@ import { cn } from "@/lib/utils";
  *     container on mount, on resize, and whenever the container resizes
  *     (ResizeObserver). This is what makes it work inside a responsive
  *     grid without hard-coded coordinates.
+ *  5. `repeatDelay` prop (absent from vanilla Magic UI, which hardcodes
+ *     0). Lets a beam rest between passes instead of re-firing the
+ *     instant it finishes, so a group of beams sharing one duration and
+ *     repeatDelay stay phase-locked as a single pulse instead of reading
+ *     as constant, uncoordinated flicker.
  *
  * The container MUST be `position: relative` (or any positioned value)
  * with a visible `overflow` box; the SVG overlay sits absolutely inside it
@@ -54,6 +59,8 @@ export interface AnimatedBeamProps {
   delay?: number;
   /** Seconds per full pass. */
   duration?: number;
+  /** Seconds of rest between the end of one pass and the start of the next. */
+  repeatDelay?: number;
   /** Fine offsets (px) so a beam can start at a node's edge, not its centre. */
   startXOffset?: number;
   startYOffset?: number;
@@ -75,6 +82,7 @@ export function AnimatedBeam({
   gradientStopColor = "var(--gate-bright)",
   delay = 0,
   duration = 4,
+  repeatDelay = 0,
   startXOffset = 0,
   startYOffset = 0,
   endXOffset = 0,
@@ -210,7 +218,7 @@ export function AnimatedBeam({
             delay,
             ease: "linear",
             repeat: Infinity,
-            repeatDelay: 0,
+            repeatDelay,
           }}
         />
       )}
@@ -246,7 +254,7 @@ export function AnimatedBeam({
             delay,
             ease: "linear",
             repeat: Infinity,
-            repeatDelay: 0,
+            repeatDelay,
           }}
         />
       )}
