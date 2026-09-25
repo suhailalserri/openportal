@@ -118,11 +118,11 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
     <div
       ref={containerRef}
       className={cn(
-        "relative flex h-[480px] w-full items-center justify-center overflow-hidden p-10",
+        "relative flex h-[400px] w-full items-center justify-center overflow-hidden p-8",
         className,
       )}
     >
-      <div className="flex size-full max-w-3xl flex-row items-stretch justify-between gap-10">
+      <div className="flex size-full max-w-xl flex-row items-stretch justify-between gap-6">
         {/* ── Column 1: user ─────────────────────────────────────── */}
         <div className="flex flex-col justify-center">
           <Node ref={userRef} label="You">
@@ -147,7 +147,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
           <div className="flex flex-col items-center gap-3">
             <div ref={platformRef} className="z-10 grid place-items-center">
               <div
-                className="relative flex size-24 items-center justify-center rounded-full border-2 border-primary/40 bg-card"
+                className="relative flex size-20 items-center justify-center rounded-full border-2 border-primary/40 bg-card"
                 style={{
                   filter:
                     "drop-shadow(0 0 32px color-mix(in oklab, var(--color-primary) 55%, transparent))",
@@ -179,7 +179,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         </div>
 
         {/* ── Column 3: providers ────────────────────────────────── */}
-        <div className="flex flex-col justify-center gap-3">
+        <div className="flex flex-col justify-center gap-2">
           <Node ref={openaiRef} label="OpenAI" className="text-foreground">
             {ProviderGlyph.openai}
           </Node>
@@ -200,14 +200,28 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
 
       {/* ── Beams ─────────────────────────────────────────────────────
          Every beam is measured relative to `containerRef`, so the mesh
-         re-routes itself automatically on resize. Delays stagger so the
-         five outbound beams don't pulse in lockstep. */}
+         re-routes itself automatically on resize. Curvature values fan
+         outward symmetrically from the middle (Gemini) row so the five
+         lines read as one converging bundle, matching Magic UI's classic
+         multi-output sample instead of straight parallel lines.
+
+         TIMING: every beam shares the same `duration` and `repeatDelay`.
+         AnimatedBeam's loop is `duration` of travel then `repeatDelay` of
+         rest, repeated forever — with matching numbers every beam stays
+         perfectly phase-locked to the others on every cycle (not just
+         the first one), so the six beams always read as one coordinated
+         pulse fanning out, never as random independent flickers. `delay`
+         only staggers each beam's very first start, so the outbound five
+         visibly cascade off of the inbound one — after that they all
+         share the same 4s-travel / 1.5s-rest rhythm. 4s is slow enough
+         to read as a deliberate signal rather than a "shot". */}
       <AnimatedBeam
         containerRef={containerRef}
         fromRef={userRef}
         toRef={platformRef}
-        duration={3}
-        curvature={0.15}
+        duration={4}
+        repeatDelay={1.5}
+        curvature={0}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-1)"
       />
@@ -215,9 +229,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={openaiRef}
-        duration={3.4}
-        delay={0.4}
-        curvature={-0.1}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.3}
+        curvature={-0.35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
@@ -225,9 +240,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={anthropicRef}
-        duration={3.2}
-        delay={0.7}
-        curvature={-0.05}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.45}
+        curvature={-0.15}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-3)"
       />
@@ -235,8 +251,9 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={geminiRef}
-        duration={3.6}
-        delay={1.0}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.6}
         curvature={0}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-4)"
@@ -245,9 +262,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={deepseekRef}
-        duration={3.3}
-        delay={1.3}
-        curvature={0.05}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.75}
+        curvature={0.15}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-5)"
       />
@@ -255,9 +273,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={qwenRef}
-        duration={3.5}
-        delay={1.6}
-        curvature={0.1}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.9}
+        curvature={0.35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />

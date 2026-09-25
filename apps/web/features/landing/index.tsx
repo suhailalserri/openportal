@@ -1,7 +1,6 @@
 import { ConstellationBackground } from "./components/constellation-background";
 import { LandingHeader } from "./components/landing-header";
 import { LandingHero } from "./components/landing-hero";
-import { LandingIntro } from "./components/landing-intro";
 import { GatewayDiagram } from "./components/gateway-diagram";
 import { DemoSectionWrapper } from "./components/demo-section-wrapper";
 import { PaymentMarquee } from "./components/payment-marquee";
@@ -36,7 +35,7 @@ import { getLandingData } from "./lib/landing-data";
  * renders its own empty state (or hides, in the calculator's case).
  *
  * SECTION ORDER:
- *   hero → demo → intro → gateway → payments → packages → stats →
+ *   hero → demo → gateway → payments → packages → stats →
  *   models → costs → livebench → comparison
  *
  *   The demo sits SECOND (right after the hero) because a real chat
@@ -72,7 +71,6 @@ export async function LandingPage({ locale }: { locale: string }) {
       <main className="flex-1">
         <LandingHero locale={locale} calculator={data.calculator} />
         <DemoSectionWrapper locale={locale} />
-        <LandingIntro locale={locale} />
         <GatewayDiagram locale={locale} />
         <PaymentMarquee locale={locale} methods={data.paymentMethods} />
         <PackagesSection locale={locale} packages={data.packages} />

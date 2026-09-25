@@ -14,8 +14,8 @@ import { Reveal } from "@/components/ui/reveal";
  * namespace) with a Client Component (`AnimatedBeamMultipleOutput`,
  * which owns the refs and the beam measurement). No data dependency.
  *
- * Placed right after `LandingIntro` in features/landing/index.tsx —
- * the visitor reads "who we are" (intro) then "how it works" (this) in
+ * Placed right after the demo section in features/landing/index.tsx —
+ * the visitor sees a real chat preview, then "how it works" (this), in
  * one continuous beat before any prices appear.
  */
 export async function GatewayDiagram({ locale }: { locale: string }) {
