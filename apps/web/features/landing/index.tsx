@@ -1,3 +1,4 @@
+import { GatewayDiagram } from "./components/gateway-diagram";
 import { ConstellationBackground } from "./components/constellation-background";
 import { LandingHeader } from "./components/landing-header";
 import { LandingHero } from "./components/landing-hero";
@@ -84,6 +85,7 @@ export async function LandingPage({ locale }: { locale: string }) {
         <LandingHero locale={locale} />
         <DemoSectionWrapper locale={locale} />
         <LandingIntro locale={locale} />
+        <GatewayDiagram locale={locale} />  
         <PaymentMarquee locale={locale} methods={data.paymentMethods} />
         <PackagesSection locale={locale} packages={data.packages} />
         <StatsStrip locale={locale} modelCount={data.modelCount} totalUsers={data.totalUsers} />

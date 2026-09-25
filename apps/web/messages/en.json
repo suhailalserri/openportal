@@ -1102,6 +1102,17 @@
       "vision": "Vision",
       "fast": "Fast",
       "longContext": "Long context"
+    },
+    "gateway": {
+      "eyebrow": "The Gateway",
+      "title": "One portal to every AI model worth using.",
+      "subtitle": "Send your message once. We route it to the best provider, at the best price, and return the answer. Nothing else changes.",
+      "oneEndpoint": "One endpoint",
+      "oneEndpointBody": "Use the same API for every provider. Switch models by changing one word.",
+      "oneBalance": "One balance",
+      "oneBalanceBody": "Top up once in YER. Every model draws from the same wallet, in real time.",
+      "oneBill": "One bill",
+      "oneBillBody": "Every request is itemised. Every number is visible. No markup surprises."
     }
   },
   "consent": {
