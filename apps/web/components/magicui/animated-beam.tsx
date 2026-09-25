@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useState,
-  type CSSProperties,
-  type RefObject,
-} from "react";
+import { useEffect, useId, useState, type RefObject } from "react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -236,7 +230,14 @@ export function AnimatedBeam({
             {
               filter: `drop-shadow(0 0 6px ${gradientStopColor})`,
               offsetPath: `path("${pathD}")`,
-            } as CSSProperties
+              // Framer Motion's `style` prop is typed as `MotionStyle`,
+              // which (with `exactOptionalPropertyTypes: true`) rejects a
+              // plain `CSSProperties` object outright — every one of its
+              // ~20 optional fields would need an explicit `| undefined`.
+              // `offsetPath` isn't part of `MotionStyle` at all, so there's
+              // no narrower type to reach for; `any` here is the pragmatic
+              // escape hatch, scoped to just this object.
+            } as any
           }
           initial={{ offsetDistance: reverse ? "100%" : "0%" }}
           animate={{ offsetDistance: reverse ? "0%" : "100%" }}
