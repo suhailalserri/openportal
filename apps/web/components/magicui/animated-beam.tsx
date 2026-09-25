@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -163,7 +169,7 @@ export function AnimatedBeam({
       height={svgDimensions.height}
       viewBox={`0 0 ${svgDimensions.width} ${svgDimensions.height}`}
       className={cn(
-        "pointer-events-none absolute left-0 top-0 transform-gpu stroke-2",
+        "pointer-events-none absolute start-0 top-0 transform-gpu stroke-2",
         className,
       )}
       aria-hidden="true"
@@ -220,7 +226,18 @@ export function AnimatedBeam({
         <motion.circle
           r={2.5}
           fill={gradientStopColor}
-          style={{ filter: `drop-shadow(0 0 6px ${gradientStopColor})` }}
+          // offsetPath is what makes `offsetDistance` meaningful — a
+          // straight line from (0,0) is replaced by the real curve.
+          // It's not in Framer Motion's style types, but it is a valid
+          // CSS prop and Framer Motion passes unknown style props
+          // straight through, so we route it through `style` (cast to
+          // CSSProperties) instead of a raw ts-ignore'd JSX prop.
+          style={
+            {
+              filter: `drop-shadow(0 0 6px ${gradientStopColor})`,
+              offsetPath: `path("${pathD}")`,
+            } as CSSProperties
+          }
           initial={{ offsetDistance: reverse ? "100%" : "0%" }}
           animate={{ offsetDistance: reverse ? "0%" : "100%" }}
           transition={{
@@ -230,12 +247,6 @@ export function AnimatedBeam({
             repeat: Infinity,
             repeatDelay: 0,
           }}
-          // offsetPath is what makes `offsetDistance` meaningful — a
-          // straight line from (0,0) is replaced by the real curve.
-          // Framer Motion passes unknown style props straight through.
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore offsetPath isn't in framer's types but is a valid CSS prop
-          offsetPath={`path("${pathD}")`}
         />
       )}
     </svg>
