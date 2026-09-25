@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { CtaButton } from "@/components/ui/cta-button";
+import { ShinyButton } from "@/components/magicui/shiny-button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -103,7 +103,7 @@ export function LandingHeaderBar({
               />
             </span>
             <span
-              className="max-w-48 truncate text-sm font-semibold tracking-tight text-foreground"
+              className="max-w-48 truncate font-display text-sm font-semibold tracking-tight text-foreground"
               title={siteName}
             >
               {siteName}
@@ -139,9 +139,17 @@ export function LandingHeaderBar({
               <Link href={`/${locale}/auth/login`}>{signInLabel}</Link>
             </Button>
 
-            <CtaButton size="default" asChild>
+            <ShinyButton
+              asChild
+              className={cn(
+                // Same footprint as "Sign in" (Button size="sm"): h-auto
+                // rounded-[9px] px-[11px] py-[7px] text-[12.5px].
+                "h-auto rounded-[9px] border-primary/40 bg-accent px-[11px] py-[7px]",
+                "text-[12.5px] font-semibold text-accent-foreground",
+              )}
+            >
               <Link href={`/${locale}/auth/register`}>{getStartedLabel}</Link>
-            </CtaButton>
+            </ShinyButton>
           </div>
         </nav>
       </div>

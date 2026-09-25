@@ -10,9 +10,11 @@ import type { CostRankingView, MessageSizeId } from "@/features/landing/types";
 /**
  * apps/web/features/landing/components/cost-ranking.tsx
  *
- * Phase 3.3+ (redesign). Adds a budget picker (chips) above the chart.
- * Bars themselves are unchanged — the picker only decides which rows get
- * a subtle "fits" tint and how many models fit at the chosen budget.
+ * Ported to match the reference "Cost explorer" section (Newlending.html
+ * §12): a "Cheapest first / Most expensive" sort toggle plus a single
+ * range-slider budget control (500–20,000, step 500), instead of the
+ * old budget chip row. The chart itself (name · bar · value) is
+ * unchanged in behaviour.
  *
  * The budget comparison is DISPLAY-ONLY: we compare the server's
  * already-formatted `priceLabel` against the chosen budget to decide a
@@ -34,8 +36,12 @@ const PROVIDER_COLORS = [
 
 const COLLAPSED_COUNT = 12;
 
-const BUDGET_OPTIONS = [500, 1000, 2500, 5000, 10000] as const;
+const BUDGET_MIN = 500;
+const BUDGET_MAX = 20000;
+const BUDGET_STEP = 500;
 const DEFAULT_BUDGET = 1000;
+
+type SortDirection = "asc" | "desc";
 
 function colorFor(index: number): string {
   return (
@@ -69,24 +75,32 @@ export function CostRanking({ view }: { view: CostRankingView }) {
   );
   const [expanded, setExpanded] = React.useState(false);
   const [budget, setBudget] = React.useState<number>(DEFAULT_BUDGET);
+  const [sort, setSort] = React.useState<SortDirection>("asc");
 
-  const all = view.rows[sizeId] ?? [];
+  const baseRows = view.rows[sizeId] ?? [];
+  // Rows already arrive cheapest-first from the server; reverse for "desc".
+  const all = sort === "asc" ? baseRows : [...baseRows].reverse();
   const rows = expanded ? all : all.slice(0, COLLAPSED_COUNT);
 
   const affordableCount = React.useMemo(
     () =>
-      all.filter((r) => {
+      baseRows.filter((r) => {
         if (r.isFree) return true;
         return priceLabelToNumber(r.priceLabel) <= budget;
       }).length,
-    [all, budget],
+    [baseRows, budget],
   );
 
   const legend = React.useMemo(() => {
     const seen = new Map<number, string>();
-    for (const r of all) if (!seen.has(r.colorIndex)) seen.set(r.colorIndex, r.provider);
+    for (const r of baseRows) if (!seen.has(r.colorIndex)) seen.set(r.colorIndex, r.provider);
     return [...seen.entries()].sort((a, b) => a[0] - b[0]);
-  }, [all]);
+  }, [baseRows]);
+
+  const budgetValueLabel =
+    view.unit === "yer"
+      ? t("costRank.budgetValueYer", { price: budget.toLocaleString("en-US") })
+      : t("costRank.budgetValueCredits", { price: budget.toLocaleString("en-US") });
 
   return (
     <div className="rounded-[16px] border border-border bg-card p-5 sm:p-7">
@@ -118,92 +132,150 @@ export function CostRanking({ view }: { view: CostRankingView }) {
         </div>
       </div>
 
-      {/* ── Budget picker ──────────────────────────────────────────── */}
-      <div className="mb-5 flex flex-col gap-2 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="t-small mb-1">{t("costRank.budgetLabel")}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {BUDGET_OPTIONS.map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setBudget(opt)}
-                aria-pressed={budget === opt}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-[12px] font-medium tabular-nums transition-colors",
-                  budget === opt
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-secondary text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {opt.toLocaleString("en-US")}
-              </button>
-            ))}
-          </div>
+      {/* ── Toolbar: sort toggle + budget slider ─────────────────────
+         Mirrors .cost-toolbar in the reference HTML: a segmented
+         sort control on the left, a pill-shaped budget slider on the
+         right, wrapping to a stacked layout on narrow screens. */}
+      <div className="mb-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div
+          className="inline-flex rounded-full border border-input bg-secondary p-1"
+          role="group"
+          aria-label={t("costRank.heading")}
+        >
+          <button
+            type="button"
+            aria-pressed={sort === "asc"}
+            onClick={() => setSort("asc")}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+              sort === "asc"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t("costRank.sortCheapest")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={sort === "desc"}
+            onClick={() => setSort("desc")}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+              sort === "desc"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t("costRank.sortExpensive")}
+          </button>
         </div>
-        <p className="t-caption shrink-0 sm:text-end">
-          {t("costRank.fitsCount", {
-            count: affordableCount,
-            total: all.length,
-          })}
-        </p>
+
+        <div className="flex items-center gap-3.5 rounded-full border border-input bg-secondary/60 px-4 py-2 backdrop-blur-sm">
+          <span className="t-small shrink-0">{t("costRank.budgetLabel")}</span>
+          <input
+            type="range"
+            min={BUDGET_MIN}
+            max={BUDGET_MAX}
+            step={BUDGET_STEP}
+            value={budget}
+            onChange={(e) => setBudget(Number(e.currentTarget.value))}
+            aria-label={t("costRank.budgetLabel")}
+            className={cn(
+              "h-1 w-36 shrink-0 cursor-pointer appearance-none rounded-full bg-border accent-primary",
+              "[&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none",
+              "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary",
+              "[&::-webkit-slider-thumb]:shadow-[0_0_12px_var(--primary)] [&::-webkit-slider-thumb]:cursor-pointer",
+              "[&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:border-0",
+              "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer",
+            )}
+          />
+          <span className="shrink-0 font-mono text-[14px] font-semibold tabular-nums text-primary" dir="ltr">
+            {budgetValueLabel}
+          </span>
+        </div>
       </div>
 
+      <p className="t-caption mb-4">
+        {t("costRank.fitsCount", { count: affordableCount, total: baseRows.length })}
+      </p>
+
       {/* ── Bars ───────────────────────────────────────────────────── */}
-      <ol className="space-y-3.5">
+      {/* Row layout matches the reference's .cost-row exactly: a fixed
+          name column, a flexible bar column, a fixed value column —
+          not the old stacked flex rows. */}
+      <ol className="space-y-2.5">
         {rows.map((r) => {
           const priceNum = priceLabelToNumber(r.priceLabel);
           const fits = r.isFree || priceNum <= budget;
 
           return (
-            <li key={`${sizeId}-${r.id}`}>
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: colorFor(r.colorIndex) }}
-                  />
-                  <span
-                    className="truncate text-[14px] font-medium text-foreground"
-                    title={r.name}
-                  >
-                    {r.name}
-                  </span>
-                  {!fits ? (
-                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {t("costRank.overBudget")}
-                    </span>
-                  ) : null}
-                </span>
+            <li
+              key={`${sizeId}-${sort}-${r.id}`}
+              className="grid grid-cols-1 items-center gap-2 py-2.5 sm:grid-cols-[180px_1fr_110px] sm:gap-4"
+            >
+              <span className="flex min-w-0 items-center gap-2 truncate text-[14px] font-medium text-foreground">
                 <span
-                  className="shrink-0 font-mono text-[13px] tabular-nums text-foreground"
-                  dir="ltr"
-                >
-                  {r.isFree
-                    ? t("calculator.free")
-                    : view.unit === "yer"
-                      ? t("costRank.perMessageYer", { price: r.priceLabel })
-                      : t("costRank.perMessageCredits", { price: r.priceLabel })}
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor: colorFor(r.colorIndex),
+                    boxShadow: `0 0 8px ${colorFor(r.colorIndex)}`,
+                  }}
+                />
+                <span className="truncate" title={r.name}>
+                  {r.name}
                 </span>
-              </div>
-              <div
-                className="h-2.5 overflow-hidden rounded-full bg-secondary"
-                aria-hidden
-              >
+                {!fits ? (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {t("costRank.overBudget")}
+                  </span>
+                ) : null}
+              </span>
+
+              {/* Bar wrap — 28px bordered track, gradient fill, sweeping
+                  highlight overlay (reference's .cost-bar-wrap / .cost-bar). */}
+              <div className="relative h-7 overflow-hidden rounded-[8px] border border-border bg-secondary/70">
                 <motion.div
-                  className={cn(
-                    "h-full rounded-full",
-                    !fits && "opacity-40",
-                  )}
-                  style={{ backgroundColor: colorFor(r.colorIndex) }}
+                  className="relative h-full overflow-hidden rounded-[7px]"
+                  style={{
+                    background: r.isFree
+                      ? "linear-gradient(90deg, var(--color-success), color-mix(in oklab, var(--color-success) 70%, transparent))"
+                      : "linear-gradient(90deg, color-mix(in oklab, var(--primary) 65%, black), var(--primary))",
+                    opacity: fits ? 1 : 0.4,
+                  }}
                   initial={reduce ? false : { width: 0 }}
                   whileInView={{ width: `${r.percent}%` }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.7, ease: "easeOut" }}
                   {...(reduce ? { animate: { width: `${r.percent}%` } } : {})}
-                />
+                >
+                  {!reduce && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
+                        animation: "cost-bar-sweep 2.5s ease-in-out infinite",
+                      }}
+                    />
+                  )}
+                </motion.div>
               </div>
+
+              <span
+                className={cn(
+                  "shrink-0 text-end font-mono text-[13px] font-medium tabular-nums",
+                  r.isFree ? "text-success" : "text-foreground",
+                )}
+                dir="ltr"
+              >
+                {r.isFree
+                  ? t("calculator.free")
+                  : view.unit === "yer"
+                    ? t("costRank.perMessageYer", { price: r.priceLabel })
+                    : t("costRank.perMessageCredits", { price: r.priceLabel })}
+              </span>
             </li>
           );
         })}

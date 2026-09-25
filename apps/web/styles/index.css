@@ -23,6 +23,7 @@
    * next/font already put in --font-arabic at runtime", so the font
    * stack is never hardcoded twice.
    */
+  --font-display: var(--font-display);
   --font-arabic: var(--font-arabic);
   --font-inter: var(--font-inter);
   --font-mono: var(--font-mono);
@@ -61,20 +62,25 @@ p {
  * `pre, code, kbd, .code-block` rule above already owns that.
  */
 .t-h1 {
+  font-family: var(--font-display);
   font-size: 40px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.025em;
   line-height: 1.12;
 }
 
 .t-h2 {
+  font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
 .t-h3 {
+  font-family: var(--font-display);
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .t-body {
@@ -164,6 +170,18 @@ p {
   30%,
   60% {
     background-position: calc(100% + var(--shiny-width)) 0;
+  }
+}
+
+/* Cost Explorer bar sweep — ported 1:1 from the reference design's
+   .cost-bar::after / @keyframes shimmer (docs/design source, §12). */
+@keyframes cost-bar-sweep {
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
   }
 }
 

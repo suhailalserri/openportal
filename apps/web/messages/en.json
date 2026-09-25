@@ -1117,7 +1117,11 @@
       "disclaimer": "Estimates for one message (your prompt plus the reply) using assumed sizes, always computed by our server. Your real cost depends on the text you send.",
       "budgetLabel": "Budget",
       "fitsCount": "{count} of {total} models fit your budget",
-      "overBudget": "Over budget"
+      "overBudget": "Over budget",
+      "sortCheapest": "Cheapest first",
+      "sortExpensive": "Most expensive",
+      "budgetValueYer": "{price} YER",
+      "budgetValueCredits": "{price} credits"
     },
   
     "livebench": {

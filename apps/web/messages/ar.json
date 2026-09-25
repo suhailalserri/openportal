@@ -1117,7 +1117,11 @@
       "disclaimer": "تقديرات لرسالة واحدة (سؤالك مع الرد) بأحجام افتراضية، وتُحسب دائماً من خادمنا. تكلفتك الفعلية تعتمد على النص الذي ترسله.",
       "budgetLabel": "الميزانية",
       "fitsCount": "{count} من {total} نموذج يتوافق مع ميزانيتك",
-      "overBudget": "فوق الميزانية"
+      "overBudget": "فوق الميزانية",
+      "sortCheapest": "الأرخص أولاً",
+      "sortExpensive": "الأغلى أولاً",
+      "budgetValueYer": "{price} ريال",
+      "budgetValueCredits": "{price} رصيد"
     },
   
     "livebench": {
