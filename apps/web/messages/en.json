@@ -970,27 +970,92 @@
     "primaryNav": "Primary navigation",
     "signIn": "Sign in",
     "getStarted": "Get started",
-    "heroTitle": "Advanced AI, fair pricing, zero complexity",
-    "heroSubtitle": "Chat with the best AI models from one place — no juggling subscriptions, no technical setup.",
-    "heroPill": "✨ Pay only for what you use",
-    "heroCta": "Create your free account",
-    "modelsHeading": "Available models",
-    "noModelsAvailable": "No models are available right now.",
-    "packagesHeading": "Top-up packages",
-    "noPackagesAvailable": "No packages are available right now — please check back later",
     "yer": "YER",
     "credits": "credits",
     "legalNav": "Legal links",
     "footerCopyright": "© {year} OpenPortal. All rights reserved.",
+  
+    "hero": {
+      "pill": "✨ Pay only for what you use",
+      "title1": "Advanced AI,",
+      "title2": "fair pricing,",
+      "title3": "zero complexity.",
+      "subtitle": "Talk to the best AI models from one account. Pay in Yemeni Rial. No subscriptions, no technical setup, no hidden costs.",
+      "ctaPrimary": "Create free account",
+      "ctaSecondary": "See all models",
+      "trust1": "No monthly subscription",
+      "trust2": "Prices in YER",
+      "trust3": "Full Arabic support"
+    },
+  
+    "heroCalc": {
+      "thatIsRoughly": "That's roughly",
+      "messagesOn": "messages on {model}",
+      "perMessage": "Per message",
+      "chatLeft": "{turns}-turn chat left"
+    },
+  
+    "gateway": {
+      "eyebrow": "The Gateway",
+      "title": "One portal to every AI model worth using.",
+      "subtitle": "Send your message once. We route it to the best provider, at the best price, and return the answer. Nothing else changes.",
+      "oneEndpoint": "One endpoint",
+      "oneEndpointBody": "Use the same API for every provider. Switch models by changing one word.",
+      "oneBalance": "One balance",
+      "oneBalanceBody": "Top up once in YER. Every model draws from the same wallet, in real time.",
+      "oneBill": "One bill",
+      "oneBillBody": "Every request is itemised. Every number is visible. No markup surprises."
+    },
+  
     "intro": {
       "heading": "One platform, every model",
       "body": "Instead of juggling several subscriptions, chat with the best AI models from a single account, and only pay for what you actually use — no monthly commitment, no technical setup."
     },
+  
+    "demo": {
+      "title": "Example conversation",
+      "simulatedBadge": "Simulated example",
+      "inputTokens": "{count} input tokens",
+      "outputTokens": "{count} output tokens",
+      "totalCost": "Cost: {price} YER",
+      "replay": "Replay",
+      "thinking": "Assistant is typing",
+      "modelTabsLabel": "Model",
+      "thinkingAs": "Asking {model}…",
+      "deviceTabsLabel": "Device preview",
+      "devices": {
+        "desktop": "Desktop",
+        "iphone": "iPhone",
+        "android": "Android"
+      }
+    },
+  
+    "payments": {
+      "heading": "Trusted payment methods"
+    },
+  
+    "packagesHeading": "Top-up packages",
+    "noPackagesAvailable": "No packages are available right now — please check back later",
+  
+    "packages": {
+      "bestValue": "Best value",
+      "rateLabel": "Rate"
+    },
+  
     "stats": {
       "modelsAvailable": "models available",
       "totalUsers": "active users",
       "totalUsersApprox": "approximate figure"
     },
+  
+    "modelsHeading": "Available models",
+    "noModelsAvailable": "No models are available right now.",
+  
+    "models": {
+      "priceInput": "Input price",
+      "priceOutput": "Output price"
+    },
+  
     "table": {
       "searchPlaceholder": "Search for a model...",
       "tierFilterLabel": "Tier",
@@ -1018,6 +1083,7 @@
       "whatIsGoodFor": "What is each model good at? See the tags below, or explore the full LiveBench leaderboard beneath the table.",
       "introLine": "Full independent comparison:"
     },
+  
     "calculator": {
       "heading": "How far does {budget} YER go?",
       "subheading": "Pick a model and a message size to see a realistic estimate — you only pay for what the model reads and writes.",
@@ -1040,6 +1106,7 @@
       "plainCostLine": "Note: a long chat with this model can use a large share of this amount — pick a smaller message size or a cheaper model to stretch your balance further.",
       "estimateDisclaimer": "Figures above are estimates (based on assumed message sizes) and are always computed by our server, never by your browser."
     },
+  
     "costRank": {
       "heading": "What every model costs",
       "subheading": "The estimated cost of one message on each model we offer, cheapest first. Pick a message size.",
@@ -1047,8 +1114,12 @@
       "perMessageCredits": "{price} credits",
       "showAll": "Show all {count} models",
       "showLess": "Show less",
-      "disclaimer": "Estimates for one message (your prompt plus the reply) using assumed sizes, always computed by our server. Your real cost depends on the text you send."
+      "disclaimer": "Estimates for one message (your prompt plus the reply) using assumed sizes, always computed by our server. Your real cost depends on the text you send.",
+      "budgetLabel": "Budget",
+      "fitsCount": "{count} of {total} models fit your budget",
+      "overBudget": "Over budget"
     },
+  
     "livebench": {
       "title": "Live LiveBench leaderboard",
       "description": "An independent AI model performance comparison, updated live via LiveBench.",
@@ -1056,9 +1127,7 @@
       "openLink": "Open on livebench.ai",
       "loading": "Loading..."
     },
-    "payments": {
-      "heading": "Available payment methods"
-    },
+  
     "comparison": {
       "heading": "Why this platform?",
       "feature": "Feature",
@@ -1073,26 +1142,7 @@
         "oneAccount": "One account for everything"
       }
     },
-    "demo": {
-      "title": "Example conversation",
-      "simulatedBadge": "Simulated example",
-      "inputTokens": "{count} input tokens",
-      "outputTokens": "{count} output tokens",
-      "totalCost": "Cost: {price} YER",
-      "replay": "Replay",
-      "thinking": "Assistant is typing",
-      "modelTabsLabel": "Model",
-      "thinkingAs": "Asking {model}…",
-      "deviceTabsLabel": "Device preview",
-      "devices": {
-        "desktop": "Desktop",
-        "iphone": "iPhone",
-        "android": "Android"
-      }
-    },
-    "packages": {
-      "bestValue": "Best value"
-    },
+  
     "tags": {
       "general": "General",
       "coding": "Coding",
@@ -1102,17 +1152,6 @@
       "vision": "Vision",
       "fast": "Fast",
       "longContext": "Long context"
-    },
-    "gateway": {
-      "eyebrow": "The Gateway",
-      "title": "One portal to every AI model worth using.",
-      "subtitle": "Send your message once. We route it to the best provider, at the best price, and return the answer. Nothing else changes.",
-      "oneEndpoint": "One endpoint",
-      "oneEndpointBody": "Use the same API for every provider. Switch models by changing one word.",
-      "oneBalance": "One balance",
-      "oneBalanceBody": "Top up once in YER. Every model draws from the same wallet, in real time.",
-      "oneBill": "One bill",
-      "oneBillBody": "Every request is itemised. Every number is visible. No markup surprises."
     }
   },
   "consent": {

@@ -242,6 +242,10 @@ export function buildLandingData(
   const bestIdx = bestValuePackageIndex(rawPackages, microPerCredit);
   const packages: LandingPackageView[] = rawPackages.map((p, i) => {
     const description = locale === "ar" ? p.descriptionAr : p.description;
+    // YER per single credit. Uses the raw row (priceYer / whole credits),
+    // never the two formatted strings above — Rule 1.
+    const wholeCredits = p.credits / microPerCredit;
+    const rateYer = wholeCredits > 0 ? p.priceYer / wholeCredits : 0;
     return {
       id: p.id,
       name: locale === "ar" ? p.nameAr : p.name,
@@ -249,9 +253,9 @@ export function buildLandingData(
       priceYer: deps.formatYer(p.priceYer, locale),
       credits: deps.formatCredits(p.credits, locale),
       bestValue: i === bestIdx,
+      rateLabel: formatYerPrecise(rateYer, locale),
     };
   });
-
   const paymentMethods: LandingPaymentMethodView[] = rawMethods.map((m) => ({
     id: m.id,
     name: locale === "ar" ? m.nameAr : m.name,

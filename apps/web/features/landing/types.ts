@@ -54,6 +54,9 @@ export interface LandingPackageView {
   /** Display credits, formatted. */
   credits: string;
   bestValue: boolean;
+  /** Formatted YER-per-credit for this package (e.g. "2.08"). Precomputed
+   *  server-side (Rule 1) so the card never divides two formatted strings. */
+  rateLabel: string;
 }
 
 /**
