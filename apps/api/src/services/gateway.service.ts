@@ -26,6 +26,33 @@ function calcCreditCost(model: typeof models.$inferSelect, inputTokens: number, 
   return Math.max(Math.ceil((totalUsd / CREDIT_VALUE_USD) * 1_000_000), 1);
 }
 
+/**
+ * Some free/low-tier OpenRouter models occasionally return a moderation
+ * classifier's own scratch output instead of an actual reply — e.g. a
+ * bare "User Safety: safe / Response Safety: safe" stub — typically when
+ * the upstream provider's safety pass runs but the underlying completion
+ * gets dropped or truncated to nothing. That's a garbage response, not a
+ * real answer: a user who reads that back is right to feel cheated if
+ * they were also billed for it, so we detect the shape and treat it the
+ * same as a $0/no-content response rather than charging normal output
+ * tokens for it.
+ *
+ * Deliberately narrow (only lines matching the "<Label> Safety: safe"
+ * pattern) rather than a generic "response looks short/weird" heuristic
+ * — we never want to refuse-bill a legitimately short real answer.
+ */
+const SAFETY_STUB_PATTERN = /^\s*(?:user|response|prompt|input|output)\s*safety\s*:\s*(?:safe|unsafe)\s*$/im;
+
+function isSafetyClassifierStub(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed) return false;
+  const lines = trimmed.split("\n").map((l) => l.trim()).filter(Boolean);
+  // Every non-empty line matches the "<Label> Safety: safe/unsafe" shape,
+  // and there's at least one such line — i.e. the whole reply IS the
+  // stub, not a real answer that happens to mention "safety" somewhere.
+  return lines.length > 0 && lines.every((l) => SAFETY_STUB_PATTERN.test(l));
+}
+
 const ERROR_MESSAGES: Record<number, string> = {
   429: "تجاوزت حد الطلبات. انتظر لحظة وحاول مجدداً.",
   503: "النموذج غير متاح حالياً. جرّب نموذجاً آخر.",
@@ -358,14 +385,23 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     inputTokens = estimateTokenCount(opts.messages.map((m) => m.content).join(" "));
   }
 
+  // A garbage moderation-stub reply (see isSafetyClassifierStub above)
+  // never gets billed, no matter what token counts the upstream reported
+  // — the user got nothing usable back, so charging them for it is a
+  // bug, not a billing edge case. `cost` stays 0 for this branch and the
+  // saved message's `creditCost` reflects that honestly.
+  const isGarbageReply = isSafetyClassifierStub(streamedContent);
+
   // Post-stream: deduct credits and save message (async, non-blocking)
   if (outputTokens > 0 || (isPartial && streamedContent.length > 0)) {
-    const cost = calcCreditCost(model, inputTokens, outputTokens);
+    const cost = isGarbageReply ? 0 : calcCreditCost(model, inputTokens, outputTokens);
 
-    deductCreditsAtomic(userId, cost, "Chat usage", {
-      modelId, inputTokens, outputTokens, requestId,
-    }).catch(console.error);
-    recordCreditsSpent(modelId, cost);
+    if (cost > 0) {
+      deductCreditsAtomic(userId, cost, "Chat usage", {
+        modelId, inputTokens, outputTokens, requestId,
+      }).catch(console.error);
+      recordCreditsSpent(modelId, cost);
+    }
 
     // Save assistant message
     db.insert(messages).values({

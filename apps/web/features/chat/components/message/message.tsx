@@ -147,16 +147,26 @@ function MessageImpl({
     el.setSelectionRange(el.value.length, el.value.length);
   }, [isEditing]);
 
+  // Parts that render in the plain faint color, joined with " · " same
+  // as before. The credit-cost part is rendered separately (in red) so
+  // it stands out regardless of how "fresh" the message is — previously
+  // this whole line only ever *looked* present once modelId/tokens/cost
+  // had all arrived from the server, which for a message still showing
+  // "just now"/"الآن" could read as if the line only shows up "after some
+  // time". It doesn't hide itself; each part just renders the instant its
+  // own field is populated, so keep them as independent fragments rather
+  // than bailing out if one field is briefly missing.
   const metaParts: string[] = [];
   if (!isUser) {
     if (message.modelId) metaParts.push(message.modelId);
     if (typeof message.inputTokens === "number" && typeof message.outputTokens === "number") {
       metaParts.push(t("tokenCount", { count: message.inputTokens + message.outputTokens }));
     }
-    if (typeof message.creditCost === "number") {
-      metaParts.push(`${formatCredits(message.creditCost, locale)} ${tBalance("unit")}`);
-    }
   }
+  const creditCostLabel =
+    !isUser && typeof message.creditCost === "number"
+      ? `${formatCredits(message.creditCost, locale)} ${tBalance("unit")}`
+      : null;
 
   return (
     // `min-w-0`: a flex item's default min-width is `auto` (its content's
@@ -281,6 +291,17 @@ function MessageImpl({
             </span>
             {metaParts.length > 0 && (
               <span className="text-[11.5px] text-faint-foreground">· {metaParts.join(" · ")}</span>
+            )}
+            {creditCostLabel && (
+              // Deliberately red regardless of theme (not `text-destructive`
+              // or similar semantic token that might get muted in dark mode)
+              // so a user can tell at a glance how much a reply consumed,
+              // in both locales — this span has no `dir`/text dependency,
+              // it renders identically for ar/en, just after the (already
+              // locale-aware) formatCredits/tBalance strings above.
+              <span className="text-[11.5px] font-medium text-red-500">
+                · {creditCostLabel}
+              </span>
             )}
             {!isUser && (
               <MessageActions

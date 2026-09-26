@@ -18,7 +18,7 @@ import { useChatStream } from "../hooks/use-chat-stream";
 import { useConversationMessages } from "../hooks/use-conversation-messages";
 import { useConversationCacheIdentity } from "../hooks/use-conversation-cache-identity";
 import { generateConversationId, conversationPath } from "../lib/new-chat";
-import { setPendingFirstMessage, takePendingFirstMessage } from "../lib/pending-first-message";
+import { setPendingFirstMessage, takePendingFirstMessage, hasPendingFirstMessage } from "../lib/pending-first-message";
 import type { ChatMessage, ConversationParams } from "../types";
 import type { ChatModel } from "../lib/model-selection";
 
@@ -76,19 +76,41 @@ export function ChatView({ conversationId, className }: ChatViewProps) {
     isLoading: isLoadingHistory,
     conversationModelId,
   } = useConversationMessages(conversationId);
-  const historyReady = !conversationId || !isLoadingHistory;
+  // The extra `hasPendingFirstMessage` check is what actually removes the
+  // "refresh"-looking flash on first send: without it, the freshly
+  // client-generated id still goes through one full loading pass (the
+  // skeleton branch below) purely to fetch history that provably doesn't
+  // exist yet — that pass, immediately followed by ChatSession mounting
+  // and the composer reappearing, is what reads as a page reload. A
+  // pending stash under this id can only exist if THIS tab's own
+  // new-chat handoff just created it a moment ago (module-level Map,
+  // never survives a real reload — see pending-first-message.ts), so
+  // treating it as ready is not a guess.
+  const historyReady = !conversationId || !isLoadingHistory || hasPendingFirstMessage(conversationId);
 
   return (
     <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", className)}>
       {historyReady ? (
-        <ChatSession
-          key={conversationId ?? "new"}
-          conversationId={conversationId}
-          initialMessages={history}
-          conversationModelId={conversationModelId}
-        />
+        // `animate-in fade-in`: this is still a genuine remount (the
+        // `key` below is unchanged — see this component's own header
+        // comment for why ChatSession must remount per-conversation),
+        // but a full-page-refresh IMPRESSION was never actually about
+        // remounting being wrong, just about the swap being a single
+        // opaque frame: skeleton (below) instantly replaced by the real
+        // ChatSession, including the composer, with nothing in between.
+        // A short fade-in on whichever side just mounted turns that same
+        // remount into something that reads as a transition instead of a
+        // reload, at zero cost to the "fresh reducer per conversation"
+        // contract this split exists for.
+        <div key={conversationId ?? "new"} className="flex h-full min-h-0 flex-1 flex-col animate-in fade-in duration-200">
+          <ChatSession
+            conversationId={conversationId}
+            initialMessages={history}
+            conversationModelId={conversationModelId}
+          />
+        </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 animate-in fade-in duration-150">
           <Skeleton className="h-16 w-2/3" />
           <Skeleton className="ms-auto h-10 w-1/2" />
           <Skeleton className="h-24 w-3/4" />
@@ -278,6 +300,13 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           onEdit={handleEditMessage}
           editDisabled={isBusy}
           onRetryError={() => stream.retry()}
+          // "sending" is specifically the gap between the user's turn
+          // landing and the assistant's first token — see
+          // chat-stream-reducer.ts's own CHUNK-branch comment. Once a
+          // single delta arrives status flips to "streaming" and the
+          // real (growing) assistant bubble takes over from here, so
+          // this never overlaps with the streaming cursor in message.tsx.
+          isWaitingForReply={stream.status === "sending"}
           className="min-h-0 flex-1"
         />
       )}
