@@ -1,6 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable, varchar, boolean, integer,
-  bigint, timestamp, uuid, numeric,
+  bigint, timestamp, uuid, numeric, text,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { modelStatusEnum } from "./enums";
@@ -24,7 +25,13 @@ export const models = pgTable("models", {
   id:               varchar("id", { length: 150 }).primaryKey(),
   displayName:      varchar("display_name",    { length: 100 }).notNull(),
   displayNameAr:    varchar("display_name_ar", { length: 100 }).notNull(),
-  badge:            varchar("badge",    { length: 10  }).default("").notNull(),
+  // A curated preset key (see MODEL_BADGE_KEYS in
+  // @ai-platform/config/model-metadata.config), e.g. "new" | "flagship" |
+  // "deprecated" — NOT freeform text or an emoji. "" means no badge.
+  // Rendered as an icon+color chip (apps/web/components/icons/model-badge.tsx);
+  // widened from the old 10-char emoji-sized column to fit the longest
+  // preset key ("recommended", "deprecated").
+  badge:            varchar("badge",    { length: 20  }).default("").notNull(),
   provider:         varchar("provider", { length: 50  }).notNull(),
   // Which @lobehub/icons provider key to render for this row (e.g.
   // "openai", "anthropic", "google"). Deliberately separate from
@@ -50,6 +57,18 @@ export const models = pgTable("models", {
   contextWindow:    integer("context_window").notNull(),
   maxOutputTokens:  integer("max_output_tokens").notNull(),
   supportsVision:   boolean("supports_vision").default(false).notNull(),
+  // Admin-toggled feature flags — what the model can actually do, beyond
+  // the single `supportsVision` boolean this predates (kept as-is for
+  // backward compat; "vision" may also appear here for filtering/display
+  // alongside the other capabilities). A text[] rather than one boolean
+  // column per feature (see MODEL_CATEGORY_KEYS in
+  // @ai-platform/config/model-metadata.config) on purpose: new provider
+  // capabilities (audio, video, ...) are common enough that a fixed-column
+  // design would mean a migration every time one ships. Values are keys
+  // from that shared list; unrecognized values are simply ignored at
+  // render time rather than rejected, so this column is forward-compatible
+  // with categories added after a given deploy.
+  categories:       text("categories").array().default(sql`ARRAY[]::text[]`).notNull(),
   // App-layer usage cap, independent of New API's channel-level limits.
   rateLimitPerUserDaily: integer("rate_limit_per_user_daily"),
   // Average response time (ms) across the gateway channels currently

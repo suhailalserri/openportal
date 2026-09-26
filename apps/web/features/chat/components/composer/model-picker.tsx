@@ -7,6 +7,8 @@ import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AppProviderIcon } from "@/components/icons/provider-icon";
+import { ModelBadge } from "@/components/icons/model-badge";
+import { ModelCategoryIcons } from "@/components/icons/model-category";
 import {
   formatLatency,
   formatTokenSize,
@@ -86,7 +88,7 @@ export function ModelChip({ model, open, controls, className, ...props }: ModelC
         />
       ) : null}
       <span className="truncate">{model ? modelDisplayName(model, locale) : t("selectModel")}</span>
-      {model?.badge ? <span aria-hidden>{model.badge}</span> : null}
+      {model?.badge ? <ModelBadge badge={model.badge} size={11} iconOnly /> : null}
       <ChevronDown
         aria-hidden
         className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
@@ -171,7 +173,7 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
                   className="shrink-0"
                 />
                 <span className="truncate">{modelDisplayName(m, locale)}</span>
-                {m.badge ? <span aria-hidden>{m.badge}</span> : null}
+                {m.badge ? <ModelBadge badge={m.badge} size={11} /> : null}
                 <Badge variant={m.tier === "premium" ? "default" : "secondary"}>
                   {m.tier === "premium" ? tm("premium") : tm("standard")}
                 </Badge>
@@ -192,6 +194,9 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
                   {latency ?? "—"}
                 </span>
               </span>
+              {m.categories && m.categories.length > 0 ? (
+                <ModelCategoryIcons categories={m.categories} size={12} className="mt-1" />
+              ) : null}
             </span>
             <Check
               aria-hidden

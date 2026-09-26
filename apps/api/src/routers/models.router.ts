@@ -2,7 +2,7 @@ import { router, publicProcedure, adminProcedure } from "./trpc";
 import { z } from "zod";
 import { db, models } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
-import { CREDIT_VALUE_USD } from "@ai-platform/config";
+import { CREDIT_VALUE_USD, MODEL_BADGE_KEYS, MODEL_CATEGORY_KEYS } from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
 
@@ -30,6 +30,7 @@ export const modelsRouter = router({
       contextWindow:    m.contextWindow,
       maxOutputTokens:  m.maxOutputTokens,
       supportsVision:   m.supportsVision,
+      categories:       m.categories,
       avgResponseTimeMs: m.avgResponseTimeMs,
       creditsPerKInput:  creditsPerK(Number(m.wholesaleCostInputPerM),  Number(m.markupMultiplier)),
       creditsPerKOutput: creditsPerK(Number(m.wholesaleCostOutputPerM), Number(m.markupMultiplier)),
@@ -68,13 +69,18 @@ export const modelsRouter = router({
       modelId:                 z.string(),
       displayName:             z.string().min(1).max(100),
       displayNameAr:           z.string().min(1).max(100),
-      badge:                   z.string().max(10).optional(),
+      badge:                   z.enum(MODEL_BADGE_KEYS).optional(),
       providerIconKey:         z.string().max(50).optional(),
       tier:                    z.enum(["standard", "premium"]).default("standard"),
       markupMultiplier:        z.number().positive().default(2.0),
       contextWindow:           z.number().int().positive(),
       maxOutputTokens:         z.number().int().positive(),
       supportsVision:          z.boolean().default(false),
+      // Unrecognized values are dropped rather than rejected — an older
+      // client tab open during a deploy that adds a new category
+      // shouldn't get a hard validation error on save.
+      categories:              z.array(z.string()).default([])
+                                 .transform((cats) => cats.filter((c) => (MODEL_CATEGORY_KEYS as readonly string[]).includes(c))),
       wholesaleCostInputPerM:  z.number().min(0).default(0),
       wholesaleCostOutputPerM: z.number().min(0).default(0),
       rateLimitPerUserDaily:   z.number().int().positive().optional(),
@@ -92,6 +98,7 @@ export const modelsRouter = router({
           contextWindow:           input.contextWindow,
           maxOutputTokens:         input.maxOutputTokens,
           supportsVision:          input.supportsVision,
+          categories:              input.categories,
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),
           rateLimitPerUserDaily:   input.rateLimitPerUserDaily ?? null,

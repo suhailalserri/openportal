@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ModelBadge } from "@/components/icons/model-badge";
 import {
   Select,
   SelectContent,
@@ -132,11 +133,7 @@ function ModelRow({ row }: { row: LandingModelRow }) {
       <td className="sticky start-0 z-10 bg-card px-4 py-3 font-medium text-foreground">
         <div className="flex items-center gap-2">
           <span>{row.name}</span>
-          {row.badge && (
-            <Badge variant="default" className="shrink-0">
-              {row.badge}
-            </Badge>
-          )}
+          <ModelBadge badge={row.badge} className="shrink-0" />
         </div>
         <div className="t-caption">{row.provider}</div>
       </td>

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModels, type ModelTab } from "./hooks/use-models";
@@ -18,6 +19,18 @@ import type { ModelRow } from "./types";
  * `(admin)/layout.tsx` already ran the role guard (Rule 4) before this
  * renders. Tab filtering, sync, publish/edit, and availability toggle all
  * live in `useModels` — this component only renders states.
+ *
+ * Search box + full-width tabs added: with 463+ pending models synced
+ * from the gateway, scanning the whole list for one model id was the
+ * only way to find it. Search filters client-side (see useModels) on
+ * top of whichever tab is active. The tabs row previously sat at its
+ * intrinsic content width inside a `justify-between` flex row — visually
+ * bunched to one side with the Sync button floating far away on wide
+ * screens, and looking cut off on narrow ones. `TabsList`/`TabsTrigger`
+ * (components/ui/tabs.tsx) already implement full-width, evenly-split
+ * triggers (`w-full` + `flex-1` respectively) — they just needed the
+ * `Tabs` wrapper itself to actually grow into the row instead of
+ * shrink-wrapping its content, hence `flex-1` below.
  */
 export function AdminModels() {
   const t = useTranslations("admin.modelsPage");
@@ -26,9 +39,17 @@ export function AdminModels() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={models.tab} onValueChange={(v) => models.setTab(v as ModelTab)}>
-          <TabsList>
+      <Input
+        value={models.search}
+        onChange={(e) => models.setSearch(e.target.value)}
+        placeholder={t("searchPlaceholder")}
+        aria-label={t("searchPlaceholder")}
+        className="w-full sm:max-w-xs"
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Tabs value={models.tab} onValueChange={(v) => models.setTab(v as ModelTab)} className="min-w-0 flex-1">
+          <TabsList className="w-full">
             <TabsTrigger value="all">{t("tabs.all")}</TabsTrigger>
             <TabsTrigger value="pending">
               {t("tabs.pending")}{models.pendingCount > 0 ? ` (${models.pendingCount})` : ""}
@@ -38,7 +59,7 @@ export function AdminModels() {
           </TabsList>
         </Tabs>
 
-        <Button type="button" variant="outline" size="sm" onClick={() => void models.sync()} disabled={models.isSyncing}>
+        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void models.sync()} disabled={models.isSyncing}>
           <RefreshCw className={models.isSyncing ? "size-4 animate-spin" : "size-4"} aria-hidden="true" />
           {models.isSyncing ? t("syncing") : t("sync")}
         </Button>

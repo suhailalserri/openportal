@@ -39,9 +39,17 @@ interface SpendChartProps {
  * on the X axis in `ar` instead mirrors the *rendering direction* only
  * (chart visually reads right-to-left, matching the page) while the
  * data order and tooltip content stay identical in both locales. Verify
- * this on the actual RTL preview per the phase's "Done when" — recharts'
- * `reversed` prop combined with a raw ISO-string `dataKey` is the
- * untested part of this file (see "Not verified" in the delivery note).
+ * this on the actual RTL preview per the phase's "Done when".
+ *
+ * Fix (verified against the RTL preview): the X axis must stay
+ * `orientation="bottom"` in BOTH locales. `reversed` already flips which
+ * end of the axis is "first" — flipping `orientation` to `"top"` on top
+ * of that moves the axis line (and its tick labels) to the top edge of
+ * the plot instead, throwing off the plot's vertical alignment against
+ * the Y axis and the Area fill, which is what produced the broken /
+ * overlapping layout in `ar`. Only the Y axis legitimately swaps sides
+ * for RTL (`right` instead of `left`) — that's a left/right placement
+ * choice, not an axis-direction one.
  */
 export function SpendChart({ data, isLoading }: SpendChartProps) {
   const locale = useLocale() as "ar" | "en";
@@ -73,7 +81,7 @@ export function SpendChart({ data, isLoading }: SpendChartProps) {
               <XAxis
                 dataKey="date"
                 reversed={isRTL}
-                orientation={isRTL ? "top" : "bottom"}
+                orientation="bottom"
                 tickFormatter={(value: string) => formatDate(value, locale)}
                 tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
                 axisLine={{ stroke: "var(--color-border)" }}

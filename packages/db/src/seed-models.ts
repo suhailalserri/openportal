@@ -36,6 +36,7 @@ async function seedModels() {
     contextWindow:    toInt(m.contextWindow,   m.id, "contextWindow"),
     maxOutputTokens:  toInt(m.maxOutputTokens, m.id, "maxOutputTokens"),
     supportsVision:   m.supportsVision ?? false,
+    categories:       m.categories ?? [],
   }));
 
   // Insert one at a time (not a single batch) so that if any row is still
@@ -65,6 +66,7 @@ async function seedModels() {
             contextWindow:   sql`excluded.context_window`,
             maxOutputTokens: sql`excluded.max_output_tokens`,
             supportsVision:  sql`excluded.supports_vision`,
+            categories:      sql`excluded.categories`,
             updatedAt:       new Date(),
           },
         });

@@ -4,8 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
-import { SpotlightCard } from "@/components/magicui/spotlight-card";
+import { ShineCard } from "@/components/magicui/shine-card";
 import { InfoHint } from "@/components/shared/info-hint";
 import { useModelCatalog } from "../hooks/use-model-catalog";
 import type { UsageSummary } from "../types";
@@ -20,10 +19,12 @@ interface TopModelCardProps {
  *
  * Moved OUT of the equal-weight SummaryCards grid per explicit feedback
  * ("make it on the top and highlight the model") — this is now its own
- * full-width banner rendered above the grid (dashboard/index.tsx), using
- * the new `SpotlightCard` module (MagicCard's pointer-glow + BorderBeam's
- * animated ring) so it visually reads as "the standout number on this
- * page" rather than one more identical tile.
+ * full-width banner rendered above the grid (dashboard/index.tsx). Was
+ * `SpotlightCard` (MagicCard pointer-glow + BorderBeam animated ring);
+ * per follow-up feedback ("delete the beam and the magic card animation
+ * ... make it a shiny animation effect, not shimmering or beam") this
+ * now uses `ShineCard` — a single CSS-only diagonal glare pass across
+ * the card, no pointer tracking, no moving border dot.
  *
  * `topModelId` is a raw id from the frozen backend (usage.service.ts);
  * joined against `models.list` via `useModelCatalog` for a display name
@@ -47,11 +48,9 @@ export function TopModelCard({ summary, isLoading }: TopModelCardProps) {
     : modelId;
 
   return (
-    <SpotlightCard className="w-full">
+    <ShineCard className="w-full">
       <div className="flex items-center justify-between gap-2">
-        <AnimatedShinyText className="mx-0 max-w-none text-xs font-semibold">
-          {tCards("topModel")}
-        </AnimatedShinyText>
+        <span className="text-xs font-semibold text-muted-foreground">{tCards("topModel")}</span>
         <InfoHint label={t("hintLabel")} content={t("hint")} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -71,6 +70,6 @@ export function TopModelCard({ summary, isLoading }: TopModelCardProps) {
           <p className="text-xl font-semibold text-muted-foreground">{tCards("none")}</p>
         )}
       </div>
-    </SpotlightCard>
+    </ShineCard>
   );
 }

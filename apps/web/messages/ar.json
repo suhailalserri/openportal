@@ -575,6 +575,7 @@
     "modelsPage": {
       "title": "النماذج",
       "description": "راجع النماذج المكتشفة وانشرها مع التسعير وتحكّم في توفرها.",
+      "searchPlaceholder": "ابحث بالاسم أو معرّف النموذج…",
       "tabs": {
         "all": "الكل",
         "pending": "قيد المراجعة",
@@ -592,6 +593,7 @@
       "columns": {
         "model": "النموذج",
         "provider": "المزوّد",
+        "categories": "الفئات",
         "tier": "الفئة",
         "status": "الحالة",
         "available": "متاح",
@@ -607,7 +609,7 @@
         "editTitle": "تعديل النموذج",
         "displayName": "الاسم المعروض (إنجليزي)",
         "displayNameAr": "الاسم المعروض (عربي)",
-        "badge": "الشارة (10 أحرف كحد أقصى)",
+        "badge": "الشارة",
         "providerIcon": "أيقونة المزوّد",
         "providerIconAuto": "كشف تلقائي",
         "providerIconSearchPlaceholder": "ابحث عن مزوّد…",
@@ -624,7 +626,31 @@
         "supportsVision": "يدعم إدخال الصور",
         "cancel": "إلغاء",
         "save": "حفظ",
-        "saving": "جارٍ الحفظ…"
+        "saving": "جارٍ الحفظ…",
+        "categories": "الفئات"
+      },
+      "badges": {
+        "none": "بدون شارة",
+        "new": "جديد",
+        "popular": "شائع",
+        "recommended": "موصى به",
+        "fast": "سريع",
+        "budget": "اقتصادي",
+        "flagship": "الأبرز",
+        "smart": "ذكي",
+        "beta": "تجريبي",
+        "deprecated": "مهمل"
+      },
+      "categories": {
+        "vision": "الرؤية",
+        "imageGeneration": "توليد الصور",
+        "audio": "الصوت",
+        "video": "الفيديو",
+        "reasoning": "الاستدلال",
+        "coding": "البرمجة",
+        "webSearch": "البحث في الويب",
+        "functionCalling": "استدعاء الوظائف",
+        "longContext": "سياق طويل"
       }
     },
     "channelsPage": {

@@ -49,6 +49,11 @@ export interface RawModel {
   tier: string;
   contextWindow: number;
   supportsVision: boolean;
+  /** Admin-set feature flags from MODEL_CATEGORY_KEYS (@ai-platform/config).
+   *  Optional/nullable because older cached router responses (or a test
+   *  fixture) may not include it — tagsForModel() falls back to the
+   *  id-pattern heuristic when empty/absent. */
+  categories?: readonly string[] | null;
   avgResponseTimeMs: number | null;
   creditsPerKInput: number;
   creditsPerKOutput: number;

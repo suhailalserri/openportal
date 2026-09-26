@@ -14,10 +14,13 @@
  * numbers here would need LiveBench's permission first.
  *
  * HOW A ROW'S TAGS ARE CHOSEN (see tagsForModel):
- *   1. an exact entry in CURATED_TAGS (matched on the model id), else
- *   2. every PATTERN_RULES entry whose regex matches the model id,
- *   3. PLUS tags derived from the data itself (vision support, a very
- *      long context window),
+ *   0. if the admin has toggled real categories for this model
+ *      (models.categories in /admin/models — see CATEGORY_TO_TAG below),
+ *      those win outright and steps 1-2 are skipped entirely;
+ *   1. otherwise, an exact entry in CURATED_TAGS (matched on the model id),
+ *   2. else every PATTERN_RULES entry whose regex matches the model id,
+ *   3. PLUS, always, tags derived from the data itself (vision support, a
+ *      very long context window),
  *   4. capped at MAX_TAGS; if nothing applies the row shows "general".
  *
  * The starter values below are generic, widely-held impressions of each
@@ -81,7 +84,26 @@ export interface TaggableModel {
   id: string;
   supportsVision: boolean;
   contextWindow: number;
+  /** Admin-set feature flags from MODEL_CATEGORY_KEYS (@ai-platform/config),
+   *  e.g. ["vision", "coding", "reasoning"]. When present and non-empty,
+   *  these take priority over CURATED_TAGS/PATTERN_RULES below — an admin
+   *  explicitly toggling "this model does coding" in /admin/models is a
+   *  stronger signal than a guess from the model's id string, so the
+   *  public "Best for" column should reflect it directly. */
+  categories?: readonly string[] | null;
 }
+
+/** Maps a MODEL_CATEGORY_KEYS entry to the closest ModelTag. Categories
+ *  with no landing-page equivalent (imageGeneration, audio, video,
+ *  webSearch, functionCalling) are intentionally left out — they still
+ *  render as icons in the admin table, they just don't have a "Best for"
+ *  tag on the public page yet. */
+const CATEGORY_TO_TAG: Readonly<Partial<Record<string, ModelTag>>> = {
+  vision: "vision",
+  reasoning: "reasoning",
+  coding: "coding",
+  longContext: "longContext",
+};
 
 /** Resolve the (deduplicated, capped) tag list for one model. */
 export function tagsForModel(model: TaggableModel): ModelTag[] {
@@ -90,12 +112,23 @@ export function tagsForModel(model: TaggableModel): ModelTag[] {
     for (const t of tags) if (!out.includes(t)) out.push(t);
   };
 
-  const curated = CURATED_TAGS[model.id];
-  if (curated) {
-    add(curated);
+  const adminCategories = (model.categories ?? []).filter((c): c is string => !!c);
+
+  if (adminCategories.length > 0) {
+    // Admin toggled real categories for this model — use them as the
+    // primary source instead of guessing from the id string.
+    for (const c of adminCategories) {
+      const tag = CATEGORY_TO_TAG[c];
+      if (tag) add([tag]);
+    }
   } else {
-    for (const rule of PATTERN_RULES) {
-      if (rule.pattern.test(model.id)) add(rule.tags);
+    const curated = CURATED_TAGS[model.id];
+    if (curated) {
+      add(curated);
+    } else {
+      for (const rule of PATTERN_RULES) {
+        if (rule.pattern.test(model.id)) add(rule.tags);
+      }
     }
   }
 
