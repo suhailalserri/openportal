@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -25,7 +25,10 @@ import { useTranslations } from "next-intl";
  * - `mode="modal"` (used by the @modal-slot interceptor): there IS a
  *   page underneath, so closing calls `router.back()` instead — that
  *   dismisses the modal and lands back on whatever the visitor was
- *   looking at, without a round-trip to the server.
+ *   looking at, without a round-trip to the server. The actual `back()`
+ *   call is now deferred until the exit transition finishes (see
+ *   `close()` below) rather than firing on click, so the overlay
+ *   visibly fades/scales out instead of vanishing instantly.
  *
  * `activeTab` picks which of the two tab links is highlighted; pass
  * `hideTabs` for the mid-flow states (2FA code entry) where switching
@@ -47,13 +50,46 @@ export function AuthShell({
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
   const router = useRouter();
-  // Mount closed, then flip to open a tick later so the entrance
-  // transition (defined in styles/auth.css) actually plays instead of
-  // the card just appearing pre-rendered as "open".
-  const [open, setOpen] = useState(false);
+
+  // Tab switches (login <-> register) land on a genuinely different
+  // intercepted route (a separate page.tsx / form component), so React
+  // unmounts THIS instance and mounts a new one — there's no avoiding
+  // that remount without collapsing both routes into one. What made it
+  // READ as "closes then reopens" is that the fresh instance always
+  // replayed the full entrance fade/scale from scratch, on top of the
+  // old instance vanishing with no exit transition at all. A
+  // `sessionStorage` marker, set the instant this ever opens and only
+  // cleared by an actual close, lets a same-session remount (i.e. a tab
+  // switch) recognize "the overlay was already open a moment ago" and
+  // skip straight to the open state — no re-entry animation — while a
+  // genuinely fresh visit (marker absent) still gets the normal fade-in.
+  const OPEN_MARKER = "auth-modal-open";
+  const [open, setOpen] = useState(
+    () => typeof window !== "undefined" && sessionStorage.getItem(OPEN_MARKER) === "1"
+  );
+  // `closing`: drives the exit transition. `router.back()`/`router.push`
+  // used to fire on click, which unmounts this component the same
+  // instant — before the `opacity/transform` transition defined in
+  // styles/auth.css ever got a frame to animate FROM. Flipping this to
+  // true first re-triggers that same CSS transition in reverse (removing
+  // `data-open="true"` below), and the actual navigation is deferred
+  // until that transition's `transitionend` fires (with a timeout
+  // fallback in case the event doesn't, e.g. reduced-motion users whose
+  // transition duration is near-zero).
+  const [closing, setClosing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setOpen(true));
+    if (open) return; // already marked open from a same-session remount
+    const raf = requestAnimationFrame(() => {
+      setOpen(true);
+      sessionStorage.setItem(OPEN_MARKER, "1");
+    });
     return () => cancelAnimationFrame(raf);
+    // Intentionally only depends on mount: this must run once per
+    // instance, not react to `open` changing later (that would re-fire
+    // the entrance frame on every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Lock the landing/app page's own scroll for as long as this overlay is
@@ -67,15 +103,30 @@ export function AuthShell({
   // popup" bug. Restores the previous inline value on unmount rather than
   // clearing it outright, in case something else on the page already had
   // an opinion on `body.style.overflow`.
+  //
+  // Only restores it on a REAL close (see the `closing` guard) — on a tab
+  // switch this instance unmounts and a new one mounts in the same tick,
+  // both locking scroll the same way, so restoring here unconditionally
+  // would flash the landing page's real scroll position back into view
+  // for a frame between the two instances: the reported "page slides from
+  // bottom to top" jump. `closing` is only ever true on the path that
+  // actually calls `close()` below, never on an ordinary tab-switch
+  // unmount, so this only restores scroll when the overlay is truly gone.
+  const closingRef = useRef(closing);
+  closingRef.current = closing;
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (closingRef.current) {
+        document.body.style.overflow = previousOverflow;
+        sessionStorage.removeItem(OPEN_MARKER);
+      }
     };
   }, []);
 
   const homeHref = `/${locale}`;
+
   // `router.back()`, not `router.replace()`: Next's intercepting-route
   // machinery (the `@modal` slot) ties the modal's mounted/unmounted
   // state to the actual history entry it intercepted, not just to the
@@ -83,16 +134,36 @@ export function AuthShell({
   // under it (even to a URL `@modal`'s own default.tsx would render null
   // for) does not reliably tell Next to un-render the slot, so the X
   // button just sat there doing nothing. `back()` is the one navigation
-  // Next's interception correctly unwinds.
-  //
-  // The multi-click complaint this used to "fix" wasn't about back()
-  // being wrong — it was that switching login/signup tabs (see the two
-  // `<Link>`s below) each pushed a NEW history entry, so by the time you
-  // hit X there could be several modal-related entries stacked up and
-  // one back() only popped the most recent tab switch. Fixed at the
-  // source below (tabs replace instead of push) instead of here, so
-  // back() only ever has one entry to unwind and closes in one click.
-  const close = () => router.back();
+  // Next's interception correctly unwinds. Now deferred behind the exit
+  // transition (see `closing` above) instead of firing immediately.
+  const close = useCallback(() => {
+    if (closing) return; // already closing — ignore a second click/backdrop tap
+    setClosing(true);
+    setOpen(false);
+
+    let navigated = false;
+    const navigate = () => {
+      if (navigated) return;
+      navigated = true;
+      router.back();
+    };
+
+    const node = cardRef.current;
+    if (node) {
+      const onEnd = (e: TransitionEvent) => {
+        if (e.target !== node) return; // ignore bubbled transitions from children
+        node.removeEventListener("transitionend", onEnd);
+        navigate();
+      };
+      node.addEventListener("transitionend", onEnd);
+    }
+    // Fallback in case transitionend never fires (reduced-motion, a
+    // transition-duration override, or no `cardRef.current` yet) — matches
+    // the longest transition duration set in styles/auth.css (500ms) plus
+    // a small margin.
+    window.setTimeout(navigate, 550);
+  }, [closing, router]);
+
 
   return (
     <div className="auth-overlay" data-open={open ? "true" : "false"}>
@@ -107,7 +178,7 @@ export function AuthShell({
         <Link href={homeHref} aria-label={t("closeDialog")} className="auth-backdrop" />
       )}
 
-      <div className="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div ref={cardRef} className="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
         {/* Left: brand panel */}
         <aside className="auth-brand">
           <div className="auth-brand-mark">
