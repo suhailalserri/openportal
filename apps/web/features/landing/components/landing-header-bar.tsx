@@ -136,7 +136,10 @@ export function LandingHeaderBar({
             <div className="hidden h-4 w-px bg-border/40 sm:block" />
 
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-              <Link href={`/${locale}/auth/login`}>{signInLabel}</Link>
+              {/* scroll={false}: see landing-hero.tsx's CTA for why —
+                  same intercepted-modal route, same unwanted default
+                  post-navigation scroll otherwise. */}
+              <Link href={`/${locale}/auth/login`} scroll={false}>{signInLabel}</Link>
             </Button>
 
             <ShinyButton
@@ -148,7 +151,7 @@ export function LandingHeaderBar({
                 "text-[12.5px] font-semibold text-accent-foreground",
               )}
             >
-              <Link href={`/${locale}/auth/register`}>{getStartedLabel}</Link>
+              <Link href={`/${locale}/auth/register`} scroll={false}>{getStartedLabel}</Link>
             </ShinyButton>
           </div>
         </nav>

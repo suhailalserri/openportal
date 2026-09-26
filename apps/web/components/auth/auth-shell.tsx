@@ -96,30 +96,10 @@ export function AuthShell({
   // mounted. `mode="modal"` renders on top of a still-mounted page (that's
   // the whole point of the @modal intercepting route), and `.auth-overlay`
   // being `position: fixed; inset: 0` already fully covers/freezes it
-  // visually — the lock below is only there to stop the *page underneath*
-  // from actually scrolling (or its touch-scroll gesture from chaining
-  // through past the overlay's own edge on mobile) while it's hidden.
-  //
-  // `overflow: hidden` on `body` alone is NOT enough to do that: setting
-  // it while the page is scrolled down collapses body's scrollable
-  // overflow immediately, and the browser resets `window.scrollY` to 0
-  // as a direct side effect of that — not on close, on OPEN. The overlay
-  // being full-viewport hid this visually for a moment, but the
-  // underlying document really did jump to the top the instant the modal
-  // opened; this is what read as "the landing page jumps to the bottom
-  // when I click Get Started" (the visitor's real position was further
-  // down the page, so snapping to 0 reads as a jump away from where they
-  // were, and `close()`'s own `window.scrollTo(0, savedScrollY)` below
-  // then correctly jumps back down to that position on close — which is
-  // the other half of the reported symptom, not a separate bug).
-  //
-  // The fix is the standard body-scroll-lock technique: pin body with
-  // `position: fixed` at a negative `top` equal to the captured scroll
-  // offset. That freezes the page at its exact current position instead
-  // of collapsing it to the top, and `overflow: hidden` is kept alongside
-  // it purely to block the overscroll/rubber-band gesture handoff on
-  // mobile (see .auth-overlay's own `overscroll-behavior: contain` for
-  // the matching half of that).
+  // visually — `overflow: hidden` on `body` on top of that is only there
+  // to stop the touch-scroll *gesture* from chaining through past the
+  // overlay's own edge on mobile once the modal's own content is scrolled
+  // to its limit.
   //
   // Restoring this MUST NOT depend on this component's cleanup running —
   // a previous version restored `body`'s styles only in this effect's
@@ -127,48 +107,38 @@ export function AuthShell({
   // `close()` would always unmount this component promptly. When that
   // assumption didn't hold (navigation delayed, blocked, or racing with
   // the transitionend/timeout fallback in `close()` below), the cleanup
-  // never ran and `body` was left locked — the earlier "stuck, can't
-  // scroll, needed a hard refresh" bug. That failure mode was about WHEN
-  // the restore ran, not about `position: fixed` itself, so this version
-  // keeps the explicit, synchronous restore-inside-`close()` discipline
-  // that already fixed it (see `close()` below) rather than avoiding the
-  // technique altogether. This effect only ever APPLIES the lock; a
-  // tab-switch remount re-applies the same values (all overlay instances
-  // agree on the locked styles, so re-applying is harmless and needs no
-  // special-casing), and if this instance unmounts WITHOUT `close()`
-  // having run first (there is no such path today, but this is the
-  // safety net if one is ever added), the cleanup below still restores it
-  // as a backstop.
+  // never ran and `body` was left locked — the reported "stuck, can't
+  // scroll, needed a hard refresh" bug, made worse by that version also
+  // pinning `body{position:fixed}` (any failure to undo THAT is far more
+  // visible/broken than a stuck `overflow:hidden` would have been, which
+  // is why this version drops that technique rather than trying to
+  // harden it further). Restoration now happens explicitly and
+  // synchronously inside `close()` itself, before it navigates — not
+  // dependent on unmount timing at all. This effect only ever APPLIES the
+  // lock; a tab-switch remount re-applies the same values (all overlay
+  // instances agree on `overflow: hidden`, so re-applying is harmless and
+  // needs no special-casing), and if this instance unmounts WITHOUT
+  // `close()` having run first (there is no such path today, but this is
+  // the safety net if one is ever added), the cleanup below still
+  // restores it as a backstop.
   const scrollYRef = useRef(0);
-  const previousBodyStyleRef = useRef({ overflow: "", position: "", top: "", width: "" });
+  const previousBodyOverflowRef = useRef("");
   useEffect(() => {
     // Only ever capture scrollY on the FIRST lock in a given open
     // session — a tab-switch remount must not re-capture it, since by
     // then the page is already visually frozen at the original position
-    // and re-reading `window.scrollY` here would just read back 0 (body
-    // is already pinned via `position: fixed` at that point, so it no
-    // longer reports the real offset) — this guard is what avoids that
-    // clobbering both `scrollYRef` and the sessionStorage copy `close()`
-    // reads from on the later, real close.
+    // and re-reading `window.scrollY` here would just read back
+    // whatever it already is (correct), so this guard is actually only
+    // needed to avoid clobbering the sessionStorage copy `close()` reads
+    // from on a later, real close.
     const alreadyLocked = sessionStorage.getItem(OPEN_MARKER) === "1";
-    const y = alreadyLocked
-      ? Number(sessionStorage.getItem("auth-modal-scroll-y") ?? 0)
-      : window.scrollY;
     if (!alreadyLocked) {
-      scrollYRef.current = y;
-      sessionStorage.setItem("auth-modal-scroll-y", String(y));
+      scrollYRef.current = window.scrollY;
+      sessionStorage.setItem("auth-modal-scroll-y", String(window.scrollY));
     }
 
-    previousBodyStyleRef.current = {
-      overflow: document.body.style.overflow,
-      position: document.body.style.position,
-      top: document.body.style.top,
-      width: document.body.style.width,
-    };
+    previousBodyOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${y}px`;
-    document.body.style.width = "100%";
 
     return () => {
       // Backstop only — see comment above. `close()` already restores
@@ -176,11 +146,7 @@ export function AuthShell({
       // it only does something if this instance is ever unmounted some
       // other way (browser back/forward gesture bypassing `close()`,
       // for instance) without that having run first.
-      const prev = previousBodyStyleRef.current;
-      document.body.style.overflow = prev.overflow;
-      document.body.style.position = prev.position;
-      document.body.style.top = prev.top;
-      document.body.style.width = prev.width;
+      document.body.style.overflow = previousBodyOverflowRef.current;
     };
   }, []);
 
@@ -211,18 +177,7 @@ export function AuthShell({
       // of whether/when `router.back()` below goes on to unmount this
       // component. See that effect's comment for why relying on unmount
       // timing alone previously left `body` stuck locked.
-      //
-      // Order matters: unpin `position: fixed` FIRST (which drops body
-      // back into normal document flow, at whatever scroll position the
-      // browser now reports — typically 0, since it was pinned), THEN
-      // `scrollTo` the real saved offset. Doing it in the other order
-      // would scroll while still pinned, which has no visible effect and
-      // leaves the page at the top the instant it's unpinned.
-      const prev = previousBodyStyleRef.current;
-      document.body.style.position = prev.position;
-      document.body.style.top = prev.top;
-      document.body.style.width = prev.width;
-      document.body.style.overflow = prev.overflow;
+      document.body.style.overflow = previousBodyOverflowRef.current;
       window.scrollTo(0, Number(sessionStorage.getItem("auth-modal-scroll-y") ?? scrollYRef.current));
       sessionStorage.removeItem(OPEN_MARKER);
       sessionStorage.removeItem("auth-modal-scroll-y");
@@ -319,6 +274,7 @@ export function AuthShell({
                 // modal-related entry on the stack no matter how many
                 // times the visitor flips between tabs first.
                 replace
+                scroll={false}
                 role="tab"
                 aria-selected={activeTab === "signin"}
                 className="auth-tab"
@@ -328,6 +284,7 @@ export function AuthShell({
               <Link
                 href={`/${locale}/auth/register`}
                 replace
+                scroll={false}
                 role="tab"
                 aria-selected={activeTab === "signup"}
                 className="auth-tab"

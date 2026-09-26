@@ -12,7 +12,6 @@ import { CostRankingSection } from "./components/cost-ranking-section";
 import { LiveBenchSection } from "./components/livebench-section";
 import { ComparisonSection } from "./components/comparison-section";
 import { LandingFooter } from "./components/landing-footer";
-import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { ConsentBanner } from "@/features/consent";
 import { getLandingData } from "./lib/landing-data";
 
@@ -71,7 +70,6 @@ export async function LandingPage({ locale }: { locale: string }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <ScrollProgress />
       <ConstellationBackground />
       <LandingHeader locale={locale} />
 

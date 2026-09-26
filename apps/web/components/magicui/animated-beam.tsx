@@ -51,21 +51,11 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   const id = useId();
   const [pathD, setPathD] = useState("");
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 });
-
-  // Calculate the gradient coordinates based on the reverse prop
-  const gradientCoordinates = reverse
-    ? {
-        x1: ["90%", "-10%"],
-        x2: ["100%", "0%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      }
-    : {
-        x1: ["10%", "110%"],
-        x2: ["0%", "100%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      };
+  // Real measured endpoints (screen-space px), used to build a gradient
+  // sweep that always visually travels from fromRef towards toRef — see
+  // the comment on `gradientCoordinates` below for why this replaces the
+  // old hardcoded left-to-right percentages.
+  const [endpoints, setEndpoints] = useState({ startX: 0, endX: 0 });
 
   useEffect(() => {
     const updatePath = () => {
@@ -86,6 +76,8 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
           rectB.left - containerRect.left + rectB.width / 2 + endXOffset;
         const endY =
           rectB.top - containerRect.top + rectB.height / 2 + endYOffset;
+
+        setEndpoints({ startX, endX });
 
         const controlY = startY - curvature;
         const d = `M ${startX},${startY} Q ${
@@ -122,6 +114,32 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
     endXOffset,
     endYOffset,
   ]);
+
+  // The gradient must sweep from fromRef's endpoint towards toRef's
+  // endpoint regardless of which one is physically further right on
+  // screen — under `dir="rtl"` this diagram's own layout mirrors (the
+  // hub ends up on the opposite side from where it sits in LTR), so a
+  // beam whose `fromRef`/`toRef` props never change can still need to
+  // visually sweep in either screen direction depending on locale.
+  // Comparing the two REAL measured x-coordinates (not a hardcoded
+  // assumption) is what makes this correct in both directions, and
+  // `reverse` still applies on top for beams that intentionally want to
+  // draw backwards along their own path.
+  const flowsRightToLeft = endpoints.startX > endpoints.endX;
+  const sweepReversed = reverse ? !flowsRightToLeft : flowsRightToLeft;
+  const gradientCoordinates = sweepReversed
+    ? {
+        x1: ["90%", "-10%"],
+        x2: ["100%", "0%"],
+        y1: ["0%", "0%"],
+        y2: ["0%", "0%"],
+      }
+    : {
+        x1: ["10%", "110%"],
+        x2: ["0%", "100%"],
+        y1: ["0%", "0%"],
+        y2: ["0%", "0%"],
+      };
 
   return (
     <svg
