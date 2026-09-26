@@ -8,9 +8,9 @@ import { MailCheck } from "lucide-react";
 
 import { sendVerificationEmail } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -73,22 +73,22 @@ function VerifyContent() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="items-center text-center">
-        <MailCheck aria-hidden="true" className="mb-2 size-10 text-primary" />
-        <CardTitle>{t("verifyEmail")}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-center">
-        <p className="text-sm text-muted-foreground">{t("verifyMessage", { email })}</p>
+    <AuthShell locale={locale} hideTabs>
+      <div className="flex flex-col items-center text-center">
+        <MailCheck aria-hidden="true" className="mb-3 size-10 text-primary" />
+        <h2 className="auth-title" id="authTitle">{t("verifyEmail")}</h2>
+        <p className="auth-subtitle">{t("verifyMessage", { email })}</p>
+      </div>
+      <div className="grid gap-4 text-center">
         {error ? <FormErrorBanner message={error} /> : null}
         {justSent && !error ? <p className="text-sm text-success">{t("verificationSent")}</p> : null}
-        <Button variant="outline" onClick={onResend} disabled={cooldown > 0 || !email}>
+        <Button variant="outline" onClick={onResend} disabled={cooldown > 0 || !email} className="h-12 rounded-xl">
           {cooldown > 0 ? t("verifyResendIn", { seconds: cooldown }) : t("resendVerification")}
         </Button>
         <Link href={`/${locale}/auth/login`} className="text-sm text-muted-foreground underline underline-offset-4">
           {t("backToLogin")}
         </Link>
-      </CardContent>
-    </Card>
+      </div>
+    </AuthShell>
   );
 }

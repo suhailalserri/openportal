@@ -9,9 +9,10 @@ import { z } from "zod";
 
 import { requestPasswordReset } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
+import { LogoSpinner } from "@/components/auth/logo-spinner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
@@ -51,47 +52,47 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{t("forgotTitle")}</CardTitle>
-        <CardDescription>{t("forgotMessage")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {sent ? (
-          <p className="text-sm text-success" role="status">
-            {t("resetSent")}
-          </p>
-        ) : (
-          <>
-            {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("email")}</FormLabel>
-                      <FormControl>
-                        <Input type="email" autoComplete="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {t("sendResetLink")}
-                </Button>
-              </form>
-            </Form>
-          </>
-        )}
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          <Link href={`/${locale}/auth/login`} className="underline underline-offset-4">
-            {t("backToLogin")}
-          </Link>
+    <AuthShell locale={locale} hideTabs>
+      <h2 className="auth-title" id="authTitle">{t("forgotTitle")}</h2>
+      <p className="auth-subtitle">{t("forgotMessage")}</p>
+
+      {sent ? (
+        <p className="text-sm text-success" role="status">
+          {t("resetSent")}
         </p>
-      </CardContent>
-    </Card>
+      ) : (
+        <>
+          {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("email")}</FormLabel>
+                    <FormControl>
+                      <Input type="email" autoComplete="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+                aria-busy={form.formState.isSubmitting}
+                className="auth-submit-btn h-12 w-full rounded-xl text-[0.92rem]"
+              >
+                {form.formState.isSubmitting ? <LogoSpinner variant="signin" /> : t("sendResetLink")}
+              </Button>
+            </form>
+          </Form>
+        </>
+      )}
+      <p className="auth-legal">
+        <Link href={`/${locale}/auth/login`}>{t("backToLogin")}</Link>
+      </p>
+    </AuthShell>
   );
 }

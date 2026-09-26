@@ -11,10 +11,11 @@ import { z } from "zod";
 import { resetPassword } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
 import { checkPasswordRules, PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
+import { LogoSpinner } from "@/components/auth/logo-spinner";
 import { PasswordRuleRow } from "@/components/auth/password-rule-row";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -78,85 +79,81 @@ function ResetContent() {
 
   if (!token) {
     return (
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{t("resetTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <AuthShell locale={locale} hideTabs>
+        <h2 className="auth-title" id="authTitle">{t("resetTitle")}</h2>
+        <div className="grid gap-4">
           <FormErrorBanner message={t("resetInvalidToken")} />
-          <Link href={`/${locale}/auth/forgot`} className="text-center text-sm underline underline-offset-4">
+          <Link href={`/${locale}/auth/forgot`} className="text-center text-sm text-muted-foreground underline underline-offset-4">
             {t("forgotTitle")}
           </Link>
-        </CardContent>
-      </Card>
+        </div>
+      </AuthShell>
     );
   }
 
   if (done) {
     return (
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{t("resetTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-success" role="status">
-            {t("resetButton")} ✓
-          </p>
-        </CardContent>
-      </Card>
+      <AuthShell locale={locale} hideTabs>
+        <h2 className="auth-title" id="authTitle">{t("resetTitle")}</h2>
+        <p className="text-sm text-success" role="status">
+          {t("resetButton")} ✓
+        </p>
+      </AuthShell>
     );
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{t("resetTitle")}</CardTitle>
-        <CardDescription>{t("resetMessage")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("newPassword")}</FormLabel>
-                  <FormControl>
-                    <PasswordInput autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <ul className="grid gap-1 text-xs">
-                    <PasswordRuleRow
-                      ok={newPassword.length >= PASSWORD_MIN_LENGTH}
-                      label={t("passwordRules.minLength")}
-                    />
-                    <PasswordRuleRow ok={/[A-Z]/.test(newPassword)} label={t("passwordRules.uppercase")} />
-                    <PasswordRuleRow ok={/[0-9]/.test(newPassword)} label={t("passwordRules.digit")} />
-                  </ul>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("confirmPassword")}</FormLabel>
-                  <FormControl>
-                    <PasswordInput autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              {t("resetButton")}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+    <AuthShell locale={locale} hideTabs>
+      <h2 className="auth-title" id="authTitle">{t("resetTitle")}</h2>
+      <p className="auth-subtitle">{t("resetMessage")}</p>
+
+      {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+          <FormField
+            control={form.control}
+            name="newPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("newPassword")}</FormLabel>
+                <FormControl>
+                  <PasswordInput autoComplete="new-password" {...field} />
+                </FormControl>
+                <ul className="grid gap-1 text-xs">
+                  <PasswordRuleRow
+                    ok={newPassword.length >= PASSWORD_MIN_LENGTH}
+                    label={t("passwordRules.minLength")}
+                  />
+                  <PasswordRuleRow ok={/[A-Z]/.test(newPassword)} label={t("passwordRules.uppercase")} />
+                  <PasswordRuleRow ok={/[0-9]/.test(newPassword)} label={t("passwordRules.digit")} />
+                </ul>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("confirmPassword")}</FormLabel>
+                <FormControl>
+                  <PasswordInput autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting}
+            aria-busy={form.formState.isSubmitting}
+            className="auth-submit-btn h-12 w-full rounded-xl text-[0.92rem]"
+          >
+            {form.formState.isSubmitting ? <LogoSpinner variant="signin" /> : t("resetButton")}
+          </Button>
+        </form>
+      </Form>
+    </AuthShell>
   );
 }

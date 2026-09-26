@@ -30,7 +30,7 @@ export function AuthShell({
   children,
 }: {
   locale: string;
-  activeTab: "signin" | "signup";
+  activeTab?: "signin" | "signup";
   hideTabs?: boolean;
   children: React.ReactNode;
 }) {
