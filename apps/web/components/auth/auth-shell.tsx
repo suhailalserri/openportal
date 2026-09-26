@@ -95,76 +95,61 @@ export function AuthShell({
   // Lock the landing/app page's own scroll for as long as this overlay is
   // mounted. `mode="modal"` renders on top of a still-mounted page (that's
   // the whole point of the @modal intercepting route), and `.auth-overlay`
-  // being `position: fixed` stops that page from being visibly scrolled —
-  // but `overflow: hidden` on `body` ALONE only suppresses the scrollbar,
-  // it does not pin the actual scroll offset: the body element is still
-  // free to have its scrollTop end up wherever the browser feels like once
-  // it's no longer scrollable (which is what produced the reported "opens
-  // already scrolled to the footer" / "closing jumps from bottom to top"
-  // bug — the offset silently drifted to 0 or to whatever the newly
-  // fixed-position overlay's own layout happened to compute, and the old
-  // code only ever restored the `overflow` property, never the position
-  // itself). The standard robust fix: read the real `window.scrollY` at
-  // the moment this locks, pin `body` at `position: fixed` offset by that
-  // exact amount (so it LOOKS unmoved despite no longer being the
-  // scrolling element), and on the way back out set `scrollY` back to that
-  // captured number explicitly rather than trusting the browser to have
-  // remembered it on its own.
+  // being `position: fixed; inset: 0` already fully covers/freezes it
+  // visually — `overflow: hidden` on `body` on top of that is only there
+  // to stop the touch-scroll *gesture* from chaining through past the
+  // overlay's own edge on mobile once the modal's own content is scrolled
+  // to its limit.
   //
-  // Only restores it on a REAL close (see the `closing` guard) — on a tab
-  // switch this instance unmounts and a new one mounts in the same tick,
-  // both locking scroll the same way, so restoring here unconditionally
-  // would flash the landing page's real scroll position back into view
-  // for a frame between the two instances. `closing` is only ever true on
-  // the path that actually calls `close()` below, never on an ordinary
-  // tab-switch unmount, so this only restores scroll when the overlay is
-  // truly gone.
-  const closingRef = useRef(closing);
-  closingRef.current = closing;
+  // Restoring this MUST NOT depend on this component's cleanup running —
+  // a previous version restored `body`'s styles only in this effect's
+  // unmount cleanup, on the assumption that `router.back()` inside
+  // `close()` would always unmount this component promptly. When that
+  // assumption didn't hold (navigation delayed, blocked, or racing with
+  // the transitionend/timeout fallback in `close()` below), the cleanup
+  // never ran and `body` was left locked — the reported "stuck, can't
+  // scroll, needed a hard refresh" bug, made worse by that version also
+  // pinning `body{position:fixed}` (any failure to undo THAT is far more
+  // visible/broken than a stuck `overflow:hidden` would have been, which
+  // is why this version drops that technique rather than trying to
+  // harden it further). Restoration now happens explicitly and
+  // synchronously inside `close()` itself, before it navigates — not
+  // dependent on unmount timing at all. This effect only ever APPLIES the
+  // lock; a tab-switch remount re-applies the same values (all overlay
+  // instances agree on `overflow: hidden`, so re-applying is harmless and
+  // needs no special-casing), and if this instance unmounts WITHOUT
+  // `close()` having run first (there is no such path today, but this is
+  // the safety net if one is ever added), the cleanup below still
+  // restores it as a backstop.
   const scrollYRef = useRef(0);
+  const previousBodyOverflowRef = useRef("");
   useEffect(() => {
-    // Read once, from whichever instance mounts first in a given open
-    // session — a tab-switch remount must NOT re-capture scrollY (by then
-    // it would just be reading back the 0 this same lock already forced),
-    // so the captured value is itself cached in sessionStorage alongside
-    // the open marker, keyed off the same "was this session already open"
-    // check `open`'s initializer above uses.
+    // Only ever capture scrollY on the FIRST lock in a given open
+    // session — a tab-switch remount must not re-capture it, since by
+    // then the page is already visually frozen at the original position
+    // and re-reading `window.scrollY` here would just read back
+    // whatever it already is (correct), so this guard is actually only
+    // needed to avoid clobbering the sessionStorage copy `close()` reads
+    // from on a later, real close.
     const alreadyLocked = sessionStorage.getItem(OPEN_MARKER) === "1";
-    const scrollY = alreadyLocked
-      ? Number(sessionStorage.getItem("auth-modal-scroll-y") ?? "0")
-      : window.scrollY;
-    scrollYRef.current = scrollY;
-    if (!alreadyLocked) sessionStorage.setItem("auth-modal-scroll-y", String(scrollY));
+    if (!alreadyLocked) {
+      scrollYRef.current = window.scrollY;
+      sessionStorage.setItem("auth-modal-scroll-y", String(window.scrollY));
+    }
 
-    const body = document.body;
-    const previous = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    };
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
+    previousBodyOverflowRef.current = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     return () => {
-      if (!closingRef.current) return; // tab switch — next instance re-locks immediately
-      body.style.position = previous.position;
-      body.style.top = previous.top;
-      body.style.left = previous.left;
-      body.style.right = previous.right;
-      body.style.width = previous.width;
-      body.style.overflow = previous.overflow;
-      window.scrollTo(0, scrollYRef.current);
-      sessionStorage.removeItem(OPEN_MARKER);
-      sessionStorage.removeItem("auth-modal-scroll-y");
+      // Backstop only — see comment above. `close()` already restores
+      // this synchronously in the normal flow, so this is a no-op then;
+      // it only does something if this instance is ever unmounted some
+      // other way (browser back/forward gesture bypassing `close()`,
+      // for instance) without that having run first.
+      document.body.style.overflow = previousBodyOverflowRef.current;
     };
   }, []);
+
 
   const homeHref = `/${locale}`;
 
@@ -186,6 +171,16 @@ export function AuthShell({
     const navigate = () => {
       if (navigated) return;
       navigated = true;
+      // Restore the scroll lock HERE, synchronously, rather than only in
+      // the scroll-lock effect's unmount cleanup — this is guaranteed to
+      // run exactly once, right before the actual navigation, regardless
+      // of whether/when `router.back()` below goes on to unmount this
+      // component. See that effect's comment for why relying on unmount
+      // timing alone previously left `body` stuck locked.
+      document.body.style.overflow = previousBodyOverflowRef.current;
+      window.scrollTo(0, Number(sessionStorage.getItem("auth-modal-scroll-y") ?? scrollYRef.current));
+      sessionStorage.removeItem(OPEN_MARKER);
+      sessionStorage.removeItem("auth-modal-scroll-y");
       router.back();
     };
 
