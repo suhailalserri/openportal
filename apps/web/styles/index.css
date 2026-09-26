@@ -112,10 +112,35 @@ p {
 
   html {
     scroll-behavior: smooth;
+    /* Global backstop for the chat bubble overflow bug. The chat tree
+       (AppShell → Main → ChatView → MessageList → Message →
+       SafeMarkdown) already carries a full min-w-0/break-words/
+       overflow-x-hidden chain purpose-built for this — see each of
+       those files' own header comments — so in a correctly-hydrated
+       page none of this should ever be reached. It exists because that
+       chain only guarantees an overflowing node stays CONTAINED at the
+       nearest ancestor that has an explicit overflow rule; it does not
+       guarantee one of them can't be bypassed (a not-yet-audited page,
+       a future component that forgets the pattern, a container query
+       or portal rendering outside the normal tree). `overflow-x:
+       hidden` here is the actual last line of defense: no element on
+       any page can ever widen the DOCUMENT itself and pan the whole
+       viewport sideways, which is what a user bubble "breaking to the
+       right" of the screen actually looks like from a phone.
+       `width: 100%` keeps this root from being wider than the
+       viewport in the first place, which `overflow-x: hidden` alone
+       doesn't guarantee. Deliberately not `overflow: hidden` (both
+       axes) — vertical scroll on ordinary, non-chat pages (billing,
+       settings, admin) still comes from `body`'s own natural height,
+       and clipping that here would break them instead of chat. */
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     min-height: 100dvh;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   :focus-visible {
