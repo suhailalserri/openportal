@@ -131,7 +131,7 @@ export function AppProviderIcon({
       provider={key}
       size={size}
       type={type}
-      className={className}
+      {...(className !== undefined ? { className } : {})}
     />
   );
 }

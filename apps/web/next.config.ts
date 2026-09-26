@@ -70,6 +70,22 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.yourdomain.com" },
     ],
   },
+  experimental: {
+    // `@lobehub/icons` ships 150+ provider icon components (each with
+    // mono + color variants) behind one barrel export. Every file that
+    // does `import { ProviderIcon, ModelProvider } from "@lobehub/icons"`
+    // (components/icons/provider-icon.tsx, and by extension every module
+    // that imports AppProviderIcon from it — the admin models table/form,
+    // chat model picker, landing marquee, animated-beam diagram) forces
+    // webpack to pull the whole package's module graph into that file's
+    // compilation unit unless told otherwise. Six-plus call sites doing
+    // that simultaneously is a plausible contributor to the CI build's
+    // "JavaScript heap out of memory" failure introduced alongside this
+    // package. `optimizePackageImports` rewrites those imports to only
+    // pull the specific named exports actually used, the same way it
+    // already works for icon-set packages like lucide-react.
+    optimizePackageImports: ["@lobehub/icons"],
+  },
   // Security headers (additional layer on top of Caddy)
   async headers() {
     return [
