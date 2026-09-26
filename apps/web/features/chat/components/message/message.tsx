@@ -173,7 +173,21 @@ function MessageImpl({
       <div
         className={cn(
           "group flex min-w-0 flex-col gap-1.5",
-          isUser ? "ms-auto max-w-[86%] items-end" : "max-w-none flex-1"
+          // `w-full` alongside `max-w-[86%]`: a flex column with no
+          // explicit width sizes to its widest child (shrink-to-fit) —
+          // for a plain-text user message that's harmless, but a fenced
+          // code block inside it is `w-full` of ITS parent (CodeBlock,
+          // see code-block.tsx), which only means anything once THIS
+          // node has a real resolved width to be 100% of. Without `w-full`
+          // here, the two `w-full`s chase each other: this column grows
+          // to fit the code block's intrinsic content width instead of
+          // clamping at 86% and letting CodeBlock's own `overflow-x-auto`
+          // scroll internally — the empty-looking oversized bubble with a
+          // stray floating Copy button bug. The assistant branch below
+          // never hit this because its ancestor (`flex-1` in a row that
+          // already has a resolved width from ChatView) already gives
+          // `w-full` something concrete to resolve against.
+          isUser ? "ms-auto w-full max-w-[86%] items-end" : "max-w-none flex-1"
         )}
       >
         {isUser && isEditing ? (
