@@ -12,12 +12,13 @@ import { signUp } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
 import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { checkPasswordRules, PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
+import { LogoSpinner } from "@/components/auth/logo-spinner";
 import { PasswordRuleRow } from "@/components/auth/password-rule-row";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -136,14 +137,13 @@ function RegisterForm() {
   if (submitted) return null; // navigating away to /auth/verify
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{t("register")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+    <AuthShell locale={locale} activeTab="signup">
+      <h2 className="auth-title" id="authTitle">{t("register")}</h2>
+      <p className="auth-subtitle">{t("registerSubtitle")}</p>
+
+      {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
             <FormField
               control={form.control}
               name="email"
@@ -261,50 +261,52 @@ function RegisterForm() {
 
             <TurnstileWidget onToken={setTurnstileToken} />
 
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              {t("registerButton")}
+            <Button
+              type="submit"
+              disabled={form.formState.isSubmitting}
+              aria-busy={form.formState.isSubmitting}
+              className="auth-submit-btn h-12 w-full rounded-xl text-[0.92rem]"
+            >
+              {form.formState.isSubmitting ? <LogoSpinner variant="signup" /> : t("registerButton")}
             </Button>
           </form>
-        </Form>
-        <GoogleSignIn
-          callbackURL={resolvePostLoginTarget(null, locale)}
-          errorCallbackURL={`/${locale}/auth/register?error=oauth`}
-          referralCode={referralCode}
-          onError={setServerError}
-        />
-        {process.env.NEXT_PUBLIC_GOOGLE_SIGNIN === "true" ? (
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            {t.rich("googleTermsNotice", {
-              terms: (chunks) => (
-                <Link
-                  href={`/${locale}/legal/terms`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline underline-offset-2"
-                >
-                  {chunks}
-                </Link>
-              ),
-              privacy: (chunks) => (
-                <Link
-                  href={`/${locale}/legal/privacy`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline underline-offset-2"
-                >
-                  {chunks}
-                </Link>
-              ),
-            })}
-          </p>
-        ) : null}
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {t("haveAccount")}{" "}
-          <Link href={`/${locale}/auth/login`} className="text-foreground underline underline-offset-4">
-            {t("login")}
-          </Link>
+      </Form>
+      <GoogleSignIn
+        callbackURL={resolvePostLoginTarget(null, locale)}
+        errorCallbackURL={`/${locale}/auth/register?error=oauth`}
+        referralCode={referralCode}
+        onError={setServerError}
+      />
+      {process.env.NEXT_PUBLIC_GOOGLE_SIGNIN === "true" ? (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {t.rich("googleTermsNotice", {
+            terms: (chunks) => (
+              <Link
+                href={`/${locale}/legal/terms`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2"
+              >
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link
+                href={`/${locale}/legal/privacy`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline underline-offset-2"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
-      </CardContent>
-    </Card>
+      ) : null}
+      <p className="auth-legal">
+        {t("haveAccount")}{" "}
+        <Link href={`/${locale}/auth/login`}>{t("login")}</Link>
+      </p>
+    </AuthShell>
   );
 }

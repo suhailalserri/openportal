@@ -252,7 +252,17 @@
       "captchaFailed": "Verification failed. Please try again.",
       "generic": "Authentication error. Please try again.",
       "suspended": "Your account has been suspended. Contact support."
-    }
+    },
+    "brandTagline": "Advanced AI, fair pricing, zero complexity.",
+    "brandFeatures": [
+      "40+ AI models from one account",
+      "Pay only for what you use — in YER",
+      "Full Arabic interface, natively",
+      "No monthly subscription"
+    ],
+    "closeDialog": "Close",
+    "loginSubtitle": "Sign in to continue your conversations.",
+    "registerSubtitle": "It takes less than a minute — no payment required."
   },
   "errors": {
     "generic": "An error occurred. Please try again.",
@@ -974,7 +984,6 @@
     "credits": "credits",
     "legalNav": "Legal links",
     "footerCopyright": "© {year} OpenPortal. All rights reserved.",
-  
     "hero": {
       "pill": "✨ Pay only for what you use",
       "title1": "Advanced AI,",
@@ -987,14 +996,12 @@
       "trust2": "Prices in YER",
       "trust3": "Full Arabic support"
     },
-  
     "heroCalc": {
       "thatIsRoughly": "That's roughly",
       "messagesOn": "messages on {model}",
       "perMessage": "Per message",
       "chatLeft": "{turns}-turn chat left"
     },
-  
     "gateway": {
       "eyebrow": "The Gateway",
       "title": "One portal to every AI model worth using.",
@@ -1006,12 +1013,10 @@
       "oneBill": "One bill",
       "oneBillBody": "Every request is itemised. Every number is visible. No markup surprises."
     },
-  
     "intro": {
       "heading": "One platform, every model",
       "body": "Instead of juggling several subscriptions, chat with the best AI models from a single account, and only pay for what you actually use — no monthly commitment, no technical setup."
     },
-  
     "demo": {
       "title": "Example conversation",
       "simulatedBadge": "Simulated example",
@@ -1029,33 +1034,26 @@
         "android": "Android"
       }
     },
-  
     "payments": {
       "heading": "Trusted payment methods"
     },
-  
     "packagesHeading": "Top-up packages",
     "noPackagesAvailable": "No packages are available right now — please check back later",
-  
     "packages": {
       "bestValue": "Best value",
       "rateLabel": "Rate"
     },
-  
     "stats": {
       "modelsAvailable": "models available",
       "totalUsers": "active users",
       "totalUsersApprox": "approximate figure"
     },
-  
     "modelsHeading": "Available models",
     "noModelsAvailable": "No models are available right now.",
-  
     "models": {
       "priceInput": "Input price",
       "priceOutput": "Output price"
     },
-  
     "table": {
       "searchPlaceholder": "Search for a model...",
       "tierFilterLabel": "Tier",
@@ -1083,7 +1081,6 @@
       "whatIsGoodFor": "What is each model good at? See the tags below, or explore the full LiveBench leaderboard beneath the table.",
       "introLine": "Full independent comparison:"
     },
-  
     "calculator": {
       "heading": "How far does {budget} YER go?",
       "subheading": "Pick a model and a message size to see a realistic estimate — you only pay for what the model reads and writes.",
@@ -1106,7 +1103,6 @@
       "plainCostLine": "Note: a long chat with this model can use a large share of this amount — pick a smaller message size or a cheaper model to stretch your balance further.",
       "estimateDisclaimer": "Figures above are estimates (based on assumed message sizes) and are always computed by our server, never by your browser."
     },
-  
     "costRank": {
       "heading": "What every model costs",
       "subheading": "The estimated cost of one message on each model we offer, cheapest first. Pick a message size.",
@@ -1123,7 +1119,6 @@
       "budgetValueYer": "{price} YER",
       "budgetValueCredits": "{price} credits"
     },
-  
     "livebench": {
       "title": "Live LiveBench leaderboard",
       "description": "An independent AI model performance comparison, updated live via LiveBench.",
@@ -1131,7 +1126,6 @@
       "openLink": "Open on livebench.ai",
       "loading": "Loading..."
     },
-  
     "comparison": {
       "heading": "Why this platform?",
       "feature": "Feature",
@@ -1146,7 +1140,6 @@
         "oneAccount": "One account for everything"
       }
     },
-  
     "tags": {
       "general": "General",
       "coding": "Coding",

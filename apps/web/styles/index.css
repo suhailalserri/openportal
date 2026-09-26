@@ -3,6 +3,7 @@
 @import "./theme.css";
 @import "./theme-presets.css";
 @import "./code-highlight.css";
+@import "./auth.css";
 
 /*
  * @tailwindcss/typography has been a devDependency since 1.2 but was

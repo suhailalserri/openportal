@@ -11,11 +11,12 @@ import { z } from "zod";
 import { signIn, twoFactor } from "@/lib/auth-client";
 import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { mapAuthError } from "@/lib/map-auth-error";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
+import { LogoSpinner } from "@/components/auth/logo-spinner";
 import { PasskeySignIn } from "@/components/auth/passkey-sign-in";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -124,13 +125,12 @@ function LoginForm() {
 
   if (step === "totp") {
     return (
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{t("totpTitle")}</CardTitle>
-          <CardDescription>{t("totpMessage")}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {serverError ? <FormErrorBanner message={serverError} /> : null}
+      <AuthShell locale={locale} activeTab="signin" hideTabs>
+        <h2 className="auth-title" id="authTitle">{t("totpTitle")}</h2>
+        <p className="auth-subtitle">{t("totpMessage")}</p>
+
+        {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
+        <div className="grid gap-4">
           <div className="grid gap-2">
             <label htmlFor="totp-code" className="text-sm font-medium">
               {totpMode === "code" ? t("totpCode") : t("backupCode")}
@@ -144,8 +144,12 @@ function LoginForm() {
               onKeyDown={(e) => e.key === "Enter" && onSubmitTotp()}
             />
           </div>
-          <Button onClick={onSubmitTotp} disabled={totpSubmitting || totpValue.length === 0}>
-            {t("verifyButton")}
+          <Button
+            onClick={onSubmitTotp}
+            disabled={totpSubmitting || totpValue.length === 0}
+            className="auth-submit-btn h-12 w-full rounded-xl text-[0.92rem]"
+          >
+            {totpSubmitting ? <LogoSpinner variant="signin" /> : t("verifyButton")}
           </Button>
           <button
             type="button"
@@ -158,73 +162,74 @@ function LoginForm() {
           >
             {totpMode === "code" ? t("useBackupCode") : t("useAuthenticatorApp")}
           </button>
-        </CardContent>
-      </Card>
+        </div>
+      </AuthShell>
     );
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{t("login")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("email")}</FormLabel>
-                  <FormControl>
-                    <Input type="email" autoComplete="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>{t("password")}</FormLabel>
-                    <Link
-                      href={`/${locale}/auth/forgot`}
-                      className="text-sm text-muted-foreground underline underline-offset-4"
-                    >
-                      {t("forgotPassword")}
-                    </Link>
-                  </div>
-                  <FormControl>
-                    <PasswordInput autoComplete="current-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              {t("loginButton")}
-            </Button>
-          </form>
-        </Form>
-        <PasskeySignIn onSuccess={finishLogin} onError={setServerError} />
-        <GoogleSignIn
-          callbackURL={resolvePostLoginTarget(next, locale)}
-          errorCallbackURL={`/${locale}/auth/login?error=oauth`}
-          onError={setServerError}
-        />
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {t("noAccount")}{" "}
-          <Link href={`/${locale}/auth/register`} className="text-foreground underline underline-offset-4">
-            {t("register")}
-          </Link>
-        </p>
-      </CardContent>
-    </Card>
+    <AuthShell locale={locale} activeTab="signin">
+      <h2 className="auth-title" id="authTitle">{t("login")}</h2>
+      <p className="auth-subtitle">{t("loginSubtitle")}</p>
+
+      {serverError ? <FormErrorBanner message={serverError} className="mb-4" /> : null}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("email")}</FormLabel>
+                <FormControl>
+                  <Input type="email" autoComplete="email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between">
+                  <FormLabel>{t("password")}</FormLabel>
+                  <Link
+                    href={`/${locale}/auth/forgot`}
+                    className="text-sm text-muted-foreground underline underline-offset-4"
+                  >
+                    {t("forgotPassword")}
+                  </Link>
+                </div>
+                <FormControl>
+                  <PasswordInput autoComplete="current-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting}
+            aria-busy={form.formState.isSubmitting}
+            className="auth-submit-btn h-12 w-full rounded-xl text-[0.92rem]"
+          >
+            {form.formState.isSubmitting ? <LogoSpinner variant="signin" /> : t("loginButton")}
+          </Button>
+        </form>
+      </Form>
+      <PasskeySignIn onSuccess={finishLogin} onError={setServerError} />
+      <GoogleSignIn
+        callbackURL={resolvePostLoginTarget(next, locale)}
+        errorCallbackURL={`/${locale}/auth/login?error=oauth`}
+        onError={setServerError}
+      />
+      <p className="auth-legal">
+        {t("noAccount")}{" "}
+        <Link href={`/${locale}/auth/register`}>{t("register")}</Link>
+      </p>
+    </AuthShell>
   );
 }
 
