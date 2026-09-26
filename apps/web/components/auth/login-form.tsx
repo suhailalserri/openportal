@@ -202,7 +202,7 @@ function LoginFormInner({ mode }: { mode: "page" | "modal" }) {
               render={({ field }) => (
                 <FormItem className="auth-field">
                   <label htmlFor={field.name} className="auth-label">{t("password")}</label>
-                  <div className="auth-input-wrap">
+                  <FormControl>
                     <PasswordInput
                       id={field.name}
                       autoComplete="current-password"
@@ -210,7 +210,7 @@ function LoginFormInner({ mode }: { mode: "page" | "modal" }) {
                       className="auth-input auth-input--with-icon"
                       {...field}
                     />
-                  </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -190,7 +190,7 @@ function RegisterFormInner({ mode }: { mode: "page" | "modal" }) {
               render={({ field }) => (
                 <FormItem className="auth-field">
                   <label htmlFor={field.name} className="auth-label">{t("password")}</label>
-                  <div className="auth-input-wrap">
+                  <FormControl>
                     <PasswordInput
                       id={field.name}
                       autoComplete="new-password"
@@ -198,7 +198,7 @@ function RegisterFormInner({ mode }: { mode: "page" | "modal" }) {
                       className="auth-input auth-input--with-icon"
                       {...field}
                     />
-                  </div>
+                  </FormControl>
                   {/* Live checklist mirroring the server's rules (lib/auth.ts,
                       frozen) — see lib/password-rules.ts for why this is a
                       hand-mirrored copy rather than a shared import. */}
@@ -220,14 +220,14 @@ function RegisterFormInner({ mode }: { mode: "page" | "modal" }) {
               render={({ field }) => (
                 <FormItem className="auth-field">
                   <label htmlFor={field.name} className="auth-label">{t("confirmPassword")}</label>
-                  <div className="auth-input-wrap">
+                  <FormControl>
                     <PasswordInput
                       id={field.name}
                       autoComplete="new-password"
                       className="auth-input auth-input--with-icon"
                       {...field}
                     />
-                  </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

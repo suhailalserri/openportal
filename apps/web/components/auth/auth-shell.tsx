@@ -56,6 +56,25 @@ export function AuthShell({
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Lock the landing/app page's own scroll for as long as this overlay is
+  // mounted. `mode="modal"` renders on top of a still-mounted page (that's
+  // the whole point of the @modal intercepting route), and `.auth-overlay`
+  // being `position: fixed` stops that page from being visibly scrolled —
+  // but on mobile the touch-scroll *gesture* itself isn't blocked by that
+  // alone, so scrolling to the end of the modal's own content (e.g. the
+  // register form's checklist/terms/Turnstile) was chaining straight into
+  // the page underneath: the reported "background moves while I scroll the
+  // popup" bug. Restores the previous inline value on unmount rather than
+  // clearing it outright, in case something else on the page already had
+  // an opinion on `body.style.overflow`.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   const homeHref = `/${locale}`;
   const close = () => router.back();
 

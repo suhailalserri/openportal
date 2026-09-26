@@ -30,6 +30,19 @@
   display: flex;
   justify-content: center;
   overflow-y: auto;
+  /* Without this, once the overlay's own scroll (above) hits its end —
+     e.g. scrolling down the register form's checklist/terms/Turnstile —
+     touch scrolling on mobile chains straight into the landing page
+     underneath, which is the "background moving while I scroll the
+     popup" bug: the overlay is `position: fixed` and full-viewport, so
+     the page underneath visually can't scroll, but the browser still
+     lets the *gesture* fall through once the overlay itself is
+     scrolled to its limit. `contain` stops that handoff at the
+     overlay's own edge. Body scroll is also locked outright while this
+     is mounted — see auth-shell.tsx's effect — this is defense in
+     depth for the rubber-band/overscroll case that lock alone doesn't
+     always catch on mobile Safari/Chrome. */
+  overscroll-behavior: contain;
   padding: 24px;
   opacity: 0;
   transition: opacity 300ms var(--ease-standard);
@@ -50,7 +63,12 @@
   margin: 0;
   padding: 0;
   font: inherit;
-  background: color-mix(in oklab, var(--background) 65%, transparent);
+  /* Was 65% — at that mix the landing page behind (headings, feature
+     list) stayed legible right through the backdrop, which read as a
+     transparency bug rather than the intended glass effect. 88% keeps
+     the blur/saturate glass look while actually reading as a modal
+     backdrop. */
+  background: color-mix(in oklab, var(--background) 88%, transparent);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   cursor: pointer;
@@ -63,12 +81,25 @@
   margin: auto 0;
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   grid-template-columns: 1fr;
-  background: color-mix(in oklab, var(--card) 80%, transparent);
+  /* Was 80% — same legibility problem as .auth-backdrop above, worse
+     here since it's the card content itself (labels, inputs) fighting
+     with landing-page text bleeding through behind it. 94% keeps a
+     hint of glass without hurting readability. */
+  background: color-mix(in oklab, var(--card) 94%, transparent);
   border: 1px solid var(--input);
   border-radius: var(--radius-xl);
-  overflow: hidden;
+  /* `overflow: hidden` here was the actual scroll bug: this shorthand
+     sets overflow-y too, silently overriding the `overflow-y: auto`
+     three lines up and clipping any content taller than the card
+     instead of letting it scroll — this is what the "reg content isn't
+     scrollable" fix from the previous pass was fighting without fully
+     landing. Only the horizontal axis needs clipping (for the
+     rounded corners / brand-panel gradient); the vertical axis must
+     stay auto. */
+  overflow-x: hidden;
   box-shadow:
     0 40px 100px -30px rgba(0, 0, 0, 0.35),
     0 0 0 0.5px rgba(255, 255, 255, 0.03) inset,
