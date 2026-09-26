@@ -68,7 +68,12 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
     // corrupt it): CodeBlock's own `<pre className="overflow-x-auto">`
     // already scrolls internally instead of wrapping, so this rule only
     // ever reaches plain-text nodes (p/li/blockquote/inline code).
-    <div className={cn("min-w-0 break-words [overflow-wrap:anywhere] text-[15px] leading-[1.65] text-foreground", className)}>
+    // `w-full`: needed for the same reason as message.tsx's user-bubble
+    // wrapper (see its comment) — this div is CodeBlock's/the table
+    // wrapper's direct parent, and it must have a stable width of its
+    // own for their `w-full`/`overflow-x-auto` to resolve against
+    // instead of chasing this div's own shrink-to-fit content size.
+    <div className={cn("w-full min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-[15px] leading-[1.65] text-foreground", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
