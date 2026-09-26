@@ -162,7 +162,20 @@ p {
   --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite alternate;
   --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
   --animate-shiny-text: shiny-text 8s infinite;
+  /*
+   * TypingIndicator (features/chat/components/message/typing-indicator.tsx).
+   * `blink` here is copied 1:1 from docs/design/design-preview.html's own
+   * `@keyframes blink` for the `.typing` dots — same timing (1.2s,
+   * ease-in-out, infinite), same 0/80/100% -> 40% opacity+lift shape.
+   */
+  --animate-typing-blink: typing-blink 1.2s ease-in-out infinite;
 }
+
+@keyframes typing-blink {
+  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
 
 @keyframes shimmer-slide {
   to {

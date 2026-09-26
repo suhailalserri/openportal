@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Message } from "./message";
 import { ErrorMessage } from "./error-message";
+import { TypingIndicator } from "./typing-indicator";
+import { ScrollToBottomButton } from "./scroll-to-bottom-button";
 import type { ChatMessage, ChatError } from "../../types";
 
 export interface MessageListProps {
@@ -21,6 +23,12 @@ export interface MessageListProps {
   onEdit?: ((message: ChatMessage, newContent: string) => void) | undefined;
   editDisabled?: boolean | undefined;
   onRetryError?: (() => void) | undefined;
+  /** True for the gap between "user turn sent" and "assistant's first
+   *  token arrived" — chat-stream-reducer.ts's `status === "sending"`.
+   *  Renders the three-dot TypingIndicator in the same slot the
+   *  assistant's bubble will occupy once content starts arriving,
+   *  rather than a page-level spinner elsewhere. */
+  isWaitingForReply?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -60,24 +68,57 @@ export function MessageList({
   onEdit,
   editDisabled,
   onRetryError,
+  isWaitingForReply = false,
   className,
 }: MessageListProps) {
   const t = useTranslations("chat");
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const stickToBottomRef = React.useRef(true);
+  // Mirrors stickToBottomRef into real state (rather than reading the
+  // ref directly in the JSX below) purely so the ScrollToBottomButton's
+  // `visible` prop actually re-renders when it flips — a ref mutation
+  // alone doesn't schedule a render, and this is the one place in the
+  // component that needs the CURRENT value reflected in the UI rather
+  // than just consulted imperatively (the effect above already reads the
+  // ref directly, which is fine there since it runs on every relevant
+  // commit anyway).
+  const [showScrollButton, setShowScrollButton] = React.useState(false);
 
   const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickToBottomRef.current = distanceFromBottom < 80;
+    const atBottom = distanceFromBottom < 80;
+    stickToBottomRef.current = atBottom;
+    setShowScrollButton(!atBottom);
   }, []);
 
   React.useEffect(() => {
     if (stickToBottomRef.current) {
       bottomRef.current?.scrollIntoView({ block: "end" });
+      // Already at the bottom and new content just landed — the button
+      // (if it was ever shown) has nothing left to jump to.
+      setShowScrollButton(false);
     }
-  }, [messages.length, error]);
+  }, [messages.length, error, isWaitingForReply]);
+
+  // While STREAMING specifically (not just "not at the bottom" from
+  // scrolling up to read history), also re-check on every content
+  // update: a person who scrolled up mid-stream should keep seeing the
+  // button as the transcript keeps growing beneath their current
+  // scroll position, not just at the moment they first scrolled.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || stickToBottomRef.current) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollButton(distanceFromBottom >= 80);
+  }, [messages, isWaitingForReply]);
+
+  const scrollToBottom = React.useCallback(() => {
+    stickToBottomRef.current = true;
+    setShowScrollButton(false);
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, []);
 
   // System messages (the conversation's system prompt) are never a
   // transcript turn — see message.tsx's header comment.
@@ -151,6 +192,8 @@ export function MessageList({
           />
         ))}
 
+        {isWaitingForReply && <TypingIndicator />}
+
         {error && <ErrorMessage error={error} onRetry={onRetryError} />}
 
         <div ref={bottomRef} />
@@ -159,6 +202,7 @@ export function MessageList({
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-4 bg-gradient-to-t from-background to-transparent"
       />
+      <ScrollToBottomButton visible={showScrollButton} onClick={scrollToBottom} />
     </div>
   );
 }

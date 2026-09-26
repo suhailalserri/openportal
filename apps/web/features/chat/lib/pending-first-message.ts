@@ -46,3 +46,19 @@ export function takePendingFirstMessage(conversationId: string): string | undefi
   pending.delete(conversationId);
   return value;
 }
+
+/**
+ * Non-consuming check for whether this id has a stashed first message
+ * waiting. Used by ChatView to recognize "this id was just generated
+ * client-side by MY OWN new-chat handoff, one render ago" — a
+ * conversation that provably has zero history yet, so there is nothing
+ * useful `useConversationMessages`'s network round-trip could return
+ * that isn't already known. Skipping the loading skeleton for exactly
+ * this case (see chat-view.tsx) removes an avoidable flash between "new
+ * chat" and "first message sent", without touching the fetch itself —
+ * the network call still runs and still reconciles normally once it
+ * resolves, this only affects what's shown while it's in flight.
+ */
+export function hasPendingFirstMessage(conversationId: string): boolean {
+  return pending.has(conversationId);
+}
