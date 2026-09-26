@@ -64,7 +64,6 @@ export async function LandingPage({ locale }: { locale: string }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <ScrollProgress />
       <ConstellationBackground />
       <LandingHeader locale={locale} />
 

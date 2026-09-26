@@ -199,8 +199,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={userRef}
         toRef={platformRef}
-        duration={4}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         curvature={0}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-1)"
@@ -209,8 +209,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={openaiRef}
-        duration={4}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         delay={0.6}
         curvature={75}
         gradientStartColor="var(--color-primary)"
@@ -220,8 +220,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={anthropicRef}
-        duration={4}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         delay={0.6}
         curvature={35}
         gradientStartColor="var(--color-primary)"
@@ -231,8 +231,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={geminiRef}
-        duration={5}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         delay={0.6}
         curvature={0}
         gradientStartColor="var(--color-primary)"
@@ -242,8 +242,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={deepseekRef}
-        duration={10}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         delay={0.6}
         curvature={-35}
         gradientStartColor="var(--color-primary)"
@@ -253,10 +253,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={qwenRef}
-        duration={10}
-        repeatDelay={1.5}
+        duration={6}
+        repeatDelay={0.5}
         delay={0.6}
-        curvature={-75}
+        curvature={-90}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
