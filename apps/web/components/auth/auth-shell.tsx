@@ -76,7 +76,13 @@ export function AuthShell({
   }, []);
 
   const homeHref = `/${locale}`;
-  const close = () => router.back();
+  // router.back() only pops one history entry — if the visitor switched
+  // between the login/signup tabs (each a Link, i.e. its own push) before
+  // hitting close, one "back" just lands on the previous tab's modal
+  // state instead of leaving the modal, so it looks like the X needs to
+  // be clicked repeatedly. Route to the underlying page directly instead;
+  // it's an intercepted route, so this still keeps that page's own state.
+  const close = () => router.replace(homeHref);
 
   return (
     <div className="auth-overlay" data-open={open ? "true" : "false"}>

@@ -439,6 +439,7 @@
    so keyboard focus, screen readers and react-hook-form's ref all still
    work exactly as before; only the box drawn next to it changes. */
 .auth-check {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -448,14 +449,13 @@
 }
 .auth-check input {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 .auth-check-box {
   width: 14px;
