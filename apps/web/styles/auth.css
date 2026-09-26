@@ -1,0 +1,610 @@
+/*
+ * openportal — auth popup
+ *
+ * Ports the approved "Gateway" auth-modal design (glass split-panel card,
+ * gold hairline, blurred backdrop) onto this project's EXISTING design
+ * tokens from theme.css (--background, --primary, --border, --font-display,
+ * etc.) rather than introducing a second set of color variables. Every
+ * value below is a 1:1 mapping of the source mock's --bg/--gate/--fg-*
+ * tokens onto the semantic names this app already uses, so light/dark and
+ * the "gateway" theme preset keep working without any extra wiring.
+ *
+ * Used by components/auth/auth-shell.tsx on the login and register pages.
+ * Deliberately left OUTSIDE any @layer: Tailwind v4's utilities live in
+ * `@layer utilities`, which is always lower priority than un-layered CSS —
+ * so `.auth-submit-btn` below reliably overrides the shadcn Button's own
+ * utility classes regardless of import order.
+ */
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  /* `grid; place-items: center` (the old rule) centers a fixed-position
+     box but gives it nothing to scroll against: on a small viewport, any
+     part of .auth-card taller than the screen was simply clipped at the
+     overlay's own edge — this is why the register form (checklist +
+     terms + Turnstile + submit + Google button) couldn't be reached on
+     mobile. Flex + auto vertical margins on the card (below) centers it
+     when it fits and lets the overlay itself scroll when it doesn't. */
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  /* Without this, once the overlay's own scroll (above) hits its end —
+     e.g. scrolling down the register form's checklist/terms/Turnstile —
+     touch scrolling on mobile chains straight into the landing page
+     underneath, which is the "background moving while I scroll the
+     popup" bug: the overlay is `position: fixed` and full-viewport, so
+     the page underneath visually can't scroll, but the browser still
+     lets the *gesture* fall through once the overlay itself is
+     scrolled to its limit. `contain` stops that handoff at the
+     overlay's own edge. Body scroll is also locked outright while this
+     is mounted — see auth-shell.tsx's effect — this is defense in
+     depth for the rubber-band/overscroll case that lock alone doesn't
+     always catch on mobile Safari/Chrome. */
+  overscroll-behavior: contain;
+  padding: 24px;
+  opacity: 0;
+  transition: opacity 300ms var(--ease-standard);
+}
+.auth-overlay[data-open="true"] {
+  opacity: 1;
+}
+
+.auth-backdrop {
+  position: absolute;
+  inset: 0;
+  /* Reset default <button> chrome (border/padding/font) — mode="modal"
+     renders this as a <button> instead of a <Link> so its click handler
+     can call router.back() instead of navigating; everything else about
+     it (position, size, backdrop) is identical either way. */
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  /* Was 65% — at that mix the landing page behind (headings, feature
+     list) stayed legible right through the backdrop, which read as a
+     transparency bug rather than the intended glass effect. 88% keeps
+     the blur/saturate glass look while actually reading as a modal
+     backdrop. */
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  cursor: pointer;
+}
+
+.auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 880px;
+  margin: auto 0;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: 1fr;
+  /* Was 80% — same legibility problem as .auth-backdrop above, worse
+     here since it's the card content itself (labels, inputs) fighting
+     with landing-page text bleeding through behind it. 94% keeps a
+     hint of glass without hurting readability. */
+  background: color-mix(in oklab, var(--card) 94%, transparent);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-xl);
+  /* `overflow: hidden` here was the actual scroll bug: this shorthand
+     sets overflow-y too, silently overriding the `overflow-y: auto`
+     three lines up and clipping any content taller than the card
+     instead of letting it scroll — this is what the "reg content isn't
+     scrollable" fix from the previous pass was fighting without fully
+     landing. Only the horizontal axis needs clipping (for the
+     rounded corners / brand-panel gradient); the vertical axis must
+     stay auto. */
+  overflow-x: hidden;
+  box-shadow:
+    0 40px 100px -30px rgba(0, 0, 0, 0.35),
+    0 0 0 0.5px rgba(255, 255, 255, 0.03) inset,
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(48px) saturate(180%);
+  -webkit-backdrop-filter: blur(48px) saturate(180%);
+  transform: translateY(12px) scale(0.96);
+  opacity: 0;
+  transition:
+    transform 500ms var(--ease-standard),
+    opacity 400ms var(--ease-standard);
+}
+.auth-overlay[data-open="true"] .auth-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* Top gold hairline */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--primary), transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .auth-card {
+    grid-template-columns: 340px 1fr;
+  }
+}
+
+/* ── Left brand panel ─────────────────────────────────────────── */
+.auth-brand {
+  display: none;
+  padding: 40px 32px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 8%, transparent) 0%,
+    transparent 100%
+  );
+  border-inline-end: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .auth-brand {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.auth-brand::before {
+  content: "";
+  position: absolute;
+  top: -30%;
+  left: -30%;
+  right: -30%;
+  height: 80%;
+  background: radial-gradient(
+    ellipse 60% 60% at 50% 40%,
+    color-mix(in oklab, var(--primary) 30%, transparent),
+    transparent 70%
+  );
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.auth-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(
+    155deg,
+    color-mix(in oklab, var(--primary) 88%, white 12%) 0%,
+    var(--primary) 55%,
+    color-mix(in oklab, var(--primary) 78%, black 22%) 100%
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 60%, transparent),
+    0 0 40px -8px color-mix(in oklab, var(--primary) 35%, transparent),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 2px 6px rgba(255, 255, 255, 0.25);
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  z-index: 1;
+  overflow: hidden;
+}
+.auth-brand-mark img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+}
+
+.auth-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  margin: 0 0 6px;
+  position: relative;
+  z-index: 1;
+}
+.auth-brand-tag {
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin: 0 0 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-brand-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+.auth-brand-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.auth-brand-features svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--success);
+  margin-top: 2px;
+}
+
+.auth-brand-foot {
+  margin-top: auto;
+  padding-top: 24px;
+  position: relative;
+  z-index: 1;
+  font-size: 0.72rem;
+  color: var(--faint-foreground);
+  font-family: var(--font-mono);
+}
+
+/* ── Right form panel ────────────────────────────────────────── */
+.auth-form-panel {
+  padding: 32px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+@media (min-width: 768px) {
+  .auth-form-panel {
+    padding: 40px 40px 32px;
+  }
+}
+
+.auth-close {
+  position: absolute;
+  top: 20px;
+  inset-inline-end: 20px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 150ms var(--ease-standard),
+    background 150ms var(--ease-standard);
+}
+.auth-close:hover {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+.auth-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Tab switcher (Link-based: signin/register are separate routes) */
+.auth-tabs {
+  display: flex;
+  padding: 4px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 28px;
+  width: fit-content;
+  gap: 2px;
+}
+.auth-tab {
+  padding: 8px 18px;
+  border: 0;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms var(--ease-standard);
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+}
+.auth-tab:hover {
+  color: var(--foreground);
+}
+.auth-tab[aria-selected="true"] {
+  background: var(--secondary);
+  color: var(--accent-foreground);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.auth-view {
+  animation: auth-view-in 350ms var(--ease-standard);
+}
+@keyframes auth-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  color: var(--foreground);
+}
+.auth-subtitle {
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+/* Fields — ported from the same source mock as everything above (see file
+   header); these five selectors previously had no CSS in this file at
+   all, so every form field was still rendering shadcn's generic <Input>
+   styling (bg-secondary, straight corners on the label, browser-default
+   checkbox) instead of this design. */
+.auth-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint-foreground);
+}
+.auth-input-wrap {
+  position: relative;
+}
+.auth-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 150ms var(--ease-standard), box-shadow 150ms var(--ease-standard);
+}
+.auth-input::placeholder {
+  color: var(--faint-foreground);
+}
+.auth-input:focus,
+.auth-input:focus-visible {
+  border-color: color-mix(in oklab, var(--primary) 60%, var(--input));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+}
+.auth-input--with-icon {
+  padding-inline-end: 44px;
+}
+/* Chrome/Edge autofill (LastPass, etc. too) otherwise paints the field
+   with its own white/yellow chip and forces black text, ignoring the
+   dark background above — the mismatch the person flagged as "the
+   filled [fields] should be black [i.e. match the dark style], not
+   turn light when something's typed/autofilled." The 9999-hour delay
+   trick is the only cross-browser way to override the autofill chip's
+   background (a plain `background` rule is not enough).
+   text-fill-color, not `color`, is what autofill actually honors. */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  transition: background-color 9999s ease-in-out 0s;
+  box-shadow: 0 0 0 1000px var(--background) inset, 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent);
+  caret-color: var(--foreground);
+}
+
+/* Row: remember me / forgot password */
+.auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -6px 0 20px;
+  font-size: 0.78rem;
+}
+
+/* Custom checkbox (terms agreement, remember-me) — visually hides the
+   native input but keeps it in the DOM (not display:none-on-focus'd out)
+   so keyboard focus, screen readers and react-hook-form's ref all still
+   work exactly as before; only the box drawn next to it changes. */
+.auth-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+.auth-check input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.auth-check-box {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 1.5px solid var(--input);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  transition: border-color 150ms var(--ease-standard);
+}
+.auth-check-box::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 2px;
+  transform: scale(0);
+  transition: transform 150ms var(--ease-standard);
+}
+.auth-check input:checked + .auth-check-box {
+  border-color: var(--primary);
+}
+.auth-check input:checked + .auth-check-box::after {
+  transform: scale(1);
+}
+.auth-check input:focus-visible + .auth-check-box {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.auth-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.auth-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* "Or continue with" divider + social/passkey buttons — layered over
+   shadcn's Button the same way .auth-submit-btn is (see file header). */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+  font-size: 0.72rem;
+  color: var(--faint-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.auth-social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 44px;
+  width: 100%;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 150ms var(--ease-standard), border-color 150ms var(--ease-standard);
+}
+.auth-social-btn:hover:not(:disabled) {
+  background: var(--secondary);
+  border-color: color-mix(in oklab, var(--input) 60%, var(--foreground));
+}
+
+.auth-legal {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--faint-foreground);
+  line-height: 1.6;
+  text-align: center;
+}
+.auth-legal a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--input);
+}
+.auth-legal a:hover {
+  color: var(--primary);
+}
+
+/* Primary submit — exact gradient/glow treatment from the source mock,
+   layered over the shadcn Button so every other button in the app is
+   untouched. See the file header for why this stays un-layered. */
+.auth-submit-btn {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 90%, white 10%),
+    var(--primary)
+  );
+  color: var(--primary-foreground);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.15) inset,
+    0 8px 24px -8px color-mix(in oklab, var(--primary) 40%, transparent);
+  transition:
+    transform 150ms var(--ease-standard),
+    box-shadow 200ms var(--ease-standard);
+}
+.auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.15) inset,
+    0 12px 32px -8px color-mix(in oklab, var(--primary) 40%, transparent);
+}
+.auth-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.auth-submit-btn:disabled {
+  opacity: 0.75;
+}
+
+.auth-logo-spin {
+  animation: auth-logo-spin 1.1s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes auth-logo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-overlay,
+  .auth-card,
+  .auth-view,
+  .auth-logo-spin {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

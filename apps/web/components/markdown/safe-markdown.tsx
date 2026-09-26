@@ -149,8 +149,16 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
           // horizontally-scrolling wrapper instead, the same pattern
           // CodeBlock already uses for `<pre>`, so a wide table scrolls
           // internally instead of widening the page.
+          // Same shrink-to-fit hazard `code-block.tsx`'s wrapper had
+          // (see message.tsx's `isUser` comment): a `<table>` always
+          // widens to its widest cell regardless of any wrapper, so
+          // this outer scroll container needs its OWN explicit
+          // `min-w-0 max-w-full` — without it, inside the user bubble's
+          // shrink-to-fit column this div had nothing forcing it to
+          // respect the 86% cap either, so it grew to the table's full
+          // width instead of scrolling internally.
           table: ({ children }) => (
-            <div className="mt-2 overflow-x-auto first:mt-0">
+            <div className="mt-2 min-w-0 max-w-full overflow-x-auto first:mt-0">
               <table className="w-full border-collapse text-start">{children}</table>
             </div>
           ),

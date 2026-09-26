@@ -9,17 +9,10 @@ import type { LandingPackageView } from "@/features/landing/types";
 /**
  * apps/web/features/landing/components/packages-section.tsx
  *
- * Phase 3.3. Replaces components/package-grid.tsx (3.2, on the DELETE
- * list): same content, but reads from the single shared LandingData
- * fetch (lib/landing-data.ts) instead of independently calling
- * publicCaller.billing.listPackages() a second time — 3.2 had ModelGrid
- * and PackageGrid each fetching separately, and 3.3's new calculator
- * needs models AND packages together, so everything is fetched once and
- * handed down (see landing-data.ts's own doc).
- *
- * `bestValue` (computed server-side by build-landing-data.ts's
- * bestValuePackageIndex) drives a "Best value" badge — new in 3.3,
- * absent from the old grid.
+ * Phase 3.3+ (redesign). Same content, one addition: a "rate: X YER /
+ * credit" line at the bottom of each card. The value arrives precomputed
+ * from build-landing-data.ts (`rateLabel`) — no client-side division,
+ * no parsing of formatted strings.
  */
 export async function PackagesSection({
   locale,
@@ -48,11 +41,16 @@ export async function PackagesSection({
         {packages.map((pkg, i) => (
           <Reveal key={pkg.id} direction="up" delay={staggerDelay(i)}>
             <MagicCard className="h-full rounded-[14px]">
-              <div className="flex flex-col gap-3 p-[18px]">
+              <div className="flex h-full flex-col gap-3 p-[18px]">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-[15px] leading-none font-semibold text-foreground">{pkg.name}</h3>
-                  {pkg.bestValue && <Badge variant="default">{t("packages.bestValue")}</Badge>}
+                  <h3 className="text-[15px] leading-none font-semibold text-foreground">
+                    {pkg.name}
+                  </h3>
+                  {pkg.bestValue ? (
+                    <Badge variant="default">{t("packages.bestValue")}</Badge>
+                  ) : null}
                 </div>
+
                 <div className="space-y-1">
                   <p className="t-h3 text-foreground">
                     {pkg.priceYer} {t("yer")}
@@ -60,7 +58,21 @@ export async function PackagesSection({
                   <p className="t-small">
                     {pkg.credits} {t("credits")}
                   </p>
-                  {pkg.description ? <p className="t-caption">{pkg.description}</p> : null}
+                  {pkg.description ? (
+                    <p className="t-caption">{pkg.description}</p>
+                  ) : null}
+                </div>
+
+                {/* Rate line — pushes to the card's bottom so every card's
+                    rate sits on the same baseline regardless of description
+                    length. */}
+                <div className="mt-auto border-t border-border pt-3">
+                  <p className="t-caption">
+                    {t("packages.rateLabel")}:{" "}
+                    <span className="font-mono font-medium text-foreground">
+                      {pkg.rateLabel} {t("yer")}
+                    </span>
+                  </p>
                 </div>
               </div>
             </MagicCard>

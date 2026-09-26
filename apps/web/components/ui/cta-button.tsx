@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * both light and dark. Radius matches the other buttons (13px).
  */
 interface CtaButtonProps extends ShimmerButtonProps {
-  size?: "default" | "lg";
+  size?: "default" | "lg" | "sm";
 }
 
 export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
@@ -24,11 +24,18 @@ export const CtaButton = React.forwardRef<HTMLButtonElement, CtaButtonProps>(
       ref={ref}
       background="var(--primary)"
       shimmerColor="#ffffff"
-      borderRadius="13px"
+      borderRadius={size === "sm" ? "9px" : "13px"}
       shimmerDuration="3.2s"
       className={cn(
         "font-semibold text-primary-foreground",
-        size === "lg" ? "px-[22px] py-[13px] text-[15px]" : "px-4 py-2.5 text-[13.5px]",
+        size === "lg"
+          ? "px-[22px] py-[13px] text-[15px]"
+          : size === "sm"
+            // Matches Button `size="sm"` exactly (h-auto rounded-[9px]
+            // px-[11px] py-[7px] text-[12.5px]) so it sits flush with
+            // "Sign in" in the header, including the frosted-pill shrink.
+            ? "px-[11px] py-[7px] text-[12.5px]"
+            : "px-4 py-2.5 text-[13.5px]",
         className,
       )}
       {...props}

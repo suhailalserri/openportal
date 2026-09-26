@@ -21,7 +21,7 @@ for (const [name, cred] of Object.entries(STATES)) {
   setup(`sign in as ${name}`, async ({ page }) => {
     await page.goto("/en/auth/login");
     await page.getByLabel("Email address").fill(cred.email);
-    await page.getByLabel("Password").fill(cred.password);
+    await page.getByLabel("Password", { exact: true }).fill(cred.password);
     await page.getByRole("button", { name: "Sign In" }).click();
     await expect(page).toHaveURL(/\/en\/chat$/, { timeout: 15_000 });
     await page.context().storageState({ path: cred.path });

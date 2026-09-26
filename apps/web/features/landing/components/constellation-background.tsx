@@ -282,6 +282,16 @@ export function ConstellationBackground() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      {/* Ambient "gate" glow — sits behind the dot canvas, matching the
+          reference design's `body::before` radial wash (a soft amber
+          ellipse near the top of the viewport). Purely decorative. */}
+      <div
+        className="absolute left-1/2 top-[-20vh] -z-10 h-[100vh] w-[140vw] -translate-x-1/2 opacity-55"
+        style={{
+          background:
+            "radial-gradient(ellipse 40% 55% at 50% 20%, color-mix(in oklab, var(--primary) 35%, transparent) 0%, transparent 60%)",
+        }}
+      />
       <canvas ref={canvasRef} className="block h-full w-full" />
     </div>
   );

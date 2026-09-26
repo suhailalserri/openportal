@@ -28,6 +28,8 @@ export interface ChatModel {
   displayNameAr: string;
   badge: string;
   provider: string;
+  /** Admin override of the displayed brand icon; null/undefined = auto-detect from `provider`. */
+  providerIconKey?: string | null | undefined;
   tier: string;
   contextWindow: number;
   maxOutputTokens: number;

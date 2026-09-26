@@ -55,7 +55,7 @@ export function PasskeySignIn({
     <Button
       type="button"
       variant="outline"
-      className="mt-3 w-full"
+      className="auth-social-btn mt-3"
       onClick={onClick}
       disabled={pending}
       aria-busy={pending}

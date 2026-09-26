@@ -19,7 +19,23 @@
  * with two font-loading mechanisms active at once.
  */
 
-import { IBM_Plex_Sans_Arabic, Inter, JetBrains_Mono } from "next/font/google";
+import { Fraunces, IBM_Plex_Sans_Arabic, Inter, JetBrains_Mono } from "next/font/google";
+
+// Display / headline serif — matches the reference design's Fraunces
+// heading treatment (docs/design/design-preview.html §1: --font-display).
+// Was missing entirely before, so every heading silently fell back to
+// Inter — the single biggest visible gap versus the reference file.
+export const fontDisplay = Fraunces({
+  subsets: ["latin"],
+  // Fraunces is a variable font; not every weight has a static italic
+  // instance published (e.g. 500/italic), which crashes next/font/google's
+  // static-face lookup with "Cannot read properties of null (reading '1')".
+  // "variable" loads the full weight axis instead of enumerating instances.
+  weight: "variable",
+  style: ["normal", "italic"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 // Arabic UI text. Verified available weights for this family are
 // 100/200/300/400/500/600/700 (not a variable font) — only requesting
@@ -54,6 +70,7 @@ export const fontMono = JetBrains_Mono({
  * Applied in 1.2 alongside the globals.css deletion.
  */
 export const fontVariables = [
+  fontDisplay.variable,
   fontArabic.variable,
   fontInter.variable,
   fontMono.variable,

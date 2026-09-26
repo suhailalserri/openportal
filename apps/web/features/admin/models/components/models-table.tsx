@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AppProviderIcon } from "@/components/icons/provider-icon";
 import type { ModelRow } from "../types";
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "default"> = {
@@ -59,7 +60,16 @@ export function ModelsTable({ rows, onEdit, onToggle, isToggling }: ModelsTableP
                     <span className="font-mono text-xs text-muted-foreground">{row.id}</span>
                   </div>
                 </TableCell>
-                <TableCell>{row.provider}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5">
+                    <AppProviderIcon
+                      providerIconKey={row.providerIconKey}
+                      provider={row.provider}
+                      size={16}
+                    />
+                    {row.provider}
+                  </span>
+                </TableCell>
                 <TableCell className="capitalize">{row.tier}</TableCell>
                 <TableCell>
                   <Badge variant={STATUS_VARIANT[row.status] ?? "default"}>{t(`status.${row.status}`)}</Badge>

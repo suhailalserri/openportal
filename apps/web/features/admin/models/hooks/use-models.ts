@@ -13,6 +13,8 @@ export interface PublishModelInput {
   displayName: string;
   displayNameAr: string;
   badge?: string | undefined;
+  /** Admin override of the displayed brand icon; undefined = auto-detect from `provider`. */
+  providerIconKey?: string | undefined;
   tier: "standard" | "premium";
   markupMultiplier: number;
   contextWindow: number;

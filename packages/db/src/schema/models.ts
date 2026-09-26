@@ -26,6 +26,17 @@ export const models = pgTable("models", {
   displayNameAr:    varchar("display_name_ar", { length: 100 }).notNull(),
   badge:            varchar("badge",    { length: 10  }).default("").notNull(),
   provider:         varchar("provider", { length: 50  }).notNull(),
+  // Which @lobehub/icons provider key to render for this row (e.g.
+  // "openai", "anthropic", "google"). Deliberately separate from
+  // `provider`: that column is system-managed and gets overwritten on
+  // every gateway sync from the New API channel's `type` field (see
+  // model-sync.service.ts), so it's not safe for an admin's manual icon
+  // choice to live there — it would just get reverted on the next sync.
+  // Null means "auto-detect from `provider`" (see lib/provider-icons.tsx
+  // in apps/web); an admin only sets this explicitly when auto-detection
+  // picks the wrong brand or the provider string doesn't match any
+  // known key.
+  providerIconKey:  varchar("provider_icon_key", { length: 50 }),
   tier:             varchar("tier",     { length: 20  }).default("standard").notNull(),
   status:           modelStatusEnum("status").default("published").notNull(),
   isAvailable:      boolean("is_available").default(true).notNull(),

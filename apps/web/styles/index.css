@@ -3,6 +3,7 @@
 @import "./theme.css";
 @import "./theme-presets.css";
 @import "./code-highlight.css";
+@import "./auth.css";
 
 /*
  * @tailwindcss/typography has been a devDependency since 1.2 but was
@@ -23,6 +24,7 @@
    * next/font already put in --font-arabic at runtime", so the font
    * stack is never hardcoded twice.
    */
+  --font-display: var(--font-display);
   --font-arabic: var(--font-arabic);
   --font-inter: var(--font-inter);
   --font-mono: var(--font-mono);
@@ -61,20 +63,25 @@ p {
  * `pre, code, kbd, .code-block` rule above already owns that.
  */
 .t-h1 {
+  font-family: var(--font-display);
   font-size: 40px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.025em;
   line-height: 1.12;
 }
 
 .t-h2 {
+  font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
 .t-h3 {
+  font-family: var(--font-display);
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .t-body {
@@ -105,10 +112,35 @@ p {
 
   html {
     scroll-behavior: smooth;
+    /* Global backstop for the chat bubble overflow bug. The chat tree
+       (AppShell → Main → ChatView → MessageList → Message →
+       SafeMarkdown) already carries a full min-w-0/break-words/
+       overflow-x-hidden chain purpose-built for this — see each of
+       those files' own header comments — so in a correctly-hydrated
+       page none of this should ever be reached. It exists because that
+       chain only guarantees an overflowing node stays CONTAINED at the
+       nearest ancestor that has an explicit overflow rule; it does not
+       guarantee one of them can't be bypassed (a not-yet-audited page,
+       a future component that forgets the pattern, a container query
+       or portal rendering outside the normal tree). `overflow-x:
+       hidden` here is the actual last line of defense: no element on
+       any page can ever widen the DOCUMENT itself and pan the whole
+       viewport sideways, which is what a user bubble "breaking to the
+       right" of the screen actually looks like from a phone.
+       `width: 100%` keeps this root from being wider than the
+       viewport in the first place, which `overflow-x: hidden` alone
+       doesn't guarantee. Deliberately not `overflow: hidden` (both
+       axes) — vertical scroll on ordinary, non-chat pages (billing,
+       settings, admin) still comes from `body`'s own natural height,
+       and clipping that here would break them instead of chat. */
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     min-height: 100dvh;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   :focus-visible {
@@ -164,6 +196,18 @@ p {
   30%,
   60% {
     background-position: calc(100% + var(--shiny-width)) 0;
+  }
+}
+
+/* Cost Explorer bar sweep — ported 1:1 from the reference design's
+   .cost-bar::after / @keyframes shimmer (docs/design source, §12). */
+@keyframes cost-bar-sweep {
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
   }
 }
 

@@ -36,6 +36,8 @@
     "@hookform/resolvers": "^3.9.0",
     "next-themes": "^0.4.4",
     "qrcode.react": "^4.1.0",
+    "@lobehub/icons": "^1.58.0",
+    "@lobehub/ui": "^1.0.0",
     "framer-motion": "^11.11.0",
     "@better-auth/passkey": "1.7.3",
     "@tanstack/react-query": "^5.0.0",

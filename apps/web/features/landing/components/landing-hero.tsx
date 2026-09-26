@@ -2,57 +2,125 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { Button } from "@/components/ui/button";
-import { Reveal } from "@/components/ui/reveal";
-import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { CtaButton } from "@/components/ui/cta-button";
-import { TextAnimate } from "@/components/ui/text-animate";
+import { cn } from "@/lib/utils";
+import type { CalculatorView } from "@/features/landing/types";
+
+import { HeroCalculator } from "./hero-calculator";
 
 /**
  * apps/web/features/landing/components/landing-hero.tsx
  *
- * Phase 3.3. Primary CTA is CtaButton (Sign up only — Sign in stays
- * a plain outline button, so the shimmer draws the eye to the one action
- * that matters here, not both equally).
+ * Phase 3.3+ (redesign). Two-column hero: identity and CTA on the left,
+ * a live calculator on the right. The calculator is the primary proof
+ * that "pay only for what you use" is not marketing copy — a visitor
+ * sees their balance stretch across 300+ messages before reading a
+ * single paragraph of prose.
  *
- * The constellation canvas is NO LONGER mounted here — it moved to a
- * single page-root instance in index.tsx (`<ConstellationBackground />`,
- * `position: fixed`, behind every section) so the dot field spans the
- * whole page instead of stopping at the bottom of the hero. This
- * section no longer needs its own `relative overflow-hidden` stacking
- * context for that purpose, but keeps `relative` since the pill/heading
- * still sit above the global fixed background by normal stacking order
- * (a `position: fixed` element behind content needs no z-index dance
- * from content that is simply in normal flow above it).
+ * GRACEFUL DEGRADATION: when `calculator` is null (no usable package to
+ * derive a YER rate from, or no models published), the right column
+ * disappears and the left column centers itself. The hero is still a
+ * complete, usable hero without the calculator — the redesign assumes
+ * the common case (models + packages exist) but does not break when it
+ * is not the case.
+ *
+ * No `isAuthenticated` branch: the landing is public and always shows
+ * the same CTA. The app-shell's own header handles signed-in users.
  */
-export async function LandingHero({ locale }: { locale: string }) {
+export async function LandingHero({
+  locale,
+  calculator,
+}: {
+  locale: string;
+  calculator: CalculatorView | null;
+}) {
   const t = await getTranslations({ locale, namespace: "landing" });
+  const hasCalculator = calculator !== null;
+
+  const trustLabels = [t("hero.trust1"), t("hero.trust2"), t("hero.trust3")];
 
   return (
-    <section className="relative">
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-        <Reveal direction="up">
-          <div className="mb-6 inline-flex rounded-full border border-border bg-card/70 backdrop-blur-sm">
-            <AnimatedShinyText className="px-4 py-1 text-[13px]">{t("heroPill")}</AnimatedShinyText>
+    <section className="relative z-10 px-4 pt-32 pb-16 sm:px-6 md:pt-40 md:pb-24">
+      <div
+        className={cn(
+          "mx-auto grid max-w-6xl grid-cols-1 gap-12 lg:gap-16",
+          hasCalculator ? "items-center lg:grid-cols-12" : "max-w-3xl",
+        )}
+      >
+        {/* ── Left column ─────────────────────────────────────────── */}
+        <div
+          className={cn(
+            "flex flex-col",
+            hasCalculator
+              ? "items-start text-left lg:col-span-6"
+              : "items-center text-center",
+          )}
+        >
+          {/* Pill badge */}
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-primary">
+            <span className="relative flex size-1.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-success" />
+            </span>
+            <span>{t("hero.pill")}</span>
           </div>
-        </Reveal>
-        <TextAnimate as="h1" className="t-h1 mx-auto block max-w-3xl text-balance text-foreground">
-          {t("heroTitle")}
-        </TextAnimate>
-        <Reveal direction="up" delay={0.1}>
-          <p className="t-body mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
-            {t("heroSubtitle")}
+
+          <h1 className="text-balance text-4xl leading-[1.08] font-semibold tracking-tight text-foreground sm:text-5xl md:text-[56px]">
+            {t("hero.title1")}
+            <br />
+            <em className="bg-gradient-to-r from-chart-1 via-chart-4 to-destructive bg-clip-text font-normal text-transparent italic">
+              {t("hero.title2")}
+            </em>
+            <br />
+            {t("hero.title3")}
+          </h1>
+
+          <p className="mt-6 max-w-xl text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+            {t("hero.subtitle")}
           </p>
-        </Reveal>
-        <Reveal direction="up" delay={0.2}>
-          <div className="mt-8 flex items-center justify-center gap-3">
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <CtaButton asChild size="lg">
-              <Link href={`/${locale}/auth/register`}>{t("heroCta")}</Link>
+              <Link href={`/${locale}/auth/register`}>
+                {t("hero.ctaPrimary")}
+              </Link>
             </CtaButton>
-            <Button size="lg" variant="outline" asChild>
-              <Link href={`/${locale}/auth/login`}>{t("signIn")}</Link>
+            <Button variant="outline" size="lg" asChild>
+              <Link href="#models">{t("hero.ctaSecondary")}</Link>
             </Button>
           </div>
-        </Reveal>
+
+          {/* Trust row */}
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border pt-6">
+            {trustLabels.map((label) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 text-[12px] text-muted-foreground"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-3.5 shrink-0 text-success"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Right column — the live calculator ──────────────────── */}
+        {hasCalculator ? (
+          <div className="w-full lg:col-span-6">
+            <HeroCalculator view={calculator} />
+          </div>
+        ) : null}
       </div>
     </section>
   );

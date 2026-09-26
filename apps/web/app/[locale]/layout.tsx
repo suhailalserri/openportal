@@ -17,6 +17,16 @@ type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 interface Props {
   children: React.ReactNode;
+  /**
+   * The `@modal` parallel-route slot (app/[locale]/@modal/) — renders the
+   * intercepted /auth/login and /auth/register modals on top of
+   * `children` when reached via a client-side navigation from another
+   * page in this locale, and null everywhere else (its default.tsx).
+   * A parallel-route slot has to be declared and rendered here, on the
+   * shared layout, to work at all; it doesn't do anything just by
+   * existing on disk.
+   */
+  modal: React.ReactNode;
   params: Promise<{ locale: string }>;
 }
 
@@ -31,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function LocaleLayout({ children, params }: Props) {
+export default async function LocaleLayout({ children, modal, params }: Props) {
   const { locale } = await params;
 
   if (!SUPPORTED_LOCALES.includes(locale as Locale)) notFound();
@@ -88,6 +98,7 @@ export default async function LocaleLayout({ children, params }: Props) {
               <TRPCQueryProvider>
                 <ThemePresetSync />
                 {children}
+                {modal}
                 <AppToastProvider />
               </TRPCQueryProvider>
             </AppDirectionProvider>
