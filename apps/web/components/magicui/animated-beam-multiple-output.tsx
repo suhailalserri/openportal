@@ -211,7 +211,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         toRef={openaiRef}
         duration={4}
         repeatDelay={1.5}
-        delay={0.3}
+        delay={0.6}
         curvature={75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
@@ -222,7 +222,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         toRef={anthropicRef}
         duration={4}
         repeatDelay={1.5}
-        delay={0.45}
+        delay={0.6}
         curvature={35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-3)"
@@ -231,7 +231,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={geminiRef}
-        duration={4}
+        duration={5}
         repeatDelay={1.5}
         delay={0.6}
         curvature={0}
@@ -242,9 +242,9 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={deepseekRef}
-        duration={4}
+        duration={10}
         repeatDelay={1.5}
-        delay={0.75}
+        delay={0.6}
         curvature={-35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-5)"
@@ -253,9 +253,9 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={qwenRef}
-        duration={4}
+        duration={10}
         repeatDelay={1.5}
-        delay={0.9}
+        delay={0.6}
         curvature={-75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
