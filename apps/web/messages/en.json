@@ -799,6 +799,7 @@
       "columns": {
         "model": "Model",
         "provider": "Provider",
+        "categories": "Categories",
         "tier": "Tier",
         "status": "Status",
         "available": "Available",
@@ -814,7 +815,7 @@
         "editTitle": "Edit model",
         "displayName": "Display name (English)",
         "displayNameAr": "Display name (Arabic)",
-        "badge": "Badge (max 10 chars)",
+        "badge": "Badge",
         "providerIcon": "Provider icon",
         "providerIconAuto": "Auto-detect",
         "providerIconSearchPlaceholder": "Search providers…",
@@ -831,7 +832,31 @@
         "supportsVision": "Supports image input",
         "cancel": "Cancel",
         "save": "Save",
-        "saving": "Saving…"
+        "saving": "Saving…",
+        "categories": "Categories"
+      },
+      "badges": {
+        "none": "No badge",
+        "new": "New",
+        "popular": "Popular",
+        "recommended": "Recommended",
+        "fast": "Fast",
+        "budget": "Budget",
+        "flagship": "Flagship",
+        "smart": "Smart",
+        "beta": "Beta",
+        "deprecated": "Deprecated"
+      },
+      "categories": {
+        "vision": "Vision",
+        "imageGeneration": "Image generation",
+        "audio": "Audio",
+        "video": "Video",
+        "reasoning": "Reasoning",
+        "coding": "Coding",
+        "webSearch": "Web search",
+        "functionCalling": "Function calling",
+        "longContext": "Long context"
       }
     },
     "channelsPage": {

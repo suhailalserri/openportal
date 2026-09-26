@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeProviderKey } from "@/components/icons/provider-icon";
 import { ProviderIconPicker } from "./provider-icon-picker";
+import { ModelBadgePicker } from "./model-badge-picker";
+import { ModelCategoryToggles } from "./model-category-toggles";
+import type { ModelBadgeKey } from "@ai-platform/config";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
 
@@ -29,13 +32,14 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     modelId: model?.id ?? "",
     displayName: model?.displayName ?? "",
     displayNameAr: model?.displayNameAr ?? "",
-    badge: model?.badge || undefined,
+    badge: (model?.badge || undefined) as ModelBadgeKey | undefined,
     providerIconKey: model?.providerIconKey ?? undefined,
     tier: (model?.tier === "premium" ? "premium" : "standard"),
     markupMultiplier: model ? Number(model.markupMultiplier) : 2.0,
     contextWindow: model?.contextWindow ?? 0,
     maxOutputTokens: model?.maxOutputTokens ?? 0,
     supportsVision: model?.supportsVision ?? false,
+    categories: model?.categories ?? [],
     wholesaleCostInputPerM: model ? Number(model.wholesaleCostInputPerM) : 0,
     wholesaleCostOutputPerM: model ? Number(model.wholesaleCostOutputPerM) : 0,
     rateLimitPerUserDaily: model?.rateLimitPerUserDaily ?? undefined,
@@ -108,13 +112,18 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="model-badge">{t("badge")}</Label>
-            <Input
-              id="model-badge"
-              maxLength={10}
-              value={form.badge ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, badge: e.target.value || undefined }))}
+          <div className="sm:col-span-2">
+            <ModelBadgePicker
+              value={form.badge}
+              onChange={(key) => setForm((f) => ({ ...f, badge: key }))}
+              label={t("badge")}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <ModelCategoryToggles
+              value={form.categories}
+              onChange={(next) => setForm((f) => ({ ...f, categories: next }))}
+              label={t("categories")}
             />
           </div>
           <div className="sm:col-span-2">

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AppProviderIcon } from "@/components/icons/provider-icon";
+import { ModelBadge } from "@/components/icons/model-badge";
+import { ModelCategoryIcons } from "@/components/icons/model-category";
 import type { ModelRow } from "../types";
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "default"> = {
@@ -40,6 +42,7 @@ export function ModelsTable({ rows, onEdit, onToggle, isToggling }: ModelsTableP
           <TableRow>
             <TableHead>{t("columns.model")}</TableHead>
             <TableHead>{t("columns.provider")}</TableHead>
+            <TableHead>{t("columns.categories")}</TableHead>
             <TableHead>{t("columns.tier")}</TableHead>
             <TableHead>{t("columns.status")}</TableHead>
             <TableHead className="text-end">{t("columns.available")}</TableHead>
@@ -49,14 +52,17 @@ export function ModelsTable({ rows, onEdit, onToggle, isToggling }: ModelsTableP
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">{t("empty")}</TableCell>
+              <TableCell colSpan={7} className="text-center text-muted-foreground">{t("empty")}</TableCell>
             </TableRow>
           ) : (
             rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
-                  <div className="flex flex-col">
-                    <span>{row.displayName || row.id}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="flex items-center gap-1.5">
+                      {row.displayName || row.id}
+                      <ModelBadge badge={row.badge} size={11} />
+                    </span>
                     <span className="font-mono text-xs text-muted-foreground">{row.id}</span>
                   </div>
                 </TableCell>
@@ -69,6 +75,9 @@ export function ModelsTable({ rows, onEdit, onToggle, isToggling }: ModelsTableP
                     />
                     {row.provider}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <ModelCategoryIcons categories={row.categories} size={13} />
                 </TableCell>
                 <TableCell className="capitalize">{row.tier}</TableCell>
                 <TableCell>

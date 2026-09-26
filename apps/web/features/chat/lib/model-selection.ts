@@ -34,6 +34,8 @@ export interface ChatModel {
   contextWindow: number;
   maxOutputTokens: number;
   supportsVision: boolean;
+  /** Feature-flag keys from MODEL_CATEGORY_KEYS (@ai-platform/config). */
+  categories?: string[] | null | undefined;
   avgResponseTimeMs: number | null;
   creditsPerKInput: number;
   creditsPerKOutput: number;

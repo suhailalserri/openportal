@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { trpc } from "@/lib/trpc";
+import type { ModelBadgeKey } from "@ai-platform/config";
 
 export type ModelTab = "all" | "pending" | "published" | "disabled";
 
@@ -12,7 +13,7 @@ export interface PublishModelInput {
   modelId: string;
   displayName: string;
   displayNameAr: string;
-  badge?: string | undefined;
+  badge?: ModelBadgeKey | undefined;
   /** Admin override of the displayed brand icon; undefined = auto-detect from `provider`. */
   providerIconKey?: string | undefined;
   tier: "standard" | "premium";
@@ -20,6 +21,8 @@ export interface PublishModelInput {
   contextWindow: number;
   maxOutputTokens: number;
   supportsVision: boolean;
+  /** Feature-flag keys from MODEL_CATEGORY_KEYS (@ai-platform/config). */
+  categories: string[];
   wholesaleCostInputPerM: number;
   wholesaleCostOutputPerM: number;
   rateLimitPerUserDaily?: number | undefined;

@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ModelBadge } from "@/components/icons/model-badge";
 import { compactTokens, responseSeconds } from "@/features/landing/lib/format-price";
 import type { LandingModelRow, TierFilterValue } from "@/features/landing/types";
 import { cn } from "@/lib/utils";
@@ -152,11 +152,7 @@ function ModelCard({ row }: { row: LandingModelRow }) {
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
             <span className="truncate">{row.name}</span>
-            {row.badge ? (
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
-                {row.badge}
-              </Badge>
-            ) : null}
+            <ModelBadge badge={row.badge} size={10} className="shrink-0 text-[10px]" />
           </h3>
           <p
             className={cn(
