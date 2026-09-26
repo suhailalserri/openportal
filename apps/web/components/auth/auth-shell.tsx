@@ -76,13 +76,23 @@ export function AuthShell({
   }, []);
 
   const homeHref = `/${locale}`;
-  // router.back() only pops one history entry — if the visitor switched
-  // between the login/signup tabs (each a Link, i.e. its own push) before
-  // hitting close, one "back" just lands on the previous tab's modal
-  // state instead of leaving the modal, so it looks like the X needs to
-  // be clicked repeatedly. Route to the underlying page directly instead;
-  // it's an intercepted route, so this still keeps that page's own state.
-  const close = () => router.replace(homeHref);
+  // `router.back()`, not `router.replace()`: Next's intercepting-route
+  // machinery (the `@modal` slot) ties the modal's mounted/unmounted
+  // state to the actual history entry it intercepted, not just to the
+  // current URL matching something else — replacing the URL out from
+  // under it (even to a URL `@modal`'s own default.tsx would render null
+  // for) does not reliably tell Next to un-render the slot, so the X
+  // button just sat there doing nothing. `back()` is the one navigation
+  // Next's interception correctly unwinds.
+  //
+  // The multi-click complaint this used to "fix" wasn't about back()
+  // being wrong — it was that switching login/signup tabs (see the two
+  // `<Link>`s below) each pushed a NEW history entry, so by the time you
+  // hit X there could be several modal-related entries stacked up and
+  // one back() only popped the most recent tab switch. Fixed at the
+  // source below (tabs replace instead of push) instead of here, so
+  // back() only ever has one entry to unwind and closes in one click.
+  const close = () => router.back();
 
   return (
     <div className="auth-overlay" data-open={open ? "true" : "false"}>
@@ -148,6 +158,15 @@ export function AuthShell({
             <div className="auth-tabs" role="tablist">
               <Link
                 href={`/${locale}/auth/login`}
+                // Tab switches replace the current history entry rather
+                // than pushing a new one — without this, going
+                // login → register → login → close stacks 3 modal
+                // entries and a single `back()` in `close()` above only
+                // unwinds the most recent tab switch instead of actually
+                // closing the modal. `replace` keeps exactly one
+                // modal-related entry on the stack no matter how many
+                // times the visitor flips between tabs first.
+                replace
                 role="tab"
                 aria-selected={activeTab === "signin"}
                 className="auth-tab"
@@ -156,6 +175,7 @@ export function AuthShell({
               </Link>
               <Link
                 href={`/${locale}/auth/register`}
+                replace
                 role="tab"
                 aria-selected={activeTab === "signup"}
                 className="auth-tab"
