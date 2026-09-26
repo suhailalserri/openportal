@@ -32,7 +32,7 @@ export function ShineCard({ children, className }: ShineCardProps) {
     >
       <div
         aria-hidden="true"
-        className="animate-card-shine pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 bg-linear-to-r from-transparent via-white/30 to-transparent"
+        className="animate-card-shine pointer-events-none absolute inset-y-0 start-0 z-10 w-1/3 bg-linear-to-r from-transparent via-white/30 to-transparent"
       />
       <div className="relative z-20 rounded-[inherit] p-[18px]">{children}</div>
     </div>

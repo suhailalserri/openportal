@@ -196,8 +196,8 @@ export function InfoHint({ content, label, className }: InfoHintProps) {
                 className={cn(
                   "absolute left-1/2 size-2.5 -translate-x-1/2 rotate-45 rounded-[2px] border-border bg-popover",
                   placement === "bottom"
-                    ? "-top-1 border-t border-l"
-                    : "-bottom-1 border-b border-r",
+                    ? "-top-1 border-t border-s"
+                    : "-bottom-1 border-b border-e",
                 )}
               />
             </div>,
