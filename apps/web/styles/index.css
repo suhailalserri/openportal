@@ -169,6 +169,16 @@ p {
    * ease-in-out, infinite), same 0/80/100% -> 40% opacity+lift shape.
    */
   --animate-typing-blink: typing-blink 1.2s ease-in-out infinite;
+  /*
+   * ShineCard (components/magicui/shine-card.tsx) — a single diagonal
+   * light band that sweeps across the card once per cycle, then sits
+   * parked off-canvas for the remainder of the cycle. Deliberately NOT
+   * the same shape as `shiny-text` (that's a continuous background-
+   * position oscillation on text) and NOT `BorderBeam` (a dot travelling
+   * around the border path) — this is a full-card "glare pass" effect,
+   * closer to light hitting a glossy card than either of those.
+   */
+  --animate-card-shine: card-shine 5s ease-in-out infinite;
 }
 
 @keyframes typing-blink {
@@ -212,6 +222,22 @@ p {
   }
 }
 
+/* ShineCard glare pass — see @theme inline note above for why this is
+   deliberately distinct from shiny-text and BorderBeam. The band starts
+   parked off-canvas left, sweeps across quickly, then parks off-canvas
+   right for the rest of the cycle (a real periodic "shine", not a loop
+   that's always visibly moving). Physical translateX by design — this
+   is a light direction, not text flow, so it is NOT flipped for RTL. */
+@keyframes card-shine {
+  0% {
+    transform: translateX(-120%) skewX(-15deg);
+  }
+  18%,
+  100% {
+    transform: translateX(220%) skewX(-15deg);
+  }
+}
+
 /* Cost Explorer bar sweep — ported 1:1 from the reference design's
    .cost-bar::after / @keyframes shimmer (docs/design source, §12). */
 @keyframes cost-bar-sweep {
@@ -228,7 +254,8 @@ p {
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer-slide,
   .animate-spin-around,
-  .animate-shiny-text {
+  .animate-shiny-text,
+  .animate-card-shine {
     animation: none !important;
   }
 }

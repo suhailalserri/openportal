@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { SectionPage } from "@/components/layout/section-page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Accordion,
@@ -24,6 +25,18 @@ import { getVisibleSections } from "./registry";
  * Tabs/Accordion keep inactive content in the DOM rather than unmounting
  * it), which is what lets `useFormDirtyGuard` in each section survive a
  * tab/accordion switch — see that hook's own comment.
+ *
+ * Frame: this used to be its own `mx-auto max-w-2xl py-6` div with NO
+ * horizontal padding, unlike every other page in the app (dashboard,
+ * billing, usage), which all go through `SectionPage` (`p-4 md:p-8`).
+ * The gap read as accordion titles/inputs sitting flush against the
+ * screen edge on mobile ("texts starting next to the border of the
+ * screen"). Now wrapped in `SectionPage` like the rest so the side
+ * margins match every other page at every breakpoint. `max-w-2xl` is
+ * passed through `className` (resolved over `SectionPage`'s own
+ * `max-w-5xl` via `cn()`'s tailwind-merge) to keep this page's original,
+ * narrower form-width — only the missing padding was the bug, not the
+ * width cap.
  */
 export function SettingsView() {
   const t = useTranslations("settings.nav");
@@ -37,9 +50,7 @@ export function SettingsView() {
   const firstId = sections[0]?.id ?? "";
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-6">
-      <h1 className="text-xl font-semibold text-foreground">{t("pageTitle")}</h1>
-
+    <SectionPage title={t("pageTitle")} className="max-w-2xl">
       {/* Desktop / tablet */}
       <Tabs defaultValue={firstId} className="hidden md:flex">
         <TabsList>
@@ -78,6 +89,6 @@ export function SettingsView() {
           );
         })}
       </Accordion>
-    </div>
+    </SectionPage>
   );
 }
