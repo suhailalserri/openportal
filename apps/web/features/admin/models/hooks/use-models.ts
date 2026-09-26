@@ -41,15 +41,25 @@ export interface PublishModelInput {
 export function useModels() {
   const t = useTranslations("admin.modelsPage");
   const [tab, setTab] = useState<ModelTab>("all");
+  const [search, setSearch] = useState("");
   const utils = trpc.useUtils();
 
   const query = trpc.models.listAll.useQuery();
 
   const rows = useMemo(() => {
     const all = query.data ?? [];
-    if (tab === "all") return all;
-    return all.filter((m) => m.status === tab);
-  }, [query.data, tab]);
+    const byTab = tab === "all" ? all : all.filter((m) => m.status === tab);
+    const term = search.trim().toLowerCase();
+    if (!term) return byTab;
+    // Matches on the model id (the technical slug, e.g. "gpt-4o"), and
+    // both display names — covers what an admin would actually type,
+    // whether they remember the gateway id or the human-facing label.
+    return byTab.filter((m) =>
+      m.id.toLowerCase().includes(term) ||
+      m.displayName.toLowerCase().includes(term) ||
+      m.displayNameAr.toLowerCase().includes(term)
+    );
+  }, [query.data, tab, search]);
 
   const pendingCount = useMemo(() => (query.data ?? []).filter((m) => m.status === "pending").length, [query.data]);
 
@@ -82,6 +92,8 @@ export function useModels() {
   return {
     tab,
     setTab,
+    search,
+    setSearch,
     rows,
     pendingCount,
     isLoading: query.isLoading,

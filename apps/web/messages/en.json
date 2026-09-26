@@ -781,6 +781,7 @@
     "modelsPage": {
       "title": "Models",
       "description": "Review discovered models, publish them with pricing, and control availability.",
+      "searchPlaceholder": "Search by name or model id…",
       "tabs": {
         "all": "All",
         "pending": "Pending",
