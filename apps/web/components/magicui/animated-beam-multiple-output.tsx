@@ -133,13 +133,20 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
 
   const userRef = useRef<HTMLDivElement>(null);
   const platformRef = useRef<HTMLDivElement>(null);
-  const providerRefs = [
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-    useRef<HTMLDivElement>(null),
-  ] as const;
+  // Named individually (not indexed into an array) so each ref's type
+  // stays `RefObject<HTMLDivElement | null>` — the exact type
+  // `AnimatedBeam`'s `toRef` prop expects. `providerRefs[i]` under this
+  // project's `noUncheckedIndexedAccess` tsconfig option types as
+  // `RefObject<HTMLDivElement | null> | undefined` (TS can't prove an
+  // arbitrary numeric index is in bounds), which is what broke `tsc
+  // --noEmit` in CI — this sidesteps that without weakening the
+  // tsconfig option or casting.
+  const openaiRef = useRef<HTMLDivElement>(null);
+  const anthropicRef = useRef<HTMLDivElement>(null);
+  const geminiRef = useRef<HTMLDivElement>(null);
+  const deepseekRef = useRef<HTMLDivElement>(null);
+  const qwenRef = useRef<HTMLDivElement>(null);
+  const providerRefs = [openaiRef, anthropicRef, geminiRef, deepseekRef, qwenRef] as const;
 
   return (
     <div
@@ -169,7 +176,11 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
 
         {/* Column 3 — providers, label below each icon (matches the
            user/hub nodes) so the row reads as one calm column instead of
-           icon+text pairs crowding each other horizontally. */}
+           icon+text pairs crowding each other horizontally. `providerRefs`
+           is only READ by index here (for the `ref` prop) — `Circle`'s
+           `ref` accepts `undefined` fine (forwardRef always does), so
+           this particular indexed read was never the type error; only
+           passing the same indexed read into `toRef` below was. */}
         <div className="flex flex-col justify-between py-1">
           {PROVIDERS.map((provider, i) => (
             <div key={provider.key} className="flex flex-col items-center gap-1.5">
@@ -196,20 +207,61 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-1)"
       />
-      {PROVIDERS.map((provider, i) => (
-        <AnimatedBeam
-          key={provider.key}
-          containerRef={containerRef}
-          fromRef={platformRef}
-          toRef={providerRefs[i]}
-          duration={4}
-          repeatDelay={1.5}
-          delay={0.3 + i * 0.15}
-          curvature={curvatureForRow(i)}
-          gradientStartColor="var(--color-primary)"
-          gradientStopColor={GRADIENT_STOPS[i]}
-        />
-      ))}
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={platformRef}
+        toRef={openaiRef}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.3}
+        curvature={curvatureForRow(0)}
+        gradientStartColor="var(--color-primary)"
+        gradientStopColor={GRADIENT_STOPS[0]}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={platformRef}
+        toRef={anthropicRef}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.45}
+        curvature={curvatureForRow(1)}
+        gradientStartColor="var(--color-primary)"
+        gradientStopColor={GRADIENT_STOPS[1]}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={platformRef}
+        toRef={geminiRef}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.6}
+        curvature={curvatureForRow(2)}
+        gradientStartColor="var(--color-primary)"
+        gradientStopColor={GRADIENT_STOPS[2]}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={platformRef}
+        toRef={deepseekRef}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.75}
+        curvature={curvatureForRow(3)}
+        gradientStartColor="var(--color-primary)"
+        gradientStopColor={GRADIENT_STOPS[3]}
+      />
+      <AnimatedBeam
+        containerRef={containerRef}
+        fromRef={platformRef}
+        toRef={qwenRef}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.9}
+        curvature={curvatureForRow(4)}
+        gradientStartColor="var(--color-primary)"
+        gradientStopColor={GRADIENT_STOPS[4]}
+      />
     </div>
   );
 }
