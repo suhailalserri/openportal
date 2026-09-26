@@ -212,7 +212,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.3}
-        curvature={-75}
+        curvature={75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
@@ -223,7 +223,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.45}
-        curvature={-35}
+        curvature={35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-3)"
       />
@@ -245,7 +245,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.75}
-        curvature={35}
+        curvature={-35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-5)"
       />
@@ -256,7 +256,7 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         duration={4}
         repeatDelay={1.5}
         delay={0.9}
-        curvature={75}
+        curvature={-75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
