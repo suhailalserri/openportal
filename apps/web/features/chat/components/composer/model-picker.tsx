@@ -6,6 +6,7 @@ import { Check, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { AppProviderIcon } from "@/components/icons/provider-icon";
 import {
   formatLatency,
   formatTokenSize,
@@ -76,6 +77,14 @@ export function ModelChip({ model, open, controls, className, ...props }: ModelC
       )}
       {...props}
     >
+      {model ? (
+        <AppProviderIcon
+          providerIconKey={model.providerIconKey}
+          provider={model.provider}
+          size={14}
+          className="shrink-0"
+        />
+      ) : null}
       <span className="truncate">{model ? modelDisplayName(model, locale) : t("selectModel")}</span>
       {model?.badge ? <span aria-hidden>{model.badge}</span> : null}
       <ChevronDown
@@ -155,6 +164,12 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
           >
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
+                <AppProviderIcon
+                  providerIconKey={m.providerIconKey}
+                  provider={m.provider}
+                  size={15}
+                  className="shrink-0"
+                />
                 <span className="truncate">{modelDisplayName(m, locale)}</span>
                 {m.badge ? <span aria-hidden>{m.badge}</span> : null}
                 <Badge variant={m.tier === "premium" ? "default" : "secondary"}>

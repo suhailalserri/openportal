@@ -3,6 +3,7 @@
 import { forwardRef, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { AppProviderIcon } from "@/components/icons/provider-icon";
 import { AnimatedBeam } from "./animated-beam";
 
 /**
@@ -18,6 +19,12 @@ import { AnimatedBeam } from "./animated-beam";
  * generic Notion/Drive/WhatsApp icon set, and using theme tokens
  * (`bg-card`, `border-border`, `text-muted-foreground`) instead of a
  * hardcoded white circle so it still works on the dark theme.
+ *
+ * Provider glyphs are real brand icons from `@lobehub/icons` (via
+ * `AppProviderIcon`, components/icons/provider-icon.tsx) — the same
+ * resolver the admin models table and chat model picker use — instead
+ * of hand-drawn placeholder shapes, so this diagram and the rest of the
+ * app show the same icon for the same provider.
  */
 
 const Circle = forwardRef<
@@ -45,49 +52,6 @@ function NodeLabel({ children }: { children: ReactNode }) {
     </span>
   );
 }
-
-/** Original geometric glyphs — not reproductions of any provider's trademarked logo. */
-const ProviderIcon = {
-  openai: (
-    <svg viewBox="0 0 24 24" fill="none" className="size-full" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-      <circle cx="12" cy="12" r="2.75" fill="currentColor" />
-    </svg>
-  ),
-  anthropic: (
-    <svg viewBox="0 0 24 24" fill="none" className="size-full" aria-hidden="true">
-      <path
-        d="M12 3v18M4.5 8.5 12 12l7.5-3.5M4.5 15.5 12 12l7.5 3.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  ),
-  gemini: (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="size-full" aria-hidden="true">
-      <path d="M12 2c0 6-4 10-10 10 6 0 10 4 10 10 0-6 4-10 10-10-6 0-10-4-10-10Z" />
-    </svg>
-  ),
-  deepseek: (
-    <svg viewBox="0 0 24 24" fill="none" className="size-full" aria-hidden="true">
-      <path
-        d="M12 3 20 8.5v7L12 21 4 15.5v-7L12 3Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-    </svg>
-  ),
-  qwen: (
-    <svg viewBox="0 0 24 24" fill="none" className="size-full" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-      <path d="M15.5 15.5 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  ),
-} as const;
 
 const UserIcon = (
   <svg
@@ -159,32 +123,32 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         {/* Column 3 — providers */}
         <div className="flex flex-col justify-center gap-2">
           <div className="flex items-center gap-2">
-            <Circle ref={openaiRef} className="text-foreground">
-              {ProviderIcon.openai}
+            <Circle ref={openaiRef}>
+              <AppProviderIcon providerIconKey="openai" size={22} type="color" />
             </Circle>
             <NodeLabel>OpenAI</NodeLabel>
           </div>
           <div className="flex items-center gap-2">
-            <Circle ref={anthropicRef} className="text-foreground">
-              {ProviderIcon.anthropic}
+            <Circle ref={anthropicRef}>
+              <AppProviderIcon providerIconKey="anthropic" size={22} type="color" />
             </Circle>
             <NodeLabel>Anthropic</NodeLabel>
           </div>
           <div className="flex items-center gap-2">
-            <Circle ref={geminiRef} className="text-foreground">
-              {ProviderIcon.gemini}
+            <Circle ref={geminiRef}>
+              <AppProviderIcon providerIconKey="google" size={22} type="color" />
             </Circle>
             <NodeLabel>Gemini</NodeLabel>
           </div>
           <div className="flex items-center gap-2">
-            <Circle ref={deepseekRef} className="text-foreground">
-              {ProviderIcon.deepseek}
+            <Circle ref={deepseekRef}>
+              <AppProviderIcon providerIconKey="deepseek" size={22} type="color" />
             </Circle>
             <NodeLabel>DeepSeek</NodeLabel>
           </div>
           <div className="flex items-center gap-2">
-            <Circle ref={qwenRef} className="text-foreground">
-              {ProviderIcon.qwen}
+            <Circle ref={qwenRef}>
+              <AppProviderIcon providerIconKey="qwen" size={22} type="color" />
             </Circle>
             <NodeLabel>Qwen</NodeLabel>
           </div>
@@ -199,8 +163,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={userRef}
         toRef={platformRef}
-        duration={6}
-        repeatDelay={0.5}
+        duration={4}
+        repeatDelay={1.5}
         curvature={0}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-1)"
@@ -209,10 +173,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={openaiRef}
-        duration={6}
-        repeatDelay={0.5}
-        delay={0.6}
-        curvature={75}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.3}
+        curvature={-75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />
@@ -220,10 +184,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={anthropicRef}
-        duration={6}
-        repeatDelay={0.5}
-        delay={0.6}
-        curvature={35}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.45}
+        curvature={-35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-3)"
       />
@@ -231,8 +195,8 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={geminiRef}
-        duration={6}
-        repeatDelay={0.5}
+        duration={4}
+        repeatDelay={1.5}
         delay={0.6}
         curvature={0}
         gradientStartColor="var(--color-primary)"
@@ -242,10 +206,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={deepseekRef}
-        duration={6}
-        repeatDelay={0.5}
-        delay={0.6}
-        curvature={-35}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.75}
+        curvature={35}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-5)"
       />
@@ -253,10 +217,10 @@ export function AnimatedBeamMultipleOutput({ className }: { className?: string }
         containerRef={containerRef}
         fromRef={platformRef}
         toRef={qwenRef}
-        duration={6}
-        repeatDelay={0.5}
-        delay={0.6}
-        curvature={-90}
+        duration={4}
+        repeatDelay={1.5}
+        delay={0.9}
+        curvature={75}
         gradientStartColor="var(--color-primary)"
         gradientStopColor="var(--color-chart-2)"
       />

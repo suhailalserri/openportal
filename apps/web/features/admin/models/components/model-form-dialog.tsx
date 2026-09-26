@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { normalizeProviderKey } from "@/components/icons/provider-icon";
+import { ProviderIconPicker } from "./provider-icon-picker";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
 
@@ -28,6 +30,7 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     displayName: model?.displayName ?? "",
     displayNameAr: model?.displayNameAr ?? "",
     badge: model?.badge || undefined,
+    providerIconKey: model?.providerIconKey ?? undefined,
     tier: (model?.tier === "premium" ? "premium" : "standard"),
     markupMultiplier: model ? Number(model.markupMultiplier) : 2.0,
     contextWindow: model?.contextWindow ?? 0,
@@ -114,6 +117,17 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
               onChange={(e) => setForm((f) => ({ ...f, badge: e.target.value || undefined }))}
             />
           </div>
+          <div className="sm:col-span-2">
+            <ProviderIconPicker
+              value={form.providerIconKey}
+              autoDetectedKey={normalizeProviderKey(model?.provider)}
+              onChange={(key) => setForm((f) => ({ ...f, providerIconKey: key }))}
+              label={t("providerIcon")}
+              autoLabel={t("providerIconAuto")}
+              searchPlaceholder={t("providerIconSearchPlaceholder")}
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="model-tier">{t("tier")}</Label>
             <Select value={form.tier} onValueChange={(v) => setForm((f) => ({ ...f, tier: v as "standard" | "premium" }))}>

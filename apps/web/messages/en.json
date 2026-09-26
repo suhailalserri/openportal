@@ -813,6 +813,9 @@
         "displayName": "Display name (English)",
         "displayNameAr": "Display name (Arabic)",
         "badge": "Badge (max 10 chars)",
+        "providerIcon": "Provider icon",
+        "providerIconAuto": "Auto-detect",
+        "providerIconSearchPlaceholder": "Search providers…",
         "tier": "Tier",
         "tierStandard": "Standard",
         "tierPremium": "Premium",
@@ -1151,6 +1154,9 @@
       "vision": "Vision",
       "fast": "Fast",
       "longContext": "Long context"
+    },
+    "providers": {
+      "heading": "Route to every major model, from one account"
     }
   },
   "consent": {

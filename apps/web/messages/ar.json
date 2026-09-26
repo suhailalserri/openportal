@@ -607,6 +607,9 @@
         "displayName": "الاسم المعروض (إنجليزي)",
         "displayNameAr": "الاسم المعروض (عربي)",
         "badge": "الشارة (10 أحرف كحد أقصى)",
+        "providerIcon": "أيقونة المزوّد",
+        "providerIconAuto": "كشف تلقائي",
+        "providerIconSearchPlaceholder": "ابحث عن مزوّد…",
         "tier": "الفئة",
         "tierStandard": "عادية",
         "tierPremium": "مميزة",
@@ -1151,6 +1154,9 @@
       "vision": "رؤية",
       "fast": "سريع",
       "longContext": "سياق طويل"
+    },
+    "providers": {
+      "heading": "الوصول إلى كل النماذج الكبرى من حساب واحد"
     }
   },
   "consent": {

@@ -2,6 +2,7 @@ import { ConstellationBackground } from "./components/constellation-background";
 import { LandingHeader } from "./components/landing-header";
 import { LandingHero } from "./components/landing-hero";
 import { GatewayDiagram } from "./components/gateway-diagram";
+import { SupportedProvidersMarquee } from "./components/supported-providers-marquee";
 import { DemoSectionWrapper } from "./components/demo-section-wrapper";
 import { PaymentMarquee } from "./components/payment-marquee";
 import { PackagesSection } from "./components/packages-section";
@@ -35,8 +36,14 @@ import { getLandingData } from "./lib/landing-data";
  * renders its own empty state (or hides, in the calculator's case).
  *
  * SECTION ORDER:
- *   hero → demo → gateway → payments → packages → stats →
+ *   hero → demo → gateway → providers → payments → packages → stats →
  *   models → costs → livebench → comparison
+ *
+ *   PROVIDERS: a static marquee of brand logos right after the gateway
+ *   diagram — reinforces "real providers, not a black box" immediately
+ *   after the "how it works" section, before payments/pricing. Static
+ *   copy (see supported-providers-marquee.tsx), not driven by the live
+ *   `models` table.
  *
  *   The demo sits SECOND (right after the hero) because a real chat
  *   preview is the single strongest piece of proof on the page — it
@@ -64,6 +71,7 @@ export async function LandingPage({ locale }: { locale: string }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <ScrollProgress />
       <ConstellationBackground />
       <LandingHeader locale={locale} />
 
@@ -71,6 +79,7 @@ export async function LandingPage({ locale }: { locale: string }) {
         <LandingHero locale={locale} calculator={data.calculator} />
         <DemoSectionWrapper locale={locale} />
         <GatewayDiagram locale={locale} />
+        <SupportedProvidersMarquee locale={locale} />
         <PaymentMarquee locale={locale} methods={data.paymentMethods} />
         <PackagesSection locale={locale} packages={data.packages} />
         <StatsStrip
