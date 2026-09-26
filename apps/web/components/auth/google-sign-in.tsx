@@ -76,15 +76,12 @@ export function GoogleSignIn({
   }
 
   return (
-    <div className="mt-4 grid gap-3">
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
-        {t("orContinueWith")}
-        <span className="h-px flex-1 bg-border" />
-      </div>
+    <div className="grid gap-3">
+      <div className="auth-divider">{t("orContinueWith")}</div>
       <Button
         type="button"
         variant="outline"
+        className="auth-social-btn"
         onClick={onClick}
         disabled={pending}
         aria-busy={pending}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 /**
@@ -11,13 +12,20 @@ import { useTranslations } from "next-intl";
  * mapping).
  *
  * login/register stay real, separate routes (guards, useSearchParams,
- * SSR redirect-if-signed-in all keep working unchanged) — this component
- * only supplies the glass card / brand panel / tab chrome around
- * whatever form markup each page passes as `children`. Because there's
- * no page "underneath" to reveal, the backdrop and close button both
- * navigate to the marketing home page rather than toggling visibility,
- * which is the closest equivalent to "closing" a modal that's actually a
- * full route.
+ * SSR redirect-if-signed-in all keep working unchanged) even in
+ * `mode="modal"` — Next's intercepting routes render this same route at
+ * a `@modal` parallel-route slot instead of replacing the page, which is
+ * what actually keeps the marketing page mounted underneath. All this
+ * component changes based on `mode` is how "closing" behaves:
+ *
+ * - `mode="page"` (default; used by the direct-route fallback, e.g. a
+ *   deep link or a hard refresh of /auth/login with no landing page to
+ *   go back to): the backdrop/close button navigate to the marketing
+ *   home page, same as before.
+ * - `mode="modal"` (used by the @modal-slot interceptor): there IS a
+ *   page underneath, so closing calls `router.back()` instead — that
+ *   dismisses the modal and lands back on whatever the visitor was
+ *   looking at, without a round-trip to the server.
  *
  * `activeTab` picks which of the two tab links is highlighted; pass
  * `hideTabs` for the mid-flow states (2FA code entry) where switching
@@ -27,15 +35,18 @@ export function AuthShell({
   locale,
   activeTab,
   hideTabs = false,
+  mode = "page",
   children,
 }: {
   locale: string;
   activeTab?: "signin" | "signup";
   hideTabs?: boolean;
+  mode?: "page" | "modal";
   children: React.ReactNode;
 }) {
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
+  const router = useRouter();
   // Mount closed, then flip to open a tick later so the entrance
   // transition (defined in styles/auth.css) actually plays instead of
   // the card just appearing pre-rendered as "open".
@@ -46,10 +57,20 @@ export function AuthShell({
   }, []);
 
   const homeHref = `/${locale}`;
+  const close = () => router.back();
 
   return (
     <div className="auth-overlay" data-open={open ? "true" : "false"}>
-      <Link href={homeHref} aria-label={t("closeDialog")} className="auth-backdrop" />
+      {mode === "modal" ? (
+        <button
+          type="button"
+          onClick={close}
+          aria-label={t("closeDialog")}
+          className="auth-backdrop"
+        />
+      ) : (
+        <Link href={homeHref} aria-label={t("closeDialog")} className="auth-backdrop" />
+      )}
 
       <div className="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
         {/* Left: brand panel */}
@@ -84,11 +105,19 @@ export function AuthShell({
 
         {/* Right: form panel */}
         <div className="auth-form-panel">
-          <Link href={homeHref} className="auth-close" aria-label={t("closeDialog")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </Link>
+          {mode === "modal" ? (
+            <button type="button" onClick={close} className="auth-close" aria-label={t("closeDialog")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          ) : (
+            <Link href={homeHref} className="auth-close" aria-label={t("closeDialog")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </Link>
+          )}
 
           {!hideTabs ? (
             <div className="auth-tabs" role="tablist">

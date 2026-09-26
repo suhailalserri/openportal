@@ -170,7 +170,9 @@
   },
   "auth": {
     "login": "تسجيل الدخول",
+    "welcomeBack": "مرحباً بعودتك",
     "register": "إنشاء حساب",
+    "createAccountTitle": "أنشئ حسابك",
     "email": "البريد الإلكتروني",
     "password": "كلمة المرور",
     "confirmPassword": "تأكيد كلمة المرور",
