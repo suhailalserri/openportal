@@ -1,6 +1,6 @@
 import { config } from "../config";
 import { CREDIT_VALUE_USD, estimateTokenCount } from "@ai-platform/config";
-import { deductCreditsAtomic } from "./balance.service";
+import { deductCreditsAtomic, getBalance } from "./balance.service";
 import { db, messages, conversations, models } from "@ai-platform/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
@@ -13,10 +13,18 @@ import { claimUserMessage, chatIdempotencyRedis, type IdempotencyRedis } from ".
  * hand-picked list and threw on anything synced in from the gateway
  * (e.g. free OpenRouter models added via a New API channel).
  */
+/** Shared numeric extraction — `models` numeric columns come back as
+ *  strings from the pg driver, so every cost calculation needs this. */
+function modelPricing(model: typeof models.$inferSelect) {
+  return {
+    wholesaleIn:  Number(model.wholesaleCostInputPerM),
+    wholesaleOut: Number(model.wholesaleCostOutputPerM),
+    markup:       Number(model.markupMultiplier),
+  };
+}
+
 function calcCreditCost(model: typeof models.$inferSelect, inputTokens: number, outputTokens: number): number {
-  const wholesaleIn  = Number(model.wholesaleCostInputPerM);
-  const wholesaleOut = Number(model.wholesaleCostOutputPerM);
-  const markup       = Number(model.markupMultiplier);
+  const { wholesaleIn, wholesaleOut, markup } = modelPricing(model);
 
   const inputCost  = (inputTokens  / 1_000_000) * wholesaleIn  * markup;
   const outputCost = (outputTokens / 1_000_000) * wholesaleOut * markup;
@@ -24,6 +32,76 @@ function calcCreditCost(model: typeof models.$inferSelect, inputTokens: number, 
 
   // Always round UP (protects margins), minimum 1 micro-credit
   return Math.max(Math.ceil((totalUsd / CREDIT_VALUE_USD) * 1_000_000), 1);
+}
+
+/**
+ * BUG FIX (balance/no-limit audit): the only pre-flight balance gate used
+ * to be `balance.credits <= 0` in index.ts. That blocks a fully-drained
+ * account but does nothing for a small *positive* balance that's smaller
+ * than what THIS request will actually cost — e.g. 77.15 credits left,
+ * request ends up costing 114.16. That request was still let all the way
+ * through to the provider (full cost incurred on our side), and the
+ * post-stream `deductCreditsAtomic` call correctly refused to take the
+ * balance negative — but its result was never checked (see the
+ * fire-and-forget call below, previously bare `.catch(console.error)`,
+ * which only catches *thrown* errors, never a resolved `{success:false}`).
+ * Net effect: balance never moves, nothing ever blocks the next request
+ * either, and the same under-priced message can be repeated with no
+ * limit — exactly what was reported.
+ *
+ * Fix: bound the worst-case cost of this specific request to what the
+ * user can actually afford, before any provider call happens. We clamp
+ * `max_tokens` down to the affordable ceiling rather than hard-rejecting
+ * whenever possible, so a low-balance user can still send a short
+ * message — this also matches the product's own design (spend is
+ * controlled via max output tokens, not a hard per-message price gate).
+ *
+ * This does not by itself close the narrower race where two concurrent
+ * requests from the same user both pass this check before either
+ * deduction commits — `deductCreditsAtomic`'s `WHERE credits >= X` still
+ * makes that safe (one of the two will fail atomically), but that second
+ * request's user-facing content would still have been generated for
+ * free. Closing that fully needs a per-user in-flight-request lock; flag
+ * it as a follow-up, not silently ignore it.
+ */
+async function checkAffordability(
+  userId: string,
+  model: typeof models.$inferSelect,
+  estimatedInputTokens: number,
+  requestedMaxTokens: number | undefined
+): Promise<
+  | { ok: true; maxTokens: number }
+  | { ok: false }
+> {
+  const { wholesaleIn, wholesaleOut, markup } = modelPricing(model);
+  const balance = await getBalance(userId);
+  const availableUsd = (balance.credits / 1_000_000) * CREDIT_VALUE_USD;
+  const inputCostUsd = (estimatedInputTokens / 1_000_000) * wholesaleIn * markup;
+
+  const ceiling = requestedMaxTokens !== undefined
+    ? Math.min(requestedMaxTokens, model.maxOutputTokens)
+    : model.maxOutputTokens;
+
+  if (balance.credits <= 0 || availableUsd < inputCostUsd) {
+    // Can't afford even the input side (or already at/below zero) — no
+    // amount of output clamping fixes that.
+    return { ok: false };
+  }
+
+  if (wholesaleOut <= 0) {
+    // Genuinely free output (a deliberately $0-priced model) — nothing to
+    // clamp beyond the model/request's own ceiling.
+    return { ok: true, maxTokens: ceiling };
+  }
+
+  const remainingUsd         = availableUsd - inputCostUsd;
+  const affordableOutputTokens = Math.floor(remainingUsd / ((wholesaleOut * markup) / 1_000_000));
+
+  if (affordableOutputTokens <= 0) {
+    return { ok: false };
+  }
+
+  return { ok: true, maxTokens: Math.min(ceiling, affordableOutputTokens) };
 }
 
 /**
@@ -198,6 +276,19 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     return;
   }
 
+  // Affordability pre-check — see checkAffordability's doc comment above
+  // for the bug this closes. Runs after the context-length check (cheap,
+  // no DB hit) and before we touch the provider (one balance read).
+  const affordability = await checkAffordability(userId, model, estTokens, opts.max_tokens);
+  if (!affordability.ok) {
+    reply.status(402).send({
+      error:      "INSUFFICIENT_BALANCE",
+      message:    "رصيدك لا يكفي لهذه الرسالة. يرجى شحن حسابك.",
+      redirectTo: "/billing",
+    });
+    return;
+  }
+
   const requestId = crypto.randomUUID();
   let upstream: Response;
   const upstreamStartedAt = Date.now();
@@ -209,14 +300,13 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     ? [{ role: "system", content: opts.systemPrompt }, ...opts.messages]
     : opts.messages;
 
-  // Clamp to the resolved model's own ceiling — the schema layer (F2) only
-  // bounds this to a generic absolute max, since it doesn't know the model
-  // yet. Silently clamping (rather than 400ing) matches how a client would
-  // reasonably expect "give me at most N tokens" to degrade against a
-  // smaller model, instead of failing the whole request over it.
-  const maxTokens = opts.max_tokens !== undefined
-    ? Math.min(opts.max_tokens, model.maxOutputTokens)
-    : undefined;
+  // Always bounded now (previously `undefined` — i.e. no cap sent to the
+  // gateway at all — whenever the caller didn't pass max_tokens). Sending
+  // `undefined` let a request run all the way to the model's own ceiling
+  // regardless of what the user could actually pay for; `affordability`
+  // above already folds in the request's own max_tokens *and* the model's
+  // maxOutputTokens, so this is always the tightest of the three.
+  const maxTokens = affordability.maxTokens;
 
   // F5: the client-disconnect signal (bound to `reply.raw`'s "close" event
   // by index.ts) and the 2-minute safety timeout both cancel this fetch —
@@ -392,15 +482,43 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   // saved message's `creditCost` reflects that honestly.
   const isGarbageReply = isSafetyClassifierStub(streamedContent);
 
-  // Post-stream: deduct credits and save message (async, non-blocking)
+  // Post-stream: deduct credits and save message.
+  //
+  // BUG FIX: this used to be `deductCreditsAtomic(...).catch(console.error)`
+  // — fire-and-forget. `.catch` only fires on a *thrown* error; a normal,
+  // successfully-resolved `{ success: false, reason: "INSUFFICIENT_BALANCE" }`
+  // (the atomic `WHERE credits >= X` correctly refusing to go negative) was
+  // never inspected, so a failed deduction was silently indistinguishable
+  // from a successful one — and `recordCreditsSpent` was called
+  // unconditionally, so the Grafana "revenue" metric counted credits that
+  // were never actually collected. The response has already been fully
+  // streamed to the client by this point either way, so `await`ing here
+  // costs a few ms of server-side bookkeeping, not user-facing latency.
   if (outputTokens > 0 || (isPartial && streamedContent.length > 0)) {
     const cost = isGarbageReply ? 0 : calcCreditCost(model, inputTokens, outputTokens);
 
     if (cost > 0) {
-      deductCreditsAtomic(userId, cost, "Chat usage", {
+      const deductResult = await deductCreditsAtomic(userId, cost, "Chat usage", {
         modelId, inputTokens, outputTokens, requestId,
-      }).catch(console.error);
-      recordCreditsSpent(modelId, cost);
+      }).catch((err) => {
+        console.error("[billing] deductCreditsAtomic threw:", err);
+        return { success: false as const, newBalance: 0 };
+      });
+
+      if (deductResult.success) {
+        recordCreditsSpent(modelId, cost);
+      } else {
+        // The affordability pre-check should make this unreachable except
+        // for a genuine concurrent-request race (see checkAffordability's
+        // doc comment) — surface it loudly since it means this user got a
+        // full response for free. balanceDeductionFailuresTotal (inside
+        // deductCreditsAtomic) already counts it for alerting.
+        console.error(
+          `[billing] deduction failed after a completed stream — user ${userId} ` +
+          `got ${outputTokens} output tokens free (wanted ${cost} micro-credits, ` +
+          `request ${requestId}, model ${modelId})`
+        );
+      }
     }
 
     // Save assistant message

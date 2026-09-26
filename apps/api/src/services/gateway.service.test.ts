@@ -21,7 +21,7 @@ vi.mock("../config", () => ({
 // (see the comment on the block below) — that includes MODEL_FIXTURES and
 // modelIdRef, not just deductCreditsAtomicMock/chainableNoop, since the
 // "@ai-platform/db" mock further down reads both.
-const { deductCreditsAtomicMock, claimUserMessageMock, dbInsertMock, insertValuesCalls, chainableNoop, MODEL_FIXTURES, modelIdRef } = vi.hoisted(() => {
+const { deductCreditsAtomicMock, getBalanceMock, claimUserMessageMock, dbInsertMock, insertValuesCalls, chainableNoop, MODEL_FIXTURES, modelIdRef } = vi.hoisted(() => {
   // A stand-in for Drizzle's fluent query builder. Some call sites just
   // chain and `.catch()` (fire-and-forget message saves / timestamp
   // updates), but streamChat also does
@@ -67,6 +67,12 @@ const { deductCreditsAtomicMock, claimUserMessageMock, dbInsertMock, insertValue
     // (Referencing `vi` itself here is safe — Vitest hoists the `import
     // { vi } from "vitest"` above vi.mock/vi.hoisted specifically so this works.)
     deductCreditsAtomicMock: vi.fn().mockResolvedValue({ success: true, newBalance: 999 }),
+    // Affordability pre-check (see checkAffordability in gateway.service.ts)
+    // now reads the balance before every request. Defaults to a balance
+    // large enough that no existing test's cost calc could ever exceed it,
+    // so pre-fix test behavior is preserved unless a test explicitly
+    // overrides this (the new insufficient-balance tests below do).
+    getBalanceMock: vi.fn().mockResolvedValue({ credits: 999_000_000, totalSpent: 0, totalRedeemed: 0 }),
     // B1/F4: defaults to "first time seeing this pair" for every test that
     // doesn't care about idempotency. Individual tests override this with
     // .mockResolvedValueOnce(...) / .mockResolvedValue(false) as needed.
@@ -111,6 +117,7 @@ const { deductCreditsAtomicMock, claimUserMessageMock, dbInsertMock, insertValue
 
 vi.mock("./balance.service", () => ({
   deductCreditsAtomic: (...args: unknown[]) => deductCreditsAtomicMock(...args),
+  getBalance: (...args: unknown[]) => getBalanceMock(...args),
 }));
 
 // B1/F4: claimUserMessage is mocked separately from the Redis it normally
@@ -202,6 +209,8 @@ const baseOpts = {
 
 beforeEach(() => {
   deductCreditsAtomicMock.mockClear();
+  getBalanceMock.mockClear();
+  getBalanceMock.mockResolvedValue({ credits: 999_000_000, totalSpent: 0, totalRedeemed: 0 });
   claimUserMessageMock.mockClear();
   claimUserMessageMock.mockResolvedValue(true);
   dbInsertMock.mockClear();
@@ -344,7 +353,7 @@ describe("streamChat — B1 additions", () => {
     expect(sentBody.max_tokens).toBe(8192); // clamped, not 50_000
   });
 
-  it("omits temperature/top_p/max_tokens from the gateway body entirely when not provided (no false 0s/nulls)", async () => {
+  it("omits temperature/top_p when not provided (no false 0s/nulls), but always sends an affordability-bounded max_tokens", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
     });
@@ -357,7 +366,69 @@ describe("streamChat — B1 additions", () => {
     const sentBody = JSON.parse((init as RequestInit).body as string);
     expect(sentBody).not.toHaveProperty("temperature");
     expect(sentBody).not.toHaveProperty("top_p");
-    expect(sentBody).not.toHaveProperty("max_tokens");
+    // BUG FIX regression test: max_tokens must now ALWAYS be present and
+    // bounded by what the caller's balance can afford (here, the model's
+    // own 8192 ceiling, since getBalanceMock's default balance is huge) —
+    // never omitted. Omitting it is exactly what let a request run
+    // unbounded against an underfunded balance in the reported bug.
+    expect(sentBody.max_tokens).toBe(8192);
+  });
+
+  it("rejects with 402 INSUFFICIENT_BALANCE when the balance can't cover even the input tokens, without calling fetch", async () => {
+    getBalanceMock.mockResolvedValueOnce({ credits: 0, totalSpent: 0, totalRedeemed: 0 });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply, sends } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(sends).toEqual([
+      expect.objectContaining({ code: 402, body: expect.objectContaining({ error: "INSUFFICIENT_BALANCE" }) }),
+    ]);
+  });
+
+  it("clamps max_tokens down to what a low (but positive) balance can afford, instead of letting the request run unbounded", async () => {
+    // deepseek-r2 fixture: wholesaleCostOutputPerM "0.28", markup "2.0" ->
+    // 0.56 USD per 1M output tokens -> at CREDIT_VALUE_USD=0.001, that's
+    // 560 micro-credits per output token. A 50,000-micro-credit balance
+    // (0.05 credits) after input cost affords ~89 output tokens — far
+    // below the model's 8192 ceiling and below any requested max_tokens.
+    getBalanceMock.mockResolvedValueOnce({ credits: 50_000, totalSpent: 0, totalRedeemed: 0 });
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, max_tokens: 8192, reply });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sentBody = JSON.parse((init as RequestInit).body as string);
+    expect(sentBody.max_tokens).toBeLessThan(8192);
+    expect(sentBody.max_tokens).toBeGreaterThan(0);
+  });
+
+  it("logs instead of silently swallowing when deductCreditsAtomic resolves { success: false } after a completed stream", async () => {
+    // This is the exact bug reported: a resolved (not thrown) billing
+    // failure used to vanish into a bare .catch(console.error), which
+    // only ever catches thrown errors. Confirm it's now inspected.
+    deductCreditsAtomicMock.mockResolvedValueOnce({ success: false, newBalance: 0, reason: "INSUFFICIENT_BALANCE" });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      body: makeSseStream([`data: {"choices":[{"delta":{"content":"hi"}}]}\n\n`, `data: [DONE]\n\n`]),
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("[billing] deduction failed after a completed stream"));
+    consoleErrorSpy.mockRestore();
   });
 
   it("prepends systemPrompt as a leading system message to the gateway request", async () => {

@@ -93,6 +93,15 @@ app.post("/chat", {
   const { getBalance }    = await import("./services/balance.service");
   const { streamChat }    = await import("./services/gateway.service");
 
+  // Cheap, coarse fast-path: reject a fully zeroed-out balance before we
+  // even resolve the model. This is NOT the real affordability guard —
+  // it only catches "exactly empty", not "too small for this specific
+  // request's actual cost". The real check (which knows the model's
+  // price and clamps max_tokens to what's affordable) lives in
+  // streamChat -> checkAffordability (gateway.service.ts). Do not remove
+  // this thinking checkAffordability alone is redundant with it, and do
+  // not treat this one as sufficient on its own — see that function's
+  // doc comment for the bug that shipped when it was the only gate.
   const balance = await getBalance(req.user.id);
   if (balance.credits <= 0) {
     reply.status(402).send({
