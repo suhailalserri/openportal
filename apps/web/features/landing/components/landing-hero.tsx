@@ -81,7 +81,18 @@ export async function LandingHero({
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <CtaButton asChild size="lg">
-              <Link href={`/${locale}/auth/register`}>
+              {/* scroll={false}: this opens the /auth/register intercepted
+                  modal route on top of this same landing page (see
+                  app/[locale]/@modal) — it is not a real page navigation.
+                  Next's <Link> scrolls the viewport by default on every
+                  navigation (App Router's post-navigation router.scroll()),
+                  which on a long landing page like this one jumps the
+                  visible viewport away from wherever the visitor actually
+                  clicked. The modal overlay is `position: fixed` and
+                  covers the viewport regardless of scroll position, so
+                  there is nothing for that default scroll to usefully do
+                  here — only harm. */}
+              <Link href={`/${locale}/auth/register`} scroll={false}>
                 {t("hero.ctaPrimary")}
               </Link>
             </CtaButton>
