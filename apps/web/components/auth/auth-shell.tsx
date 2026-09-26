@@ -96,32 +96,73 @@ export function AuthShell({
   // mounted. `mode="modal"` renders on top of a still-mounted page (that's
   // the whole point of the @modal intercepting route), and `.auth-overlay`
   // being `position: fixed` stops that page from being visibly scrolled —
-  // but on mobile the touch-scroll *gesture* itself isn't blocked by that
-  // alone, so scrolling to the end of the modal's own content (e.g. the
-  // register form's checklist/terms/Turnstile) was chaining straight into
-  // the page underneath: the reported "background moves while I scroll the
-  // popup" bug. Restores the previous inline value on unmount rather than
-  // clearing it outright, in case something else on the page already had
-  // an opinion on `body.style.overflow`.
+  // but `overflow: hidden` on `body` ALONE only suppresses the scrollbar,
+  // it does not pin the actual scroll offset: the body element is still
+  // free to have its scrollTop end up wherever the browser feels like once
+  // it's no longer scrollable (which is what produced the reported "opens
+  // already scrolled to the footer" / "closing jumps from bottom to top"
+  // bug — the offset silently drifted to 0 or to whatever the newly
+  // fixed-position overlay's own layout happened to compute, and the old
+  // code only ever restored the `overflow` property, never the position
+  // itself). The standard robust fix: read the real `window.scrollY` at
+  // the moment this locks, pin `body` at `position: fixed` offset by that
+  // exact amount (so it LOOKS unmoved despite no longer being the
+  // scrolling element), and on the way back out set `scrollY` back to that
+  // captured number explicitly rather than trusting the browser to have
+  // remembered it on its own.
   //
   // Only restores it on a REAL close (see the `closing` guard) — on a tab
   // switch this instance unmounts and a new one mounts in the same tick,
   // both locking scroll the same way, so restoring here unconditionally
   // would flash the landing page's real scroll position back into view
-  // for a frame between the two instances: the reported "page slides from
-  // bottom to top" jump. `closing` is only ever true on the path that
-  // actually calls `close()` below, never on an ordinary tab-switch
-  // unmount, so this only restores scroll when the overlay is truly gone.
+  // for a frame between the two instances. `closing` is only ever true on
+  // the path that actually calls `close()` below, never on an ordinary
+  // tab-switch unmount, so this only restores scroll when the overlay is
+  // truly gone.
   const closingRef = useRef(closing);
   closingRef.current = closing;
+  const scrollYRef = useRef(0);
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // Read once, from whichever instance mounts first in a given open
+    // session — a tab-switch remount must NOT re-capture scrollY (by then
+    // it would just be reading back the 0 this same lock already forced),
+    // so the captured value is itself cached in sessionStorage alongside
+    // the open marker, keyed off the same "was this session already open"
+    // check `open`'s initializer above uses.
+    const alreadyLocked = sessionStorage.getItem(OPEN_MARKER) === "1";
+    const scrollY = alreadyLocked
+      ? Number(sessionStorage.getItem("auth-modal-scroll-y") ?? "0")
+      : window.scrollY;
+    scrollYRef.current = scrollY;
+    if (!alreadyLocked) sessionStorage.setItem("auth-modal-scroll-y", String(scrollY));
+
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+
     return () => {
-      if (closingRef.current) {
-        document.body.style.overflow = previousOverflow;
-        sessionStorage.removeItem(OPEN_MARKER);
-      }
+      if (!closingRef.current) return; // tab switch — next instance re-locks immediately
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollYRef.current);
+      sessionStorage.removeItem(OPEN_MARKER);
+      sessionStorage.removeItem("auth-modal-scroll-y");
     };
   }, []);
 
