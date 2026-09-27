@@ -15,12 +15,17 @@ import { z } from "zod";
  * Making anything new required would 400 every existing caller.
  */
 
-// Mirrors packages/db/src/schema/enums.ts messageRoleEnum exactly. Importing
-// the enum itself would pull `@ai-platform/db` (and its DATABASE_URL-at-import
-// side effect) into a pure-validation module for zero benefit — the enum's
-// three values are effectively part of the wire contract, not an
-// implementation detail that changes independently of it.
-const chatMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+// Deliberately only "user" | "assistant" — NOT the full messageRoleEnum
+// (which also has "system" for what's stored in the `messages` table).
+// The system layer is assembled entirely server-side now (platform base
+// prompt + per-model prompt, see gateway.service.ts) from trusted DB rows,
+// never from the client. Accepting a client-supplied `role: "system"` here
+// used to let it plant a fake system message anywhere in the array — the
+// gateway only ever prepended the *trusted* systemPrompt, it never
+// stripped stray system-role entries already inside `messages`, so that
+// was a real prompt-injection hole. Rejecting the role at the schema level
+// closes it outright rather than trying to filter it out downstream.
+const chatMessageRoleSchema = z.enum(["user", "assistant"]);
 
 const chatMessageSchema = z.object({
   role:    chatMessageRoleSchema,
@@ -57,8 +62,6 @@ export const chatRequestSchema = z.object({
    * absolute ceiling — the real, model-specific clamp happens downstream).
    */
   max_tokens: z.number().int().positive().max(1_000_000).optional(),
-  /** Prepended as a system message and persisted onto the conversation. */
-  systemPrompt: z.string().max(20_000).optional(),
 
   // ── Idempotency (F4) ────────────────────────────────────────────────
   /**

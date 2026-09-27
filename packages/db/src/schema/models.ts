@@ -69,6 +69,13 @@ export const models = pgTable("models", {
   // render time rather than rejected, so this column is forward-compatible
   // with categories added after a given deploy.
   categories:       text("categories").array().default(sql`ARRAY[]::text[]`).notNull(),
+  // Admin-authored behavior rules for this specific model — appended after
+  // the platform-wide base prompt (see platform_config table) when a chat
+  // request is assembled server-side in gateway.service.ts. Never sent by
+  // or exposed to the client as an editable field; not the same thing as
+  // the old per-conversation systemPrompt (removed — see 0014 migration),
+  // which was fully user-controlled and is gone entirely now.
+  systemPrompt:     text("system_prompt"),
   // App-layer usage cap, independent of New API's channel-level limits.
   rateLimitPerUserDaily: integer("rate_limit_per_user_daily"),
   // Average response time (ms) across the gateway channels currently

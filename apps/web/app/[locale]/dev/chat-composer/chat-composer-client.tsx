@@ -69,7 +69,6 @@ export function ChatComposerClient() {
   const [log, setLog] = React.useState<string[]>([]);
   const [picked, setPicked] = React.useState<string | undefined>(undefined);
   const [params, setParams] = React.useState<ConversationParams>(DEFAULT_CONVERSATION_PARAMS);
-  const [systemPrompt, setSystemPrompt] = React.useState("");
 
   const selectedId = resolveSelectedModelId(FIXTURE_MODELS, { sessionPickedModelId: picked });
 
@@ -95,8 +94,6 @@ export function ChatComposerClient() {
           parametersEnabled
           params={params}
           onParamsChange={setParams}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
       </section>
 
@@ -109,7 +106,6 @@ export function ChatComposerClient() {
               ...(params.temperature !== null ? { temperature: params.temperature } : {}),
               ...(params.topP !== null ? { top_p: params.topP } : {}),
               ...(params.maxTokens !== null ? { max_tokens: params.maxTokens } : {}),
-              ...(systemPrompt.trim() ? { systemPrompt: systemPrompt.trim() } : {}),
               sentMessages: log.length,
             },
             null,

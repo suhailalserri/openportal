@@ -28,6 +28,14 @@ const envSchema = z.object({
   MINIO_ACCESS_KEY:       z.string().optional(),
   MINIO_SECRET_KEY:       z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
+  // Model id used for the internal history-summarization call (see
+  // history-compaction.ts). Deliberately a separate, cheap/fast model —
+  // this call is platform overhead (never billed to the user), so it
+  // should never default to whatever expensive model the user picked.
+  // Must be a valid id on GATEWAY_URL; not required to exist in the
+  // `models` table (that table is the user-facing catalog, this is an
+  // internal plumbing choice independent of it).
+  SUMMARIZATION_MODEL:    z.string().min(1).default("gpt-4o-mini"),
 });
 
 const parsed = envSchema.safeParse(process.env);

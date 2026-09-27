@@ -8,10 +8,10 @@ import {
 } from "./context-estimate";
 
 /**
- * These tests pin the client to the SERVER's pre-check in
- * apps/api/src/services/gateway.service.ts (streamChat): system prompt +
- * history + draft, joined with " ", ceil(len/4), strictly-greater-than
- * `contextWindow * 0.95`.
+ * Client-side approximation of the server's context usage (upper-bound
+ * only — see context-estimate.ts header for why it no longer mirrors the
+ * server's pre-check exactly): history + draft, joined with " ",
+ * ceil(len/4), strictly-greater-than `contextWindow * 0.95`.
  */
 describe("estimateContext", () => {
   it("uses ceil(chars/4) — identical to the server's imported helper", () => {
@@ -21,17 +21,16 @@ describe("estimateContext", () => {
     expect(est.tokens).toBe(11); // ceil(41 / 4)
   });
 
-  it("counts the WHOLE request: system prompt + history + draft, not just the draft", () => {
+  it("counts the WHOLE request: history + draft, not just the draft", () => {
     const est = estimateContext(
       {
-        systemPrompt: "s".repeat(10),
         history: [{ content: "h".repeat(10) }, { content: "i".repeat(10) }],
         draft: "d".repeat(10),
       },
       1_000_000,
     );
-    // 4 segments of 10 chars joined by 3 spaces = 43 chars → ceil(43/4) = 11
-    expect(est.tokens).toBe(11);
+    // 3 segments of 10 chars joined by 2 spaces = 32 chars → ceil(32/4) = 8
+    expect(est.tokens).toBe(8);
   });
 
   it("joins with a single space, so N segments add N-1 characters", () => {
@@ -42,7 +41,7 @@ describe("estimateContext", () => {
 
   it("drops empty/undefined segments BEFORE joining (no stray spaces)", () => {
     const withEmpties = estimateContext(
-      { systemPrompt: "", history: [{ content: "" }, { content: "abcd" }], draft: "" },
+      { history: [{ content: "" }, { content: "abcd" }], draft: "" },
       1_000_000,
     );
     const clean = estimateContext({ history: [{ content: "abcd" }], draft: "" }, 1_000_000);

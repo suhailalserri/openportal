@@ -19,9 +19,6 @@ export interface UseChatStreamOptions {
   /** Phase 4c. `null` = unset → omitted from the request entirely so the
    *  provider's own default applies (see ConversationParams in types.ts). */
   params?: ConversationParams | undefined;
-  /** Phase 4c. Persisted server-side by B1 on first send; empty/whitespace
-   *  is treated as "no system prompt" and omitted. */
-  systemPrompt?: string | undefined;
   /** Phase 4d. Seeds this hook's message list for a conversation that
    *  already has history (`/chat/[id]`, loaded by
    *  use-conversation-messages.ts). Applied via `useReducer`'s LAZY-INIT
@@ -86,7 +83,6 @@ export function useChatStream({
   conversationId,
   model,
   params,
-  systemPrompt,
   initialMessages,
 }: UseChatStreamOptions): UseChatStreamResult {
   // Lazy-init (the 3-argument form): `initialChatStreamState` is passed
@@ -217,7 +213,6 @@ export function useChatStream({
       const temperature = params?.temperature;
       const topP = params?.topP;
       const maxTokens = params?.maxTokens;
-      const trimmedSystemPrompt = systemPrompt?.trim();
       return {
         model,
         conversationId,
@@ -225,10 +220,9 @@ export function useChatStream({
         ...(temperature != null ? { temperature } : {}),
         ...(topP != null ? { top_p: topP } : {}),
         ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
-        ...(trimmedSystemPrompt ? { systemPrompt: trimmedSystemPrompt } : {}),
       };
     },
-    [model, conversationId, params, systemPrompt],
+    [model, conversationId, params],
   );
 
   const send = React.useCallback(

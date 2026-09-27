@@ -133,7 +133,6 @@ app.post("/chat", {
     temperature:     body.temperature,
     top_p:           body.top_p,
     max_tokens:      body.max_tokens,
-    systemPrompt:    body.systemPrompt,
     clientMessageId: body.clientMessageId,
     regenerate:      body.regenerate,
     abortSignal:     clientDisconnectController.signal,

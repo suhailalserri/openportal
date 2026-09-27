@@ -6,8 +6,6 @@ import { RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import type { ConversationParams } from "../../types";
 import { PARAM_LIMITS } from "../../lib/chat-params-storage";
 import { clampMaxTokens } from "../../lib/param-slider";
@@ -16,15 +14,16 @@ import { ParamSlider, ParamStepper } from "./param-controls";
 /**
  * apps/web/features/chat/components/composer/parameters-panel.tsx
  *
- * Phase 4c (rework). The parameters panel that opens inline from the
- * composer: temperature and top_p as sliders, max response length as a
- * − / + stepper, and the system prompt. Fully controlled — the PARENT owns
- * the committed values and their persistence (hooks/use-chat-params.ts).
+ * The parameters panel that opens inline from the composer: temperature
+ * and top_p as sliders, max response length as a − / + stepper. Fully
+ * controlled — the PARENT owns the committed values and their persistence
+ * (hooks/use-chat-params.ts).
  *
- * The previous version kept per-field draft TEXT so a half-typed "0." could
- * survive; none of that is needed once nothing is typed (the sliders and
- * stepper only ever emit valid, snapped numbers), so the text parsing
- * (lib/param-input.ts) and its error strings were removed.
+ * There used to also be a user-editable system prompt textarea here.
+ * That's been removed entirely — product decision: users don't get a
+ * custom system prompt. Whatever "rules" the assistant follows now come
+ * from the server-owned platform/model prompts assembled in
+ * gateway.service.ts, which this panel never reads, sets, or overrides.
  *
  * MAX-OUTPUT vs THE SELECTED MODEL: a stored value can exceed a
  * newly-picked smaller model's ceiling. The panel DISPLAYS the clamped
@@ -34,15 +33,11 @@ import { ParamSlider, ParamStepper } from "./param-controls";
 export interface ParametersPanelProps {
   params: ConversationParams;
   onParamsChange: (next: ConversationParams) => void;
-  systemPrompt: string;
-  onSystemPromptChange: (next: string) => void;
   /** Selected model's `maxOutputTokens`. */
   maxOutputTokens: number | undefined;
   disabled?: boolean;
   className?: string;
 }
-
-const SYSTEM_PROMPT_MAX = 20_000; // mirrors chat.schema.ts systemPrompt .max(20_000)
 
 const TEMPERATURE_SPEC = { ...PARAM_LIMITS.temperature, step: 0.1 } as const;
 const TOP_P_SPEC = { ...PARAM_LIMITS.topP, step: 0.05 } as const;
@@ -50,14 +45,11 @@ const TOP_P_SPEC = { ...PARAM_LIMITS.topP, step: 0.05 } as const;
 export function ParametersPanel({
   params,
   onParamsChange,
-  systemPrompt,
-  onSystemPromptChange,
   maxOutputTokens,
   disabled,
   className,
 }: ParametersPanelProps) {
   const t = useTranslations("chat.parameters");
-  const baseId = React.useId();
   const off = disabled ?? false;
 
   const ceiling = Math.min(PARAM_LIMITS.maxTokens.max, maxOutputTokens ?? PARAM_LIMITS.maxTokens.max);
@@ -66,12 +58,10 @@ export function ParametersPanel({
   const anySet =
     params.temperature !== null ||
     params.topP !== null ||
-    params.maxTokens !== null ||
-    systemPrompt.length > 0;
+    params.maxTokens !== null;
 
   const handleReset = () => {
     onParamsChange({ temperature: null, topP: null, maxTokens: null });
-    onSystemPromptChange("");
   };
 
   return (
@@ -113,21 +103,6 @@ export function ParametersPanel({
         onChange={(v) => onParamsChange({ ...params, maxTokens: v })}
         disabled={off}
       />
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${baseId}-system`}>{t("systemPrompt")}</Label>
-        <Textarea
-          id={`${baseId}-system`}
-          value={systemPrompt}
-          onChange={(e) => onSystemPromptChange(e.target.value)}
-          maxLength={SYSTEM_PROMPT_MAX}
-          placeholder={t("systemPromptPlaceholder")}
-          disabled={off}
-          rows={3}
-          className="min-h-[72px] resize-y"
-        />
-        <p className="text-[11.5px] text-faint-foreground">{t("systemPromptHint")}</p>
-      </div>
 
       <div className="flex justify-end">
         <Button type="button" variant="ghost" size="sm" onClick={handleReset} disabled={off || !anySet}>

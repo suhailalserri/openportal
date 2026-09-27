@@ -134,16 +134,6 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   const router = useRouter();
 
   const [draft, setDraft] = React.useState("");
-  const conversationExists = Boolean(conversationId) && initialMessages.length === 0 ? false : Boolean(conversationId);
-  // ^ A brand-new id with no history yet has no server row either (lazy
-  // insert on first send — conversation-api.ts's header comment). Both
-  // "no id at all" and "id exists client-side but not server-side yet"
-  // must tell useChatParams the same thing: nothing to GET/PATCH against
-  // yet, ride the system prompt on the first send's body instead.
-  // A real EXISTING conversation with a genuinely empty transcript
-  // (all messages somehow deleted) is not a case B1 produces today, so
-  // this heuristic is safe in practice — flagged rather than silently
-  // assumed, since it is a heuristic and not a field the server sends.
 
   // Phase 4d patch: `conversationModelId` now comes from
   // useConversationMessages (conversation-api.ts's fetchConversationModelId),
@@ -154,15 +144,11 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   // first available) is unchanged; this just supplies the middle tier
   // with real data instead of always leaving it undefined.
   const { models, selectedId, select } = useChatModels({ conversationModelId });
-  const { params, setParams, systemPrompt, setSystemPrompt } = useChatParams({
-    conversationId,
-    conversationExists,
-  });
+  const { params, setParams } = useChatParams({ conversationId });
   const stream = useChatStream({
     conversationId,
     model: selectedId ?? "",
     params,
-    systemPrompt,
     initialMessages,
   });
 
@@ -326,8 +312,6 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           parametersEnabled
           params={params}
           onParamsChange={setParams}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
       </div>
     </div>

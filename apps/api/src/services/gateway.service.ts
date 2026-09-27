@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import { recordUpstreamCall, recordCreditsSpent, streamingConnectionsActive } from "../metrics";
 import { claimUserMessage, chatIdempotencyRedis, type IdempotencyRedis } from "./chat-idempotency.service";
+import { buildSystemPrompt, compactHistory } from "./history-compaction.service";
 
 /**
  * Cost is computed from the `models` table now, not the static
@@ -180,9 +181,6 @@ export interface StreamChatOptions {
   temperature?: number | undefined;
   top_p?:       number | undefined;
   max_tokens?:  number | undefined;
-  /** F3 — prepended as a system message to the gateway request AND persisted
-   *  onto the conversation row (also settable via PATCH /api/conversations/[id]). */
-  systemPrompt?: string | undefined;
   /** F4 — idempotency. See chat-idempotency.service.ts. */
   clientMessageId?: string | undefined;
   regenerate?:      boolean | undefined;
@@ -217,21 +215,22 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   // stale/forged/missing conversationId to blow up message inserts with
   // a foreign-key violation (see: every "hi" from a fresh chat used to
   // fail here because no row existed for the id it generated).
-  //
-  // F3: systemPrompt is only set here on the INITIAL insert (a brand new
-  // conversation). onConflictDoNothing() means this never overwrites a
-  // systemPrompt a later PATCH /api/conversations/[id] call set on an
-  // existing conversation — that route is the source of truth for changing
-  // it after creation, this is only the "first write wins" path.
   await db.insert(conversations)
     .values({
       id:      opts.conversationId,
       userId,
       title:   opts.messages.at(-1)?.content?.slice(0, 80) ?? null,
       modelId,
-      systemPrompt: opts.systemPrompt ?? null,
     })
     .onConflictDoNothing();
+
+  // Load whatever rolling-summary state this conversation already has
+  // (both columns default to null/0 for a brand-new row just inserted
+  // above, or for any conversation created before this migration ran).
+  const conversationRow = await db.query.conversations.findFirst({
+    where: eq(conversations.id, opts.conversationId),
+    columns: { summary: true, summarizedMessageCount: true },
+  });
 
   // Persist the user's turn. Only the assistant reply was ever saved
   // before (fire-and-forget, after the stream), so conversation history
@@ -260,9 +259,42 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     }
   }
 
-  // Estimate token count to pre-validate. Includes the system prompt, since
-  // it's real content sent to (and billed by) the provider on every turn.
-  const allText     = [opts.systemPrompt, ...opts.messages.map((m) => m.content)]
+  // Server-owned system prompt: platform base rules + this model's own
+  // additions, both admin-authored — see history-compaction.service.ts.
+  // Never derived from the request body anymore; chat.schema.ts has no
+  // client-settable systemPrompt field at all.
+  const systemPrompt = await buildSystemPrompt(model);
+
+  // Bound how much of the conversation actually gets resent to the
+  // provider — a rolling summary replaces older turns once the
+  // conversation crosses ~50% of the model's context window, so cost and
+  // latency stay flat as a conversation grows instead of scaling with its
+  // full length every single turn. See history-compaction.service.ts for
+  // the threshold/degrade behavior.
+  const compacted = await compactHistory({
+    fullHistory:            opts.messages,
+    existingSummary:        conversationRow?.summary ?? null,
+    summarizedMessageCount: conversationRow?.summarizedMessageCount ?? 0,
+    model,
+  });
+
+  if (compacted.updatedSummary) {
+    db.update(conversations)
+      .set({
+        summary:                compacted.updatedSummary.summary,
+        summarizedMessageCount: compacted.updatedSummary.summarizedMessageCount,
+      })
+      .where(eq(conversations.id, opts.conversationId))
+      .catch((err) => console.error("[history-compaction] failed to persist updated summary:", err));
+  }
+
+  // Estimate token count to pre-validate. Uses what's ACTUALLY going to be
+  // sent (system prompt + compacted history), not the full raw history —
+  // that's the whole point of compaction. The hard context-window gate
+  // below is still a real safety net even after compaction: a single
+  // still-too-large recent message, or a summarization call that failed
+  // and fell back to raw history, can still legitimately be too long.
+  const allText     = [systemPrompt, ...compacted.gatewayMessages.map((m) => m.content)]
     .filter((t): t is string => Boolean(t))
     .join(" ");
   const estTokens   = estimateTokenCount(allText);
@@ -293,12 +325,14 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   let upstream: Response;
   const upstreamStartedAt = Date.now();
 
-  // F3: system prompt is sent to the provider as a leading system message,
-  // never merged into/mutating opts.messages (which is also what got
-  // persisted above and what the token estimate already accounted for).
-  const gatewayMessages = opts.systemPrompt
-    ? [{ role: "system", content: opts.systemPrompt }, ...opts.messages]
-    : opts.messages;
+  // System prompt is sent as a leading system message, ahead of whatever
+  // compaction produced (summary-as-context, if any, then recent raw
+  // messages). Never merged into/mutating opts.messages — that's the full
+  // client-sent history, which is also what got persisted above and is
+  // untouched by compaction (only what's forwarded upstream is bounded).
+  const gatewayMessages = systemPrompt
+    ? [{ role: "system", content: systemPrompt }, ...compacted.gatewayMessages]
+    : compacted.gatewayMessages;
 
   // Always bounded now (previously `undefined` — i.e. no cap sent to the
   // gateway at all — whenever the caller didn't pass max_tokens). Sending
@@ -472,7 +506,12 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     outputTokens = estimateTokenCount(streamedContent);
   }
   if (inputTokens === 0) {
-    inputTokens = estimateTokenCount(opts.messages.map((m) => m.content).join(" "));
+    // Billing must reflect what was actually SENT to the provider
+    // (gatewayMessages: system prompt + compacted history), not the full
+    // client-side history — those diverge once compaction has kicked in,
+    // and billing the uncompacted length would overcharge the user for
+    // tokens the provider never saw.
+    inputTokens = estimateTokenCount(gatewayMessages.map((m) => m.content).join(" "));
   }
 
   // A garbage moderation-stub reply (see isSafetyClassifierStub above)

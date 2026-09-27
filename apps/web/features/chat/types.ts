@@ -93,9 +93,10 @@ export interface ChatError {
  * class of build failure (see docs/frontend/BRANCH_AND_CI_NOTES.md,
  * B1 hotfix #1 and 4b's rounds 1-2).
  *
- * `systemPrompt` is intentionally NOT in this type: it is the one
- * parameter that persists server-side (B1), so it has a different
- * lifecycle and source of truth than these three.
+ * `systemPrompt` used to be here, persisted server-side and user-editable.
+ * It's been removed entirely (product decision — users don't get a custom
+ * system prompt); the server now assembles its own platform/model prompt
+ * internally (gateway.service.ts), which nothing on the client sees or sets.
  */
 export interface ConversationParams {
   temperature: number | null;
@@ -117,7 +118,7 @@ export const DEFAULT_CONVERSATION_PARAMS: ConversationParams = {
  * response, so a row reaching the client never carries it — modeling the
  * field here would just invite a caller to check it and find it always
  * absent). `GET /api/conversations/[id]`'s full row is NOT this type —
- * that one has `messages` + `systemPrompt` attached; ConversationSummary
+ * that one has `messages` attached; ConversationSummary
  * is specifically the list-row view conversation-cache.ts,
  * conversation-grouping.ts, and use-conversations.ts all key off of.
  *
