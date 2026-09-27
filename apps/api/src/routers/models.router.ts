@@ -84,6 +84,12 @@ export const modelsRouter = router({
       wholesaleCostInputPerM:  z.number().min(0).default(0),
       wholesaleCostOutputPerM: z.number().min(0).default(0),
       rateLimitPerUserDaily:   z.number().int().positive().optional(),
+      // Admin-authored behavior rules for this model, layered under the
+      // platform-wide base prompt at request time (see
+      // history-compaction.service.ts's buildSystemPrompt in the chat
+      // gateway service). NOT the removed per-conversation systemPrompt —
+      // that was fully user-controlled and no longer exists at all.
+      systemPrompt:            z.string().max(20_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
@@ -102,6 +108,7 @@ export const modelsRouter = router({
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),
           rateLimitPerUserDaily:   input.rateLimitPerUserDaily ?? null,
+          systemPrompt:            input.systemPrompt ?? null,
           status:                  "published",
           isAvailable:             true,
           updatedAt:               new Date(),

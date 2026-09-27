@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeProviderKey } from "@/components/icons/provider-icon";
@@ -43,8 +44,12 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     wholesaleCostInputPerM: model ? Number(model.wholesaleCostInputPerM) : 0,
     wholesaleCostOutputPerM: model ? Number(model.wholesaleCostOutputPerM) : 0,
     rateLimitPerUserDaily: model?.rateLimitPerUserDaily ?? undefined,
+    systemPrompt: model?.systemPrompt ?? undefined,
   };
 }
+
+/** Mirrors the router's own cap (models.router.ts `publish` input). */
+const SYSTEM_PROMPT_MAX = 20_000;
 
 /**
  * apps/web/features/admin/models/components/model-form-dialog.tsx (Phase 8c)
@@ -224,6 +229,22 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
               onCheckedChange={(checked) => setForm((f) => ({ ...f, supportsVision: checked }))}
             />
             <Label htmlFor="model-vision">{t("supportsVision")}</Label>
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="model-system-prompt">{t("systemPrompt")}</Label>
+            <Textarea
+              id="model-system-prompt"
+              value={form.systemPrompt ?? ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, systemPrompt: e.target.value || undefined }))
+              }
+              maxLength={SYSTEM_PROMPT_MAX}
+              placeholder={t("systemPromptPlaceholder")}
+              rows={4}
+              className="min-h-[96px] resize-y"
+            />
+            <p className="text-[11.5px] text-faint-foreground">{t("systemPromptHint")}</p>
           </div>
         </div>
 

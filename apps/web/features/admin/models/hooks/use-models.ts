@@ -26,6 +26,10 @@ export interface PublishModelInput {
   wholesaleCostInputPerM: number;
   wholesaleCostOutputPerM: number;
   rateLimitPerUserDaily?: number | undefined;
+  /** Admin-authored behavior rules for this model — layered under the
+   *  platform-wide base prompt at request time. Not the old per-conversation
+   *  systemPrompt (removed entirely; users never had this control). */
+  systemPrompt?: string | undefined;
 }
 
 /**

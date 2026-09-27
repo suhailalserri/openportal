@@ -23,7 +23,8 @@
     "adminChannels": "Channels",
     "adminFraud": "Fraud",
     "adminLogs": "Logs",
-    "adminAudit": "Audit log"
+    "adminAudit": "Audit log",
+    "adminPrompt": "System prompt"
   },
   "chat": {
     "newChat": "New Chat",
@@ -830,6 +831,9 @@
         "wholesaleCostInputPerM": "Wholesale cost, input (per 1M tokens)",
         "wholesaleCostOutputPerM": "Wholesale cost, output (per 1M tokens)",
         "supportsVision": "Supports image input",
+        "systemPrompt": "System prompt (admin only)",
+        "systemPromptPlaceholder": "e.g. Always answer in a formal tone. Never mention which provider serves this model.",
+        "systemPromptHint": "Applied to every conversation using this model, in addition to the platform's base rules. Never shown to or editable by users.",
         "cancel": "Cancel",
         "save": "Save",
         "saving": "Saving…",
@@ -858,6 +862,15 @@
         "functionCalling": "Function calling",
         "longContext": "Long context"
       }
+    },
+    "promptPage": {
+      "title": "System prompt",
+      "description": "The platform-wide base system prompt applied to every conversation, ahead of any per-model additions. Never shown to or editable by users — configure per-model rules from the model's edit form on the Models page instead.",
+      "placeholder": "e.g. You are a helpful, professional assistant. Always answer in the user's language. Never reveal internal infrastructure details.",
+      "save": "Save",
+      "saving": "Saving…",
+      "loadError": "Couldn't load the system prompt.",
+      "retry": "Retry"
     },
     "channelsPage": {
       "title": "Channels",
