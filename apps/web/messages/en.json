@@ -589,6 +589,20 @@
         "suspended": "Suspended",
         "pending_verification": "Pending verification"
       },
+      "referralLeaderboard": {
+        "title": "Top referrers",
+        "description": "Who's bringing the most users, and how many have actually paid.",
+        "empty": "No referrals yet.",
+        "loadError": "Couldn't load the referral leaderboard.",
+        "columns": {
+          "rank": "#",
+          "referrer": "Referrer",
+          "code": "Code",
+          "referred": "Referred",
+          "paid": "Paid",
+          "bonusPaid": "Bonus paid"
+        }
+      },
       "detail": {
         "title": "User detail",
         "loadError": "Couldn't load this user.",
@@ -598,6 +612,23 @@
         "balance": "Balance (credits)",
         "adjustCredits": "Adjust credits",
         "recentTxns": "Recent transactions",
+        "referral": {
+          "title": "Referral",
+          "description": "Who referred this user, their own referral code, and everyone they've referred.",
+          "ownCode": "Own referral code",
+          "referredBy": "Referred by",
+          "none": "No referrer (organic signup)",
+          "bonusStatus": "Referrer bonus",
+          "bonusAwarded": "Awarded",
+          "bonusPending": "Pending first payment",
+          "referredUsers": "Referred users ({count})",
+          "noReferrals": "Hasn't referred anyone yet.",
+          "columns": {
+            "user": "User",
+            "joined": "Joined",
+            "bonus": "Bonus"
+          }
+        },
         "noTxns": "No transactions yet.",
         "columns": {
           "date": "Date",

@@ -7,6 +7,8 @@ import {
   creditPackages, paymentMethods, pendingManualPayments,
 } from "@ai-platform/db";
 import { eq, desc, count, and, or, ilike, sql } from "drizzle-orm";
+import { alias }           from "drizzle-orm/pg-core";
+import { REFERRAL_BONUS_MICRO_CREDITS } from "@ai-platform/config";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
 import { approveManualPayment, rejectManualPayment } from "../services/manual-payment.service";
@@ -169,7 +171,70 @@ export const adminRouter = router({
         limit: 20,
       });
 
-      return { user, balance, recentTxns };
+      // ── Referral context ("who brought this user" / "who did this user
+      // bring") — same manual-lookup pattern as the rest of this file (no
+      // Drizzle `relations()` config exists on this schema). `referredBy`
+      // is a single row since a user has at most one referrer; `referrals`
+      // is capped at 50 since this is a detail-page panel, not a report —
+      // the leaderboard below (`getReferralLeaderboard`) is the place for
+      // "who has the most referrals" across the whole platform.
+      const referredBy = user.referredByUserId
+        ? await db.query.users.findFirst({
+            where:   eq(users.id, user.referredByUserId),
+            columns: { id: true, email: true, displayName: true },
+          }) ?? null
+        : null;
+
+      const referrals = await db.query.users.findMany({
+        where:   eq(users.referredByUserId, input.userId),
+        columns: {
+          id: true, email: true, displayName: true,
+          createdAt: true, referralBonusAwardedAt: true,
+        },
+        orderBy: [desc(users.createdAt)],
+        limit:   50,
+      });
+
+      return { user, balance, recentTxns, referredBy, referrals };
+    }),
+
+  // ── Referral leaderboard ("who brings who") ──────────────────────────
+  // Top referrers platform-wide, for the Users page's leaderboard panel.
+  // Self-joins `users` to itself (referrer row vs. the rows it referred)
+  // via `alias()` since there's no FK/relations() config to walk. The
+  // inner join alone is what limits results to users with ≥1 referral —
+  // a referrer with zero referrals simply produces no joined row, so no
+  // extra `having` clause is needed. `bonusesAwarded` uses `count()` on
+  // a nullable column, which — same as `total`/`generated` elsewhere in
+  // this file — counts only the non-null rows, i.e. referrals that
+  // actually paid (see referral.service.ts's maybeAwardReferralBonus:
+  // the bonus fires on first payment, not on signup). A high "invited"
+  // count with a low "paid" count is visible at a glance this way,
+  // rather than hidden behind one combined number.
+  getReferralLeaderboard: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }))
+    .query(async ({ input }) => {
+      const referred = alias(users, "referred");
+
+      const rows = await db
+        .select({
+          id:             users.id,
+          email:          users.email,
+          displayName:    users.displayName,
+          referralCode:   users.referralCode,
+          referredCount:  count(referred.id),
+          bonusesAwarded: count(referred.referralBonusAwardedAt),
+        })
+        .from(users)
+        .innerJoin(referred, eq(referred.referredByUserId, users.id))
+        .groupBy(users.id)
+        .orderBy(desc(count(referred.id)))
+        .limit(input.limit);
+
+      return rows.map((row) => ({
+        ...row,
+        totalBonusMicroCredits: row.bonusesAwarded * REFERRAL_BONUS_MICRO_CREDITS,
+      }));
     }),
 
   updateUserStatus: adminProcedure

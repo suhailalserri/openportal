@@ -8,6 +8,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import type { DataTableColumn, DataTableLabels } from "@/components/data-table/types";
 import { formatDate } from "@/lib/format";
 import { useUsersList } from "./hooks/use-users-list";
+import { ReferralLeaderboard } from "./components/referral-leaderboard";
 
 interface UserRow {
   id: string;
@@ -84,22 +85,25 @@ export function AdminUsersList() {
   ];
 
   return (
-    <DataTable<UserRow>
-      columns={columns}
-      rows={usersList.rows}
-      getRowId={(row) => row.id}
-      labels={labels}
-      isLoading={usersList.isLoading}
-      isError={usersList.isError}
-      onRetry={usersList.refetch}
-      onRowClick={(row) => router.push(`/${locale}/admin/users/${row.id}`)}
-      search={{ value: usersList.search, onChange: usersList.setSearch, placeholder: t("searchPlaceholder") }}
-      pagination={{
-        page: usersList.page,
-        pageSize: usersList.pageSize,
-        hasMore: usersList.hasMore,
-        onPageChange: usersList.setPage,
-      }}
-    />
+    <div className="flex flex-col gap-6">
+      <ReferralLeaderboard />
+      <DataTable<UserRow>
+        columns={columns}
+        rows={usersList.rows}
+        getRowId={(row) => row.id}
+        labels={labels}
+        isLoading={usersList.isLoading}
+        isError={usersList.isError}
+        onRetry={usersList.refetch}
+        onRowClick={(row) => router.push(`/${locale}/admin/users/${row.id}`)}
+        search={{ value: usersList.search, onChange: usersList.setSearch, placeholder: t("searchPlaceholder") }}
+        pagination={{
+          page: usersList.page,
+          pageSize: usersList.pageSize,
+          hasMore: usersList.hasMore,
+          onPageChange: usersList.setPage,
+        }}
+      />
+    </div>
   );
 }
