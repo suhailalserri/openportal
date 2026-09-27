@@ -413,7 +413,39 @@
         "addCredits": "إضافة رصيد",
         "deductCredits": "خصم رصيد",
         "amountWhole": "المبلغ (كريدت كاملة)",
-        "typeAmountToConfirm": "اكتب المبلغ للتأكيد"
+        "typeAmountToConfirm": "اكتب المبلغ للتأكيد",
+        "conversations": {
+          "title": "المحادثات",
+          "loadError": "تعذّر تحميل المحادثات.",
+          "retry": "إعادة المحاولة",
+          "empty": "لا توجد محادثات بعد.",
+          "untitled": "محادثة بدون عنوان",
+          "deleted": "محذوفة",
+          "view": "عرض",
+          "loadMore": "تحميل المزيد",
+          "loadingMore": "جارٍ التحميل…",
+          "columns": {
+            "updated": "آخر تحديث",
+            "title": "العنوان",
+            "model": "النموذج",
+            "messages": "الرسائل"
+          },
+          "viewerDescription": "عرض للقراءة فقط لهذه المحادثة.",
+          "messagesCount": "{count, plural, one {# رسالة} other {# رسائل}}",
+          "noMessages": "لا توجد رسائل في هذه المحادثة.",
+          "partial": "غير مكتملة",
+          "cost": "التكلفة",
+          "tokens": "{input} إدخال · {output} إخراج",
+          "role": {
+            "user": "المستخدم",
+            "assistant": "المساعد",
+            "system": "النظام"
+          },
+          "feedback": {
+            "positive": "إعجاب",
+            "negative": "عدم إعجاب"
+          }
+        }
       }
     },
     "codesPage": {

@@ -18,6 +18,7 @@ import { useSession } from "@/lib/auth-client";
 import { useUserDetail } from "./hooks/use-user-detail";
 import { useUpdateUserStatus } from "./hooks/use-update-user-status";
 import { useAdjustCredits } from "./hooks/use-adjust-credits";
+import { ConversationsPanel } from "./components/conversations-panel";
 
 interface Props {
   userId: string;
@@ -180,6 +181,8 @@ export function AdminUserDetail({ userId }: Props) {
           </Table>
         </CardContent>
       </Card>
+
+      <ConversationsPanel userId={userId} />
 
       {/* Suspend / reactivate — typed confirmation only for the destructive
           direction (suspend). Reactivating a suspended user isn't the

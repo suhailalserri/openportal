@@ -19,6 +19,7 @@ import {
 import { stripUndefined }  from "../utils/strip-undefined";
 import { fetchGatewayChannels } from "../services/gateway-channels.service";
 import { listUsageLogs, listAuditLogs } from "../services/admin-logs.service";
+import { listUserConversations, getConversationMessages } from "../services/admin-conversations.service";
 
 // B3: shared range/cursor shape for the two log-viewer procedures below —
 // same convention as billing.router.ts's usageRangeInput (range clamped
@@ -625,6 +626,46 @@ export const adminRouter = router({
         targetType: "pendingManualPayment", targetId: input.claimId,
         after: { reason: input.reason }, ip: ctx.ip,
       });
+      return result;
+    }),
+
+  // ── User conversations (read-only) ──────────────────────────────────
+  // Powers the "view this user's chats" panel on the user detail page —
+  // lets an admin verify the credit ledger against what was actually
+  // sent/received, not just trust the transaction row's number. Both
+  // procedures are pure reads (see admin-conversations.service.ts); the
+  // second one is audit-logged since reading a user's private chat
+  // content is sensitive access worth a permanent trail even though role
+  // checking (adminProcedure) is the actual gate.
+  listUserConversations: adminProcedure
+    .input(z.object({
+      userId: z.string().uuid(),
+      limit:  z.number().int().min(1).max(100).default(20),
+      cursor: z.string().uuid().optional(),
+    }))
+    .query(({ input }) => listUserConversations(input)),
+
+  getConversationMessages: adminProcedure
+    .input(z.object({
+      userId:         z.string().uuid(),
+      conversationId: z.string().uuid(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const result = await getConversationMessages(input);
+      // Not found and "belongs to someone else" both 404 — see the
+      // service function's own comment on why that distinction is
+      // deliberately not surfaced.
+      if (!result) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await db.insert(auditLogs).values({
+        adminId:    ctx.user.id,
+        action:     "user.viewConversation",
+        targetType: "conversation",
+        targetId:   input.conversationId,
+        after:      { userId: input.userId },
+        ip:         ctx.ip,
+      });
+
       return result;
     }),
 });

@@ -619,7 +619,39 @@
         "addCredits": "Add credits",
         "deductCredits": "Deduct credits",
         "amountWhole": "Amount (whole credits)",
-        "typeAmountToConfirm": "Type the amount to confirm"
+        "typeAmountToConfirm": "Type the amount to confirm",
+        "conversations": {
+          "title": "Conversations",
+          "loadError": "Could not load conversations.",
+          "retry": "Retry",
+          "empty": "No conversations yet.",
+          "untitled": "Untitled conversation",
+          "deleted": "Deleted",
+          "view": "View",
+          "loadMore": "Load more",
+          "loadingMore": "Loading…",
+          "columns": {
+            "updated": "Updated",
+            "title": "Title",
+            "model": "Model",
+            "messages": "Messages"
+          },
+          "viewerDescription": "Read-only view of this conversation.",
+          "messagesCount": "{count, plural, one {# message} other {# messages}}",
+          "noMessages": "No messages in this conversation.",
+          "partial": "Partial",
+          "cost": "Cost",
+          "tokens": "{input} in · {output} out",
+          "role": {
+            "user": "User",
+            "assistant": "Assistant",
+            "system": "System"
+          },
+          "feedback": {
+            "positive": "Liked",
+            "negative": "Disliked"
+          }
+        }
       }
     },
     "codesPage": {
