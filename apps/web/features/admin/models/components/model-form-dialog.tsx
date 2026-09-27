@@ -15,7 +15,7 @@ import { ProviderIconPicker } from "./provider-icon-picker";
 import { ModelBadgePicker } from "./model-badge-picker";
 import { ModelCategoryToggles } from "./model-category-toggles";
 import { ModelCategoryScoresInput } from "./model-category-scores-input";
-import type { AdminBadgeKey } from "@ai-platform/config";
+import { ADMIN_BADGE_KEYS, LEADERBOARD_TO_MODEL_CATEGORY_KEY, type AdminBadgeKey } from "@ai-platform/config";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
 
@@ -29,12 +29,27 @@ interface ModelFormDialogProps {
   errorMessage?: string | undefined;
 }
 
+/**
+ * Pre-existing rows can carry a stale `badge` value from before the
+ * preset picker existed (free-typed text or an emoji) — the API rejects
+ * anything outside ADMIN_BADGE_KEYS on save (zod enum), so a row like
+ * that would fail to save until the admin happened to reopen the badge
+ * picker and pick something valid. Guard here instead: only pass a badge
+ * through to form state if it's actually one of the current presets;
+ * otherwise treat it as "none", same as `model.badge === ""`.
+ */
+function toAdminBadgeKey(value: string | null | undefined): AdminBadgeKey | undefined {
+  return (ADMIN_BADGE_KEYS as readonly string[]).includes(value ?? "")
+    ? (value as AdminBadgeKey)
+    : undefined;
+}
+
 function emptyForm(model: ModelRow | null): PublishModelInput {
   return {
     modelId: model?.id ?? "",
     displayName: model?.displayName ?? "",
     displayNameAr: model?.displayNameAr ?? "",
-    badge: (model?.badge || undefined) as AdminBadgeKey | undefined,
+    badge: toAdminBadgeKey(model?.badge),
     providerIconKey: model?.providerIconKey ?? undefined,
     tier: (model?.tier === "premium" ? "premium" : "standard"),
     markupMultiplier: model ? Number(model.markupMultiplier) : 2.0,
@@ -136,7 +151,31 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
           <div className="sm:col-span-2">
             <ModelCategoryScoresInput
               value={form.categoryScores}
-              onChange={(next) => setForm((f) => ({ ...f, categoryScores: next }))}
+              onChange={(next) =>
+                setForm((f) => {
+                  // Auto-check the matching feature-flag chip the moment a
+                  // score is entered for a leaderboard category that has
+                  // one (see LEADERBOARD_TO_MODEL_CATEGORY_KEY) — a score
+                  // being filled in means the admin already knows the
+                  // model does that thing, so don't also make them flip
+                  // the chip by hand. Only ADDS a category on a newly
+                  // filled-in score; clearing a score never removes a
+                  // chip the admin may have set independently (e.g. a
+                  // model can support coding without a benchmark score
+                  // for it yet).
+                  let categories = f.categories;
+                  for (const [leaderboardKey, modelKey] of Object.entries(
+                    LEADERBOARD_TO_MODEL_CATEGORY_KEY,
+                  )) {
+                    const justFilled =
+                      next[leaderboardKey] !== undefined && f.categoryScores[leaderboardKey] === undefined;
+                    if (justFilled && !categories.includes(modelKey)) {
+                      categories = [...categories, modelKey];
+                    }
+                  }
+                  return { ...f, categoryScores: next, categories };
+                })
+              }
               label={t("categoryScores")}
             />
           </div>

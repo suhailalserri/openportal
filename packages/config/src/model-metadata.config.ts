@@ -146,3 +146,23 @@ export const RANKED_LEADERBOARD_CATEGORY_KEYS = LEADERBOARD_CATEGORY_KEYS.filter
 
 /** Shape of the `categoryScores` column: partial map of category → 0-100 score. */
 export type ModelCategoryScores = Partial<Record<LeaderboardCategoryKey, number>>;
+
+/**
+ * Leaderboard keys that share a spelling with a MODEL_CATEGORY_KEYS
+ * feature flag (currently "reasoning" and "coding" — both lists happen
+ * to use the same word for related-but-distinct concepts: "can it do
+ * this" vs. "how good is it at this"). Used by the admin form to
+ * auto-check a model's feature-flag chip the moment its matching
+ * benchmark score is filled in, since an admin who just transcribed a
+ * Coding score from LiveBench has, in effect, already confirmed the
+ * model does coding — no reason to make them flip that chip separately.
+ * Categories with no shared spelling (agenticCoding, mathematics, ...)
+ * have no MODEL_CATEGORY_KEYS counterpart to select, so they're simply
+ * absent from this map; scoring them does not touch `categories`.
+ */
+export const LEADERBOARD_TO_MODEL_CATEGORY_KEY: Partial<
+  Record<LeaderboardCategoryKey, ModelCategoryKey>
+> = {
+  reasoning: "reasoning",
+  coding: "coding",
+};
