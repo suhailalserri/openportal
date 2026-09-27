@@ -208,6 +208,20 @@ export function useChatStream({
   // identical either way (see the inline comments this was lifted from,
   // originally only in `send`, for exactly why each field is built as a
   // local const and conditionally spread rather than inlined).
+  //
+  // `messages: ChatMessage[]` (types.ts) keeps `role: ChatMessageRole`
+  // ("user" | "assistant" | "system") for display purposes, but the wire
+  // payload's role union was tightened to "user" | "assistant" only when
+  // the server stopped accepting a client-supplied "system" role at all
+  // (see chat.schema.ts / stream-reader.ts's ChatStreamRequestBody). A
+  // "system" entry should never actually be in this hook's own message
+  // list in practice (nothing in this file ever pushes one — the server
+  // prepends its own system message separately, never round-tripped back
+  // into state), but mapping straight from ChatMessage's wider role type
+  // is what TS is correctly refusing to let through un-narrowed. Filter
+  // rather than cast: an unexpected "system" row silently vanishing from
+  // an outgoing request is a much safer failure than plainly asserting a
+  // type that might not hold.
   const buildRequestBody = React.useCallback(
     (messages: ChatMessage[]) => {
       const temperature = params?.temperature;
@@ -216,7 +230,10 @@ export function useChatStream({
       return {
         model,
         conversationId,
-        messages: messages.map(({ role, content: c }) => ({ role, content: c })),
+        messages: messages
+          .filter((m): m is ChatMessage & { role: "user" | "assistant" } =>
+            m.role === "user" || m.role === "assistant")
+          .map(({ role, content: c }) => ({ role, content: c })),
         ...(temperature != null ? { temperature } : {}),
         ...(topP != null ? { top_p: topP } : {}),
         ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
