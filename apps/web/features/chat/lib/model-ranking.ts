@@ -62,10 +62,25 @@ export function resolveCategoryScore(
   return others.reduce((sum, v) => sum + v, 0) / others.length;
 }
 
-/** True if ANY model in the list has a usable score for this category
- *  (direct or fallback) — used to decide whether a tab is worth showing. */
+/** True if the model has a directly admin-entered score for this
+ *  category — deliberately NOT `resolveCategoryScore(...) !== undefined`:
+ *  that function's fallback (mean of a model's OTHER scores) exists so a
+ *  partially-scored model still has a sortable position within a tab
+ *  that's already showing (e.g. under Coding when only overall/reasoning
+ *  are set) — it isn't meant to manufacture coverage for a category
+ *  nobody actually scored. Using it here would make every category with
+ *  at least one filled-in field "covered" by every model, via that same
+ *  cross-category mean, which would surface a tab (e.g. Data Analysis)
+ *  even though not one model has a real Data Analysis number. */
+function hasDirectScore(model: ChatModel, category: LeaderboardCategoryKey): boolean {
+  const direct = (model.categoryScores ?? {})[category];
+  return typeof direct === "number" && Number.isFinite(direct);
+}
+
+/** True if ANY model in the list has a directly admin-entered score for
+ *  this category — used to decide whether a tab is worth showing. */
 export function categoryHasCoverage(models: readonly ChatModel[], category: LeaderboardCategoryKey): boolean {
-  return models.some((m) => resolveCategoryScore(m, category) !== undefined);
+  return models.some((m) => hasDirectScore(m, category));
 }
 
 /**

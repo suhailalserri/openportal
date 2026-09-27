@@ -40,6 +40,12 @@ export const MODEL_BADGE_KEYS = [
   "smart",
   "beta",
   "deprecated",
+  // Not an admin-picked preset (it's derived at render time from price,
+  // see model-picker.tsx's `isFree`), but it shares the same Record type
+  // as the admin presets in components/icons/model-badge.tsx
+  // (MODEL_BADGE_ICONS / MODEL_BADGE_VARIANTS), so it has to be a member
+  // of this union or those Records fail to typecheck.
+  "free",
 ] as const;
 
 export type ModelBadgeKey = (typeof MODEL_BADGE_KEYS)[number];

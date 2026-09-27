@@ -359,15 +359,19 @@ jobs:
       # either is exactly what caused "column \"categories\" of relation
       # \"models\" does not exist" (0013) immediately followed by the same
       # failure again for "system_prompt" (0014) once 0013 alone was
-      # added and this comment wasn't updated to match. When adding a new
+      # added and this comment wasn't updated to match. 0015 adds
+      # models.category_scores (the per-category leaderboard/ranking
+      # scores the chat model picker sorts by) — omitting it is exactly
+      # what caused "column \"category_scores\" of relation \"models\"
+      # does not exist" the same way, a third time. When adding a new
       # 00NN migration file, add its name to this list in the SAME PR —
       # this loop does not discover files on its own the way
       # db:migrate:manual does (see that script's own comment); nothing
       # enforces the two staying in sync automatically, which is exactly
-      # how 0013/0014 were missed here twice in a row.
-      - name: Apply raw SQL migrations (0001-0014)
+      # how 0013/0014/0015 were missed here in a row.
+      - name: Apply raw SQL migrations (0001-0015)
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "packages/db/src/migrations/$f.sql"
           done
