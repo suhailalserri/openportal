@@ -631,7 +631,8 @@
         "cancel": "إلغاء",
         "save": "حفظ",
         "saving": "جارٍ الحفظ…",
-        "categories": "الفئات"
+        "categories": "الفئات",
+        "categoryScores": "درجات لوحة الصدارة"
       },
       "badges": {
         "none": "بدون شارة",
@@ -643,7 +644,8 @@
         "flagship": "الأبرز",
         "smart": "ذكي",
         "beta": "تجريبي",
-        "deprecated": "مهمل"
+        "deprecated": "مهمل",
+        "free": "مجاني"
       },
       "categories": {
         "vision": "الرؤية",
@@ -655,6 +657,20 @@
         "webSearch": "البحث في الويب",
         "functionCalling": "استدعاء الوظائف",
         "longContext": "سياق طويل"
+      },
+      "leaderboardCategories": {
+        "tablistLabel": "فئة النموذج",
+        "overall": "عام",
+        "reasoning": "الاستدلال",
+        "coding": "البرمجة",
+        "agenticCoding": "البرمجة الوكيلة",
+        "mathematics": "الرياضيات",
+        "dataAnalysis": "تحليل البيانات",
+        "language": "اللغة",
+        "instructionFollowing": "اتباع التعليمات",
+        "topPick": "الأفضل",
+        "scoreTooltip": "درجة {category}",
+        "scoresHint": "درجة من 0 إلى 100 لكل فئة (يمكن نسخها من livebench.ai). اتركه فارغًا إذا لم تكن معروفة."
       }
     },
     "promptPage": {

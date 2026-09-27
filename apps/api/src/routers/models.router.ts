@@ -2,7 +2,12 @@ import { router, publicProcedure, adminProcedure } from "./trpc";
 import { z } from "zod";
 import { db, models } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
-import { CREDIT_VALUE_USD, MODEL_BADGE_KEYS, MODEL_CATEGORY_KEYS } from "@ai-platform/config";
+import {
+  CREDIT_VALUE_USD,
+  MODEL_BADGE_KEYS,
+  MODEL_CATEGORY_KEYS,
+  LEADERBOARD_CATEGORY_KEYS,
+} from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
 
@@ -31,6 +36,7 @@ export const modelsRouter = router({
       maxOutputTokens:  m.maxOutputTokens,
       supportsVision:   m.supportsVision,
       categories:       m.categories,
+      categoryScores:   m.categoryScores,
       avgResponseTimeMs: m.avgResponseTimeMs,
       creditsPerKInput:  creditsPerK(Number(m.wholesaleCostInputPerM),  Number(m.markupMultiplier)),
       creditsPerKOutput: creditsPerK(Number(m.wholesaleCostOutputPerM), Number(m.markupMultiplier)),
@@ -81,6 +87,19 @@ export const modelsRouter = router({
       // shouldn't get a hard validation error on save.
       categories:              z.array(z.string()).default([])
                                  .transform((cats) => cats.filter((c) => (MODEL_CATEGORY_KEYS as readonly string[]).includes(c))),
+      // Admin-entered benchmark scores (0-100) per LEADERBOARD_CATEGORY_KEYS
+      // (e.g. copied in from livebench.ai). Unrecognized keys dropped for
+      // the same forward-compat reason as `categories` above; out-of-range
+      // values rejected outright since these come from a form, not a stale
+      // client's stored list.
+      categoryScores:          z.record(z.string(), z.number().min(0).max(100)).default({})
+                                 .transform((scores) =>
+                                   Object.fromEntries(
+                                     Object.entries(scores).filter(([k]) =>
+                                       (LEADERBOARD_CATEGORY_KEYS as readonly string[]).includes(k),
+                                     ),
+                                   ),
+                                 ),
       wholesaleCostInputPerM:  z.number().min(0).default(0),
       wholesaleCostOutputPerM: z.number().min(0).default(0),
       rateLimitPerUserDaily:   z.number().int().positive().optional(),
@@ -105,6 +124,7 @@ export const modelsRouter = router({
           maxOutputTokens:         input.maxOutputTokens,
           supportsVision:          input.supportsVision,
           categories:              input.categories,
+          categoryScores:          input.categoryScores,
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),
           rateLimitPerUserDaily:   input.rateLimitPerUserDaily ?? null,

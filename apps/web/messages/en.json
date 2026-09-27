@@ -837,7 +837,8 @@
         "cancel": "Cancel",
         "save": "Save",
         "saving": "Saving…",
-        "categories": "Categories"
+        "categories": "Categories",
+        "categoryScores": "Leaderboard scores"
       },
       "badges": {
         "none": "No badge",
@@ -849,7 +850,8 @@
         "flagship": "Flagship",
         "smart": "Smart",
         "beta": "Beta",
-        "deprecated": "Deprecated"
+        "deprecated": "Deprecated",
+        "free": "Free"
       },
       "categories": {
         "vision": "Vision",
@@ -861,6 +863,20 @@
         "webSearch": "Web search",
         "functionCalling": "Function calling",
         "longContext": "Long context"
+      },
+      "leaderboardCategories": {
+        "tablistLabel": "Model category",
+        "overall": "Overall",
+        "reasoning": "Reasoning",
+        "coding": "Coding",
+        "agenticCoding": "Agentic Coding",
+        "mathematics": "Mathematics",
+        "dataAnalysis": "Data Analysis",
+        "language": "Language",
+        "instructionFollowing": "Instruction Following",
+        "topPick": "Top pick",
+        "scoreTooltip": "{category} score",
+        "scoresHint": "0-100 benchmark score per category (e.g. copied from livebench.ai). Leave blank if unknown."
       }
     },
     "promptPage": {

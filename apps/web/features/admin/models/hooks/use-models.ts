@@ -23,6 +23,11 @@ export interface PublishModelInput {
   supportsVision: boolean;
   /** Feature-flag keys from MODEL_CATEGORY_KEYS (@ai-platform/config). */
   categories: string[];
+  /** Admin-entered benchmark scores (0-100) keyed by
+   *  LEADERBOARD_CATEGORY_KEYS (@ai-platform/config), e.g. copied in from
+   *  livebench.ai. Powers ranking within each tab of the chat composer's
+   *  model picker (see apps/web/features/chat/lib/model-ranking.ts). */
+  categoryScores: Record<string, number>;
   wholesaleCostInputPerM: number;
   wholesaleCostOutputPerM: number;
   rateLimitPerUserDaily?: number | undefined;

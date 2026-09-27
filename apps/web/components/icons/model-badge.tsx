@@ -11,6 +11,7 @@ import {
   FlaskConical,
   AlertTriangle,
   type LucideIcon,
+  type LucideProps,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -32,6 +33,42 @@ import type { VariantProps } from "class-variance-authority";
  * Labels come from `admin.modelsPage.badges.*` (messages/{ar,en}.json) —
  * add a translation there (not here) when adding a preset key.
  */
+
+/**
+ * A literal "FREE" wordmark drawn as an SVG, not a Lucide glyph — no
+ * built-in icon reads as the word "free" at a glance, and the whole
+ * point of this badge is that a user recognizes it as free instantly,
+ * the same way $/% icons read instantly for pricing. Sized and stroked
+ * like the surrounding Lucide icons (24x24 viewBox, currentColor) so it
+ * drops into MODEL_BADGE_ICONS with the same call signature.
+ */
+function FreeIcon({ size, className, ...props }: LucideProps) {
+  return (
+    <svg
+      viewBox="0 0 34 24"
+      width={typeof size === "number" ? size * (34 / 24) : size}
+      height={size}
+      fill="none"
+      className={className}
+      {...props}
+    >
+      <text
+        x="17"
+        y="16.5"
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="800"
+        fontFamily="inherit"
+        letterSpacing="-0.4"
+        fill="currentColor"
+        stroke="none"
+      >
+        FREE
+      </text>
+    </svg>
+  );
+}
+
 export const MODEL_BADGE_ICONS: Record<ModelBadgeKey, LucideIcon> = {
   new: Sparkles,
   popular: Flame,
@@ -42,6 +79,7 @@ export const MODEL_BADGE_ICONS: Record<ModelBadgeKey, LucideIcon> = {
   smart: Brain,
   beta: FlaskConical,
   deprecated: AlertTriangle,
+  free: FreeIcon as unknown as LucideIcon,
 };
 
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
@@ -56,6 +94,7 @@ const MODEL_BADGE_VARIANTS: Record<ModelBadgeKey, BadgeVariant> = {
   smart: "info",
   beta: "outline",
   deprecated: "destructive",
+  free: "success",
 };
 
 function isModelBadgeKey(value: string | null | undefined): value is ModelBadgeKey {
@@ -77,10 +116,13 @@ export function ModelBadge({ badge, size = 12, className, iconOnly = false }: Mo
 
   const Icon = MODEL_BADGE_ICONS[badge];
   const label = t(badge);
+  // `free` renders a wordmark, not a square glyph — let it size by height
+  // only so its own (wider) aspect ratio isn't squashed into a square box.
+  const iconStyle = badge === "free" ? { height: size, width: "auto" } : { width: size, height: size };
 
   return (
     <Badge variant={MODEL_BADGE_VARIANTS[badge]} className={cn("shrink-0", className)} title={label}>
-      <Icon aria-hidden style={{ width: size, height: size }} />
+      <Icon aria-hidden style={iconStyle} />
       {!iconOnly && <span>{label}</span>}
     </Badge>
   );

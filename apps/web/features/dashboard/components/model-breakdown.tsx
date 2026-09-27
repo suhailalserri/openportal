@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
@@ -85,7 +85,10 @@ export function ModelBreakdown({ data, isLoading }: ModelBreakdownProps) {
     DEFAULT_MODEL_SORT
   );
 
-  const sorted = sortModelRows(data, sort.key, sort.direction);
+  const sorted = useMemo(
+    () => sortModelRows(data, sort.key, sort.direction),
+    [data, sort.key, sort.direction]
+  );
   const handleSort = (key: ModelBreakdownSortKey) => setSort((prev) => nextModelSort(prev, key));
 
   return (

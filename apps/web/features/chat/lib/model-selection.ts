@@ -36,6 +36,11 @@ export interface ChatModel {
   supportsVision: boolean;
   /** Feature-flag keys from MODEL_CATEGORY_KEYS (@ai-platform/config). */
   categories?: string[] | null | undefined;
+  /** Admin-entered benchmark scores (0-100) keyed by
+   *  LEADERBOARD_CATEGORY_KEYS (@ai-platform/config) — e.g.
+   *  { reasoning: 91.7, coding: 86.4 }. See lib/model-ranking.ts for how
+   *  the model picker uses these to rank/sort within a category tab. */
+  categoryScores?: Record<string, number> | null | undefined;
   avgResponseTimeMs: number | null;
   creditsPerKInput: number;
   creditsPerKOutput: number;

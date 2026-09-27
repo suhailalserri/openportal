@@ -14,6 +14,7 @@ import { normalizeProviderKey } from "@/components/icons/provider-icon";
 import { ProviderIconPicker } from "./provider-icon-picker";
 import { ModelBadgePicker } from "./model-badge-picker";
 import { ModelCategoryToggles } from "./model-category-toggles";
+import { ModelCategoryScoresInput } from "./model-category-scores-input";
 import type { ModelBadgeKey } from "@ai-platform/config";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
@@ -41,6 +42,7 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     maxOutputTokens: model?.maxOutputTokens ?? 0,
     supportsVision: model?.supportsVision ?? false,
     categories: model?.categories ?? [],
+    categoryScores: model?.categoryScores ?? {},
     wholesaleCostInputPerM: model ? Number(model.wholesaleCostInputPerM) : 0,
     wholesaleCostOutputPerM: model ? Number(model.wholesaleCostOutputPerM) : 0,
     rateLimitPerUserDaily: model?.rateLimitPerUserDaily ?? undefined,
@@ -129,6 +131,13 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
               value={form.categories}
               onChange={(next) => setForm((f) => ({ ...f, categories: next }))}
               label={t("categories")}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <ModelCategoryScoresInput
+              value={form.categoryScores}
+              onChange={(next) => setForm((f) => ({ ...f, categoryScores: next }))}
+              label={t("categoryScores")}
             />
           </div>
           <div className="sm:col-span-2">

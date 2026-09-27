@@ -65,3 +65,49 @@ export type ModelCategoryKey = (typeof MODEL_CATEGORY_KEYS)[number];
 export function isModelCategoryKey(value: string): value is ModelCategoryKey {
   return (MODEL_CATEGORY_KEYS as readonly string[]).includes(value);
 }
+
+/**
+ * LEADERBOARD_CATEGORY_KEYS — benchmark-style ranking categories, each
+ * with its own admin-entered score (see `categoryScores` on the `models`
+ * table). Deliberately a SEPARATE list from `MODEL_CATEGORY_KEYS` above:
+ * that list is "can this model do X at all" (boolean feature flags —
+ * vision, audio, ...); this list is "how good is this model at X"
+ * (a 0-100 benchmark score per category, modeled on the categories shown
+ * on livebench.ai's leaderboard: Reasoning, Coding, Agentic Coding,
+ * Mathematics, Data Analysis, Language, Instruction Following). An admin
+ * fills these in from a public benchmark (LiveBench or similar); the chat
+ * model picker's category tabs then rank models within a tab by that
+ * category's own score — not by one blended "overall" number — so a
+ * model that leads specifically at Coding surfaces first under the
+ * Coding tab even if another model has a higher overall average.
+ *
+ * "overall" is included as a synthetic category (the picker's "All"
+ * tab): admins may enter it directly (e.g. LiveBench's own overall
+ * score) or leave it unset, in which case the picker falls back to the
+ * mean of whatever per-category scores ARE set (see
+ * `resolveCategoryScore` in apps/web/features/chat/lib/model-ranking.ts).
+ */
+export const LEADERBOARD_CATEGORY_KEYS = [
+  "overall",
+  "reasoning",
+  "coding",
+  "agenticCoding",
+  "mathematics",
+  "dataAnalysis",
+  "language",
+  "instructionFollowing",
+] as const;
+
+export type LeaderboardCategoryKey = (typeof LEADERBOARD_CATEGORY_KEYS)[number];
+
+export function isLeaderboardCategoryKey(value: string): value is LeaderboardCategoryKey {
+  return (LEADERBOARD_CATEGORY_KEYS as readonly string[]).includes(value);
+}
+
+/** Categories a model can be ranked in besides the synthetic "overall" tab. */
+export const RANKED_LEADERBOARD_CATEGORY_KEYS = LEADERBOARD_CATEGORY_KEYS.filter(
+  (k): k is Exclude<LeaderboardCategoryKey, "overall"> => k !== "overall",
+);
+
+/** Shape of the `categoryScores` column: partial map of category → 0-100 score. */
+export type ModelCategoryScores = Partial<Record<LeaderboardCategoryKey, number>>;

@@ -10,12 +10,23 @@ import {
   Globe,
   Wrench,
   AlignLeft,
+  Sparkles,
+  Terminal,
+  Sigma,
+  BarChart3,
+  Languages,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
-import { MODEL_CATEGORY_KEYS, type ModelCategoryKey } from "@ai-platform/config";
+import {
+  MODEL_CATEGORY_KEYS,
+  LEADERBOARD_CATEGORY_KEYS,
+  type ModelCategoryKey,
+  type LeaderboardCategoryKey,
+} from "@ai-platform/config";
 
 /**
  * apps/web/components/icons/model-category.tsx
@@ -38,6 +49,27 @@ export const MODEL_CATEGORY_ICONS: Record<ModelCategoryKey, LucideIcon> = {
   functionCalling: Wrench,
   longContext: AlignLeft,
 };
+
+/**
+ * Icon for each entry in LEADERBOARD_CATEGORY_KEYS (@ai-platform/config)
+ * — the benchmark-ranking categories, distinct from MODEL_CATEGORY_ICONS
+ * above (which are feature flags). Used by the chat composer's model
+ * picker for its round category tabs.
+ */
+export const LEADERBOARD_CATEGORY_ICONS: Record<LeaderboardCategoryKey, LucideIcon> = {
+  overall: Sparkles,
+  reasoning: Brain,
+  coding: Code2,
+  agenticCoding: Terminal,
+  mathematics: Sigma,
+  dataAnalysis: BarChart3,
+  language: Languages,
+  instructionFollowing: ListChecks,
+};
+
+export function isLeaderboardCategoryIconKey(value: string): value is LeaderboardCategoryKey {
+  return (LEADERBOARD_CATEGORY_KEYS as readonly string[]).includes(value);
+}
 
 function isCategoryKey(value: string): value is ModelCategoryKey {
   return (MODEL_CATEGORY_KEYS as readonly string[]).includes(value);
