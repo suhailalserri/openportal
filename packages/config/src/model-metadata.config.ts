@@ -83,6 +83,29 @@ export const ADMIN_BADGE_KEYS = [
 
 export type AdminBadgeKey = (typeof ADMIN_BADGE_KEYS)[number];
 
+/**
+ * Coerce any stored `badge` value to a valid AdminBadgeKey or "" (none).
+ *
+ * WHY THIS EXISTS: `models.badge` predates the preset picker — it used
+ * to be freeform text/an emoji, typed by hand per model. Rows seeded or
+ * edited before ADMIN_BADGE_KEYS existed can still carry one of those
+ * old values (e.g. "⚡", "🆓", "🤖") sitting in the database today. The
+ * `publish` mutation's zod schema (`z.enum(ADMIN_BADGE_KEYS)`) has
+ * always rejected anything else — that's correct — but nothing coerced
+ * the STORED value shown back to the admin, so reopening one of these
+ * legacy rows and hitting Save without touching the badge field failed
+ * with an opaque "Invalid enum value" error. Call this at every
+ * boundary that reads a `badge` value out of the database (the
+ * `models.list`/`listAll` router output, the seed script) so a legacy
+ * value degrades to "no badge" instead of round-tripping back out as
+ * something the form can't submit.
+ */
+export function sanitizeAdminBadge(value: string | null | undefined): AdminBadgeKey | "" {
+  return (ADMIN_BADGE_KEYS as readonly string[]).includes(value ?? "")
+    ? (value as AdminBadgeKey)
+    : "";
+}
+
 export const MODEL_CATEGORY_KEYS = [
   "vision",
   "imageGeneration",

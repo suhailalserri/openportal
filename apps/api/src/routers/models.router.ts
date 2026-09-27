@@ -7,6 +7,7 @@ import {
   ADMIN_BADGE_KEYS,
   MODEL_CATEGORY_KEYS,
   LEADERBOARD_CATEGORY_KEYS,
+  sanitizeAdminBadge,
 } from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
@@ -29,7 +30,7 @@ export const modelsRouter = router({
       id:               m.id,
       displayName:      m.displayName,
       displayNameAr:    m.displayNameAr,
-      badge:            m.badge,
+      badge:            sanitizeAdminBadge(m.badge),
       provider:         m.provider,
       providerIconKey:  m.providerIconKey,
       tier:             m.tier,
@@ -44,8 +45,17 @@ export const modelsRouter = router({
     }));
   }),
 
-  // Admin: every row regardless of status/availability.
-  listAll: adminProcedure.query(() => db.query.models.findMany()),
+  // Admin: every row regardless of status/availability. Badge is
+  // sanitized on the way out (see sanitizeAdminBadge) — legacy rows can
+  // still carry a pre-picker freeform value (an emoji, "FREE", etc.);
+  // without this, reopening one of those rows in the form dialog and
+  // saving without touching the badge field fails with an opaque
+  // "Invalid enum value" error, since `publish`'s zod schema has always
+  // rejected anything outside ADMIN_BADGE_KEYS.
+  listAll: adminProcedure.query(async () => {
+    const rows = await db.query.models.findMany();
+    return rows.map((m) => ({ ...m, badge: sanitizeAdminBadge(m.badge) }));
+  }),
 
   // Admin: the discovery queue — models the gateway can serve that nobody
   // has configured pricing/display info for yet. This is what "Sync now"
