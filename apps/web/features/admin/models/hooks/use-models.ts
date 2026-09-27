@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { trpc } from "@/lib/trpc";
-import type { ModelBadgeKey } from "@ai-platform/config";
+import type { AdminBadgeKey } from "@ai-platform/config";
 
 export type ModelTab = "all" | "pending" | "published" | "disabled";
 
@@ -13,7 +13,7 @@ export interface PublishModelInput {
   modelId: string;
   displayName: string;
   displayNameAr: string;
-  badge?: ModelBadgeKey | undefined;
+  badge?: AdminBadgeKey | undefined;
   /** Admin override of the displayed brand icon; undefined = auto-detect from `provider`. */
   providerIconKey?: string | undefined;
   tier: "standard" | "premium";

@@ -15,7 +15,7 @@ import { ProviderIconPicker } from "./provider-icon-picker";
 import { ModelBadgePicker } from "./model-badge-picker";
 import { ModelCategoryToggles } from "./model-category-toggles";
 import { ModelCategoryScoresInput } from "./model-category-scores-input";
-import type { ModelBadgeKey } from "@ai-platform/config";
+import type { AdminBadgeKey } from "@ai-platform/config";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
 
@@ -34,7 +34,7 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     modelId: model?.id ?? "",
     displayName: model?.displayName ?? "",
     displayNameAr: model?.displayNameAr ?? "",
-    badge: (model?.badge || undefined) as ModelBadgeKey | undefined,
+    badge: (model?.badge || undefined) as AdminBadgeKey | undefined,
     providerIconKey: model?.providerIconKey ?? undefined,
     tier: (model?.tier === "premium" ? "premium" : "standard"),
     markupMultiplier: model ? Number(model.markupMultiplier) : 2.0,

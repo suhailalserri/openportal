@@ -54,6 +54,35 @@ export function isModelBadgeKey(value: string): value is ModelBadgeKey {
   return (MODEL_BADGE_KEYS as readonly string[]).includes(value);
 }
 
+/**
+ * Badge presets an ADMIN can actually pick (everything in MODEL_BADGE_KEYS
+ * except "free", which is derived at render time from price — see
+ * apps/web/components/icons/model-badge.tsx's `isFree` usage in the chat
+ * model picker, never set via the admin form). Shared from here (not
+ * redeclared separately in the admin picker component and the API
+ * router) so the client-side `PublishModelInput.badge` type and the
+ * server's `publish` procedure input always agree — a mismatch there is
+ * exactly what caused "Argument of type 'PublishModelInput' is not
+ * assignable to parameter of type ...". Spelled out as a literal tuple
+ * (not `MODEL_BADGE_KEYS.filter(...)`) because zod's `z.enum()` requires
+ * a `[string, ...string[]]` tuple type, which `.filter()` can't produce;
+ * `satisfies` below still keeps this checked against MODEL_BADGE_KEYS so
+ * the two can't drift silently.
+ */
+export const ADMIN_BADGE_KEYS = [
+  "new",
+  "popular",
+  "recommended",
+  "fast",
+  "budget",
+  "flagship",
+  "smart",
+  "beta",
+  "deprecated",
+] as const satisfies readonly Exclude<ModelBadgeKey, "free">[];
+
+export type AdminBadgeKey = (typeof ADMIN_BADGE_KEYS)[number];
+
 export const MODEL_CATEGORY_KEYS = [
   "vision",
   "imageGeneration",

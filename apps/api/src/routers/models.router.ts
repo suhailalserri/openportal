@@ -4,7 +4,7 @@ import { db, models } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
 import {
   CREDIT_VALUE_USD,
-  MODEL_BADGE_KEYS,
+  ADMIN_BADGE_KEYS,
   MODEL_CATEGORY_KEYS,
   LEADERBOARD_CATEGORY_KEYS,
 } from "@ai-platform/config";
@@ -15,23 +15,6 @@ function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
 }
 
-// "free" is a derived-at-render badge (see
-// apps/web/components/icons/model-badge.tsx), never an admin-set value
-// on the `badge` column — excluded here so this enum matches what
-// ModelBadgePicker actually offers an admin. Spelled out as a literal
-// tuple (not MODEL_BADGE_KEYS.filter(...)) because z.enum requires a
-// `[string, ...string[]]` tuple type, which `.filter()` can't produce.
-const ADMIN_BADGE_KEYS = [
-  "new",
-  "popular",
-  "recommended",
-  "fast",
-  "budget",
-  "flagship",
-  "smart",
-  "beta",
-  "deprecated",
-] as const satisfies readonly Exclude<(typeof MODEL_BADGE_KEYS)[number], "free">[];
 
 export const modelsRouter = router({
 
