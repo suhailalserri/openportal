@@ -864,6 +864,7 @@
         "functionCalling": "Function calling",
         "longContext": "Long context"
       },
+      "categoryScores": "Benchmark Scores",
       "leaderboardCategories": {
         "tablistLabel": "Model category",
         "overall": "Overall",

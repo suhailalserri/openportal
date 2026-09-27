@@ -658,6 +658,7 @@
         "functionCalling": "استدعاء الوظائف",
         "longContext": "سياق طويل"
       },
+      "categoryScores": "درجات المعايير",
       "leaderboardCategories": {
         "tablistLabel": "فئة النموذج",
         "overall": "عام",
