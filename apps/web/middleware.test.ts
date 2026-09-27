@@ -40,6 +40,14 @@ describe("middleware — Phase 2.1 x-pathname forwarding", () => {
     expect(res.headers.get(REQUEST_PATH_HEADER)).toBeNull();
   });
 
+  it("preserves the query string on the bare-/ redirect (referral links: ?ref=CODE must not be dropped)", () => {
+    const res = middleware(req("/?ref=ZA5342YD"));
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location") ?? "");
+    expect(location.pathname).toBe("/ar");
+    expect(location.searchParams.get("ref")).toBe("ZA5342YD");
+  });
+
   it("honours Accept-Language for the bare-/ redirect (Phase 3.3: was /{locale}/chat)", () => {
     const res = middleware(req("/", { "accept-language": "en-US,en;q=0.9" }));
     expect(new URL(res.headers.get("location") ?? "").pathname).toBe("/en");

@@ -40,7 +40,9 @@ export function middleware(request: NextRequest) {
     // normal in-app navigation once signed in. Every other path
     // (already-locale-prefixed, /api, /_next, etc.) is unaffected.
     const newPath = pathname === "/" ? `/${locale}` : `/${locale}${pathname}`;
-    return NextResponse.redirect(new URL(newPath, request.url));
+    const redirectUrl = new URL(newPath, request.url);
+    redirectUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(redirectUrl);
   }
 
   // This app uses a custom middleware instead of next-intl's own createMiddleware,
