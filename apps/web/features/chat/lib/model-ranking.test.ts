@@ -41,6 +41,15 @@ describe("resolveCategoryScore", () => {
     expect(resolveCategoryScore(model("a"), "coding")).toBeUndefined();
   });
 
+  it("does NOT fall back off a single lonely score (regression: a model scored only in Mathematics must not rank in Reasoning/Coding/etc.)", () => {
+    const m = model("a", { mathematics: 66 });
+    expect(resolveCategoryScore(m, "reasoning")).toBeUndefined();
+    expect(resolveCategoryScore(m, "coding")).toBeUndefined();
+    expect(resolveCategoryScore(m, "overall")).toBeUndefined();
+    // the category it actually has a score for still works
+    expect(resolveCategoryScore(m, "mathematics")).toBe(66);
+  });
+
   it("overall falls back to the mean of other categories when unset", () => {
     const m = model("a", { reasoning: 100, coding: 50 });
     expect(resolveCategoryScore(m, "overall")).toBe(75);

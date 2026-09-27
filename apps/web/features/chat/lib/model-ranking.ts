@@ -23,13 +23,15 @@
  * has no opinion on which benchmark the numbers come from; it only
  * consumes whatever 0-100 numbers are on the row.
  *
- * FALLBACK FOR AN UNSCORED MODEL: a model with no score at all for a
- * given category still needs a stable position (new models often lag
- * benchmark coverage). `resolveCategoryScore` falls back to the mean of
- * whatever OTHER category scores the model does have, so a fully-scored
- * flagship model still outranks a model nobody has benchmarked yet,
- * without hard-coding a magic "0" that would bury it below every
- * deliberately low-scoring model too.
+ * FALLBACK FOR AN UNSCORED CATEGORY: a model missing a score for just one
+ * tab still needs a stable position (an admin can easily forget one
+ * field). `resolveCategoryScore` falls back to the mean of the model's
+ * OTHER scores, but only once there are at least two of them — a model
+ * with a single lonely score (e.g. only Mathematics: 66) has no real
+ * signal for Reasoning or Coding, so it must NOT rank there off that one
+ * number; see MIN_SCORES_FOR_FALLBACK below. A fully-scored flagship
+ * model still outranks a barely-benchmarked one, without hard-coding a
+ * magic "0" that would bury a deliberately low-scoring model too.
  */
 import { LEADERBOARD_CATEGORY_KEYS, RANKED_LEADERBOARD_CATEGORY_KEYS } from "@ai-platform/config";
 import type { LeaderboardCategoryKey } from "@ai-platform/config";
@@ -41,12 +43,19 @@ export { LEADERBOARD_CATEGORY_KEYS };
 /**
  * The score to sort/display a model by for a given tab.
  *  - explicit score for that category → use it
- *  - "overall" with no explicit score → mean of the model's other scores
- *  - any other category with no explicit score → mean of its OTHER scores
- *    (never counts the tab itself, which by definition is unset here)
- *  - no scores at all → undefined (caller pushes it to the end, unsorted
- *    among its peers, rather than assuming a 0)
+ *  - otherwise, if the model has scores for at least MIN_SCORES_FOR_FALLBACK
+ *    other ranked categories → the mean of those (a genuinely
+ *    well-benchmarked model shouldn't sink to the bottom of the one tab
+ *    an admin forgot to fill in)
+ *  - otherwise (zero, or only one, other score on file) → undefined, so
+ *    the model doesn't get ranked in a tab it has no real signal for.
+ *    Without this floor, a model scored in exactly ONE category (e.g.
+ *    only Mathematics: 66) would have that single number stand in as its
+ *    "mean" everywhere else too — surfacing a Mathematics-only model as
+ *    a top Reasoning/Coding pick it was never actually benchmarked for.
  */
+const MIN_SCORES_FOR_FALLBACK = 2;
+
 export function resolveCategoryScore(
   model: ChatModel,
   category: LeaderboardCategoryKey,
@@ -58,7 +67,7 @@ export function resolveCategoryScore(
   const others = RANKED_LEADERBOARD_CATEGORY_KEYS.filter((k) => k !== category)
     .map((k) => scores[k])
     .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-  if (others.length === 0) return undefined;
+  if (others.length < MIN_SCORES_FOR_FALLBACK) return undefined;
   return others.reduce((sum, v) => sum + v, 0) / others.length;
 }
 
