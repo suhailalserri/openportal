@@ -353,13 +353,21 @@ jobs:
       # models.provider_icon_key, which seed:models writes to via the
       # Drizzle schema — omitting it here is exactly what caused
       # "column \"provider_icon_key\" of relation \"models\" does not
-      # exist" in CI. When adding a new 00NN migration file, add its name
-      # to this list in the same PR — this loop does not discover files
-      # on its own the way db:migrate:manual does (see that script's own
-      # comment); nothing enforces the two staying in sync automatically.
-      - name: Apply raw SQL migrations (0001-0006)
+      # exist" in CI. 0013 adds models.badge/categories, 0014 adds
+      # models.system_prompt + conversations.summary/
+      # summarized_message_count + the platform_config table — omitting
+      # either is exactly what caused "column \"categories\" of relation
+      # \"models\" does not exist" (0013) immediately followed by the same
+      # failure again for "system_prompt" (0014) once 0013 alone was
+      # added and this comment wasn't updated to match. When adding a new
+      # 00NN migration file, add its name to this list in the SAME PR —
+      # this loop does not discover files on its own the way
+      # db:migrate:manual does (see that script's own comment); nothing
+      # enforces the two staying in sync automatically, which is exactly
+      # how 0013/0014 were missed here twice in a row.
+      - name: Apply raw SQL migrations (0001-0014)
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "packages/db/src/migrations/$f.sql"
           done
