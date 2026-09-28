@@ -23,7 +23,8 @@
     "adminChannels": "Channels",
     "adminFraud": "Fraud",
     "adminLogs": "Logs",
-    "adminAudit": "Audit log"
+    "adminAudit": "Audit log",
+    "adminPrompt": "System prompt"
   },
   "chat": {
     "newChat": "New Chat",
@@ -588,6 +589,20 @@
         "suspended": "Suspended",
         "pending_verification": "Pending verification"
       },
+      "referralLeaderboard": {
+        "title": "Top referrers",
+        "description": "Who's bringing the most users, and how many have actually paid.",
+        "empty": "No referrals yet.",
+        "loadError": "Couldn't load the referral leaderboard.",
+        "columns": {
+          "rank": "#",
+          "referrer": "Referrer",
+          "code": "Code",
+          "referred": "Referred",
+          "paid": "Paid",
+          "bonusPaid": "Bonus paid"
+        }
+      },
       "detail": {
         "title": "User detail",
         "loadError": "Couldn't load this user.",
@@ -597,6 +612,23 @@
         "balance": "Balance (credits)",
         "adjustCredits": "Adjust credits",
         "recentTxns": "Recent transactions",
+        "referral": {
+          "title": "Referral",
+          "description": "Who referred this user, their own referral code, and everyone they've referred.",
+          "ownCode": "Own referral code",
+          "referredBy": "Referred by",
+          "none": "No referrer (organic signup)",
+          "bonusStatus": "Referrer bonus",
+          "bonusAwarded": "Awarded",
+          "bonusPending": "Pending first payment",
+          "referredUsers": "Referred users ({count})",
+          "noReferrals": "Hasn't referred anyone yet.",
+          "columns": {
+            "user": "User",
+            "joined": "Joined",
+            "bonus": "Bonus"
+          }
+        },
         "noTxns": "No transactions yet.",
         "columns": {
           "date": "Date",
@@ -618,7 +650,39 @@
         "addCredits": "Add credits",
         "deductCredits": "Deduct credits",
         "amountWhole": "Amount (whole credits)",
-        "typeAmountToConfirm": "Type the amount to confirm"
+        "typeAmountToConfirm": "Type the amount to confirm",
+        "conversations": {
+          "title": "Conversations",
+          "loadError": "Could not load conversations.",
+          "retry": "Retry",
+          "empty": "No conversations yet.",
+          "untitled": "Untitled conversation",
+          "deleted": "Deleted",
+          "view": "View",
+          "loadMore": "Load more",
+          "loadingMore": "Loading…",
+          "columns": {
+            "updated": "Updated",
+            "title": "Title",
+            "model": "Model",
+            "messages": "Messages"
+          },
+          "viewerDescription": "Read-only view of this conversation.",
+          "messagesCount": "{count, plural, one {# message} other {# messages}}",
+          "noMessages": "No messages in this conversation.",
+          "partial": "Partial",
+          "cost": "Cost",
+          "tokens": "{input} in · {output} out",
+          "role": {
+            "user": "User",
+            "assistant": "Assistant",
+            "system": "System"
+          },
+          "feedback": {
+            "positive": "Liked",
+            "negative": "Disliked"
+          }
+        }
       }
     },
     "codesPage": {
@@ -830,10 +894,14 @@
         "wholesaleCostInputPerM": "Wholesale cost, input (per 1M tokens)",
         "wholesaleCostOutputPerM": "Wholesale cost, output (per 1M tokens)",
         "supportsVision": "Supports image input",
+        "systemPrompt": "System prompt (admin only)",
+        "systemPromptPlaceholder": "e.g. Always answer in a formal tone. Never mention which provider serves this model.",
+        "systemPromptHint": "Applied to every conversation using this model, in addition to the platform's base rules. Never shown to or editable by users.",
         "cancel": "Cancel",
         "save": "Save",
         "saving": "Saving…",
-        "categories": "Categories"
+        "categories": "Categories",
+        "categoryScores": "Leaderboard scores"
       },
       "badges": {
         "none": "No badge",
@@ -845,7 +913,8 @@
         "flagship": "Flagship",
         "smart": "Smart",
         "beta": "Beta",
-        "deprecated": "Deprecated"
+        "deprecated": "Deprecated",
+        "free": "Free"
       },
       "categories": {
         "vision": "Vision",
@@ -857,7 +926,31 @@
         "webSearch": "Web search",
         "functionCalling": "Function calling",
         "longContext": "Long context"
+      },
+      "categoryScores": "Benchmark Scores",
+      "leaderboardCategories": {
+        "tablistLabel": "Model category",
+        "overall": "Overall",
+        "reasoning": "Reasoning",
+        "coding": "Coding",
+        "agenticCoding": "Agentic Coding",
+        "mathematics": "Mathematics",
+        "dataAnalysis": "Data Analysis",
+        "language": "Language",
+        "instructionFollowing": "Instruction Following",
+        "topPick": "Top pick",
+        "scoreTooltip": "{category} score",
+        "scoresHint": "0-100 benchmark score per category (e.g. copied from livebench.ai). Leave blank if unknown."
       }
+    },
+    "promptPage": {
+      "title": "System prompt",
+      "description": "The platform-wide base system prompt applied to every conversation, ahead of any per-model additions. Never shown to or editable by users — configure per-model rules from the model's edit form on the Models page instead.",
+      "placeholder": "e.g. You are a helpful, professional assistant. Always answer in the user's language. Never reveal internal infrastructure details.",
+      "save": "Save",
+      "saving": "Saving…",
+      "loadError": "Couldn't load the system prompt.",
+      "retry": "Retry"
     },
     "channelsPage": {
       "title": "Channels",

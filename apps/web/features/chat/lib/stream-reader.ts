@@ -24,7 +24,10 @@
  */
 export interface ChatStreamRequestBody {
   model: string;
-  messages: { role: "user" | "assistant" | "system"; content: string }[];
+  // "system" removed from the client's own role union — the server no
+  // longer accepts it here at all (chat.schema.ts); the system layer is
+  // assembled entirely server-side now (gateway.service.ts).
+  messages: { role: "user" | "assistant"; content: string }[];
   conversationId?: string | undefined;
   // Phase 4c — all optional on the server (apps/api/src/schemas/
   // chat.schema.ts, B1). Each is OMITTED from the JSON when unset: the
@@ -34,7 +37,6 @@ export interface ChatStreamRequestBody {
   temperature?: number | undefined;
   top_p?: number | undefined;
   max_tokens?: number | undefined;
-  systemPrompt?: string | undefined;
 }
 
 export interface StreamCallbacks {

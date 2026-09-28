@@ -12,6 +12,7 @@ export * from "./pending-manual-payments";
 export * from "./conversations";
 export * from "./messages";
 export * from "./models";
+export * from "./platform-config";
 export * from "./fraud-events";
 export * from "./provider-prices";
 export * from "./audit-logs";

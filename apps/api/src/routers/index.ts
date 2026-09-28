@@ -3,12 +3,14 @@ import { billingRouter } from "./billing.router";
 import { userRouter }    from "./user.router";
 import { modelsRouter }  from "./models.router";
 import { adminRouter }   from "./admin.router";
+import { platformConfigRouter } from "./platform-config.router";
 
 export const appRouter = router({
-  billing: billingRouter,
-  user:    userRouter,
-  models:  modelsRouter,
-  admin:   adminRouter,
+  billing:        billingRouter,
+  user:           userRouter,
+  models:         modelsRouter,
+  admin:          adminRouter,
+  platformConfig: platformConfigRouter,
 });
 
 export type AppRouter = typeof appRouter;

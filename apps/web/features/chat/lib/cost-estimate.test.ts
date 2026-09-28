@@ -47,25 +47,13 @@ describe("estimateRequestTokens", () => {
     expect(one).toBe(1 + MESSAGE_OVERHEAD_TOKENS);
   });
 
-  it("covers the WHOLE request: system prompt + history + draft", () => {
+  it("covers the WHOLE request: history + draft", () => {
     const draftOnly = estimateRequestTokens({ history: [], draft: "hi there" });
     const withHistory = estimateRequestTokens({
       history: [{ content: "a".repeat(400) }],
       draft: "hi there",
     });
-    const withSystem = estimateRequestTokens({
-      systemPrompt: "b".repeat(400),
-      history: [],
-      draft: "hi there",
-    });
     expect(withHistory).toBeGreaterThan(draftOnly + 90);
-    expect(withSystem).toBeGreaterThan(draftOnly + 90);
-  });
-
-  it("ignores a whitespace-only system prompt", () => {
-    const a = estimateRequestTokens({ history: [], draft: "hello" });
-    const b = estimateRequestTokens({ systemPrompt: "   ", history: [], draft: "hello" });
-    expect(b).toBe(a);
   });
 
   it("quotes an Arabic draft above the same-length English draft", () => {

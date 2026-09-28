@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable, varchar, boolean, integer,
-  bigint, timestamp, uuid, numeric, text,
+  bigint, timestamp, uuid, numeric, text, jsonb,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { modelStatusEnum } from "./enums";
@@ -69,6 +69,27 @@ export const models = pgTable("models", {
   // render time rather than rejected, so this column is forward-compatible
   // with categories added after a given deploy.
   categories:       text("categories").array().default(sql`ARRAY[]::text[]`).notNull(),
+  // Admin-entered benchmark scores (0-100), one per key in
+  // LEADERBOARD_CATEGORY_KEYS (@ai-platform/config/model-metadata.config)
+  // — e.g. { "reasoning": 91.7, "coding": 86.4, "overall": 83.4 }, meant
+  // to be copied in from a public benchmark like livebench.ai. Distinct
+  // from `categories` above (boolean "can it do this" flags): this is
+  // "how good is it", used purely to rank/sort models within each tab of
+  // the chat composer's model picker. jsonb rather than one numeric
+  // column per category for the same forward-compatibility reason
+  // `categories` is a text[] — a new leaderboard category is a config
+  // change, not a migration. Missing keys mean "no score entered yet";
+  // the picker's ranking falls back to the mean of whatever scores ARE
+  // set rather than treating a missing score as 0 (see
+  // resolveCategoryScore in apps/web/features/chat/lib/model-ranking.ts).
+  categoryScores:   jsonb("category_scores").$type<Record<string, number>>().default({}).notNull(),
+  // Admin-authored behavior rules for this specific model — appended after
+  // the platform-wide base prompt (see platform_config table) when a chat
+  // request is assembled server-side in gateway.service.ts. Never sent by
+  // or exposed to the client as an editable field; not the same thing as
+  // the old per-conversation systemPrompt (removed — see 0014 migration),
+  // which was fully user-controlled and is gone entirely now.
+  systemPrompt:     text("system_prompt"),
   // App-layer usage cap, independent of New API's channel-level limits.
   rateLimitPerUserDaily: integer("rate_limit_per_user_daily"),
   // Average response time (ms) across the gateway channels currently

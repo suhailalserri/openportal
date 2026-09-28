@@ -41,7 +41,7 @@ const { deductCreditsAtomicMock, getBalanceMock, claimUserMessageMock, dbInsertM
   };
 
   // B1: db.insert is now a purpose-built spy (not the generic chainableNoop
-  // proxy) so idempotency/regenerate/systemPrompt tests can assert both
+  // proxy) so idempotency/regenerate/system-prompt tests can assert both
   // WHICH TABLE and WITH WHAT VALUES an insert was attempted. Every real
   // call site in gateway.service.ts does exactly
   // `db.insert(table).values(v).onConflictDoNothing()` (conversations) or
@@ -137,9 +137,23 @@ vi.mock("@ai-platform/db", () => ({
     // this file mostly doesn't assert on, so they fall through to
     // chainableNoop via dbInsertMock — except call COUNT/table, which the
     // B1 idempotency/regenerate tests do assert on.
+    //
+    // conversations.findFirst / platformConfig.findFirst back
+    // history-compaction.service.ts's buildSystemPrompt()/compactHistory()
+    // calls, which every streamChat() call now makes. Both return "nothing
+    // saved yet" by default — no platform base prompt, no prior summary —
+    // which is exactly the steady state for every existing test's fixture
+    // conversation/model, so none of them needed to change their own
+    // expectations because of this.
     query: {
       models: {
         findFirst: vi.fn(async () => MODEL_FIXTURES[modelIdRef.current]),
+      },
+      conversations: {
+        findFirst: vi.fn(async () => ({ summary: null, summarizedMessageCount: 0 })),
+      },
+      platformConfig: {
+        findFirst: vi.fn(async () => ({ basePrompt: null })),
       },
     },
     insert: dbInsertMock,
@@ -151,7 +165,9 @@ vi.mock("@ai-platform/db", () => ({
   // "which table" tokens (passed straight into db.insert(...)), never
   // introspected.
   messages: { __table: "messages" },
-  conversations: { __table: "conversations" },
+  conversations: { __table: "conversations", id: "conversations.id" },
+  platformConfig: { id: "platformConfig.id" },
+  PLATFORM_CONFIG_ID: "00000000-0000-0000-0000-000000000001",
   // Only ever used as `eq(models.id, x)` / `eq(models.status, x)` etc. —
   // findFirst above never evaluates the resulting SQL fragment, so these
   // just need to be stable, distinguishable values, not real columns.
@@ -431,33 +447,44 @@ describe("streamChat — B1 additions", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("prepends systemPrompt as a leading system message to the gateway request", async () => {
+  it("prepends the server-assembled system prompt (platform + model) as a leading system message", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
     });
     vi.stubGlobal("fetch", fetchSpy);
 
+    const { db } = await import("@ai-platform/db");
+    (db.query.platformConfig.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      basePrompt: "Base rules.",
+    });
+    MODEL_FIXTURES[modelIdRef.current || "deepseek-r2"]!.systemPrompt = "Model rules.";
+
     const { reply } = makeReply();
-    await callStreamChat({ ...baseOpts, systemPrompt: "Be concise.", reply });
+    await callStreamChat({ ...baseOpts, reply });
 
     const [, init] = fetchSpy.mock.calls[0]!;
     const sentBody = JSON.parse((init as RequestInit).body as string);
-    expect(sentBody.messages[0]).toEqual({ role: "system", content: "Be concise." });
+    expect(sentBody.messages[0]).toEqual({
+      role: "system",
+      content: "Base rules.\n\n---\n\nModel rules.",
+    });
     expect(sentBody.messages.slice(1)).toEqual(baseOpts.messages);
+
+    delete MODEL_FIXTURES["deepseek-r2"]!.systemPrompt;
   });
 
-  it("persists systemPrompt onto the conversation row on the initial insert", async () => {
+  it("sends no system message at all when neither the platform nor the model has a prompt set", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
     });
     vi.stubGlobal("fetch", fetchSpy);
 
     const { reply } = makeReply();
-    await callStreamChat({ ...baseOpts, systemPrompt: "Be concise.", reply });
+    await callStreamChat({ ...baseOpts, reply });
 
-    const conversationInsert = insertValuesCalls.find((c) => c.table === "conversations");
-    expect(conversationInsert).toBeDefined();
-    expect((conversationInsert!.values as { systemPrompt?: string }).systemPrompt).toBe("Be concise.");
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sentBody = JSON.parse((init as RequestInit).body as string);
+    expect(sentBody.messages).toEqual(baseOpts.messages);
   });
 
   it("skips the user-message insert entirely when regenerate is true, and never calls claimUserMessage", async () => {

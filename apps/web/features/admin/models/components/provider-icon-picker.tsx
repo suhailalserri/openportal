@@ -46,12 +46,28 @@ export function ProviderIconPicker({
   const [query, setQuery] = useState("");
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Rendering every provider's SVG icon at once (PROVIDER_ICON_OPTIONS can be
+  // hundreds of entries from @lobehub/icons) is what caused the long input
+  // delay / INP blocking on mobile: each icon is a real mounted component,
+  // not just a DOM node. The panel only ever shows a handful of rows at a
+  // time (max-h-64), so cap how many we actually render. Typing narrows the
+  // list back down to something small.
+  const RENDER_LIMIT = 40;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return PROVIDER_ICON_OPTIONS;
+    if (!q) return PROVIDER_ICON_OPTIONS.slice(0, RENDER_LIMIT);
     return PROVIDER_ICON_OPTIONS.filter(
       (o) => o.label.toLowerCase().includes(q) || o.key.includes(q),
-    );
+    ).slice(0, RENDER_LIMIT);
+  }, [query]);
+
+  const totalMatchCount = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return PROVIDER_ICON_OPTIONS.length;
+    return PROVIDER_ICON_OPTIONS.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.key.includes(q),
+    ).length;
   }, [query]);
 
   const selected = PROVIDER_ICON_OPTIONS.find((o) => o.key === value);
@@ -139,6 +155,11 @@ export function ProviderIconPicker({
             ))}
             {filtered.length === 0 && (
               <p className="px-2 py-3 text-center text-xs text-muted-foreground">—</p>
+            )}
+            {totalMatchCount > filtered.length && (
+              <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">
+                +{totalMatchCount - filtered.length} more — keep typing to narrow down
+              </p>
             )}
           </div>
         </div>

@@ -5,6 +5,7 @@ import {
   CreditCard,
   LayoutDashboard,
   MessageSquare,
+  MessagesSquare,
   Package,
   Receipt,
   ScrollText,
@@ -40,6 +41,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   fraud: ShieldAlert,
   logs: ScrollText,
   audit: ClipboardList,
+  adminPrompt: MessagesSquare,
 };
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string | undefined }) {

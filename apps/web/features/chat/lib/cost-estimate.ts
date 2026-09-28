@@ -57,7 +57,6 @@ export function unitPrice(model: PricedModel, side: "input" | "output"): UnitPri
 }
 
 export interface RequestTokenInput {
-  systemPrompt?: string | undefined;
   /** Prior turns, oldest first. */
   history: readonly { content: string }[];
   /** The text in the composer. */
@@ -65,23 +64,20 @@ export interface RequestTokenInput {
 }
 
 /**
- * Estimated INPUT tokens of the whole request the server would send:
- * system prompt + every prior turn + the draft, plus per-message framing.
- * The whole request, not just the draft — the provider bills the full
- * input again on every turn, so a short draft in a long chat is not cheap.
- * Returns 0 when there is nothing to send.
+ * Estimated INPUT tokens of the request the server would send: every
+ * prior turn + the draft, plus per-message framing. This is a conservative
+ * upper bound now, not exact — the server may compact older turns into a
+ * much shorter summary before billing (history-compaction.service.ts) and
+ * also prepends its own system prompt whose length the client can't see.
+ * Real cost is often lower than this quote in a long conversation, never
+ * higher. Returns 0 when there is nothing to send.
  */
 export function estimateRequestTokens(input: RequestTokenInput): number {
-  const system = input.systemPrompt?.trim() ? input.systemPrompt : undefined;
   const hasDraft = input.draft.trim().length > 0;
-  if (!system && input.history.length === 0 && !hasDraft) return 0;
+  if (input.history.length === 0 && !hasDraft) return 0;
 
   let weight = 0;
   let messages = 0;
-  if (system) {
-    weight += tokenWeight(system);
-    messages += 1;
-  }
   for (const m of input.history) {
     weight += tokenWeight(m.content);
     messages += 1;

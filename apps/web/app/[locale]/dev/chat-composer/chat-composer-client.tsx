@@ -47,6 +47,9 @@ const FIXTURE_MODELS: ChatModel[] = [
     avgResponseTimeMs: 1200,
     creditsPerKInput: 5,
     creditsPerKOutput: 15,
+    // Exercises the category-tabbed picker: leads on coding, trails on
+    // overall — the point of per-category ranking (model-ranking.ts).
+    categoryScores: { overall: 83.0, reasoning: 89.7, coding: 91.4, agenticCoding: 84.0 },
   },
   {
     id: "fixture-tiny",
@@ -61,6 +64,9 @@ const FIXTURE_MODELS: ChatModel[] = [
     avgResponseTimeMs: null, // exercises the "—" latency fallback
     creditsPerKInput: 1,
     creditsPerKOutput: 2,
+    // No coding score at all → falls back to the mean of its other
+    // scores under the Coding tab (see resolveCategoryScore).
+    categoryScores: { overall: 81.1, reasoning: 86.7, mathematics: 78.2 },
   },
 ];
 
@@ -69,7 +75,6 @@ export function ChatComposerClient() {
   const [log, setLog] = React.useState<string[]>([]);
   const [picked, setPicked] = React.useState<string | undefined>(undefined);
   const [params, setParams] = React.useState<ConversationParams>(DEFAULT_CONVERSATION_PARAMS);
-  const [systemPrompt, setSystemPrompt] = React.useState("");
 
   const selectedId = resolveSelectedModelId(FIXTURE_MODELS, { sessionPickedModelId: picked });
 
@@ -95,8 +100,6 @@ export function ChatComposerClient() {
           parametersEnabled
           params={params}
           onParamsChange={setParams}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
       </section>
 
@@ -109,7 +112,6 @@ export function ChatComposerClient() {
               ...(params.temperature !== null ? { temperature: params.temperature } : {}),
               ...(params.topP !== null ? { top_p: params.topP } : {}),
               ...(params.maxTokens !== null ? { max_tokens: params.maxTokens } : {}),
-              ...(systemPrompt.trim() ? { systemPrompt: systemPrompt.trim() } : {}),
               sentMessages: log.length,
             },
             null,

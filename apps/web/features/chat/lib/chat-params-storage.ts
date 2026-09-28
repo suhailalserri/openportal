@@ -8,18 +8,16 @@ import { DEFAULT_CONVERSATION_PARAMS, type ConversationParams } from "../types";
  *   1. the last-picked model id, and
  *   2. per-conversation temperature / top_p / max_tokens.
  *
- * WHY temperature/top_p/max_tokens ARE CLIENT-SIDE: B1's contract persists
- * only `systemPrompt` on the conversation (FRONTEND_REBUILD_PLAN.md §7,
- * B1: "persist `systemPrompt` on the conversation"). The `conversations`
- * table has no columns for the other three (packages/db/src/schema/
+ * WHY temperature/top_p/max_tokens ARE CLIENT-SIDE: the `conversations`
+ * table has no columns for these three (packages/db/src/schema/
  * conversations.ts) and PATCH /api/conversations/[id] does not accept
- * them. Both are in the frozen zone, so this phase does not add them.
- * The three numeric params are therefore saved here and re-sent on every
- * message — they persist per conversation on this browser, NOT across
- * devices. The system prompt is the exception and persists server-side.
- * If cross-device persistence for the numeric params is wanted later,
- * that is a backend session (three nullable columns + PATCH body), and
- * this module becomes a thin fallback.
+ * them. They are therefore saved here and re-sent on every message — they
+ * persist per conversation on this browser, NOT across devices. (There
+ * used to be a fourth, server-persisted item here — a user-editable
+ * system prompt — but that's been removed entirely; see
+ * packages/db/src/migrations/0014_*.sql.) If cross-device persistence for
+ * the numeric params is wanted later, that is a backend change (three
+ * nullable columns + PATCH body), and this module becomes a thin fallback.
  *
  * RULE 9 (privacy on shared devices): everything here is per-account
  * (a model choice and generation settings are account preferences, per

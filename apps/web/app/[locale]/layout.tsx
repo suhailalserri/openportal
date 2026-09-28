@@ -10,6 +10,7 @@ import { AppDirectionProvider } from "@/providers/direction-provider";
 import { TRPCQueryProvider } from "@/providers/trpc-query-provider";
 import { AppToastProvider } from "@/providers/toast-provider";
 import { ThemePresetSync } from "@/providers/theme-preset-sync";
+import { ReferralCapture } from "@/providers/referral-capture";
 import "@/styles/index.css";
 
 const SUPPORTED_LOCALES = ["ar", "en"] as const;
@@ -97,6 +98,7 @@ export default async function LocaleLayout({ children, modal, params }: Props) {
             <AppDirectionProvider>
               <TRPCQueryProvider>
                 <ThemePresetSync />
+                <ReferralCapture />
                 {children}
                 {modal}
                 <AppToastProvider />

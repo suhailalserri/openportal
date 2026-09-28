@@ -5,7 +5,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db, models } from "./index";
-import { MODEL_CATALOG } from "@ai-platform/config";
+import { MODEL_CATALOG, sanitizeAdminBadge } from "@ai-platform/config";
 
 /** Coerce to a finite integer, or throw with the model id + field name so a
  *  bad MODEL_CATALOG entry is easy to find instead of surfacing as an
@@ -28,7 +28,7 @@ async function seedModels() {
     id:               m.id,
     displayName:      m.displayName,
     displayNameAr:    m.displayNameAr,
-    badge:            typeof m.badge === "string" ? m.badge : "",
+    badge:            sanitizeAdminBadge(typeof m.badge === "string" ? m.badge : ""),
     provider:         m.provider,
     tier:             m.tier,
     isAvailable:      m.isAvailable,

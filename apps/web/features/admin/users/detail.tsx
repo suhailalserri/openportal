@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import { useSession } from "@/lib/auth-client";
 import { useUserDetail } from "./hooks/use-user-detail";
 import { useUpdateUserStatus } from "./hooks/use-update-user-status";
 import { useAdjustCredits } from "./hooks/use-adjust-credits";
+import { ConversationsPanel } from "./components/conversations-panel";
 
 interface Props {
   userId: string;
@@ -46,6 +48,7 @@ const STATUS_VARIANT: Record<string, "success" | "destructive" | "default"> = {
 export function AdminUserDetail({ userId }: Props) {
   const t = useTranslations("admin.usersPage");
   const locale = useLocale() as "ar" | "en";
+  const router = useRouter();
   const { data: session } = useSession();
   const detail = useUserDetail(userId);
   const updateStatus = useUpdateUserStatus();
@@ -79,7 +82,7 @@ export function AdminUserDetail({ userId }: Props) {
     );
   }
 
-  const { user, balance, recentTxns } = detail;
+  const { user, balance, recentTxns, referredBy, referrals } = detail;
   const isSelf = session?.user?.id === userId;
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
   const parsedAmount = Number(creditsAmount);
@@ -180,6 +183,93 @@ export function AdminUserDetail({ userId }: Props) {
           </Table>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("detail.referral.title")}</CardTitle>
+          <p className="text-sm text-muted-foreground">{t("detail.referral.description")}</p>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">{t("detail.referral.ownCode")}</p>
+              <p className="font-mono">{user.referralCode ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{t("detail.referral.referredBy")}</p>
+              {referredBy ? (
+                <button
+                  type="button"
+                  className="text-start text-accent underline-offset-2 hover:underline"
+                  onClick={() => router.push(`/${locale}/admin/users/${referredBy.id}`)}
+                >
+                  {referredBy.displayName || referredBy.email}
+                </button>
+              ) : (
+                <p>{t("detail.referral.none")}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{t("detail.referral.bonusStatus")}</p>
+              <p>
+                {user.referredByUserId ? (
+                  user.referralBonusAwardedAt ? (
+                    <Badge variant="success">{t("detail.referral.bonusAwarded")}</Badge>
+                  ) : (
+                    <Badge variant="secondary">{t("detail.referral.bonusPending")}</Badge>
+                  )
+                ) : (
+                  "—"
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-foreground">
+              {t("detail.referral.referredUsers", { count: referrals.length })}
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("detail.referral.columns.user")}</TableHead>
+                  <TableHead>{t("detail.referral.columns.joined")}</TableHead>
+                  <TableHead className="text-end">{t("detail.referral.columns.bonus")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {referrals.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      {t("detail.referral.noReferrals")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  referrals.map((r) => (
+                    <TableRow
+                      key={r.id}
+                      className="cursor-pointer hover:bg-secondary/40"
+                      onClick={() => router.push(`/${locale}/admin/users/${r.id}`)}
+                    >
+                      <TableCell>{r.displayName || r.email}</TableCell>
+                      <TableCell>{formatDate(r.createdAt, locale)}</TableCell>
+                      <TableCell className="text-end">
+                        {r.referralBonusAwardedAt ? (
+                          <Badge variant="success">{t("detail.referral.bonusAwarded")}</Badge>
+                        ) : (
+                          <Badge variant="secondary">{t("detail.referral.bonusPending")}</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <ConversationsPanel userId={userId} />
 
       {/* Suspend / reactivate — typed confirmation only for the destructive
           direction (suspend). Reactivating a suspended user isn't the

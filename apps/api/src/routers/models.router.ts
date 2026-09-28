@@ -2,13 +2,20 @@ import { router, publicProcedure, adminProcedure } from "./trpc";
 import { z } from "zod";
 import { db, models } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
-import { CREDIT_VALUE_USD, MODEL_BADGE_KEYS, MODEL_CATEGORY_KEYS } from "@ai-platform/config";
+import {
+  CREDIT_VALUE_USD,
+  ADMIN_BADGE_KEYS,
+  MODEL_CATEGORY_KEYS,
+  LEADERBOARD_CATEGORY_KEYS,
+  sanitizeAdminBadge,
+} from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
 
 function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
 }
+
 
 export const modelsRouter = router({
 
@@ -23,7 +30,7 @@ export const modelsRouter = router({
       id:               m.id,
       displayName:      m.displayName,
       displayNameAr:    m.displayNameAr,
-      badge:            m.badge,
+      badge:            sanitizeAdminBadge(m.badge),
       provider:         m.provider,
       providerIconKey:  m.providerIconKey,
       tier:             m.tier,
@@ -31,14 +38,24 @@ export const modelsRouter = router({
       maxOutputTokens:  m.maxOutputTokens,
       supportsVision:   m.supportsVision,
       categories:       m.categories,
+      categoryScores:   m.categoryScores,
       avgResponseTimeMs: m.avgResponseTimeMs,
       creditsPerKInput:  creditsPerK(Number(m.wholesaleCostInputPerM),  Number(m.markupMultiplier)),
       creditsPerKOutput: creditsPerK(Number(m.wholesaleCostOutputPerM), Number(m.markupMultiplier)),
     }));
   }),
 
-  // Admin: every row regardless of status/availability.
-  listAll: adminProcedure.query(() => db.query.models.findMany()),
+  // Admin: every row regardless of status/availability. Badge is
+  // sanitized on the way out (see sanitizeAdminBadge) — legacy rows can
+  // still carry a pre-picker freeform value (an emoji, "FREE", etc.);
+  // without this, reopening one of those rows in the form dialog and
+  // saving without touching the badge field fails with an opaque
+  // "Invalid enum value" error, since `publish`'s zod schema has always
+  // rejected anything outside ADMIN_BADGE_KEYS.
+  listAll: adminProcedure.query(async () => {
+    const rows = await db.query.models.findMany();
+    return rows.map((m) => ({ ...m, badge: sanitizeAdminBadge(m.badge) }));
+  }),
 
   // Admin: the discovery queue — models the gateway can serve that nobody
   // has configured pricing/display info for yet. This is what "Sync now"
@@ -69,7 +86,7 @@ export const modelsRouter = router({
       modelId:                 z.string(),
       displayName:             z.string().min(1).max(100),
       displayNameAr:           z.string().min(1).max(100),
-      badge:                   z.enum(MODEL_BADGE_KEYS).optional(),
+      badge:                   z.enum(ADMIN_BADGE_KEYS).optional(),
       providerIconKey:         z.string().max(50).optional(),
       tier:                    z.enum(["standard", "premium"]).default("standard"),
       markupMultiplier:        z.number().positive().default(2.0),
@@ -81,9 +98,28 @@ export const modelsRouter = router({
       // shouldn't get a hard validation error on save.
       categories:              z.array(z.string()).default([])
                                  .transform((cats) => cats.filter((c) => (MODEL_CATEGORY_KEYS as readonly string[]).includes(c))),
+      // Admin-entered benchmark scores (0-100) per LEADERBOARD_CATEGORY_KEYS
+      // (e.g. copied in from livebench.ai). Unrecognized keys dropped for
+      // the same forward-compat reason as `categories` above; out-of-range
+      // values rejected outright since these come from a form, not a stale
+      // client's stored list.
+      categoryScores:          z.record(z.string(), z.number().min(0).max(100)).default({})
+                                 .transform((scores) =>
+                                   Object.fromEntries(
+                                     Object.entries(scores).filter(([k]) =>
+                                       (LEADERBOARD_CATEGORY_KEYS as readonly string[]).includes(k),
+                                     ),
+                                   ),
+                                 ),
       wholesaleCostInputPerM:  z.number().min(0).default(0),
       wholesaleCostOutputPerM: z.number().min(0).default(0),
       rateLimitPerUserDaily:   z.number().int().positive().optional(),
+      // Admin-authored behavior rules for this model, layered under the
+      // platform-wide base prompt at request time (see
+      // history-compaction.service.ts's buildSystemPrompt in the chat
+      // gateway service). NOT the removed per-conversation systemPrompt —
+      // that was fully user-controlled and no longer exists at all.
+      systemPrompt:            z.string().max(20_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
@@ -99,9 +135,11 @@ export const modelsRouter = router({
           maxOutputTokens:         input.maxOutputTokens,
           supportsVision:          input.supportsVision,
           categories:              input.categories,
+          categoryScores:          input.categoryScores,
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),
           rateLimitPerUserDaily:   input.rateLimitPerUserDaily ?? null,
+          systemPrompt:            input.systemPrompt ?? null,
           status:                  "published",
           isAvailable:             true,
           updatedAt:               new Date(),

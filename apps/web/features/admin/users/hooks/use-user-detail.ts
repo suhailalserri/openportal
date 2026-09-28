@@ -19,6 +19,8 @@ export function useUserDetail(userId: string) {
     user: query.data?.user,
     balance: query.data?.balance,
     recentTxns: query.data?.recentTxns ?? [],
+    referredBy: query.data?.referredBy ?? null,
+    referrals: query.data?.referrals ?? [],
     isLoading: query.isLoading,
     isError: query.isError,
     refetch: () => void query.refetch(),

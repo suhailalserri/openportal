@@ -21,7 +21,7 @@ import { periodToRange, type DashboardPeriod } from "../lib/period-range";
  */
 export function useDashboardData(period: DashboardPeriod) {
   const range = useMemo(() => periodToRange(period, new Date()), [period]);
-  const input = { from: range.from, to: range.to };
+  const input = useMemo(() => ({ from: range.from, to: range.to }), [range.from, range.to]);
 
   const summary = trpc.billing.usageSummary.useQuery(input);
   const timeseries = trpc.billing.usageTimeseries.useQuery(input);

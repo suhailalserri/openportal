@@ -7,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizeProviderKey } from "@/components/icons/provider-icon";
 import { ProviderIconPicker } from "./provider-icon-picker";
 import { ModelBadgePicker } from "./model-badge-picker";
 import { ModelCategoryToggles } from "./model-category-toggles";
-import type { ModelBadgeKey } from "@ai-platform/config";
+import { ModelCategoryScoresInput } from "./model-category-scores-input";
+import { ADMIN_BADGE_KEYS, LEADERBOARD_TO_MODEL_CATEGORY_KEY, type AdminBadgeKey } from "@ai-platform/config";
 import type { PublishModelInput } from "../hooks/use-models";
 import type { ModelRow } from "../types";
 
@@ -27,12 +29,27 @@ interface ModelFormDialogProps {
   errorMessage?: string | undefined;
 }
 
+/**
+ * Pre-existing rows can carry a stale `badge` value from before the
+ * preset picker existed (free-typed text or an emoji) — the API rejects
+ * anything outside ADMIN_BADGE_KEYS on save (zod enum), so a row like
+ * that would fail to save until the admin happened to reopen the badge
+ * picker and pick something valid. Guard here instead: only pass a badge
+ * through to form state if it's actually one of the current presets;
+ * otherwise treat it as "none", same as `model.badge === ""`.
+ */
+function toAdminBadgeKey(value: string | null | undefined): AdminBadgeKey | undefined {
+  return (ADMIN_BADGE_KEYS as readonly string[]).includes(value ?? "")
+    ? (value as AdminBadgeKey)
+    : undefined;
+}
+
 function emptyForm(model: ModelRow | null): PublishModelInput {
   return {
     modelId: model?.id ?? "",
     displayName: model?.displayName ?? "",
     displayNameAr: model?.displayNameAr ?? "",
-    badge: (model?.badge || undefined) as ModelBadgeKey | undefined,
+    badge: toAdminBadgeKey(model?.badge),
     providerIconKey: model?.providerIconKey ?? undefined,
     tier: (model?.tier === "premium" ? "premium" : "standard"),
     markupMultiplier: model ? Number(model.markupMultiplier) : 2.0,
@@ -40,11 +57,16 @@ function emptyForm(model: ModelRow | null): PublishModelInput {
     maxOutputTokens: model?.maxOutputTokens ?? 0,
     supportsVision: model?.supportsVision ?? false,
     categories: model?.categories ?? [],
+    categoryScores: model?.categoryScores ?? {},
     wholesaleCostInputPerM: model ? Number(model.wholesaleCostInputPerM) : 0,
     wholesaleCostOutputPerM: model ? Number(model.wholesaleCostOutputPerM) : 0,
     rateLimitPerUserDaily: model?.rateLimitPerUserDaily ?? undefined,
+    systemPrompt: model?.systemPrompt ?? undefined,
   };
 }
+
+/** Mirrors the router's own cap (models.router.ts `publish` input). */
+const SYSTEM_PROMPT_MAX = 20_000;
 
 /**
  * apps/web/features/admin/models/components/model-form-dialog.tsx (Phase 8c)
@@ -124,6 +146,37 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
               value={form.categories}
               onChange={(next) => setForm((f) => ({ ...f, categories: next }))}
               label={t("categories")}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <ModelCategoryScoresInput
+              value={form.categoryScores}
+              onChange={(next) =>
+                setForm((f) => {
+                  // Auto-check the matching feature-flag chip the moment a
+                  // score is entered for a leaderboard category that has
+                  // one (see LEADERBOARD_TO_MODEL_CATEGORY_KEY) — a score
+                  // being filled in means the admin already knows the
+                  // model does that thing, so don't also make them flip
+                  // the chip by hand. Only ADDS a category on a newly
+                  // filled-in score; clearing a score never removes a
+                  // chip the admin may have set independently (e.g. a
+                  // model can support coding without a benchmark score
+                  // for it yet).
+                  let categories = f.categories;
+                  for (const [leaderboardKey, modelKey] of Object.entries(
+                    LEADERBOARD_TO_MODEL_CATEGORY_KEY,
+                  )) {
+                    const justFilled =
+                      next[leaderboardKey] !== undefined && f.categoryScores[leaderboardKey] === undefined;
+                    if (justFilled && !categories.includes(modelKey)) {
+                      categories = [...categories, modelKey];
+                    }
+                  }
+                  return { ...f, categoryScores: next, categories };
+                })
+              }
+              label={t("categoryScores")}
             />
           </div>
           <div className="sm:col-span-2">
@@ -224,6 +277,22 @@ export function ModelFormDialog({ open, onOpenChange, model, onSubmit, isPending
               onCheckedChange={(checked) => setForm((f) => ({ ...f, supportsVision: checked }))}
             />
             <Label htmlFor="model-vision">{t("supportsVision")}</Label>
+          </div>
+
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="model-system-prompt">{t("systemPrompt")}</Label>
+            <Textarea
+              id="model-system-prompt"
+              value={form.systemPrompt ?? ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, systemPrompt: e.target.value || undefined }))
+              }
+              maxLength={SYSTEM_PROMPT_MAX}
+              placeholder={t("systemPromptPlaceholder")}
+              rows={4}
+              className="min-h-[96px] resize-y"
+            />
+            <p className="text-[11.5px] text-faint-foreground">{t("systemPromptHint")}</p>
           </div>
         </div>
 

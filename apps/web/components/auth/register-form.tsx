@@ -12,6 +12,7 @@ import { signUp } from "@/lib/auth-client";
 import { mapAuthError } from "@/lib/map-auth-error";
 import { resolvePostLoginTarget } from "@/lib/safe-redirect";
 import { checkPasswordRules, PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { readReferralCode } from "@/lib/referral";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormErrorBanner } from "@/components/auth/form-error-banner";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
@@ -48,8 +49,10 @@ function RegisterFormInner({ mode }: { mode: "page" | "modal" }) {
   const searchParams = useSearchParams();
   // Referral capture (decisions.md ADR-009) — the matching client side of
   // the `x-referral-code` header lib/auth.ts's databaseHooks reads.
-  // Trimmed/uppercased server-side already; sent as-is here.
-  const referralCode = searchParams.get("ref");
+  // A direct `?ref=` on THIS url wins; otherwise fall back to the code
+  // captured earlier in the visit (see lib/referral.ts — landing-page
+  // CTAs don't forward `ref` to /auth/register on their own).
+  const referralCode = readReferralCode(searchParams.get("ref"));
 
   const [serverError, setServerError] = useState<string | null>(
     searchParams.get("error") ? t("errors.generic") : null

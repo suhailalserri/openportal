@@ -79,14 +79,12 @@ export interface ComposerBarProps {
   selectedModelId: string | undefined;
   onSelectModel: (id: string) => void;
 
-  /** Prior turns + system prompt, so the estimates cover the whole request. */
+  /** Prior turns, so the estimates cover the whole request. */
   history: readonly { content: string }[];
 
   parametersEnabled: boolean;
   params: ConversationParams;
   onParamsChange: (next: ConversationParams) => void;
-  systemPrompt: string;
-  onSystemPromptChange: (next: string) => void;
 
   className?: string;
 }
@@ -107,8 +105,6 @@ export function ComposerBar({
   parametersEnabled,
   params,
   onParamsChange,
-  systemPrompt,
-  onSystemPromptChange,
   className,
 }: ComposerBarProps) {
   const t = useTranslations("chat");
@@ -150,25 +146,25 @@ export function ComposerBar({
     hintTimer.current = setTimeout(() => setHint(null), HINT_MS);
   };
 
-  // ── send-block: mirrors the SERVER's estimate exactly ────────────────
+  // ── send-block: advisory only now (server compacts long histories, see
+  // context-estimate.ts header) — near-limit warning still shown, but a
+  // long conversation is no longer client-blocked from sending; the
+  // server's own CONTEXT_TOO_LONG response is the authoritative reject.
   const contextEstimate = React.useMemo(
     () =>
       selected
-        ? estimateContext({ systemPrompt, history, draft: value }, selected.contextWindow)
+        ? estimateContext({ history, draft: value }, selected.contextWindow)
         : undefined,
-    [selected, systemPrompt, history, value],
+    [selected, history, value],
   );
   const ratio = contextEstimate ? contextUsageRatio(contextEstimate) : 0;
-  const overLimit = contextEstimate?.overLimit ?? false;
-  const nearLimit = !overLimit && ratio >= CONTEXT_WARN_RATIO;
+  const nearLimit = ratio >= CONTEXT_WARN_RATIO;
 
   const sendBlockedReason = !selected
     ? models.length === 0
       ? undefined // the toolbar already shows the "no models" status message
       : t("selectModel")
-    : overLimit
-      ? t("contextExceeded")
-      : undefined;
+    : undefined;
 
   const composerDisabled = busy || models.length === 0;
 
@@ -176,7 +172,7 @@ export function ComposerBar({
   const hasDraft = value.trim().length > 0;
   let costLine: string | null = null;
   if (selected && hasDraft) {
-    const tokens = estimateRequestTokens({ systemPrompt, history, draft: value });
+    const tokens = estimateRequestTokens({ history, draft: value });
     const inCredits = creditsForTokens(tokens, unitPrice(selected, "input").perK);
     costLine = t("costInput", { credits: formatQuote(inCredits, locale) });
     const cap = clampMaxTokens(params.maxTokens, selected.maxOutputTokens);
@@ -231,8 +227,6 @@ export function ComposerBar({
         <ParametersPanel
           params={params}
           onParamsChange={onParamsChange}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={onSystemPromptChange}
           maxOutputTokens={selected?.maxOutputTokens}
           disabled={busy}
         />
@@ -242,8 +236,7 @@ export function ComposerBar({
   const paramsCustomised =
     params.temperature !== null ||
     params.topP !== null ||
-    params.maxTokens !== null ||
-    systemPrompt.length > 0;
+    params.maxTokens !== null;
 
   const toolbarStart = (
     <>

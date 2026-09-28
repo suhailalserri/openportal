@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Ban } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { MODEL_BADGE_KEYS, type ModelBadgeKey } from "@ai-platform/config";
+import { ADMIN_BADGE_KEYS, type AdminBadgeKey } from "@ai-platform/config";
 import { MODEL_BADGE_ICONS } from "@/components/icons/model-badge";
 
 /**
@@ -18,8 +18,8 @@ import { MODEL_BADGE_ICONS } from "@/components/icons/model-badge";
  * preset looks like before saving.
  */
 export interface ModelBadgePickerProps {
-  value: ModelBadgeKey | undefined;
-  onChange: (key: ModelBadgeKey | undefined) => void;
+  value: AdminBadgeKey | undefined;
+  onChange: (key: AdminBadgeKey | undefined) => void;
   label: string;
 }
 
@@ -43,7 +43,7 @@ export function ModelBadgePicker({ value, onChange, label }: ModelBadgePickerPro
           {t("none")}
         </button>
 
-        {MODEL_BADGE_KEYS.map((key) => {
+        {ADMIN_BADGE_KEYS.map((key) => {
           const Icon = MODEL_BADGE_ICONS[key];
           const selected = value === key;
           return (

@@ -33,7 +33,8 @@ export type NavIconName =
   | "channels"
   | "fraud"
   | "logs"
-  | "audit";
+  | "audit"
+  | "adminPrompt";
 
 export interface NavItem {
   id: string;
@@ -115,6 +116,10 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { id: "adminFraud", href: "/admin/fraud", labelKey: "adminFraud", icon: "fraud", enabled: true },
       { id: "adminLogs", href: "/admin/logs", labelKey: "adminLogs", icon: "logs", enabled: true },
       { id: "adminAudit", href: "/admin/audit", labelKey: "adminAudit", icon: "audit", enabled: true },
+      // Platform-wide base system prompt (packages/db/src/schema/platform-config.ts) —
+      // the other layer of the server-owned system prompt lives per-model,
+      // on the /admin/models edit form instead. See platform-config.router.ts.
+      { id: "adminPrompt", href: "/admin/prompt", labelKey: "adminPrompt", icon: "adminPrompt", enabled: true },
     ],
   },
 ];
