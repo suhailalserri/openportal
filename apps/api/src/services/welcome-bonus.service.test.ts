@@ -2,11 +2,15 @@ import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { startTestDb, stopTestDb, resetTestDb } from "../test/testDb";
 import { createTestUser } from "../test/factories";
-import { ineligibilityReason, isBonusActive } from "./welcome-bonus.service";
 
 let db: typeof import("@ai-platform/db").db;
 let schema: typeof import("@ai-platform/db");
 let svc: typeof import("./welcome-bonus.service");
+// Pure helpers, assigned in beforeAll from the dynamic import. A static import
+// of the service would load @ai-platform/db before startTestDb() sets
+// DATABASE_URL (see test/testDb.ts) and every test would ECONNREFUSED.
+let ineligibilityReason: typeof import("./welcome-bonus.service").ineligibilityReason;
+let isBonusActive: typeof import("./welcome-bonus.service").isBonusActive;
 
 const CREDITS = 50 * 1_000_000;
 
@@ -15,6 +19,7 @@ beforeAll(async () => {
   schema = await import("@ai-platform/db");
   db = schema.db;
   svc = await import("./welcome-bonus.service");
+  ({ ineligibilityReason, isBonusActive } = svc);
 }, 60_000);
 
 afterAll(async () => {
