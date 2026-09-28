@@ -1,7 +1,9 @@
 "use client";
 
-import { useId } from "react";
-import { useTranslations } from "next-intl";
+import { useId, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+
+import { trpc } from "@/lib/trpc";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,65 @@ import { useWelcomeBonusAdmin } from "./use-welcome-bonus-admin";
  * (admin)/layout.tsx already ran the role guard; the procedures are
  * adminProcedure on the server. One switch + one amount + Save.
  */
+function EligibilityCheck({ launchedAt }: { launchedAt: Date | null }) {
+  const t = useTranslations("admin.welcomeBonusPage");
+  const locale = useLocale();
+  const emailId = useId();
+  const [draft, setDraft] = useState("");
+  const [email, setEmail] = useState("");
+  const q = trpc.platformConfig.checkWelcomeBonusUser.useQuery(
+    { email },
+    { enabled: email.length >= 3, retry: false },
+  );
+  const fmt = (d: Date | string | null | undefined) =>
+    d ? new Date(d).toLocaleString(locale === "ar" ? "ar-SA" : "en-GB", { numberingSystem: "latn" }) : "—";
+
+  const data = q.data;
+  const reasonKey = data ? (data.reason ?? "ELIGIBLE") : null;
+
+  return (
+    <div className="grid gap-3 rounded-[14px] border p-4">
+      <Label htmlFor={emailId}>{t("checkTitle")}</Label>
+      <p className="text-[12.5px] text-muted-foreground">
+        {t("checkHint", { date: fmt(launchedAt) })}
+      </p>
+      <div className="flex gap-2">
+        <Input
+          id={emailId}
+          type="email"
+          placeholder="user@example.com"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") setEmail(draft.trim()); }}
+        />
+        <Button type="button" variant="outline" onClick={() => setEmail(draft.trim())} disabled={draft.trim().length < 3}>
+          {t("checkButton")}
+        </Button>
+      </div>
+      {q.isFetching ? (
+        <p className="text-[12.5px] text-muted-foreground">…</p>
+      ) : q.isError ? (
+        <p role="alert" className="text-[12.5px] text-destructive">{q.error.message}</p>
+      ) : data && reasonKey ? (
+        <div className="grid gap-1 text-[12.5px]">
+          <p className={reasonKey === "ELIGIBLE" ? "font-medium text-success" : "font-medium text-destructive"}>
+            {t(`reasons.${reasonKey}`)}
+          </p>
+          {data.found ? (
+            <p className="text-muted-foreground">
+              {t("checkFacts", {
+                status: data.status ?? "—",
+                created: fmt(data.createdAt),
+                claimed: data.claimedAt ? fmt(data.claimedAt) : "—",
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AdminWelcomeBonus() {
   const t = useTranslations("admin.welcomeBonusPage");
   const cfg = useWelcomeBonusAdmin();
@@ -71,6 +132,8 @@ export function AdminWelcomeBonus() {
           {cfg.isSaving ? t("saving") : t("save")}
         </Button>
       </div>
+
+      <EligibilityCheck launchedAt={cfg.launchedAt} />
     </div>
   );
 }
