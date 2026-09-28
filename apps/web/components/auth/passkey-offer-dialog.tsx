@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { authClient, useSession } from "@/lib/auth-client";
 import { PASSKEY_ENABLED, isPasskeySupported } from "@/lib/passkey-support";
+import { settlePasskeyOffer } from "@/lib/onboarding-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,25 +67,47 @@ export function PasskeyOfferDialog() {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!PASSKEY_ENABLED || !userId || createdMs === null) return;
-    if (!isPasskeySupported()) return;
-    if (Number.isNaN(createdMs) || Date.now() - createdMs > NEW_ACCOUNT_WINDOW_MS) return;
+    // Every path below that ends WITHOUT opening the card must call
+    // settlePasskeyOffer(), so the welcome-bonus card (which waits for this
+    // one) is never blocked by a passkey offer that was never going to show.
+    if (!PASSKEY_ENABLED) {
+      settlePasskeyOffer();
+      return;
+    }
+    if (!userId || createdMs === null) return; // session still loading
+    if (
+      !isPasskeySupported() ||
+      Number.isNaN(createdMs) ||
+      Date.now() - createdMs > NEW_ACCOUNT_WINDOW_MS
+    ) {
+      settlePasskeyOffer();
+      return;
+    }
 
     const key = storageKey(userId);
-    if (hasAnswered(key)) return;
+    if (hasAnswered(key)) {
+      settlePasskeyOffer();
+      return;
+    }
 
     let cancelled = false;
     void (async () => {
       try {
         const { data, error } = await authClient.passkey.listUserPasskeys();
-        if (cancelled || error || !data) return;
+        if (cancelled) return;
+        if (error || !data) {
+          settlePasskeyOffer();
+          return;
+        }
         if (data.length > 0) {
           markAnswered(key);
+          settlePasskeyOffer();
           return;
         }
         setOpen(true);
       } catch {
         // passkeys unavailable — never block the app over an optional offer
+        if (!cancelled) settlePasskeyOffer();
       }
     })();
     return () => {
@@ -95,6 +118,7 @@ export function PasskeyOfferDialog() {
   function dismiss() {
     if (userId) markAnswered(storageKey(userId));
     setOpen(false);
+    settlePasskeyOffer();
   }
 
   async function setUp() {
@@ -115,10 +139,15 @@ export function PasskeyOfferDialog() {
     }
   }
 
+  function closeDone() {
+    setOpen(false);
+    settlePasskeyOffer();
+  }
+
   function onOpenChange(next: boolean) {
     if (next) return;
     if (phase === "working") return; // don't abandon a browser prompt mid-flight
-    if (phase === "done") setOpen(false);
+    if (phase === "done") closeDone();
     else dismiss();
   }
 
@@ -132,7 +161,7 @@ export function PasskeyOfferDialog() {
               <DialogTitle>{t("doneTitle")}</DialogTitle>
               <DialogDescription>{t("doneMessage")}</DialogDescription>
             </DialogHeader>
-            <Button onClick={() => setOpen(false)}>{t("done")}</Button>
+            <Button onClick={closeDone}>{t("done")}</Button>
           </div>
         ) : (
           <div className="grid gap-4">

@@ -1,5 +1,6 @@
 import {
   Bot,
+  Gift,
   BarChart3,
   ClipboardList,
   CreditCard,
@@ -42,6 +43,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   logs: ScrollText,
   audit: ClipboardList,
   adminPrompt: MessagesSquare,
+  adminWelcomeBonus: Gift,
 };
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string | undefined }) {

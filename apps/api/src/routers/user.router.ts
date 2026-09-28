@@ -7,6 +7,10 @@ import { randomBytes, createHash } from "node:crypto";
 import { checkLimit }          from "../utils/rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
 import { getReferralStats }    from "../services/referral.service";
+import {
+  claimWelcomeBonus, getWelcomeBonusStatus, WelcomeBonusError,
+  type WelcomeBonusErrorCode,
+} from "../services/welcome-bonus.service";
 
 function assertNotRateLimited(userId: string, action: string) {
   const allowed = checkLimit(`sensitive:${action}:${userId}`, FRAUD.SENSITIVE_ACTION_PER_HOUR, 60 * 60_000);
@@ -92,4 +96,31 @@ export const userRouter = router({
   // Referral program (decisions.md ADR-009). Code is generated at signup
   // (apps/web/lib/auth.ts); this just surfaces it + how it's performed.
   getReferralStats: protectedProcedure.query(({ ctx }) => getReferralStats(ctx.user.id)),
+
+  // Welcome bonus (decisions.md ADR-010). `eligible` is the only flag the
+  // UI needs to decide whether to show the floating card / billing button.
+  getWelcomeBonus: protectedProcedure.query(({ ctx }) => getWelcomeBonusStatus(ctx.user.id)),
+
+  // Once-only is enforced in the service by an atomic conditional UPDATE
+  // (see welcome-bonus.service.ts), NOT here — the rate limit below is only
+  // abuse protection against hammering the endpoint.
+  claimWelcomeBonus: protectedProcedure.mutation(async ({ ctx }) => {
+    assertNotRateLimited(ctx.user.id, "claimWelcomeBonus");
+    try {
+      const res = await claimWelcomeBonus(ctx.user.id);
+      return { success: true as const, ...res };
+    } catch (err) {
+      if (err instanceof WelcomeBonusError) {
+        const map: Record<WelcomeBonusErrorCode, "CONFLICT" | "FORBIDDEN" | "PRECONDITION_FAILED"> = {
+          ALREADY_CLAIMED:    "CONFLICT",
+          ACCOUNT_RESTRICTED: "FORBIDDEN",
+          DISABLED:           "PRECONDITION_FAILED",
+          NOT_ELIGIBLE:       "PRECONDITION_FAILED",
+        };
+        // `message` carries the stable code so the client can translate it.
+        throw new TRPCError({ code: map[err.code], message: err.code });
+      }
+      throw err;
+    }
+  }),
 });

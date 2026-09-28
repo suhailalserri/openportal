@@ -12,8 +12,9 @@ describe("transaction-labels", () => {
     }
   });
 
-  it("covers all 7 tx_type enum values, including refund", () => {
-    expect(KNOWN_TX_TYPES).toHaveLength(7);
+  it("covers all 8 tx_type enum values, including refund and welcome_bonus", () => {
+    expect(KNOWN_TX_TYPES).toHaveLength(8);
+    expect(KNOWN_TX_TYPES).toContain("welcome_bonus");
     expect(KNOWN_TX_TYPES).toContain("refund");
   });
 
@@ -26,6 +27,7 @@ describe("transaction-labels", () => {
     expect(getTransactionTypeMeta("redeem").isCredit).toBe(true);
     expect(getTransactionTypeMeta("payment").isCredit).toBe(true);
     expect(getTransactionTypeMeta("referral_bonus").isCredit).toBe(true);
+    expect(getTransactionTypeMeta("welcome_bonus").isCredit).toBe(true);
     expect(getTransactionTypeMeta("refund").isCredit).toBe(true);
     expect(getTransactionTypeMeta("admin_credit").isCredit).toBe(true);
   });

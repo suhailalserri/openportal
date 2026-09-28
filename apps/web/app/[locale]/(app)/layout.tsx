@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { PasskeyOfferDialog } from "@/components/auth/passkey-offer-dialog";
+import { WelcomeBonusDialog } from "@/features/welcome-bonus/components/welcome-bonus-dialog";
 import { AppShell } from "@/components/layout/app-shell";
 import { decideAppGuard, getSessionRole } from "@/lib/guards";
 import { getRequestPath, getServerSession } from "@/lib/session";
@@ -32,6 +33,8 @@ export default async function AppLayout({ children, params }: Props) {
       {/* One-time "set up a passkey?" card for brand-new accounts. Client
           component; renders nothing unless passkeys are enabled. */}
       <PasskeyOfferDialog />
+      {/* One-time welcome-gift claim card; waits for the passkey card to finish, never stacks on it. */}
+      <WelcomeBonusDialog />
     </>
   );
 }

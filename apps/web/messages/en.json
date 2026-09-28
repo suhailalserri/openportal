@@ -24,7 +24,8 @@
     "adminFraud": "Fraud",
     "adminLogs": "Logs",
     "adminAudit": "Audit log",
-    "adminPrompt": "System prompt"
+    "adminPrompt": "System prompt",
+    "adminWelcomeBonus": "Welcome bonus"
   },
   "chat": {
     "newChat": "New Chat",
@@ -123,6 +124,28 @@
     },
     "responseReady": "Response complete"
   },
+  "welcomeBonus": {
+    "badge": "Gift",
+    "title": "Your welcome gift is here",
+    "subtitle": "Claim {amount} free credits as a thank-you for joining. You can claim it once.",
+    "claim": "Claim {amount} credits",
+    "claiming": "Claiming…",
+    "later": "Maybe later",
+    "explainer": "Changed your mind? You can still claim it any time from Billing.",
+    "doneTitle": "Enjoy your credits!",
+    "doneMessage": "{amount} credits were added to your balance.",
+    "done": "Start exploring",
+    "cardTitle": "Welcome gift",
+    "cardDescription": "Claim {amount} free credits — one time only.",
+    "errors": {
+      "ALREADY_CLAIMED": "You've already claimed your welcome bonus.",
+      "DISABLED": "The welcome bonus isn't available right now.",
+      "NOT_ELIGIBLE": "This account isn't eligible for the welcome bonus.",
+      "ACCOUNT_RESTRICTED": "Your account can't claim the bonus right now.",
+      "TOO_MANY_REQUESTS": "Too many attempts. Try again later.",
+      "generic": "Couldn't claim the bonus. Please try again."
+    }
+  },
   "balance": {
     "current": "Your Balance",
     "unit": "credits",
@@ -140,6 +163,7 @@
       "admin_debit": "Admin Debit",
       "payment": "Payment",
       "referral_bonus": "Referral Bonus",
+      "welcome_bonus": "Welcome Bonus",
       "refund": "Refund",
       "unknown": "Other"
     },
@@ -942,6 +966,21 @@
         "scoreTooltip": "{category} score",
         "scoresHint": "0-100 benchmark score per category (e.g. copied from livebench.ai). Leave blank if unknown."
       }
+    },
+    "welcomeBonusPage": {
+      "title": "Welcome bonus",
+      "description": "Give new users free credits they can claim once after registering.",
+      "enabledLabel": "Enable welcome bonus",
+      "enabledHint": "When on, users who register while it's enabled see a claim card after sign-up and a claim button in Billing. Accounts created before it was first enabled are not eligible.",
+      "amountLabel": "Bonus amount (credits)",
+      "amountHint": "Whole or decimal credits each new user receives, once. Changing it applies to anyone who hasn't claimed yet.",
+      "amountRequired": "Enter an amount greater than 0 to enable the bonus.",
+      "claimedCount": "Claimed so far: {count}",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "loadError": "Couldn't load the welcome bonus settings.",
+      "retry": "Retry"
     },
     "promptPage": {
       "title": "System prompt",

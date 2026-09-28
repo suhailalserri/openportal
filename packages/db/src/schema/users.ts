@@ -41,6 +41,12 @@ export const users = pgTable("users", {
   // one award, so the idempotency guard belongs on the row that's unique
   // per event.
   referralBonusAwardedAt: timestamp("referral_bonus_awarded_at"),
+  // Welcome bonus (decisions.md ADR-010). Set once, atomically, in the SAME
+  // transaction that credits the bonus (apps/api/src/services/
+  // welcome-bonus.service.ts) — `UPDATE ... WHERE welcome_bonus_claimed_at
+  // IS NULL` is the once-only guard, so a double click, two tabs or two
+  // devices can only ever match one row. NULL = never claimed.
+  welcomeBonusClaimedAt:  timestamp("welcome_bonus_claimed_at"),
   // Timestamps
   createdAt:        timestamp("created_at").defaultNow().notNull(),
   updatedAt:        timestamp("updated_at").defaultNow().notNull(),

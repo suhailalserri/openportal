@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean, bigint } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /** Fixed id of the single row this table ever holds. */
@@ -21,6 +21,15 @@ export const PLATFORM_CONFIG_ID = "00000000-0000-0000-0000-000000000001";
 export const platformConfig = pgTable("platform_config", {
   id:               uuid("id").primaryKey().default(sql`'00000000-0000-0000-0000-000000000001'`),
   basePrompt:       text("base_prompt"),
+  // Welcome bonus (ADR-010) — admin-controlled from /admin/welcome-bonus.
+  // Amount is in micro-credits like every other money column.
+  welcomeBonusEnabled:      boolean("welcome_bonus_enabled").default(false).notNull(),
+  welcomeBonusMicroCredits: bigint("welcome_bonus_micro_credits", { mode: "number" }).default(0).notNull(),
+  // Stamped ONCE, the first time an admin enables the bonus, and never
+  // reset by later off/on toggles. Only accounts created at/after this
+  // moment are "new users" for the bonus, so switching the feature on
+  // never hands credit to the whole existing user base.
+  welcomeBonusLaunchedAt:   timestamp("welcome_bonus_launched_at"),
   updatedAt:        timestamp("updated_at").defaultNow().notNull(),
   updatedByAdminId: uuid("updated_by_admin_id").references(() => users.id),
 });
