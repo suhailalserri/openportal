@@ -104,7 +104,7 @@ export async function deductCreditsAtomic(
 export async function creditBalance(
   userId:      string,
   microCredits: number,
-  type:        "redeem" | "admin_credit" | "payment" | "referral_bonus",
+  type:        "redeem" | "admin_credit" | "payment" | "referral_bonus" | "welcome_bonus",
   metadata:    { description?: string; redeemCodeId?: string; adminId?: string; adminNote?: string; paymentId?: string },
   executor:    Executor = db
 ): Promise<void> {

@@ -32,4 +32,13 @@ describe("buildReferralLink", () => {
       "http://localhost:3000/?ref=XYZ",
     );
   });
+
+  it("with a locale, links straight to the register page so ?ref= never depends on the / redirect", () => {
+    expect(buildReferralLink("https://example.com", "ABC123", "ar")).toBe(
+      "https://example.com/ar/auth/register?ref=ABC123",
+    );
+    expect(buildReferralLink("https://example.com/", "ABC123", "en")).toBe(
+      "https://example.com/en/auth/register?ref=ABC123",
+    );
+  });
 });

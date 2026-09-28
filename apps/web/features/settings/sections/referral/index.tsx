@@ -32,7 +32,7 @@ export function ReferralSection() {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const link = data.referralCode ? buildReferralLink(appUrl, data.referralCode) : null;
+  const link = data.referralCode ? buildReferralLink(appUrl, data.referralCode, locale) : null;
 
   function copyLink() {
     if (!link) return;

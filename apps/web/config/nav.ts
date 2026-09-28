@@ -34,7 +34,8 @@ export type NavIconName =
   | "fraud"
   | "logs"
   | "audit"
-  | "adminPrompt";
+  | "adminPrompt"
+  | "adminWelcomeBonus";
 
 export interface NavItem {
   id: string;
@@ -120,6 +121,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       // the other layer of the server-owned system prompt lives per-model,
       // on the /admin/models edit form instead. See platform-config.router.ts.
       { id: "adminPrompt", href: "/admin/prompt", labelKey: "adminPrompt", icon: "adminPrompt", enabled: true },
+      // Welcome bonus toggle + amount (platform-config.router.ts, ADR-010).
+      {
+        id: "adminWelcomeBonus",
+        href: "/admin/welcome-bonus",
+        labelKey: "adminWelcomeBonus",
+        icon: "adminWelcomeBonus",
+        enabled: true,
+      },
     ],
   },
 ];

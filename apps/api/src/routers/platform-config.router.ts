@@ -1,7 +1,10 @@
 import { router, adminProcedure } from "./trpc";
 import { z } from "zod";
-import { db, platformConfig, PLATFORM_CONFIG_ID } from "@ai-platform/db";
+import { db, platformConfig, auditLogs, PLATFORM_CONFIG_ID } from "@ai-platform/db";
 import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { MICRO_CREDIT } from "@ai-platform/config";
+import { getWelcomeBonusAdminView, updateWelcomeBonusConfig } from "../services/welcome-bonus.service";
 
 /**
  * apps/api/src/routers/platform-config.router.ts
@@ -52,6 +55,46 @@ export const platformConfigRouter = router({
             updatedByAdminId: ctx.user.id,
           },
         });
+      return { success: true };
+    }),
+
+  // ── Welcome bonus (ADR-010) ───────────────────────────────────────────
+  // Amount is entered/shown in whole display credits by the admin and
+  // stored as micro-credits. Capped so a typo can't mint a fortune.
+  getWelcomeBonus: adminProcedure.query(async () => {
+    const v = await getWelcomeBonusAdminView();
+    return {
+      enabled:      v.enabled,
+      amountCredits: v.amountMicroCredits / MICRO_CREDIT,
+      launchedAt:   v.launchedAt,
+      claimedCount: v.claimedCount,
+    };
+  }),
+
+  updateWelcomeBonus: adminProcedure
+    .input(z.object({
+      enabled:       z.boolean(),
+      amountCredits: z.number().min(0).max(100_000).multipleOf(0.01),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const amountMicroCredits = Math.round(input.amountCredits * MICRO_CREDIT);
+      const result = await updateWelcomeBonusConfig({
+        enabled: input.enabled, amountMicroCredits, adminId: ctx.user.id,
+      }).catch((err: unknown) => {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : "Invalid welcome bonus settings",
+        });
+      });
+      await db.insert(auditLogs).values({
+        adminId:    ctx.user.id,
+        action:     "welcome_bonus.update",
+        targetType: "platform_config",
+        targetId:   PLATFORM_CONFIG_ID,
+        before:     { enabled: result.before.enabled, amountMicroCredits: result.before.amountMicroCredits },
+        after:      { enabled: result.after.enabled,  amountMicroCredits: result.after.amountMicroCredits },
+        ip:         ctx.ip,
+      });
       return { success: true };
     }),
 });

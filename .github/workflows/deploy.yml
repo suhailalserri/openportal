@@ -368,10 +368,14 @@ jobs:
       # this loop does not discover files on its own the way
       # db:migrate:manual does (see that script's own comment); nothing
       # enforces the two staying in sync automatically, which is exactly
-      # how 0013/0014/0015 were missed here in a row.
-      - name: Apply raw SQL migrations (0001-0015)
+      # how 0013/0014/0015 were missed here in a row. 0016 adds
+      # users.welcome_bonus_claimed_at + the platform_config welcome-bonus
+      # columns + the welcome_bonus tx_type value — omitting it is exactly
+      # what caused "column \"welcome_bonus_claimed_at\" of relation
+      # \"users\" does not exist" in the seed step.
+      - name: Apply raw SQL migrations (0001-0016)
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "packages/db/src/migrations/$f.sql"
           done

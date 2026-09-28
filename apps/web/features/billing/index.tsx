@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { SectionPage } from "@/components/layout/section-page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BalanceCard } from "./components/balance-card";
+import { WelcomeBonusCard } from "./components/welcome-bonus-card";
 import { RedeemForm } from "./components/redeem-form";
 import { BuyCreditsSection } from "./components/buy-credits-section";
 import { TransactionHistory } from "./components/transaction-history";
@@ -35,6 +36,8 @@ export function BillingView() {
   return (
     <SectionPage title={tNav("billing")}>
       <div className="flex flex-col gap-6">
+        {/* Fallback claim for a welcome bonus the user closed or missed; renders nothing unless claimable. */}
+        <WelcomeBonusCard />
         <div id={REDEEM_SECTION_ID} className="grid scroll-mt-20 gap-6 md:grid-cols-2">
           <BalanceCard />
           <RedeemForm />

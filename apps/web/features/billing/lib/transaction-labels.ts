@@ -2,8 +2,8 @@
  * apps/web/features/billing/lib/transaction-labels.ts (Phase 5.2)
  *
  * Pure mapping from a `transactions.type` value (packages/db enums.ts
- * `txTypeEnum`, 7 values: redeem, usage_debit, admin_credit, admin_debit,
- * refund, payment, referral_bonus) to a `balance.types.*` i18n key and a
+ * `txTypeEnum`, 8 values: redeem, usage_debit, admin_credit, admin_debit,
+ * refund, payment, referral_bonus, welcome_bonus) to a `balance.types.*` i18n key and a
  * Badge tone. Kept as a standalone pure module (no React) so it's cheap
  * to unit test and reusable from both `transaction-history.tsx` and any
  * future admin table that renders the same enum.
@@ -23,6 +23,7 @@ export const KNOWN_TX_TYPES = [
   "refund",
   "payment",
   "referral_bonus",
+  "welcome_bonus",
 ] as const;
 
 export type KnownTxType = (typeof KNOWN_TX_TYPES)[number];
@@ -41,6 +42,7 @@ const TX_TYPE_META: Record<KnownTxType, TxTypeMeta> = {
   redeem:          { messageKey: "redeem",          tone: "success",     isCredit: true },
   payment:         { messageKey: "payment",         tone: "success",     isCredit: true },
   referral_bonus:  { messageKey: "referral_bonus",  tone: "success",     isCredit: true },
+  welcome_bonus:   { messageKey: "welcome_bonus",   tone: "success",     isCredit: true },
   refund:          { messageKey: "refund",          tone: "info",        isCredit: true },
   admin_credit:    { messageKey: "admin_credit",    tone: "info",        isCredit: true },
   usage_debit:     { messageKey: "usage_debit",     tone: "secondary",   isCredit: false },
