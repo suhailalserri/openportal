@@ -313,3 +313,8 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - Worker failures are reported per attempt (3 attempts => up to 3 events, grouped into one issue).
 - Expected tRPC codes (401/403/400/404/409/429...) are never reported, by design.
 - Sentry adds no Redis commands (N11 unaffected).
+
+## Session 14 - P2.1 build fix (frozen-zone edit, owner-approved 2026-09-30)
+- `apps/web/next.config.ts`: `transpilePackages: ["@ai-platform/config"]` so webpack compiles the
+  raw-TS `@ai-platform/config/monitoring-scrub` subpath pulled in by `instrumentation-client.ts`.
+- Fixes `Web Build (next build)` and `E2E (Playwright)`. No behaviour change at runtime.

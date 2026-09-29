@@ -552,3 +552,24 @@ install/uninstall, timing-safe auth).
 4. Bad-DSN drill: set `SENTRY_DSN=garbage`, redeploy, confirm `/health` and `/chat` still work and
    Render logs show `[sentry] ... monitoring is OFF`.
 5. Then tick P2.1 in the plan; next is P2.2 (or P2.3 per the triage order).
+
+## Session 14 - 2026-09-30 - P2.1 build fix (Web Build + E2E red)
+
+**Symptom (CI):** `Web Build (next build)` and `E2E (Playwright)` failed with
+`packages/config/src/monitoring-scrub.ts: Module parse failed: Unexpected token (18:5)`
+(`type Loose = ...`), import trace `instrumentation-client.ts` -> `lib/monitoring/config.ts`.
+
+**Cause:** `@ai-platform/config` exports raw `.ts` and `apps/web/next.config.ts` had no
+`transpilePackages`, so webpack had no TS loader for the new subpath imported by the client
+instrumentation entry. Session 13 could only parse the file, never run `next build`.
+
+**Changed (1 code file):** `apps/web/next.config.ts` - added `transpilePackages: ["@ai-platform/config"]`.
+Frozen-zone exception, owner-approved 2026-09-30 (second approved edit of this file after 9.2b).
+No DELETE list.
+
+**Not verified (cannot run the repo here):** `next build`, CI. I could not determine why the
+older root-barrel imports of `@ai-platform/config` compiled before; if the build still fails,
+send the new log.
+
+**Next (owner):** push; `Web Build` and `E2E` must go green (others stay green); then continue
+the P2.1 owner steps from Session 13 (DSN, smoke drill). P2.2 only after CI is green.
