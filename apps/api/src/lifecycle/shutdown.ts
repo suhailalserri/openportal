@@ -51,9 +51,9 @@ export interface ShutdownOptions {
   /** Evaluated at shutdown time so late-created resources (workers) are included. */
   closers: () => ShutdownCloser[];
   exit: (code: number) => void;
-  log?: (level: ShutdownLogLevel, message: string) => void;
+  log?: ((level: ShutdownLogLevel, message: string) => void) | undefined;
   /** Called once when streams are aborted at the deadline. */
-  onAbort?: (count: number) => void;
+  onAbort?: ((count: number) => void) | undefined;
 }
 
 export interface ShutdownController {

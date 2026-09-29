@@ -667,3 +667,16 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - Sentry `flush` actually delivering before exit.
 
 **Next (owner):** CI green (`API Tests` runs every `*.test.ts`, so it should list the 3 new files and the 2 appended tests); set Render Shutdown delay to 120 s; keep Render health check on `/health`; point the uptime monitor at `/ready`; run the mid-stream deploy drill in `docs/runbooks/DEPLOY_SHUTDOWN.md`; then tick P3.2 and the LAUNCH_CHECKLIST line 39. Next per triage: P4.1, then P3.1.
+
+## Session 19 - 2026-09-30 - Type-check fix for P3.2 (CI `Type-check & Lint` red)
+
+**Symptom:** `tsc --noEmit` in `apps/api`: TS2339 at `index.ts(148,54)` (`ping` not on BullMQ's `IRedisClient`) and TS2379 at `lifecycle/shutdown.test.ts(14,47)` (`onAbort: undefined` not assignable under `exactOptionalPropertyTypes`). tsc listed only these two.
+
+**Cause:** both were flagged in Session 18 as "typing from memory". The first is the same `queue.client` trap as Session 17; the second is the repo's strict `tsconfig.base.json`.
+
+**Changed:** `apps/api/src/index.ts` (cast `queue.client` to `{ ping(): Promise<unknown> }`, same pattern as `runRedisHealthCheck`), `apps/api/src/lifecycle/shutdown.ts` (`log` and `onAbort` typed `| undefined`). No behaviour change. No DELETE list.
+
+**Verified (executed here):** the lifecycle files (incl. tests) type-check clean under the repo's strict flags (`strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noImplicitOverride`) using stubs for Node/vitest types; reverting the `onAbort` fix reproduces the exact CI TS2379, so the check is meaningful.
+
+**Not verified:** the `index.ts` cast (needs the real BullMQ/ioredis types), real `tsc` across the api, lint (Turbo stopped after the api failure, so `Lint` never ran), and the 2 appended `gateway.service.test.ts` tests. If lint or tsc fails again, send the log.
+

@@ -145,7 +145,9 @@ app.get("/health", async () => ({
 // For the external uptime monitor, NOT for Render's health check (see /health).
 const readiness = createReadiness({
   checkDb:    () => db.execute(sql`select 1`),
-  checkRedis: async () => (await reportQueue.client).ping(),
+  // BullMQ types `queue.client` as its own minimal IRedisClient (no ping); at runtime it is
+  // the underlying ioredis instance (same cast as runRedisHealthCheck in scheduled.jobs.ts).
+  checkRedis: async () => ((await reportQueue.client) as unknown as { ping(): Promise<unknown> }).ping(),
   isDraining: () => shutdown.isDraining(),
 });
 app.get("/ready", async (_req, reply) => {
