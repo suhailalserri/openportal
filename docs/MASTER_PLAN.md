@@ -83,7 +83,8 @@ Fail-closed env validation in `config.ts`. HTTP listener starts before workers. 
 | **L14** | **Shared guards, never copy-paste.** Account-usability checks live in one function used by every auth path. |
 | **L15** | *(added 2026-09-29, owner delegated)* **Redis: move Upstash off Free before any real user** — Fixed plan (from $10/month, no per-command billing) or Pay-as-you-go. Free is for dev/test only. |
 | **L16** | *(added 2026-09-29)* **Vercel Pro before charging anyone.** Hobby is non-commercial. |
-| **L17** | *(added 2026-09-29)* **Render api and gateway on a paid instance type before launch** (no spin-down; needed for L6 multi-replica; the gateway needs a persistent database or disk). If P0.1 shows they are already paid, this line is satisfied. |
+| **L17** | *(added 2026-09-29)* **Render api and gateway on a paid instance type before launch** (no spin-down; needed for L6 multi-replica; the gateway needs a persistent database or disk). P0.1 result (2026-09-29): **both are on Free, region oregon**, so this line is open. |
+| **L18** | *(added 2026-09-29)* **Supabase: both projects (app and gateway) on Pro before launch.** Free has no downloadable backups and pauses after a week idle; the ledger lives there. PITR add-on decided in P4.1. |
 
 ---
 
@@ -108,7 +109,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 
 ## 4. Progress tracker
 
-**Stage 0** — [ ] P0.1 · [ ] P0.2
+**Stage 0** — [x] P0.1 · [x] P0.2
 **Stage 1** — [ ] P1.1 · [ ] P1.2 · [ ] P1.3
 **Stage 2** — [ ] P2.1 · [ ] P2.2 · [ ] P2.3
 **Stage 3** — [ ] P3.1 · [ ] P3.2 · [ ] P3.3 · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
@@ -313,7 +314,7 @@ Scope in detail only when you get here.
 
 **Infrastructure**
 - [ ] ADR-011 accepted (no ⬜ left); gateway reachable only from the api or protected as the plan requires; Redis private
-- [ ] Upstash on a paid plan (L15); Vercel on Pro (L16); Render api + gateway on paid instances (L17)
+- [ ] Upstash on a paid plan (L15); Vercel on Pro (L16); Render api + gateway on paid instances (L17); both Supabase projects on Pro with a backup taken and a restore tried (L18)
 - [ ] `/metrics` no longer public (N9)
 - [ ] Graceful shutdown verified with a mid-stream deploy
 - [ ] Container non-root, compiled, healthcheck

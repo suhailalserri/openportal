@@ -175,8 +175,9 @@
 |---|---|---|---|---|---|
 | web (Next.js) | Vercel [S] | **Hobby** [S] | ⬜ | git | Sentry [R] |
 | api (Fastify) | Render [S] | ⬜ free or paid? | ⬜ | git | none yet (P2.1) |
-| Gateway (New API, separate repo) | Render [S] | ⬜ | ⬜ | ⬜ its data store | ⬜ |
-| Postgres | Supabase [S] | ⬜ | ⬜ | ⬜ daily? PITR? | ⬜ |
+| Gateway (New API, separate repo) | Render [S] | ⬜ | ⬜ | **External Postgres on Supabase** [S] (not SQLite); backup ⬜ | ⬜ |
+| Upstream models | OpenRouter [S][R] | n/a | n/a | n/a | ⬜ spend limit / alerts on the OpenRouter key |
+| Postgres (app) | Supabase [S] | ⬜ | ⬜ | ⬜ daily? PITR? | ⬜ |
 | Redis | Upstash [S] | **Free** [S] | ⬜ | ⬜ | ⬜ |
 
 ### Findings from the plans the owner is on (checked 2026-09-29 [D])
@@ -226,21 +227,49 @@
 7. Deploys are Git-integration on both hosts (per the note in
    `deploy.yml`); not checked in either dashboard.
 
+### Answers received 2026-09-29 (session 3) [S]
+- **Upstream:** the OpenRouter API key is connected to New API as a channel;
+  New API is the gateway the api calls. (Consistent with repo comments about
+  OpenRouter model ids in `gateway.service.ts` [R].) All model traffic
+  therefore has one upstream, OpenRouter. It is a single point of failure,
+  and the provider-per-channel failover in the old plan does not apply until a
+  second upstream is added. Not a P0.1 blocker; input to P2.2.
+- **Gateway data store:** New API uses **PostgreSQL on Supabase**, not
+  SQLite. This removes the "data lost on every Render restart" risk from
+  N13 for the gateway. ⬜ still open: is it a separate Supabase *project*
+  or a separate database/schema in the app's project? If it shares the
+  project, its tables sit in the same Data API surface as N10 and need RLS
+  or the Data API disabled; if separate, it needs its own backup check.
+- **Pooler ports:** api (Render) uses **6543**; web (Vercel) uses **5432**
+  [S]. On Supabase's pooler host, 5432 is session mode. A 2026-09-13 web log
+  showed `EMAXCONNSESSION` [R], which fits Vercel serverless on a
+  session-mode connection. ⬜ confirm the exact host in the web
+  `DATABASE_URL` (pooler `*.pooler.supabase.com:5432` vs direct
+  `db.<ref>.supabase.co:5432`; the direct host is IPv6-only). Feeds P4.2:
+  the likely fix is 6543 for web too; not changed in this session.
+- **Vercel Deployment Protection:** on [S]. The platform is **not public
+  yet** [S], still in testing. Before launch, check that protection does not
+  put a login wall in front of real users on the production domain (added to
+  the launch checklist below).
+
 ### Still needed to close P0.1 (⬜ cells)
 - **Render (api and gateway, each):** instance type (Free or paid), count,
   region, health-check path, max shutdown delay. Is the gateway URL public
-  or private, and does New API use SQLite, or an external DB via its
-  `SQL_DSN`? From outside Render:
+  or private? (SQLite question answered above.) From outside Render:
   `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://<gateway>/v1/models`
   A `401` means it is public (N8); it will be public on Free.
   `curl -sI https://<api>/health` and `https://<api>/metrics`.
-- **Supabase:** plan, daily-backup retention, PITR yes/no, region, which
-  pooler string each service uses (6543 vs 5432), Data API on/off. After
+- **Supabase:** plan, daily-backup retention, PITR yes/no, region, Data API
+  on/off, the host in the web `DATABASE_URL`, and whether the gateway DB is
+  a separate project. After
   applying 0017 run in the SQL editor (expect zero rows):
   `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity;`
 - **Upstash:** region, **Eviction** toggle (must be off), this month's
   command count (shows how fast BullMQ burns the 500K), TLS on.
-- **Vercel:** function region; Deployment Protection on Production?
+- **Vercel:** function region. (Deployment Protection answered above.)
+- **Before launch (not P0.1):** with Deployment Protection on, load the
+  production domain in a private window signed out; it must not ask for a
+  Vercel login.
 
 ### Consequences
 - Plan gains N9–N13 and L15–L17 (see the plan file). None change the
