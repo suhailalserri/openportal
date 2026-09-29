@@ -2,6 +2,8 @@
 >
 > The **triage order** is still valid. References to Grafana panels, `docker compose`, and `infra/alerts.yml` thresholds are not. Use Sentry, Render logs and Vercel logs instead. Rewritten in plan P2.1 / P2.2.
 
+> **Sentry (P2.1).** The api now reports server faults to Sentry (`service:api`, release = deployed commit). Start there: filter by `service:api`, then by tag `source` (`trpc` | `fastify` | `worker` | `billing` | `unhandledRejection`) and `procedure` / `route` / `queue`. Expected outcomes (401/403/400/404/429) are deliberately not reported. Web-side tRPC faults appear under the web project as `trpc-server`. No events during a real incident means either `SENTRY_DSN` is unset on Render or the scrubber dropped them: check Render logs for `[sentry]` lines. Drill: see `.env.example` (`/internal/sentry-test`).
+
 ---
 
 # Runbook: High Application Error Rate

@@ -20,6 +20,18 @@ import { parseRedisConnection } from "./utils/redis-connection";
 // "../config" and "@ai-platform/db" respectively. Nothing gated behind it.
 import { chatRequestSchema, formatChatValidationError } from "./schemas/chat.schema";
 import { trustedProxyHopsFromEnv, trustProxyByHops } from "./utils/client-ip";
+import { initSentry, isSentryEnabled } from "./monitoring/sentry";
+import { reportTrpcError } from "./monitoring/trpc-error";
+import { registerFastifyErrorReporting } from "./monitoring/fastify-errors";
+import { attachWorkerErrorReporting } from "./monitoring/worker-errors";
+import { installProcessErrorHandlers } from "./monitoring/process-handlers";
+import { isAuthorizedSmokeTest, smokeTestError } from "./monitoring/smoke-test";
+
+// P2.1 (closes G3): error tracking comes up before anything else can throw.
+// No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
+initSentry();
+// Unhandled rejections: log + report + keep serving (see process-handlers.ts).
+installProcessErrorHandlers();
 
 const proxyHops = trustedProxyHopsFromEnv();
 
@@ -32,6 +44,10 @@ const app = Fastify({
     ? { level: "info", transport: { target: "pino-pretty" } }
     : { level: "warn" },
 });
+
+// P2.1: catch-all for errors thrown outside tRPC (/chat handler + preHandler,
+// /health, /metrics, smoke test). Must be added before the routes below.
+registerFastifyErrorReporting(app);
 
 // ── Plugins ────────────────────────────────────────────────────────────
 await app.register(helmet, { contentSecurityPolicy: false });
@@ -50,6 +66,8 @@ await app.register(fastifyTRPCPlugin, {
       // this was gated to non-production, which meant real errors in prod
       // (like the apiKeyHash mismatch below) were completely invisible.
       app.log.error({ path, err: error.message }, "tRPC error");
+      // P2.1: server faults only (INTERNAL_SERVER_ERROR); expected codes are ignored.
+      reportTrpcError({ error, path });
     },
   },
 });
@@ -60,6 +78,26 @@ app.get("/health", async () => ({
   timestamp: new Date().toISOString(),
   version:   process.env.npm_package_version ?? "1.0.0",
 }));
+
+// ── Sentry smoke test (P2.1) ───────────────────────────────────────────
+// No staging environment exists, so "a deliberate error reaches Sentry within a
+// minute" is drilled here. Requires INTERNAL_SERVICE_TOKEN => no public surface.
+// The thrown error is reported by the Fastify onError hook, exactly like a real
+// unhandled route error, so this exercises the real path end to end.
+app.post("/internal/sentry-test", async (req, reply) => {
+  if (!isAuthorizedSmokeTest(req.headers.authorization, config.INTERNAL_SERVICE_TOKEN)) {
+    reply.status(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (!isSentryEnabled()) {
+    reply.status(409).send({
+      error:   "SENTRY_DISABLED",
+      message: "SENTRY_DSN is unset or invalid on this service; nothing would be sent.",
+    });
+    return;
+  }
+  throw smokeTestError();
+});
 
 // ── Metrics ────────────────────────────────────────────────────────────
 // Matches prometheus.yml's "api-middleware" scrape job (api:4000/metrics).
@@ -166,6 +204,8 @@ app.post("/chat", {
     );
   } catch (err) {
     if (replyForLockError(err, reply)) return;
+    // P2.1: rethrown on purpose — Fastify's onError hook (registered above via
+    // registerFastifyErrorReporting) reports it to Sentry and returns the 500.
     throw err;
   }
 });
@@ -212,9 +252,14 @@ if (config.NODE_ENV === "production") {
   // server that's already listening from serving chat/billing traffic.
   void (async () => {
     try {
-      instrumentWorker(startEmailWorker(redisConn), "email");
-      instrumentWorker(startAlertWorker(redisConn), "alerts");
-      instrumentWorker(startReportWorker(redisConn), "reports");
+      // P2.1: every worker gets metrics AND Sentry `failed` reporting.
+      const registerWorker = (worker: { on: Function }, name: string) => {
+        instrumentWorker(worker, name);
+        attachWorkerErrorReporting(worker, name);
+      };
+      registerWorker(startEmailWorker(redisConn), "email");
+      registerWorker(startAlertWorker(redisConn), "alerts");
+      registerWorker(startReportWorker(redisConn), "reports");
       await withTimeout(registerScheduledJobs(reportQueue), 15_000, "registerScheduledJobs");
       console.log("✓ Background workers started");
     } catch (err) {

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./monitoring-scrub": "./src/monitoring-scrub.ts"
   },
   "dependencies": {
     "@ai-platform/types": "workspace:*"

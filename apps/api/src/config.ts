@@ -33,6 +33,14 @@ const envSchema = z.object({
   // `models` table (that table is the user-facing catalog, this is an
   // internal plumbing choice independent of it).
   SUMMARIZATION_MODEL:    z.string().min(1).default("gpt-4o-mini"),
+  // P2.1 error tracking. Deliberately LENIENT (plain optional strings): a blank
+  // or mistyped value must never stop the api booting (L12). The real decision
+  // is monitoring/options.ts `normalizeDsn` — invalid => monitoring off + a
+  // console warning. initSentry() reads process.env directly for the same
+  // reason: it must work even if this schema fails.
+  SENTRY_DSN:             z.string().optional(),
+  SENTRY_ENVIRONMENT:     z.string().optional(),
+  SENTRY_RELEASE:         z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

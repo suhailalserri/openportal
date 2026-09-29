@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import { recordUpstreamCall, recordCreditsSpent, streamingConnectionsActive } from "../metrics";
 import { claimUserMessage, chatIdempotencyRedis, type IdempotencyRedis } from "./chat-idempotency.service";
 import { buildSystemPrompt, compactHistory } from "./history-compaction.service";
+import { reportError } from "../monitoring/error-hook";
 
 /**
  * Cost is computed from the `models` table now, not the static
@@ -551,6 +552,9 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
         modelId, inputTokens, outputTokens, requestId,
       }).catch((err) => {
         console.error("[billing] deductCreditsAtomic threw:", err);
+        // P2.1: a THROWN deduction (DB down mid-billing) is a money fault. No-op
+        // unless index.ts registered the Sentry sink; never throws.
+        reportError(err, { tags: { source: "billing", stage: "post-stream-deduct" } });
         return { success: false as const, newBalance: 0 };
       });
 

@@ -28,7 +28,7 @@ Items name the plan phase that produces the evidence.
 - [ ] Independent nightly export running outside Supabase; restore drill done; RTO recorded — P4.1
 
 ## Visibility
-- [ ] Sentry live on web and api, PII scrubbed — P2.1
+- [ ] Sentry live on web and api, PII scrubbed — P2.1 (built; needs `SENTRY_DSN` on Render + the `/internal/sentry-test` drill)
 - [ ] Telegram receives app alerts, Sentry alerts, uptime alerts, deploy failures (each drilled once) — P2.2
 - [ ] Upstash eviction is **off** (`noeviction`); job retention live; failed-job alert works — P2.3
 - [ ] Upstash memory/command-usage alert configured — P2.3

@@ -264,3 +264,52 @@ client IP) and never `cf-connecting-ip`.
 - Off Vercel (dev, CI/E2E) the web side reads `x-forwarded-for` so specs can choose identities. Do not
   self-host `apps/web` on the open internet without a proxy you control.
 - Internal-token requests with no valid `X-Client-IP` fall back to the old behaviour (Vercel's IP).
+
+
+## Session 13 - P2.1 Backend error tracking (closes G3)
+
+Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L14 (shared list).
+
+### What changed
+- **One scrub list.** `packages/config/src/monitoring-scrub.ts` (new, pure, subpath export
+  `@ai-platform/config/monitoring-scrub`) holds `redactText`, `scrubUrl`, `shouldIgnoreError`,
+  `IGNORED_TRPC_CODES`, `scrubEvent`. Web and api both use it.
+- **Api** (`apps/api/src/monitoring/`, all new): `sentry.ts` (the only `@sentry/node` import; errors
+  only, no tracing, `maxBreadcrumbs: 0`, `sendDefaultPii: false`, release = `RENDER_GIT_COMMIT`, tag
+  `service:api`), `options.ts` (pure: DSN/release/env decisions, fail-closed `apiBeforeSend`),
+  `error-hook.ts` (dependency-free seam so services never import the SDK), `trpc-error.ts`,
+  `fastify-errors.ts`, `worker-errors.ts`, `process-handlers.ts`, `smoke-test.ts`.
+- `apps/api/src/index.ts`: `initSentry()` first; tRPC `onError` -> `reportTrpcError`; Fastify
+  `onError` hook (covers `/chat` handler + preHandler, `/health`, `/metrics`); worker `failed`
+  events on all three workers; unhandled-rejection handler; `POST /internal/sentry-test`.
+- `apps/api/src/services/gateway.service.ts`: one line - a THROWN post-stream deduction is now also
+  reported (no logic change; no-op without a sink).
+- `apps/api/src/config.ts`: `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` as lenient optional
+  strings (a blank or mistyped DSN must not stop the api booting).
+- `apps/api/package.json` + `pnpm-lock.yaml`: `@sentry/node ^10.0.0`. **Lockfile edited by hand**
+  (same 10.75.3 snapshot web already resolves).
+- `.env.example`, `docs/runbooks/high-error-rate.md` (Sentry triage note), `docs/LAUNCH_CHECKLIST.md`.
+
+### Frozen-zone edits (owner-approved 2026-09-29)
+- `apps/web/lib/monitoring/config.ts`: now re-exports the shared module; keeps
+  `isMonitoringEnabled`, `procedureFromKey`, `beforeSend`, `monitoringEnvironment`. All 15 existing
+  tests in `config.test.ts` still pass against it (executed).
+- `apps/web/app/api/trpc/[trpc]/route.ts`: `onError` also calls the existing web `reportError` for
+  `INTERNAL_SERVER_ERROR` only (original `cause`, procedure name as the only tag, never the input).
+  Before this, tRPC server faults on Vercel never reached Sentry (tRPC turns them into JSON 500s,
+  so Next's `onRequestError` does not see them).
+
+### External contract
+- New api route `POST /internal/sentry-test` (Bearer `INTERNAL_SERVICE_TOKEN`): 401 bad/missing
+  token, 409 `SENTRY_DISABLED` if no valid DSN, otherwise a deliberate 500. Not part of
+  `API_CONTRACT.md` (internal drill only). No other request/response shape changed.
+
+### Behaviour to know
+- **Unhandled promise rejections no longer crash the api**: logged, reported, process keeps running
+  (was: Node 20 default = exit). `uncaughtException` is unchanged (still exits).
+- Web events are now scrubbed slightly harder than before: `extra`, `request.env` and stack-frame
+  `vars` dropped; `contexts`/`tags` deep-redacted by key; `sk-*` keys and bcrypt hashes redacted;
+  exception messages capped at 500 chars.
+- Worker failures are reported per attempt (3 attempts => up to 3 events, grouped into one issue).
+- Expected tRPC codes (401/403/400/404/409/429...) are never reported, by design.
+- Sentry adds no Redis commands (N11 unaffected).

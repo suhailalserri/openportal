@@ -494,3 +494,61 @@ edits; then P0.1's leftovers / P2.3 per the plan order.
 - **Manual check (still open):** on Render, hit the api directly and log `request.ip`, `cf-connecting-ip`,
   `x-forwarded-for` once; set `TRUSTED_PROXY_HOPS` (likely 2 if Cloudflare and Render's proxy both sit in
   front) from what you see.
+
+
+---
+
+## Session 13 - 2026-09-29 - P2.1 backend error tracking (closes G3)
+
+**Owner:** "OK do everything you recommend": scrub list option B (one shared module, one frozen web
+edit), approve the web tRPC `onError` frozen edit, capture unhandled rejections and continue, smoke
+route behind the internal token. Tracker **not ticked** (needs CI + the manual drill).
+
+**Plan vs code (all announced in the Phase Summary before building):** the plan's "tRPC onError"
+covers only the Fastify `/trpc`, but production tRPC runs inline in web, so web got the same
+one-line hook; the plan says "all four workers" but only three exist (`messages` queue has none);
+"deliberate error on a staging deploy" has no staging -> `POST /internal/sentry-test`.
+
+**Deviations from my own summary:** (1) the `/chat` "top-level catch" is not a second capture: it
+rethrows and a Fastify `onError` hook reports it (one place, also covers the preHandler and other
+routes; avoids double reports). (2) `flushSentry` was dropped (nothing called it). (3) Added a bcrypt
+hash pattern to the scrubber (plan names `apiKeyHash`); tags/contexts are deep-redacted by key.
+
+**Changed:** see `docs/PR_NOTES.md` Session 13 (full list, frozen-zone edits, behaviour changes).
+New: `packages/config/src/monitoring-scrub.ts`, `apps/api/src/monitoring/*` (8 source + 4 test
+files), web `route.test.ts` (trpc) and `shared-scrub.test.ts`. No DELETE list.
+
+**Verified (executed here, no network, no node_modules):** TypeScript syntax parse of all 20 touched
+TS files. Under a minimal vitest shim: the 12 pure tests of `options.test.ts` (leak fixture: cookie,
+bearer, email, bcrypt hash, API key, redeem code, message content, IPs, stack vars; fail-closed on a
+throwing scrubber) and the 15 pre-existing web `config.test.ts` tests against the shared module all
+pass. A direct node script exercised `error-hook`, `trpc-error`, `worker-errors`,
+`process-handlers` and `smoke-test` (report/ignore rules, tags, no job data, listener
+install/uninstall, timing-safe auth).
+
+**Not verified (cannot run the repo here):** `tsc`, lint, vitest itself, CI, `next build`. Specifically:
+- The tests that need real packages have never run: `sentry.test.ts` (mocked SDK),
+  `error-capture.test.ts` (real Fastify + tRPC plugin), `config-sentry.test.ts`, web
+  `trpc/[trpc]/route.test.ts`, web `shared-scrub.test.ts`.
+- **The hand-edited `pnpm-lock.yaml`** (`apps/api` importer -> existing `@sentry/node@10.75.3`
+  snapshot). If CI says the lockfile is out of date, run `pnpm install` and commit the lockfile.
+- **Sentry v10 API details are from memory, not from installed types:** option names
+  (`maxBreadcrumbs`, `initialScope`, `beforeBreadcrumb`, `integrations` as a function) and the
+  integration name `"OnUnhandledRejection"`. If that name is wrong the SDK's own handler also stays
+  installed: still "log and continue", but one rejection may produce two events. `tsc` will flag any
+  option-name mistake.
+- That `@sentry/node` initialised after ESM imports still captures errors (no auto-instrumentation
+  is expected or needed: tracing is off).
+- That a blank `SENTRY_DSN` on Render is handled (tested in `config-sentry.test.ts`, not run).
+- Real ingestion: nothing was sent to Sentry.
+
+**Next (owner):**
+1. CI green; `api-tests` must list `sentry.test.ts`, `error-capture.test.ts`, `options.test.ts`,
+   `config-sentry.test.ts`; `web-unit` must list the two new web tests.
+2. Create/choose the Sentry project; set `SENTRY_DSN` on Render (api). Redeploy.
+3. Drill: `curl -X POST https://<api>/internal/sentry-test -H "Authorization: Bearer $INTERNAL_SERVICE_TOKEN"`
+   -> 500; an issue "Sentry smoke test ... (deliberate)" appears within a minute with `service:api`,
+   release = the deployed commit, and no cookie/authorization headers.
+4. Bad-DSN drill: set `SENTRY_DSN=garbage`, redeploy, confirm `/health` and `/chat` still work and
+   Render logs show `[sentry] ... monitoring is OFF`.
+5. Then tick P2.1 in the plan; next is P2.2 (or P2.3 per the triage order).
