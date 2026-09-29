@@ -38,9 +38,21 @@ describe("rejectUnusableAccount", () => {
   });
 
   it("fails closed: a DB error propagates instead of letting the request through", async () => {
-    // async impl: the rejection is created only when the mock is called and
-    // is awaited immediately, so it can never surface as an unhandled error.
-    findFirst.mockImplementation(async () => { throw new Error("db down"); });
-    await expect(rejectUnusableAccount("u1")).rejects.toThrow("db down");
+    // A synchronous throw inside the mock becomes a rejection of the async
+    // function under test. Nothing here creates a promise that could reject
+    // before something is attached to it, so it cannot surface as an
+    // unhandled rejection (which vitest reports as a failure of this test).
+    findFirst.mockImplementation(() => { throw new Error("db down"); });
+
+    let caught: unknown;
+    let result: unknown = "not-settled";
+    try {
+      result = await rejectUnusableAccount("u1");
+    } catch (err) {
+      caught = err;
+    }
+    expect(result).toBe("not-settled"); // never resolved to null (= request allowed)
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe("db down");
   });
 });

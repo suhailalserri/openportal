@@ -396,3 +396,36 @@ then the manual check: two tabs sending at once -> second gets 409; kill the API
 confirm `lock:billed:<id>` expires within 30 s. Frontend needs a 409 retry mapping (see PR_NOTES).
 Then P1.3.
 
+
+---
+
+## Session 11 - 2026-09-29 - P1.2 follow-up: frontend 409/503 + CI fixes
+
+**Owner request:** finish the frontend gap and fix the two CI failures from the screenshots.
+Same phase (P1.2); no new phase started. P1.2 stays **unticked** until CI and the manual check pass.
+
+**Plan vs code:** the Session 10 notes said the client should retry "with the same
+`clientMessageId`". The web client never sends one (no hits in `apps/web`). Handled by resending the
+identical body, which is safe because 409/503 are returned before any write. Idempotency on the
+client remains a separate, unplanned item.
+
+**CI failure 1 - Web Unit Tests:** `lib/account-guard-server.test.ts` "fails closed: a DB error
+propagates". Test-only change (synchronous throw in the mock + try/catch assertions). Root cause
+is not proven: I could not run vitest, so this is the most likely fix, not a confirmed one.
+
+**CI failure 2 - E2E build:** `next build` died in `lib/fonts.ts` with `Cannot read properties of
+null (reading '1')` inside next/font's Google loader, while `web-build` on the same run passed.
+Treated as a transient Google Fonts response. Mitigation only: build retried 3x in both jobs.
+Not a root-cause fix; the durable fix is self-hosting the fonts (`next/font/local`), which needs
+the font files added to the repo.
+
+**Changed:** `apps/web/features/chat/lib/stream-reader.ts`, `stream-reader.test.ts`,
+`apps/web/lib/account-guard-server.test.ts`, `.github/workflows/deploy.yml`, `docs/PR_NOTES.md`,
+`docs/frontend/API_CONTRACT.md`, this log. No DELETE list. No frozen-zone edits.
+
+**Not verified:** `tsc`, lint, vitest, CI, `next build`. Only a TypeScript syntax parse and a YAML
+parse were run. Unconfirmed: that the unit-test change fixes the CI failure; that retrying the
+build is enough for the font failure; the UI while waiting (the composer should show "sending" for
+up to ~6 s on repeated 409s - checked by reading only).
+
+**Next:** owner re-runs CI; then the P1.2 manual checks; then P1.3.

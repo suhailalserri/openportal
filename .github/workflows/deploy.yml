@@ -143,8 +143,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # next/font/google downloads the font CSS and files from Google at
+      # build time. A transient bad response from fonts.googleapis.com /
+      # gstatic makes the loader throw `Cannot read properties of null
+      # (reading '1')` from lib/fonts.ts even though the code is fine (seen
+      # in the E2E job's build while this job's identical build passed).
+      # Retry the build up to 3 times; a real compile error fails all 3
+      # attempts the same way and the job is still red.
       - name: Build apps/web
-        run: pnpm --filter @ai-platform/web build
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter @ai-platform/web build; then exit 0; fi
+            echo "::warning::next build failed (attempt $attempt/3)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 15))
+          done
+          exit 1
 
   # ─── WEB UNIT TESTS ──────────────────────────────────────────────────
   # No vitest config or test files exist yet in apps/web as of 0.2 — this
@@ -408,9 +421,17 @@ jobs:
       # job, and the spec asserts exactly that rather than assuming data
       # that was never seeded.
 
+      # Retried for the same transient Google Fonts failure described in
+      # the web-build job's "Build apps/web" step.
       - name: Build apps/web
         working-directory: apps/web
-        run: pnpm run build
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm run build; then exit 0; fi
+            echo "::warning::next build failed (attempt $attempt/3)"
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Run Playwright tests
         working-directory: apps/web

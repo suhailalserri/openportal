@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import { runChatStream, type StreamCallbacks } from "./stream-reader";
+import { autoRetryDelayMs, runChatStream, type StreamCallbacks } from "./stream-reader";
 
 /**
  * apps/web/features/chat/lib/stream-reader.test.ts
@@ -224,5 +224,155 @@ describe("runChatStream — HTTP error responses", () => {
     });
 
     expect(errors[0]?.retryable).toBe(true);
+  });
+});
+
+// ── P1.2 follow-up: 409 REQUEST_IN_PROGRESS / 503 SERVICE_TEMPORARILY_UNAVAILABLE ──
+
+function jsonError(status: number, payload: Record<string, unknown>): Response {
+  return { ok: false, status, json: async () => payload } as unknown as Response;
+}
+
+const BUSY = {
+  error: "REQUEST_IN_PROGRESS",
+  message: "طلبك السابق لا يزال قيد المعالجة.",
+  retryable: true,
+  retryAfterSeconds: 2,
+};
+const UNAVAILABLE = {
+  error: "SERVICE_TEMPORARILY_UNAVAILABLE",
+  message: "الخدمة غير متاحة مؤقتاً.",
+  retryable: true,
+  retryAfterSeconds: 5,
+};
+
+describe("autoRetryDelayMs", () => {
+  it("uses the server's retryAfterSeconds", () => {
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", 3)).toBe(3000);
+  });
+  it("falls back to the per-code default when the value is missing or not a number", () => {
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", undefined)).toBe(2000);
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", "2")).toBe(2000);
+    expect(autoRetryDelayMs("SERVICE_TEMPORARILY_UNAVAILABLE", undefined)).toBe(5000);
+  });
+  it("clamps to 1..10 seconds", () => {
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", 0)).toBe(1000);
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", -5)).toBe(1000);
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", 600)).toBe(10000);
+    expect(autoRetryDelayMs("REQUEST_IN_PROGRESS", Number.NaN)).toBe(2000);
+  });
+});
+
+describe("runChatStream — busy / unavailable auto-retry", () => {
+  it("waits, resends the identical body, and streams once the lock is free", async () => {
+    const encoder = new TextEncoder();
+    const okReader = fakeReader([encoder.encode("hi")]);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonError(409, BUSY))
+      .mockResolvedValueOnce({ ok: true, status: 200, body: okReader } as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => true);
+
+    const cb = collectingCallbacks();
+    await runChatStream(
+      { model: "gpt-4o", messages: [{ role: "user", content: "x" }] },
+      new AbortController().signal,
+      cb,
+      { sleep },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep.mock.calls[0]?.[0]).toBe(2000);
+    const bodies = fetchMock.mock.calls.map((c) => (c[1] as { body: string }).body);
+    expect(bodies[0]).toBe(bodies[1]);
+    expect(cb.calls).toEqual(["chunk", "done"]);
+  });
+
+  it("gives up after 3 retries of 409 and shows the server's own message as retryable", async () => {
+    const fetchMock = vi.fn(async () => jsonError(409, BUSY));
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => true);
+
+    const errors: { message: string; retryable: boolean }[] = [];
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, {
+      ...collectingCallbacks(),
+      onError: (e) => errors.push(e),
+    }, { sleep });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4); // 1 try + 3 retries
+    expect(sleep).toHaveBeenCalledTimes(3);
+    expect(errors).toEqual([{ message: BUSY.message, retryable: true }]);
+  });
+
+  it("retries 503 SERVICE_TEMPORARILY_UNAVAILABLE exactly once, after the server's delay", async () => {
+    const fetchMock = vi.fn(async () => jsonError(503, UNAVAILABLE));
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => true);
+
+    const errors: { message: string; retryable: boolean }[] = [];
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, {
+      ...collectingCallbacks(),
+      onError: (e) => errors.push(e),
+    }, { sleep });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleep.mock.calls[0]?.[0]).toBe(5000);
+    expect(errors).toEqual([{ message: UNAVAILABLE.message, retryable: true }]);
+  });
+
+  it("does not auto-retry when the status and code do not match the policy", async () => {
+    const fetchMock = vi.fn(async () => jsonError(500, BUSY));
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => true);
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb, { sleep });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(cb.calls).toEqual(["error"]);
+  });
+
+  it("does not auto-retry other errors (402 stays a single call)", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonError(402, { error: "INSUFFICIENT_BALANCE", message: "رصيدك صفر." }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => true);
+
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal,
+      collectingCallbacks(), { sleep });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("reports stopped, not error, and sends nothing more when Stop is pressed while waiting", async () => {
+    const fetchMock = vi.fn(async () => jsonError(409, BUSY));
+    vi.stubGlobal("fetch", fetchMock);
+    const sleep = vi.fn(async () => false); // aborted during the wait
+
+    const cb = collectingCallbacks();
+    await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb, { sleep });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(cb.calls).toEqual(["stopped"]);
+  });
+
+  it("the real sleep resolves false when the signal aborts mid-wait", async () => {
+    const fetchMock = vi.fn(async () => jsonError(409, { ...BUSY, retryAfterSeconds: 10 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const controller = new AbortController();
+    const cb = collectingCallbacks();
+    const run = runChatStream({ model: "gpt-4o", messages: [] }, controller.signal, cb);
+    await new Promise((r) => setTimeout(r, 20));
+    controller.abort();
+    await run;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(cb.calls).toEqual(["stopped"]);
   });
 });

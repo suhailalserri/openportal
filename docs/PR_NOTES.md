@@ -183,9 +183,14 @@ in `apps/api` (`index.ts` `/chat`), not in the frozen `apps/web` proxy.
 - `409 REQUEST_IN_PROGRESS` — `retryable: true`, `retryAfterSeconds: 2`, header `Retry-After: 2`.
 - `503 SERVICE_TEMPORARILY_UNAVAILABLE` — lock store down (fail closed), `Retry-After: 5`.
 
-**Frontend gap:** neither code is mapped in the chat UI yet. Until it is, a fast follow-up or a
-two-tab send surfaces as a generic error. Needed: retry once after ~2 s on 409 with the same
-`clientMessageId`. This is a `FRONTEND_REBUILD_PLAN` item, not part of this session.
+**Frontend (closed in Session 11):** `features/chat/lib/stream-reader.ts` now retries 409
+`REQUEST_IN_PROGRESS` up to 3 times and 503 `SERVICE_TEMPORARILY_UNAVAILABLE` once, waiting the body's
+`retryAfterSeconds` (clamped 1-10 s; the frozen proxy drops the `Retry-After` header, so the body is
+the source). The identical body is resent. Stop during the wait reports `stopped`. After the last
+attempt the server's own message is shown with the normal retry button. **Correction to Session 10:**
+the web client does not send `clientMessageId` at all today (grep of `apps/web`: zero hits), so the
+"retry with the same `clientMessageId`" wording in Session 10 described the API contract, not the
+current client. It is safe here anyway: a 409/503 is returned before any row is written.
 
 ## Behaviour to know
 
@@ -206,3 +211,19 @@ two-tab send surfaces as a generic error. Needed: retry once after ~2 s on 409 w
   queue is on the same Redis, so during a full outage it may not deliver — P2.2 adds the external
   uptime check that covers this).
 
+
+---
+
+## Session 11 - P1.2 follow-up: frontend 409/503 handling + two CI fixes
+
+- `apps/web/features/chat/lib/stream-reader.ts` - bounded auto-retry (above); new export
+  `autoRetryDelayMs`; optional 4th argument `{ sleep }` as a test seam. Existing callers unchanged.
+- `apps/web/features/chat/lib/stream-reader.test.ts` - 9 added cases (delay clamping, success after
+  a busy reply with identical body, give-up after 3, 503 once, no retry on mismatched status/code or
+  on 402, Stop while waiting, real sleep aborts).
+- `apps/web/lib/account-guard-server.test.ts` - the "DB error propagates" case now throws
+  synchronously inside the mock and asserts with try/catch (was failing in CI: `Error: db down` at
+  the mock's throw line). Production code untouched.
+- `.github/workflows/deploy.yml` - `Build apps/web` in `web-build` and `e2e` retried up to 3 times
+  (15 s / 30 s pauses) for the transient `next/font/google` failure.
+- No frozen-zone edits (`app/api/**`, `lib/auth.ts` untouched).

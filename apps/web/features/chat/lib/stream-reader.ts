@@ -79,45 +79,116 @@ function isAbortError(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { name?: unknown }).name === "AbortError";
 }
 
+/**
+ * P1.2 follow-up. The API rejects a second billed `/chat` from the same user
+ * while the first is still streaming or being billed (409), and fails closed
+ * when its lock store is unreachable (503). Both are rejected BEFORE any
+ * provider call and before any row is written, so resending the identical
+ * body is safe and inserts nothing twice. The wait comes from the JSON body's
+ * `retryAfterSeconds` (the frozen `/api/chat` proxy does not forward the
+ * `Retry-After` header), clamped so a bad value can neither spin nor hang.
+ * Attempts are bounded; when they run out the server's own message is shown
+ * with the normal retry button.
+ */
+const AUTO_RETRY: Record<string, { status: number; max: number; defaultSeconds: number }> = {
+  REQUEST_IN_PROGRESS:             { status: 409, max: 3, defaultSeconds: 2 },
+  SERVICE_TEMPORARILY_UNAVAILABLE: { status: 503, max: 1, defaultSeconds: 5 },
+};
+const MIN_WAIT_SECONDS = 1;
+const MAX_WAIT_SECONDS = 10;
+
+export function autoRetryDelayMs(code: string, retryAfterSeconds: unknown): number {
+  const policy = AUTO_RETRY[code];
+  const fallback = policy ? policy.defaultSeconds : MIN_WAIT_SECONDS;
+  const seconds =
+    typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds)
+      ? retryAfterSeconds
+      : fallback;
+  return Math.min(MAX_WAIT_SECONDS, Math.max(MIN_WAIT_SECONDS, seconds)) * 1000;
+}
+
+/** Resolves true after `ms`, or false as soon as `signal` aborts. */
+function abortableSleep(ms: number, signal: AbortSignal): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve(false);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(true);
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+export interface RunChatStreamOptions {
+  /** Test seam. Must resolve false if `signal` aborts while waiting. */
+  sleep?: (ms: number, signal: AbortSignal) => Promise<boolean>;
+}
+
 export async function runChatStream(
   body: ChatStreamRequestBody,
   signal: AbortSignal,
   callbacks: StreamCallbacks,
+  options: RunChatStreamOptions = {},
 ): Promise<void> {
+  const sleep = options.sleep ?? abortableSleep;
+  const autoRetries: Record<string, number> = {};
   let response: Response;
-  try {
-    response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // JSON.stringify drops keys whose value is `undefined`, so unset
-      // optional params never reach the wire (see the interface comment).
-      body: JSON.stringify(body),
-      signal,
-    });
-  } catch (err) {
-    if (isAbortError(err)) {
-      callbacks.onStopped();
+
+  for (;;) {
+    try {
+      response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // JSON.stringify drops keys whose value is `undefined`, so unset
+        // optional params never reach the wire (see the interface comment).
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (err) {
+      if (isAbortError(err)) {
+        callbacks.onStopped();
+        return;
+      }
+      callbacks.onError({ message: "network", retryable: true });
       return;
     }
-    callbacks.onError({ message: "network", retryable: true });
-    return;
-  }
 
-  if (!response.ok) {
+    if (response.ok) break;
+
     if (response.status === 401) {
       callbacks.onError({ message: "unauthorized", retryable: false, redirectTo: "/auth/login" });
       return;
     }
-    let parsed: { error?: string; message?: string; redirectTo?: string } = {};
+    let parsed: { error?: string; message?: string; redirectTo?: string; retryAfterSeconds?: number } = {};
     try {
       parsed = (await response.json()) as typeof parsed;
     } catch {
       // Non-JSON error body (e.g. an upstream proxy's own HTML error
       // page) — fall through to a generic message rather than throwing.
     }
+
+    const code = parsed.error ?? "";
+    const policy = AUTO_RETRY[code];
+    if (policy && policy.status === response.status && (autoRetries[code] ?? 0) < policy.max) {
+      autoRetries[code] = (autoRetries[code] ?? 0) + 1;
+      const waited = await sleep(autoRetryDelayMs(code, parsed.retryAfterSeconds), signal);
+      if (!waited || signal.aborted) {
+        callbacks.onStopped();
+        return;
+      }
+      continue;
+    }
+
     callbacks.onError({
       message: parsed.message ?? "Something went wrong. Please try again.",
-      retryable: !NOT_RETRYABLE.has(parsed.error ?? ""),
+      retryable: !NOT_RETRYABLE.has(code),
       redirectTo: parsed.redirectTo,
     });
     return;
