@@ -1,16 +1,14 @@
-# Referenced by prometheus.yml's `rule_files: [alerts.yml]` — that line has
-# pointed at this file since Phase 18.3 of the master plan, but the file
-# never existed, so Prometheus was evaluating zero rules the whole time.
+# REFERENCE ONLY — not loaded by anything (2026-09-29, plan P0.2).
 #
-# Metric names below come from apps/api/src/metrics.ts (the aip_* business
-# and technical metrics) and the three exporters added alongside this file
-# (postgres-exporter, redis-exporter, node-exporter default metric names).
+# The Prometheus/Alertmanager/Grafana stack this file was written for was
+# retired with the VPS (ADR-011). These expressions are kept only as a
+# checklist of WHAT to alert on. Plan P2.2 converts the useful ones into
+# app-level Telegram alerts, Sentry rules and uptime monitors, then this
+# file is deleted. Do not add new rules here.
 #
-# Wiring these into Alertmanager → Telegram is a separate step (Phase
-# 11.2's Telegram alerts currently only fire from app-level code, e.g.
-# fraud.service.ts's alertAdmin()). These rules will show as firing in
-# Prometheus's own UI (:9090/alerts) even before Alertmanager is wired up
-# — that alone is worth having before this goes further.
+# Metric names come from apps/api/src/metrics.ts (aip_*); the postgres/
+# redis/node exporter metrics referenced below no longer exist in prod.
+# ──────────────────────────────────────────────────────────────────
 
 groups:
   - name: critical

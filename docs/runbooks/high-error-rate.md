@@ -1,3 +1,9 @@
+> ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
+>
+> The **triage order** is still valid. References to Grafana panels, `docker compose`, and `infra/alerts.yml` thresholds are not. Use Sentry, Render logs and Vercel logs instead. Rewritten in plan P2.1 / P2.2.
+
+---
+
 # Runbook: High Application Error Rate
 
 **Trigger:** Grafana alert `HighErrorRate` (error rate > 5% for 5 minutes) OR

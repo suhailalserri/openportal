@@ -7,7 +7,7 @@ name: DB Operations
 # Setup (one time):
 #   Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
 #   Name: DATABASE_URL
-#   Value: the EXTERNAL connection string from Render's Postgres dashboard,
+#   Value: the Supabase connection string (Project -> Connect). Prefer the session-mode pooler string (port 5432) for DDL; not the 6543 transaction pooler.
 #          including ?sslmode=require
 
 on:
@@ -85,7 +85,7 @@ jobs:
         if: ${{ inputs.task == 'constraints' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "src/migrations/$f.sql"
           done

@@ -1,3 +1,9 @@
+> ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
+>
+> The **triage decision tree** is still valid and useful. The **IP-block commands** (edit `Caddyfile`, `docker compose exec caddy`) are not — there is no Caddy. Blocking an IP now means the Vercel firewall or Cloudflare, or account-level suspension in `/admin`. Revisit with plan P1.1 / P1.3.
+
+---
+
 # Runbook: Fraud Alert
 
 **Trigger:** Telegram alert `FRAUD_USER_AUTO_FLAGGED` or admin panel alert

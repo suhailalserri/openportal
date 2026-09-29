@@ -1,3 +1,5 @@
+> ⚠️ **HISTORICAL — SUPERSEDED (2026-09-29).** This was the original single-VPS design (Docker Compose, Caddy, MinIO, Grafana/Loki, self-hosted Postgres/Valkey, Stripe-style payments). It is kept for design rationale only. Current truth: `docs/architecture/decisions.md` (ADR-011) and `docs/MASTER_PRODUCTION_AND_CAPABILITIES_PLAN.md`. Do not follow its infrastructure or deployment instructions.
+
 # 🧠 Enterprise AI Aggregator & Proxy Platform
 ## Complete Master Implementation Plan — Version 2.0
 ### "Think Big, Build Smart, Scale Forever"

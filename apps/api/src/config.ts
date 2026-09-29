@@ -24,9 +24,6 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
   TURNSTILE_SECRET_KEY:   z.string().optional(),
-  MINIO_ENDPOINT:         z.string().optional(),
-  MINIO_ACCESS_KEY:       z.string().optional(),
-  MINIO_SECRET_KEY:       z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
   // Model id used for the internal history-summarization call (see
   // history-compaction.ts). Deliberately a separate, cheap/fast model —
