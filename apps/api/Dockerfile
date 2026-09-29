@@ -39,10 +39,9 @@ COPY apps/api/ ./apps/api/
 RUN pnpm --filter @ai-platform/api build:bundle
 
 # ─── prod-deps: production dependencies of the api only ────────────────────
-# `--filter @ai-platform/api` (without `...`) installs ONLY the api importer's
-# production dependencies from the lockfile. The @ai-platform/* workspace
-# packages are bundled into dist/, so they and their dependencies (better-auth,
-# ...) are intentionally not installed.
+# `--filter @ai-platform/api` (without `...`) selects only the api importer. The
+# @ai-platform/* workspace packages are bundled into dist/, so their
+# dependencies (better-auth, ...) are not wanted (pruned below).
 FROM base AS prod-deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/db/package.json     ./packages/db/
@@ -50,6 +49,13 @@ COPY packages/types/package.json  ./packages/types/
 COPY packages/config/package.json ./packages/config/
 COPY apps/api/package.json        ./apps/api/
 RUN pnpm install --frozen-lockfile --prod --filter @ai-platform/api
+
+# The install above still leaves the workspace packages' production tree in the
+# store (db -> better-auth -> peers: drizzle-kit, vitest, esbuild). They are
+# bundled into dist/ and never loaded, so delete every store entry that is not
+# reachable from the api's own dependencies (found by CI run #318).
+COPY apps/api/prune-store.mjs /tmp/prune-store.mjs
+RUN node /tmp/prune-store.mjs /app
 
 # ─── runner ────────────────────────────────────────────────────────────────
 FROM ${NODE_IMAGE} AS runner

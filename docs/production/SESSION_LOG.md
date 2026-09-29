@@ -735,3 +735,15 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - Render behaviour: that `PORT` is injected (the api reads it), and that the Pre-Deploy Command is empty (the screenshot did not show that field).
 
 **Next (owner):** put this on a branch/PR first, not straight on `main` (Render builds `main` without waiting for CI). Wait for `API Docker Image` and the other jobs to be green, then merge. Follow "Owner checks after the first deploy" in `docs/runbooks/API_CONTAINER.md`. Optional: set Render to *After CI Checks Pass* and add `API Docker Image` as a required check on `main`. Then tick P3.3 and the LAUNCH_CHECKLIST line. Flagged, not done: Node 20 is end-of-life (2026-04-30); moving to Node 22 is its own change.
+
+## Session 23 - 2026-09-30 - P3.3 CI fix: dev tools left in the pnpm store (`API Docker Image` red, run #318)
+
+**Symptom:** image built (34 s) and the non-root/healthcheck/CMD step passed; "No dev dependencies or source in the final image" failed with `LEAK (store): vitest, drizzle-kit, esbuild`. The boot step was skipped.
+
+**Cause:** none of the three is in the api's own production closure (checked against the lockfile). `pnpm install --prod --filter @ai-platform/api` also installed the production tree of the workspace packages: `@ai-platform/db` -> `better-auth`, whose resolved peers are `drizzle-kit`, `vitest` (and `esbuild` via drizzle-kit). Session 22's assumption that `--filter` without `...` installs only the api's tree was wrong. The direct-dependency checks (`tsx`, `pino-pretty`, ...) passed; the store check did its job.
+
+**Changed:** new `apps/api/prune-store.mjs` (walks the symlink graph from `apps/api/node_modules` and deletes every `.pnpm` entry not reachable, so nothing the api can load is removed), `apps/api/Dockerfile` (runs it at the end of the `prod-deps` stage). The CI check is unchanged on purpose. No DELETE list. Frozen zone untouched.
+
+**Verified (executed here):** the script on a fake pnpm tree: keeps direct deps and their transitive deps (fastify -> pino), removes an unrelated better-auth/vitest/esbuild chain, skips dangling `@ai-platform/*` links, exits non-zero if it would keep nothing.
+
+**Not verified:** the script on a real pnpm 9 store (symlink layout assumed from pnpm's documented structure); the boot step, which never ran in #318. If the boot step fails with a "Cannot find module", send the log: it would mean a dependency was pruned that the api loads through a path the walk does not follow.
