@@ -328,3 +328,11 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   warning at >=70% memory. Provider blocking CONFIG/INFO degrades to a one-time log line, never an error.
 - Behaviour change: none on request paths; all additions are fire-and-forget (L12).
 - Owner steps + drills: `docs/runbooks/REDIS_POLICY.md`.
+
+## Session 16 - P2.2 Alert delivery (closes G4)
+- One Telegram sender (`monitoring/telegram.ts`): plain text, redacted, 4 s timeout, never throws. The alert worker now throws on a failed send so BullMQ retries.
+- `queueAlert()` falls back to a direct send when Redis is down or slow (>3 s). Rare duplicate alert possible; a lost one is not.
+- New alerts: provider failing (>50% of >=5 calls in 2 min), >5 failed deductions/min, fraud auto-suspend. All fire-and-forget, cooldown 15 min (fraud: 1 h per user+type).
+- New routes: `GET /health/gateway` (public, cached 30 s, up/down only) and `POST /internal/sentry-alert?token=` (404 unless `SENTRY_WEBHOOK_TOKEN` set; forwards title/rule/project/link only).
+- Deleted `infra/alerts.yml`; mapping in `docs/runbooks/ALERTING.md`.
+- Behaviour change: none on request paths (L12). `fraud.service` now imports the shared sender instead of calling fetch itself.

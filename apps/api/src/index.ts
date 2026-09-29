@@ -27,12 +27,18 @@ import { registerFastifyErrorReporting } from "./monitoring/fastify-errors";
 import { attachWorkerErrorReporting } from "./monitoring/worker-errors";
 import { installProcessErrorHandlers } from "./monitoring/process-handlers";
 import { isAuthorizedSmokeTest, smokeTestError } from "./monitoring/smoke-test";
+import { installAlertSignals } from "./monitoring/alert-wiring";
+import { createGatewayProbe } from "./monitoring/gateway-health";
+import { isAuthorizedSentryWebhook, formatSentryAlert } from "./monitoring/sentry-webhook";
+import { sendTelegram } from "./monitoring/telegram";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
 // No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
 initSentry();
 // Unhandled rejections: log + report + keep serving (see process-handlers.ts).
 installProcessErrorHandlers();
+// P2.2: provider-outage and credit-deduction detectors -> Telegram (queue, direct fallback).
+installAlertSignals((message, level) => { void queueAlert(message, level).catch(() => {}); });
 
 const proxyHops = trustedProxyHopsFromEnv();
 
@@ -79,6 +85,35 @@ app.get("/health", async () => ({
   timestamp: new Date().toISOString(),
   version:   process.env.npm_package_version ?? "1.0.0",
 }));
+
+// ── Gateway synthetic check (P2.2) ─────────────────────────────────────
+// For the external uptime monitor. The gateway is private (N8), so the monitor
+// probes THIS route and the api probes the gateway. 200 = gateway answered
+// (any status < 500), 503 = network error / timeout / 5xx. No detail leaked;
+// result cached 30 s so this public route cannot be used to hammer the gateway.
+const gatewayProbe = createGatewayProbe({ url: `${config.GATEWAY_URL.replace(/\/+$/, "")}/api/status` });
+app.get("/health/gateway", async (_req, reply) => {
+  const up = await gatewayProbe.isUp();
+  reply.status(up ? 200 : 503).send({ status: up ? "ok" : "down" });
+});
+
+// ── Sentry -> Telegram relay (P2.2) ────────────────────────────────────
+// Sentry alert rule -> Webhook action -> this URL. Off (404) unless
+// SENTRY_WEBHOOK_TOKEN is set. Forwards only title/level/project/link.
+app.post("/internal/sentry-alert", async (req, reply) => {
+  const token = (req.query as { token?: unknown } | undefined)?.token;
+  if (!config.SENTRY_WEBHOOK_TOKEN) {
+    reply.status(404).send({ error: "Not found" });
+    return;
+  }
+  if (!isAuthorizedSentryWebhook(token, config.SENTRY_WEBHOOK_TOKEN)) {
+    reply.status(401).send({ error: "Unauthorized" });
+    return;
+  }
+  const { message, level } = formatSentryAlert(req.body);
+  const result = await sendTelegram(message, level);
+  reply.status(result.ok || !result.configured ? 200 : 502).send({ delivered: result.ok });
+});
 
 // ── Sentry smoke test (P2.1) ───────────────────────────────────────────
 // No staging environment exists, so "a deliberate error reaches Sentry within a

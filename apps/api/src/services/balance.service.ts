@@ -2,6 +2,7 @@ import { db, balances, transactions } from "@ai-platform/db";
 import { and, eq, gte, sql } from "drizzle-orm";
 import type { DeductResult } from "@ai-platform/types";
 import { balanceDeductionFailuresTotal, recordCreditsRedeemed } from "../metrics";
+import { signalDeductionFailure } from "../monitoring/alert-hook";
 import { fraudService } from "./fraud.service";
 
 /**
@@ -66,6 +67,7 @@ export async function deductCreditsAtomic(
       // counting: a sustained rise here means something upstream (the
       // pre-flight getBalance check) is stale or being bypassed.
       balanceDeductionFailuresTotal.inc();
+      signalDeductionFailure(); // P2.2: burst detector -> Telegram
       return { success: false, newBalance: 0, reason: "INSUFFICIENT_BALANCE" };
     }
 

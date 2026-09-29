@@ -23,6 +23,9 @@ const envSchema = z.object({
   CODE_SALT:              z.string().min(16),
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
+  // P2.2: shared secret in the URL of POST /internal/sentry-alert (Sentry webhooks cannot
+  // send headers). Unset or < 24 chars => that endpoint is disabled (404).
+  SENTRY_WEBHOOK_TOKEN:   z.string().min(24).optional(),
   TURNSTILE_SECRET_KEY:   z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
   // Model id used for the internal history-summarization call (see

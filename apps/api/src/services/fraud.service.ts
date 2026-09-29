@@ -5,6 +5,7 @@ import type { FraudCheckResult, FraudEventInput } from "@ai-platform/types";
 import { recordFraudEvent } from "../metrics";
 import { revokeUserSessions } from "./session-revocation.service";
 import Redis from "ioredis";
+import { sendTelegram } from "../monitoring/telegram";
 
 // See metrics.ts for why this reads process.env directly rather than
 // importing the full Zod-validated `./config` — same cross-boundary
@@ -13,6 +14,9 @@ const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 export class FraudService {
   constructor(private redis: { incr: Function; expire: Function; sadd: Function; scard: Function; incrby: Function }) {}
+
+  /** P2.2: last auto-suspend alert per "user:type" (per process). */
+  private suspendAlertedAt = new Map<string, number>();
 
   private today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -119,19 +123,24 @@ export class FraudService {
           console.error("fraud: session revocation failed", err);
         }
       }
+
+      // P2.2: tell the operator about every automatic suspension (plan G4).
+      // HIGH_SPEND_VELOCITY already sends its own, more specific message.
+      // De-duplicated per user+type for an hour so a retry loop cannot spam.
+      if (event.type !== "HIGH_SPEND_VELOCITY") {
+        const key = `${event.userId ?? "unknown"}:${event.type}`;
+        const t = Date.now();
+        if (t - (this.suspendAlertedAt.get(key) ?? 0) > 3_600_000) {
+          this.suspendAlertedAt.set(key, t);
+          await this.alertAdmin(`🚨 FRAUD AUTO-SUSPEND: user ${event.userId ?? "unknown"} flagged (${event.type}). Review in admin > fraud.`);
+        }
+      }
     }
   }
 
   private async alertAdmin(message: string): Promise<void> {
-    const token  = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) return;
-
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ chat_id: chatId, text: message }),
-    }).catch(console.error);
+    // P2.2: shared sender (plain text, redacted, timeout, never throws).
+    await sendTelegram(message, "critical");
   }
 }
 

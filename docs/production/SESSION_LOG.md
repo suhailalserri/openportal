@@ -606,3 +606,25 @@ shim the 24 pure tests (`job-failures`, `redis-health`) pass.
 **Next (owner):** CI green (`api-tests` must list the 3 new test files); do the runbook steps + drills;
 then tick P2.3 and LAUNCH_CHECKLIST line 33. Next phase: P2.2 (alert delivery, incl. direct-Telegram
 fallback because `queueAlert` goes through Redis).
+
+## Session 16 - 2026-09-30 - P2.2 Alert delivery (closes G4) - code done, owner setup + drills pending
+
+**Plan vs code (told to owner):**
+- `queueAlert()` goes through Redis, so a Redis outage hid its own alert. Added a direct-Telegram fallback (not in the plan text).
+- The old alert worker used Telegram `parse_mode: Markdown` and swallowed errors: an underscore in a message meant a 400 and a silently lost alert. Replaced by one plain-text, redacted sender; a failed send now throws so BullMQ retries and Sentry sees it.
+- Sentry webhooks cannot send headers, so the relay uses a URL token (`SENTRY_WEBHOOK_TOKEN`), off (404) when unset.
+- Fraud auto-suspend had NO alert (only HIGH_SPEND_VELOCITY did). Added one, de-duplicated per user+type per hour.
+
+**New (apps/api/src/monitoring):** `alert-hook.ts` (dependency-free seam), `alert-rules.ts` (provider error-ratio + deduction-count detectors), `alert-wiring.ts`, `telegram.ts` (single sender), `deliver-alert.ts` (queue-first, direct fallback), `sentry-webhook.ts`, `gateway-health.ts`; tests `alert-rules.test.ts`, `telegram.test.ts`, `sentry-webhook.test.ts`; runbook `docs/runbooks/ALERTING.md`.
+**Changed:** `jobs/queue.ts` (queueAlert), `jobs/alert.worker.ts`, `services/fraud.service.ts`, `services/balance.service.ts` (signal), `metrics.ts` (signal in recordUpstreamCall), `config.ts` (SENTRY_WEBHOOK_TOKEN), `index.ts` (installAlertSignals, `GET /health/gateway`, `POST /internal/sentry-alert`), `.env.example`, `docs/runbooks/high-error-rate.md`. No frozen file touched.
+**DELETE:** `infra/alerts.yml` (converted into ALERTING.md).
+
+**Verified (executed here, no node_modules):** syntax parse of all touched TS; 31 pure tests pass under a minimal vitest shim (detectors, sender, redaction, fallback, Sentry payload formatting, webhook auth, gateway probe cache).
+
+**Not verified (cannot run the repo here):** `tsc`, lint, real vitest, CI, real Telegram, Sentry, UptimeRobot.
+- The real Sentry webhook payload shape (extraction is tolerant, falls back to a generic line). Use "Send test notification" and tell me what arrives.
+- The gateway path `/api/status` (any status < 500 counts as up, so a 401 is fine; a 404 from a different gateway version would also count as up).
+- Fraud auto-suspend alert and the balance/metrics signal calls are not covered by a DB test.
+- Sentry/Render/Vercel/Supabase UI steps in the runbook are from memory.
+
+**Next (owner):** CI green; set `SENTRY_WEBHOOK_TOKEN` on Render; do runbook sections 2-4; run the drills; tick P2.2 and the LAUNCH_CHECKLIST line. Then P3.2 (graceful shutdown) or P1.3 leftovers per triage; P3.1 needs P1.3 (done).

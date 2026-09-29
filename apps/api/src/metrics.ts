@@ -13,6 +13,7 @@
  * under-count the moment there's more than one api container.
  */
 import client from "prom-client";
+import { signalUpstreamCall } from "./monitoring/alert-hook";
 import Redis  from "ioredis";
 
 // Deliberately NOT importing `./config` here (the Zod-validated env
@@ -192,6 +193,7 @@ export function recordUpstreamCall(
   upstreamRequestsTotal.labels(provider, model).inc();
   upstreamDuration.labels(provider, model).observe(durationSeconds);
   if (!ok) upstreamErrorsTotal.labels(provider, model, String(status ?? "network_error")).inc();
+  signalUpstreamCall(provider, ok); // P2.2: provider-outage detector -> Telegram
 }
 
 export function recordFraudEvent(type: string, severity: string): void {

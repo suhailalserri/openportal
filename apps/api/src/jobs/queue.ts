@@ -2,6 +2,8 @@ import { Queue, Worker, type Job } from "bullmq";
 import { config } from "../config";
 import { parseRedisConnection } from "../utils/redis-connection";
 import { jobRetention } from "./queue-policy";
+import { deliverAlert } from "../monitoring/deliver-alert";
+import { sendTelegram } from "../monitoring/telegram";
 
 const connection = parseRedisConnection(config.REDIS_URL);
 
@@ -32,8 +34,16 @@ export async function queueEmail(type: string, data: Record<string, unknown>) {
   return emailQueue.add(type, data);
 }
 
+/**
+ * P2.2: queue first (retries, worker), but if Redis is down or slow, send
+ * straight to Telegram so an outage of Redis itself is still reported.
+ * Never throws.
+ */
 export async function queueAlert(message: string, level: "info" | "warning" | "critical" = "info") {
-  return alertQueue.add("telegram", { message, level, timestamp: new Date().toISOString() });
+  return deliverAlert({
+    enqueue:    () => alertQueue.add("telegram", { message, level, timestamp: new Date().toISOString() }),
+    sendDirect: () => sendTelegram(message, level),
+  });
 }
 
 export async function queueSaveMessage(data: Record<string, unknown>) {

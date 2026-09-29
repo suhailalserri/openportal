@@ -1,4 +1,5 @@
 import { Worker, type Job } from "bullmq";
+import { sendTelegram } from "../monitoring/telegram";
 
 interface AlertJob {
   message:   string;
@@ -10,21 +11,13 @@ export function startAlertWorker(connection: { host: string; port: number; passw
   return new Worker("alerts", async (job: Job<AlertJob>) => {
     if (job.name !== "telegram") return;
 
-    const token  = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) return;
-
-    const emoji = job.data.level === "critical" ? "🚨"
-                : job.data.level === "warning"  ? "⚠️" : "ℹ️";
-
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        chat_id:    chatId,
-        text:       `${emoji} *AI Platform Alert*\n\n${job.data.message}\n\n_${job.data.timestamp}_`,
-        parse_mode: "Markdown",
-      }),
-    }).catch(console.error);
+    // P2.2: shared plain-text sender (redacted, bounded). A failed send now
+    // THROWS so BullMQ retries (attempts: 3) and Sentry sees it; before, the
+    // error was swallowed and a bad message was lost silently. Missing
+    // TELEGRAM_* env stays a quiet no-op.
+    const result = await sendTelegram(job.data.message, job.data.level);
+    if (result.configured && !result.ok) {
+      throw new Error(`Telegram send failed (status ${result.status ?? "network"})`);
+    }
   }, { connection, concurrency: 2 });
 }

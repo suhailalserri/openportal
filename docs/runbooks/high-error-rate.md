@@ -1,6 +1,6 @@
 > ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
 >
-> The **triage order** is still valid. References to Grafana panels, `docker compose`, and `infra/alerts.yml` thresholds are not. Use Sentry, Render logs and Vercel logs instead. Rewritten in plan P2.1 / P2.2.
+> The **triage order** is still valid. References to Grafana panels and `docker compose` are not (`infra/alerts.yml` was converted into `docs/runbooks/ALERTING.md` in P2.2). Use Sentry, Render logs and Vercel logs instead.
 
 > **Sentry (P2.1).** The api now reports server faults to Sentry (`service:api`, release = deployed commit). Start there: filter by `service:api`, then by tag `source` (`trpc` | `fastify` | `worker` | `billing` | `unhandledRejection`) and `procedure` / `route` / `queue`. Expected outcomes (401/403/400/404/429) are deliberately not reported. Web-side tRPC faults appear under the web project as `trpc-server`. No events during a real incident means either `SENTRY_DSN` is unset on Render or the scrubber dropped them: check Render logs for `[sentry]` lines. Drill: see `.env.example` (`/internal/sentry-test`).
 
@@ -96,4 +96,4 @@ infrastructure (disk, DB, Redis, provider) before touching code again.
 
 - Log start/end time, root cause, and user-facing impact for the weekly report.
 - If root cause was (c) or (d), consider whether a Grafana alert should
-  have caught this earlier — update `infra/alerts.yml` thresholds if not.
+  have caught this earlier — update the rules in `docs/runbooks/ALERTING.md` if not.
