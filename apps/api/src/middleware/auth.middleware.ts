@@ -4,6 +4,7 @@ import { eq, and, gt }         from "drizzle-orm";
 import { createHash }          from "node:crypto";
 import { touchActiveUser }     from "../metrics";
 import { assertUsableAccount, ACCOUNT_REST_ERROR } from "../utils/account-guard";
+import { isInternalTokenAuth } from "../utils/client-ip";
 
 /**
  * P1.1 / L14: the single place this file decides whether a resolved user may
@@ -38,10 +39,14 @@ export async function authMiddleware(
   // ── Path 1: Internal service-to-service token (web → api) ──────────
   // The Next.js web app forwards verified user sessions using a shared
   // secret + X-User-ID header. Validate the secret first, then load user.
-  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  // P3.4: constant-time compare, and accepts INTERNAL_SERVICE_TOKEN_PREVIOUS
+  // while a rotation is in progress (see docs/runbooks/secret-rotation.md).
   if (
-    internalToken &&
-    authHeader === `Bearer ${internalToken}` &&
+    isInternalTokenAuth(
+      authHeader,
+      process.env.INTERNAL_SERVICE_TOKEN,
+      process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS,
+    ) &&
     request.headers["x-user-id"]
   ) {
     const userId = request.headers["x-user-id"] as string;

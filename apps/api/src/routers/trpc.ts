@@ -60,7 +60,7 @@ export async function createContext({
   const ip = resolveApiClientIp({
     headers:             req.headers,
     requestIp:           req.ip,
-    internalAuth:        isInternalTokenAuth(req.headers.authorization, process.env.INTERNAL_SERVICE_TOKEN),
+    internalAuth:        isInternalTokenAuth(req.headers.authorization, process.env.INTERNAL_SERVICE_TOKEN, process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS),
     trustCfConnectingIp: trustCfConnectingIpFromEnv(),
   });
 

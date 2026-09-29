@@ -191,7 +191,7 @@ app.post("/internal/sentry-alert", async (req, reply) => {
 // The thrown error is reported by the Fastify onError hook, exactly like a real
 // unhandled route error, so this exercises the real path end to end.
 app.post("/internal/sentry-test", async (req, reply) => {
-  if (!isAuthorizedSmokeTest(req.headers.authorization, config.INTERNAL_SERVICE_TOKEN)) {
+  if (!isAuthorizedSmokeTest(req.headers.authorization, config.INTERNAL_SERVICE_TOKEN, config.INTERNAL_SERVICE_TOKEN_PREVIOUS)) {
     reply.status(401).send({ error: "Unauthorized" });
     return;
   }
@@ -368,6 +368,13 @@ async function handleChat(
 try {
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
   console.log(`🚀 API running on :${config.PORT} [${config.NODE_ENV}]`);
+  // P3.4: a leftover overlap token keeps a retired secret valid. Say so at every boot.
+  if (config.INTERNAL_SERVICE_TOKEN_PREVIOUS && config.INTERNAL_SERVICE_TOKEN_PREVIOUS.length >= 32) {
+    console.warn(
+      "⚠️ INTERNAL_SERVICE_TOKEN_PREVIOUS is set: the api also accepts the OLD internal token. " +
+      "Remove it once web uses the new token (docs/runbooks/secret-rotation.md).",
+    );
+  }
 } catch (err) {
   app.log.error(err);
   process.exit(1);

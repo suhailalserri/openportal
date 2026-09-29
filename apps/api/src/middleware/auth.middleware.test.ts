@@ -112,3 +112,41 @@ describe("authMiddleware — account guard on all three paths (P1.1 / G2)", () =
     expect(req.user?.id).toBe(userId);
   });
 });
+
+describe("authMiddleware - INTERNAL_SERVICE_TOKEN rotation overlap (P3.4)", () => {
+  const OLD = "old-internal-token-for-tests-0123456789abcd";
+  const reqWith = (token: string, userId: string): any => ({
+    headers: { authorization: `Bearer ${token}`, "x-user-id": userId },
+  });
+
+  it("accepts the previous token only while INTERNAL_SERVICE_TOKEN_PREVIOUS is set", async () => {
+    const { userId } = await createTestUser(db, schema);
+    try {
+      process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS = OLD;
+      const during = reqWith(OLD, userId), r1 = fakeReply();
+      await authMiddleware(during, r1);
+      expect(during.isInternalAuth).toBe(true);
+      expect(r1.sent).toBe(false);
+
+      delete process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS;
+      const after = reqWith(OLD, userId), r2 = fakeReply();
+      await authMiddleware(after, r2);
+      expect(after.isInternalAuth).not.toBe(true);
+      expect(after.user).toBeUndefined();
+    } finally {
+      delete process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS;
+    }
+  });
+
+  it("the current token keeps working during the overlap", async () => {
+    const { userId } = await createTestUser(db, schema);
+    try {
+      process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS = OLD;
+      const req = internalReq(userId), reply = fakeReply();
+      await authMiddleware(req, reply);
+      expect(req.isInternalAuth).toBe(true);
+    } finally {
+      delete process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS;
+    }
+  });
+});

@@ -99,13 +99,30 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** True only for `Authorization: Bearer <INTERNAL_SERVICE_TOKEN>`. */
+/** A rotation-overlap token must be as strong as the real one (config.ts: min 32). */
+const MIN_TOKEN_LENGTH = 32;
+
+/**
+ * True only for `Authorization: Bearer <INTERNAL_SERVICE_TOKEN>`, or, during a
+ * rotation (P3.4), `Bearer <INTERNAL_SERVICE_TOKEN_PREVIOUS>`.
+ *
+ * `previousToken` is ignored unless it is >= 32 chars and differs from the
+ * current token, so a blank or weak leftover value can never open the door.
+ * Both comparisons always run (no early return between them).
+ */
 export function isInternalTokenAuth(
   authorization: string | string[] | undefined,
   internalToken: string | undefined,
+  previousToken?: string | undefined,
 ): boolean {
-  if (!internalToken || typeof authorization !== "string") return false;
-  return safeEqual(authorization, `Bearer ${internalToken}`);
+  if (typeof authorization !== "string") return false;
+  const okCurrent = !!internalToken && safeEqual(authorization, `Bearer ${internalToken}`);
+  const usablePrevious =
+    typeof previousToken === "string" &&
+    previousToken.length >= MIN_TOKEN_LENGTH &&
+    previousToken !== internalToken;
+  const okPrevious = usablePrevious && safeEqual(authorization, `Bearer ${previousToken}`);
+  return okCurrent || okPrevious;
 }
 
 export interface ApiClientIpInput {

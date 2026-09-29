@@ -17,6 +17,11 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET:     z.string().min(32),
   // Shared secret between web (Next.js) and api (Fastify) for internal calls
   INTERNAL_SERVICE_TOKEN: z.string().min(32),
+  // P3.4: set ONLY during an INTERNAL_SERVICE_TOKEN rotation, on the api, to the
+  // OLD token. The api then accepts both. Lenient on purpose (a blank value from
+  // the dashboard must not stop boot); tokens under 32 chars are ignored.
+  // Remove it when the rotation is finished (docs/runbooks/secret-rotation.md).
+  INTERNAL_SERVICE_TOKEN_PREVIOUS: z.string().optional(),
   RESEND_API_KEY:         z.string().min(1),
   RESEND_FROM_EMAIL:      z.string().email(),
   RESEND_FROM_NAME:       z.string().default("AI Platform"),

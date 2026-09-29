@@ -747,3 +747,26 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 **Verified (executed here):** the script on a fake pnpm tree: keeps direct deps and their transitive deps (fastify -> pino), removes an unrelated better-auth/vitest/esbuild chain, skips dangling `@ai-platform/*` links, exits non-zero if it would keep nothing.
 
 **Not verified:** the script on a real pnpm 9 store (symlink layout assumed from pnpm's documented structure); the boot step, which never ran in #318. If the boot step fails with a "Cannot find module", send the log: it would mean a dependency was pruned that the api loads through a path the walk does not follow.
+
+## Session 24 - 2026-09-30 - P3.4 Secrets & rotation (closes G12) - code + runbook done, owner rehearsal pending
+
+**Plan vs code (told to owner, approved: "OK"):**
+- `INTERNAL_SERVICE_TOKEN` was compared against a single value in three api places, so any rotation meant 401s on web to api calls. Added an optional `INTERNAL_SERVICE_TOKEN_PREVIOUS` (api only) for a zero-401 rotation.
+- `auth.middleware.ts` compared the token with `===` (not constant time); it now uses `isInternalTokenAuth`/`safeEqual`, the same helper as the tRPC context.
+- No code uses a Supabase service-role key; the runbook says to check the dashboards for a stray copy.
+- No staging exists: the rehearsal runs on production, in a quiet window.
+- Found while writing the runbook (unverified, flagged in it): rotating `BETTER_AUTH_SECRET` may also break stored 2FA secrets, not only sessions.
+
+**New:** `docs/runbooks/secret-rotation.md`, `SECURITY.md`, `apps/api/src/utils/internal-token-rotation.test.ts`.
+**Changed:** `apps/api/src/config.ts` (+`INTERNAL_SERVICE_TOKEN_PREVIOUS`, optional), `utils/client-ip.ts` (`isInternalTokenAuth` third param), `middleware/auth.middleware.ts`, `routers/trpc.ts`, `monitoring/smoke-test.ts`, `index.ts` (smoke-test call + boot warning), `middleware/auth.middleware.test.ts` (+2 tests), `.env.example`, `docs/MASTER_PLAN.md`, `docs/LAUNCH_CHECKLIST.md`. Frozen zone untouched (web needs no change: it reads the new env value after a redeploy). No DELETE list.
+
+**Verified (executed here):** Node type-strip parse of every touched file; the pure functions run against 12 assertions mirroring the new tests (current and previous accepted, previous refused when unset/blank/short/equal, array header refused, no current token configured).
+
+**Not verified (cannot run the repo here):**
+- `tsc`, lint, real vitest, CI. Typing from memory: the optional third parameter with `exactOptionalPropertyTypes`, `process.env.X` passed to `string | undefined`.
+- The 2 new `auth.middleware.test.ts` tests (need the Testcontainers DB and the file's `vi.mock` harness).
+- Every dashboard click path in the runbook (Render, Vercel, Supabase, Upstash, Resend, Sentry, Telegram, Cloudflare, Google).
+- Whether better-auth in this repo ties 2FA secrets to `BETTER_AUTH_SECRET`, and whether it supports a previous-secret list.
+- Whether any other caller besides web chat uses the internal token (uptime monitor, scripts): grep found only `apps/web/app/api/chat/route.ts`.
+
+**Next (owner):** CI green (`API Tests` should list `internal-token-rotation.test.ts` and 2 new middleware tests). Turn on GitHub secret scanning + push protection. Rehearse the `INTERNAL_SERVICE_TOKEN` rotation from the runbook (25 chat requests before and after, zero 401s), then tick P3.4 and the LAUNCH_CHECKLIST line. Check Render/Vercel/GitHub for a stray Supabase service-role key. Next per plan: P3.5 (security sweep).
