@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { closeRedisClient } from "../lifecycle/redis-close";
 
 // Same cross-boundary reasoning as fraud.service.ts: this module is
 // imported from apps/api's own request handlers, and reads process.env
@@ -59,3 +60,6 @@ idempotencyRedis.on("error", (err) => {
 });
 
 export const chatIdempotencyRedis = idempotencyRedis;
+
+/** P3.2: graceful shutdown. Never throws. */
+export const closeIdempotencyRedis = (): Promise<void> => closeRedisClient(idempotencyRedis);

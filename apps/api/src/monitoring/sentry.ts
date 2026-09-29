@@ -74,3 +74,18 @@ export function captureApiError(error: unknown, context?: ErrorContext): void {
     // best-effort
   }
 }
+
+/**
+ * P3.2: flush queued events before the process exits (shutdown is the moment
+ * the last errors of this instance are most likely still buffered).
+ * Bounded, never throws, a no-op when Sentry is off.
+ */
+export async function flushSentry(timeoutMs = 2_000): Promise<void> {
+  try {
+    if (!enabled) return;
+    await Sentry.flush(timeoutMs);
+  } catch {
+    // best-effort
+  }
+}
+

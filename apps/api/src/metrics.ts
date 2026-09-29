@@ -15,6 +15,7 @@
 import client from "prom-client";
 import { signalUpstreamCall } from "./monitoring/alert-hook";
 import Redis  from "ioredis";
+import { closeRedisClient } from "./lifecycle/redis-close";
 
 // Deliberately NOT importing `./config` here (the Zod-validated env
 // object) even though it already has REDIS_URL. config.ts requires ~10
@@ -247,3 +248,6 @@ export async function metricsHandler(
   reply.header("Content-Type", registry.contentType);
   reply.send(await registry.metrics());
 }
+
+/** P3.2: graceful shutdown. Never throws. */
+export const closeMetricsRedis = (): Promise<void> => closeRedisClient(metricsRedis);

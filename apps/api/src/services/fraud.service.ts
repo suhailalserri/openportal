@@ -5,6 +5,7 @@ import type { FraudCheckResult, FraudEventInput } from "@ai-platform/types";
 import { recordFraudEvent } from "../metrics";
 import { revokeUserSessions } from "./session-revocation.service";
 import Redis from "ioredis";
+import { closeRedisClient } from "../lifecycle/redis-close";
 import { sendTelegram } from "../monitoring/telegram";
 
 // See metrics.ts for why this reads process.env directly rather than
@@ -176,3 +177,6 @@ fraudRedis.on("error", (err) => {
 });
 
 export const fraudService = new FraudService(fraudRedis);
+
+/** P3.2: graceful shutdown. Never throws. */
+export const closeFraudRedis = (): Promise<void> => closeRedisClient(fraudRedis);

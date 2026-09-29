@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { closeRedisClient } from "../lifecycle/redis-close";
 import crypto from "node:crypto";
 import {
   billingLockRejectedTotal,
@@ -259,4 +260,12 @@ export function replyForLockError(
   }
 
   return false;
+}
+
+/** P3.2: graceful shutdown. Never throws; a no-op if the lock client was never created. */
+export async function closeBillingLockRedis(): Promise<void> {
+  if (!sharedRedis) return;
+  const client = sharedRedis;
+  sharedRedis = null;
+  await closeRedisClient(client);
 }

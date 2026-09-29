@@ -1,4 +1,4 @@
-import Fastify           from "fastify";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors              from "@fastify/cors";
 import helmet            from "@fastify/helmet";
 import cookie            from "@fastify/cookie";
@@ -11,8 +11,8 @@ import { startAlertWorker } from "./jobs/alert.worker";
 import { startReportWorker } from "./jobs/report.worker";
 import { registerScheduledJobs, runRedisHealthCheck } from "./jobs/scheduled.jobs";
 import { createFailureTracker, attachJobFailureTracking } from "./jobs/job-failures";
-import { reportQueue, queueAlert } from "./jobs/queue";
-import { metricsHandler, recordHttpRequest, instrumentWorker, jobFailuresTotal } from "./metrics";
+import { reportQueue, emailQueue, alertQueue, messageQueue, queueAlert } from "./jobs/queue";
+import { metricsHandler, recordHttpRequest, instrumentWorker, jobFailuresTotal, closeMetricsRedis } from "./metrics";
 import { parseRedisConnection } from "./utils/redis-connection";
 // B1: kept as a plain top-level import (not the lazy `await import(...)`
 // pattern used for ./services/* below) — chat.schema.ts is pure validation
@@ -31,6 +31,17 @@ import { installAlertSignals } from "./monitoring/alert-wiring";
 import { createGatewayProbe } from "./monitoring/gateway-health";
 import { isAuthorizedSentryWebhook, formatSentryAlert } from "./monitoring/sentry-webhook";
 import { sendTelegram } from "./monitoring/telegram";
+import { db, closeDb } from "@ai-platform/db";
+import { sql } from "drizzle-orm";
+import { flushSentry } from "./monitoring/sentry";
+import {
+  createShutdownController,
+  installShutdownSignalHandlers,
+  shutdownTimingFromEnv,
+  SHUTTING_DOWN_BODY,
+  type ShutdownCloser,
+} from "./lifecycle/shutdown";
+import { createReadiness } from "./lifecycle/readiness";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
 // No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
@@ -39,6 +50,41 @@ initSentry();
 installProcessErrorHandlers();
 // P2.2: provider-outage and credit-deduction detectors -> Telegram (queue, direct fallback).
 installAlertSignals((message, level) => { void queueAlert(message, level).catch(() => {}); });
+
+// P3.2 (closes N2): graceful shutdown. Workers are created later (production only),
+// so they register here and the closers list is built when SIGTERM arrives.
+const workers: Array<{ close: () => Promise<unknown> }> = [];
+const shutdown = createShutdownController({
+  ...shutdownTimingFromEnv(),
+  log: (level, message) => {
+    if (level === "error") console.error(message);
+    else if (level === "warn") console.warn(message);
+    else console.log(message);
+  },
+  onAbort: (count) => {
+    void queueAlert(`⚠️ Deploy: aborted ${count} stream(s) at the drain deadline; they were billed for content already streamed.`, "warning").catch(() => {});
+  },
+  closers: (): ShutdownCloser[] => [
+    // 1. Stop the HTTP server (idle keep-alive connections are closed; nothing billed is in flight now).
+    { name: "http", close: () => app.close() },
+    // 2. Background work, then the queues' own Redis connections.
+    ...workers.map((w, i) => ({ name: `worker:${i}`, close: () => w.close() })),
+    { name: "queue:email",    close: () => emailQueue.close() },
+    { name: "queue:alerts",   close: () => alertQueue.close() },
+    { name: "queue:messages", close: () => messageQueue.close() },
+    { name: "queue:reports",  close: () => reportQueue.close() },
+    // 3. The other Redis clients.
+    { name: "redis:billing-lock", close: async () => (await import("./services/billing-lock.service")).closeBillingLockRedis() },
+    { name: "redis:idempotency",  close: async () => (await import("./services/chat-idempotency.service")).closeIdempotencyRedis() },
+    { name: "redis:fraud",        close: async () => (await import("./services/fraud.service")).closeFraudRedis() },
+    { name: "redis:metrics",      close: () => closeMetricsRedis() },
+    // 4. Database (waits for already-sent queries, so the post-stream message save lands), then Sentry.
+    { name: "db",     close: () => closeDb(5) },
+    { name: "sentry", close: () => flushSentry(2_000) },
+  ],
+  exit: (code) => process.exit(code),
+});
+installShutdownSignalHandlers(shutdown);
 
 const proxyHops = trustedProxyHopsFromEnv();
 
@@ -79,12 +125,33 @@ await app.register(fastifyTRPCPlugin, {
   },
 });
 
-// ── Health check ───────────────────────────────────────────────────────
+// While draining, tell keep-alive clients (Render's proxy) not to reuse this connection.
+app.addHook("onSend", async (_req, reply) => {
+  if (shutdown.isDraining()) reply.header("Connection", "close");
+});
+
+// ── Health check (liveness) ────────────────────────────────────────────
+// Deliberately dependency-free and 200 even while draining: Render's health
+// check points HERE, so a Redis/DB blip or a deploy drain never gets a healthy
+// instance pulled and restarted. Readiness is /ready below.
 app.get("/health", async () => ({
   status:    "ok",
   timestamp: new Date().toISOString(),
   version:   process.env.npm_package_version ?? "1.0.0",
 }));
+
+// ── Readiness (P3.2) ───────────────────────────────────────────────────
+// DB (SELECT 1) + Redis (PING), short timeouts, cached 5 s. 503 while draining.
+// For the external uptime monitor, NOT for Render's health check (see /health).
+const readiness = createReadiness({
+  checkDb:    () => db.execute(sql`select 1`),
+  checkRedis: async () => (await reportQueue.client).ping(),
+  isDraining: () => shutdown.isDraining(),
+});
+app.get("/ready", async (_req, reply) => {
+  const { statusCode, body } = await readiness.check();
+  reply.status(statusCode).send(body);
+});
 
 // ── Gateway synthetic check (P2.2) ─────────────────────────────────────
 // For the external uptime monitor. The gateway is private (N8), so the monitor
@@ -160,6 +227,28 @@ app.post("/chat", {
 }, async (req, reply) => {
   if (!req.user) { reply.status(401).send({ error: "Unauthorized" }); return; }
 
+  // P3.2: every billed /chat is one tracked operation. While draining, new ones
+  // get a retryable 503 (the client retries and lands on the new instance).
+  const op = shutdown.beginOperation();
+  if (!op) {
+    reply.header("Retry-After", String(SHUTTING_DOWN_BODY.retryAfterSeconds));
+    reply.status(503).send(SHUTTING_DOWN_BODY);
+    return;
+  }
+  try {
+    await handleChat(req, reply, op.signal);
+  } finally {
+    op.end(); // after streamChat returned: deduction has been awaited, message save issued
+  }
+});
+
+async function handleChat(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  shutdownSignal: AbortSignal,
+): Promise<void> {
+  if (!req.user) return;
+
   // B1/F2: validate the body with Zod instead of the bare `as` cast this
   // route used to do. Every field beyond the original
   // {model, messages, conversationId} trio is optional (see chat.schema.ts)
@@ -207,6 +296,12 @@ app.post("/chat", {
   reply.raw.on("close", () => clientDisconnectController.abort(
     new DOMException("Client disconnected", "AbortError"),
   ));
+  // P3.2: at the shutdown drain deadline the same controller is aborted, which
+  // makes streamChat take its existing partial-stream path (bill what was
+  // streamed, save the message with isPartial) instead of being killed unbilled.
+  shutdownSignal.addEventListener("abort", () => clientDisconnectController.abort(
+    new DOMException("Server shutting down", "AbortError"),
+  ), { once: true });
 
   // P1.2 (closes G5): one billed operation in flight per user. The lock sits
   // HERE, above streamChat, because streamChat makes provider-side calls
@@ -244,7 +339,15 @@ app.post("/chat", {
     // registerFastifyErrorReporting) reports it to Sentry and returns the 500.
     throw err;
   }
-});
+
+  // P3.2: shutdown aborted this request before any response byte was written
+  // (streamChat stays silent on an abort, since for a client disconnect nobody
+  // is listening). Here the client IS listening: answer a retryable 503.
+  if (shutdownSignal.aborted && !reply.sent && !reply.raw.headersSent) {
+    reply.header("Retry-After", String(SHUTTING_DOWN_BODY.retryAfterSeconds));
+    reply.status(503).send(SHUTTING_DOWN_BODY);
+  }
+}
 
 // ── Start server ───────────────────────────────────────────────────────
 // This MUST happen before background job/worker startup, and must never be
@@ -294,7 +397,8 @@ if (config.NODE_ENV === "production") {
         count: (queue) => jobFailuresTotal.labels(queue).inc(),
         alert: (message) => { void queueAlert(message, "warning").catch(() => {}); },
       });
-      const registerWorker = (worker: { on: Function }, name: string) => {
+      const registerWorker = (worker: { on: Function; close: () => Promise<unknown> }, name: string) => {
+        workers.push(worker); // P3.2: closed on SIGTERM
         instrumentWorker(worker, name);
         attachWorkerErrorReporting(worker, name);
         attachJobFailureTracking(worker, name, failureTracker);

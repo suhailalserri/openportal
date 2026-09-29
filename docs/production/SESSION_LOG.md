@@ -643,3 +643,27 @@ infers result type `never`; and `queue.client` is typed as BullMQ's minimal inte
 
 **Not verified:** `tsc` (cannot run here). Turbo stopped after the api failure, so `apps/web` type-check and lint have not
 been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2. If they fail, send the log.
+
+## Session 18 - 2026-09-30 - P3.2 Graceful shutdown + `/ready` (closes N2) - code done, owner Render setting + drill pending
+
+**Plan vs code (told to owner, approved before building):**
+- No shutdown handling existed (no SIGTERM listener anywhere): every deploy dropped live `/chat` streams and skipped post-stream billing + save. Confirms N2.
+- Plan item "confirm partial billing fires if force-killed at the deadline" is impossible (after SIGKILL no code runs). Replaced by: abort remaining streams 15 s BEFORE the deadline so the existing partial-billing path in `streamChat` runs; whatever is still running at SIGKILL stays unbilled (documented in the runbook).
+- Render's health check stays on `/health` (liveness). `/ready` is for the uptime monitor, otherwise a Redis blip would make Render restart a healthy instance.
+- The request header said "Phase 3.1" but the approved summary was P3.2 (P3.1 = Redis rate limiter is untouched).
+- Found while building: the assistant-message insert and conversation update at the end of `streamChat` are fire-and-forget. Not changed (gateway.service.ts untouched); covered instead by closing the DB with `client.end({timeout})`, which waits for queries already sent. Worth converting to awaited writes later.
+
+**New:** `apps/api/src/lifecycle/shutdown.ts` (controller: drain, deadline abort, closers, hard exit, signal install), `readiness.ts` (`/ready` logic, 5 s cache, shared probe), `redis-close.ts` (never-hangs closer for ioredis); tests `shutdown.test.ts`, `readiness.test.ts`, `redis-close.test.ts`; `docs/runbooks/DEPLOY_SHUTDOWN.md`.
+**Changed:** `apps/api/src/index.ts` (controller + SIGTERM/SIGINT, `/ready`, `Connection: close` while draining, `/chat` wrapped in a tracked operation with a retryable 503 while draining, shutdown signal wired into the existing client-disconnect abort controller, 503 if aborted before any byte was written, workers registered for closing), `metrics.ts` (+`closeMetricsRedis`), `services/billing-lock.service.ts` (+`closeBillingLockRedis`), `services/chat-idempotency.service.ts` (+`closeIdempotencyRedis`), `services/fraud.service.ts` (+`closeFraudRedis`), `monitoring/sentry.ts` (+`flushSentry`), `packages/db/src/index.ts` (+`closeDb`, additive), `services/gateway.service.test.ts` (2 tests appended: mid-stream abort bills exactly once and saves `isPartial`; abort before any content bills nothing), `.env.example` (SHUTDOWN_*), `docs/MASTER_PLAN.md` (tracker). No frozen file touched. No DELETE list.
+
+**Verified (executed here, no node_modules, no network):** TypeScript syntax parse of every touched file; the 3 new lifecycle test files (22 tests) pass under a minimal vitest shim with Node mock timers (drain finishes early, deadline abort, exit 1 after grace, double SIGTERM ignored, throwing/hanging closer, hard exit, readiness cache/timeout/draining, redis close paths). The shim is not vitest, so this proves the logic, not the real runner.
+
+**Not verified (cannot run the repo here):**
+- `tsc`, lint, real vitest, CI. Typing from memory: `process` assigned to the `SignalSource` interface, ioredis `Redis` assigned to `ClosableRedis`, `reportQueue.client` awaited then `.ping()`, `reply.sent` on FastifyReply. If `tsc` complains, send the log.
+- The two new `gateway.service.test.ts` tests were not run (they need the file's `vi.mock` harness and real vitest). `vi.waitFor` needs vitest >= 0.34 (repo has ^2.1).
+- Real SIGTERM behaviour on Render, and that Render's zero-downtime deploy overlaps old and new instances as assumed.
+- Fastify `app.close()` behaviour with a live stream on the exact installed version (it is only called after the drain).
+- Render setting name/UI ("Shutdown delay", API `maxShutdownDelaySeconds`, default 30 s, max 300 s) and the ledger SQL column names in the runbook are from memory.
+- Sentry `flush` actually delivering before exit.
+
+**Next (owner):** CI green (`API Tests` runs every `*.test.ts`, so it should list the 3 new files and the 2 appended tests); set Render Shutdown delay to 120 s; keep Render health check on `/health`; point the uptime monitor at `/ready`; run the mid-stream deploy drill in `docs/runbooks/DEPLOY_SHUTDOWN.md`; then tick P3.2 and the LAUNCH_CHECKLIST line 39. Next per triage: P4.1, then P3.1.
