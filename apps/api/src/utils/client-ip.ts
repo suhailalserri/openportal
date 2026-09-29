@@ -142,6 +142,18 @@ export function trustedProxyHopsFromEnv(env: Record<string, string | undefined> 
   return Number.isInteger(n) && n >= 0 && n <= 5 ? n : 1;
 }
 
+/**
+ * Fastify `trustProxy` as a function. This Fastify version's types reject a
+ * plain number (CI: TS2769), and a number did not make `request.ip` follow
+ * X-Forwarded-For in the inject test, so the hop rule is spelled out:
+ * hop 0 is the socket peer; trust the first `hops` of them, so `request.ip`
+ * is the address the nearest trusted proxy appended and never an entry the
+ * caller prepended.
+ */
+export function trustProxyByHops(hops: number): (address: string, hop: number) => boolean {
+  return (_address: string, hop: number) => hop < hops;
+}
+
 export interface WebClientIpOptions {
   /** Defaults to `process.env.VERCEL === "1"`. Test seam. */
   onVercel?: boolean;

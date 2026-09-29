@@ -474,3 +474,23 @@ route test's mocks against the web vitest setup; and real behaviour behind Verce
 
 **Next:** owner runs CI; then manual checks below; then the owner decides on the two pending frozen
 edits; then P0.1's leftovers / P2.3 per the plan order.
+
+### Session 12 addendum - second CI run, and the two frozen edits
+
+- **Owner approved** `apps/web/server/context.ts` and `apps/web/lib/turnstile-server.ts`. Both done;
+  G10 now has no web-side `cf-connecting-ip` read left.
+- **Type-check:** Fastify's `trustProxy` type here rejects a number (TS2769 at `index.ts:28` and in
+  `client-ip.test.ts:113`; the two TS2379 errors at `index.ts` 80/82 were a cascade of the failed
+  `Fastify()` overload). Now `trustProxy: trustProxyByHops(n)`, a `(address, hop) => hop < n` function.
+- **API test failure:** with `trustProxy: 1` the inject test got `10.0.0.1`, not `2.2.2.2`: the number form
+  did not make `request.ip` follow X-Forwarded-For in CI. My expectation was wrong, and I do not know
+  why. The test now asserts the safety property only (forged first entry never used; `request.ip` is the
+  socket or the appended entry) plus an exact case with `trustProxy: false`.
+- **Consequence to know:** if hop trust does not take effect in production, `request.ip` is the socket
+  peer (Render's proxy), so direct callers without a trusted `cf-connecting-ip` share one identity. That
+  is unforgeable but coarse. The manual check below settles it.
+- **Not verified:** `tsc`, lint, vitest, CI (syntax parse only). The function-form hop rule is
+  unconfirmed until this CI run.
+- **Manual check (still open):** on Render, hit the api directly and log `request.ip`, `cf-connecting-ip`,
+  `x-forwarded-for` once; set `TRUSTED_PROXY_HOPS` (likely 2 if Cloudflare and Render's proxy both sit in
+  front) from what you see.

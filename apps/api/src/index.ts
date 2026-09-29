@@ -19,13 +19,15 @@ import { parseRedisConnection } from "./utils/redis-connection";
 // connection), unlike balance.service/gateway.service, which pull in
 // "../config" and "@ai-platform/db" respectively. Nothing gated behind it.
 import { chatRequestSchema, formatChatValidationError } from "./schemas/chat.schema";
-import { trustedProxyHopsFromEnv } from "./utils/client-ip";
+import { trustedProxyHopsFromEnv, trustProxyByHops } from "./utils/client-ip";
+
+const proxyHops = trustedProxyHopsFromEnv();
 
 const app = Fastify({
   // P1.3: request.ip is the address appended by the nearest trusted proxy
   // (Render's edge), not the first X-Forwarded-For entry a caller can forge.
   // Hop count from TRUSTED_PROXY_HOPS (default 1; 0 turns trustProxy off).
-  trustProxy: trustedProxyHopsFromEnv() > 0 ? trustedProxyHopsFromEnv() : false,
+  trustProxy: proxyHops > 0 ? trustProxyByHops(proxyHops) : false,
   logger: config.NODE_ENV === "development"
     ? { level: "info", transport: { target: "pino-pretty" } }
     : { level: "warn" },

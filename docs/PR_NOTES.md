@@ -248,19 +248,15 @@ is not `false`; otherwise Fastify `request.ip` (trustProxy). Web reads only Verc
 Vercel (docs: Vercel overwrites `x-forwarded-for`, `x-real-ip` and `x-vercel-forwarded-for` with the
 client IP) and never `cf-connecting-ip`.
 
-### NOT DONE - needs owner approval (frozen files, so G10 is not fully closed)
-Two web files still trust the forgeable `cf-connecting-ip` and are outside the approved edits:
-
-1. `apps/web/server/context.ts` (tRPC context for web: feeds `ctx.ip` to manual-payment IP limits,
-   redeem fraud checks and admin audit rows). Replace the `ip` block with:
-   `const ip = resolveWebClientIp((n) => req.headers.get(n)) ?? "unknown";`
-   plus `import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";`
-2. `apps/web/lib/turnstile-server.ts` `getClientIp` (used by `lib/auth.ts` and `/api/redeem`).
-   Replace its body with `return resolveWebClientIp((n) => headers.get(n));` (same import). Call sites
-   in `auth.ts` and `redeem/route.ts` stay untouched.
-
-Until both land, someone who can set `cf-connecting-ip` on a request to Vercel can still pick their
-IP identity on those paths (signup/redeem Turnstile-adjacent limits and web-side tRPC limits).
+### Second round (owner approved the two remaining frozen edits)
+- `apps/web/server/context.ts`: `ctx.ip` now `resolveWebClientIp(...) ?? "unknown"`.
+- `apps/web/lib/turnstile-server.ts`: `getClientIp` delegates to `resolveWebClientIp`; the call sites in
+  `lib/auth.ts` and `app/api/redeem/route.ts` are untouched.
+- No `cf-connecting-ip` read remains on the web side. The only remaining read is in the api, behind
+  `TRUST_CF_CONNECTING_IP`.
+- CI fixes: `trustProxy` now takes a function (`trustProxyByHops`) because this Fastify version's types
+  reject a number (TS2769; it also cascaded into two TS2379 errors at `index.ts` 80/82). The
+  trustProxy inject test no longer pins one value.
 
 ### Behaviour to know
 - Rate-limit and fraud keys change identity (Vercel IP -> real client IP). Existing per-IP counters

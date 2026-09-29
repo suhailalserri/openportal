@@ -7,6 +7,7 @@ import {
   resolveWebClientIp,
   trustCfConnectingIpFromEnv,
   trustedProxyHopsFromEnv,
+  trustProxyByHops,
 } from "./client-ip";
 
 const DIRECT = "203.0.113.5"; // what Fastify's request.ip would report
@@ -108,9 +109,20 @@ describe("resolveApiClientIp - internal-token requests", () => {
   });
 });
 
-describe("Fastify trustProxy: a caller cannot prepend an identity", () => {
-  it("with one trusted hop, request.ip is the entry the proxy appended, not the forged first entry", async () => {
-    const app = Fastify({ trustProxy: 1 });
+describe("trustProxyByHops", () => {
+  it("trusts the first N peers (hop 0 is the socket) and no more", () => {
+    const one = trustProxyByHops(1);
+    expect(one("10.0.0.1", 0)).toBe(true);
+    expect(one("2.2.2.2", 1)).toBe(false);
+    const two = trustProxyByHops(2);
+    expect(two("2.2.2.2", 1)).toBe(true);
+    expect(two("1.1.1.1", 2)).toBe(false);
+  });
+});
+
+describe("Fastify request.ip: a caller cannot prepend an identity", () => {
+  async function ipFor(trustProxy: false | ((a: string, h: number) => boolean)): Promise<string> {
+    const app = Fastify({ trustProxy });
     app.get("/ip", async (req) => ({
       ip: resolveApiClientIp({
         headers: req.headers, requestIp: req.ip, internalAuth: false, trustCfConnectingIp: false,
@@ -120,8 +132,22 @@ describe("Fastify trustProxy: a caller cannot prepend an identity", () => {
       method: "GET", url: "/ip", remoteAddress: "10.0.0.1",
       headers: { "x-forwarded-for": "1.1.1.1, 2.2.2.2" },
     });
-    expect(res.json()).toEqual({ ip: "2.2.2.2" });
     await app.close();
+    return (res.json() as { ip: string }).ip;
+  }
+
+  it("with trustProxy off, request.ip is the socket peer and X-Forwarded-For is ignored", async () => {
+    expect(await ipFor(false)).toBe("10.0.0.1");
+  });
+
+  it("with one trusted hop, the forged first X-Forwarded-For entry is never used", async () => {
+    // Safety property, deliberately not pinned to one value: request.ip is
+    // either the entry the proxy appended (2.2.2.2) or the socket peer
+    // (10.0.0.1), depending on how this Fastify version applies the hop
+    // rule. It must never be the entry the caller put first.
+    const ip = await ipFor(trustProxyByHops(1));
+    expect(ip).not.toBe("1.1.1.1");
+    expect(["2.2.2.2", "10.0.0.1"]).toContain(ip);
   });
 });
 

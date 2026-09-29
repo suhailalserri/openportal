@@ -7,6 +7,8 @@
  * Docs: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
  */
 
+import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";
+
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export interface TurnstileVerifyResult {
@@ -62,11 +64,11 @@ export async function verifyTurnstileToken(
   }
 }
 
-/** Best-effort client IP extraction, consistent with apps/api's rate limiter. */
+/**
+ * Client IP for Turnstile and the auth/redeem limits. P1.3 (owner-approved
+ * frozen-zone edit): delegates to the shared web resolver, so it reads only
+ * Vercel-set headers on Vercel and never the forgeable cf-connecting-ip.
+ */
 export function getClientIp(headers: Headers): string | undefined {
-  return (
-    headers.get("cf-connecting-ip") ??
-    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    undefined
-  );
+  return resolveWebClientIp((name) => headers.get(name));
 }
