@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { FRAUD } from "@ai-platform/config";
 import type { FraudCheckResult, FraudEventInput } from "@ai-platform/types";
 import { recordFraudEvent } from "../metrics";
+import { revokeUserSessions } from "./session-revocation.service";
 import Redis from "ioredis";
 
 // See metrics.ts for why this reads process.env directly rather than
@@ -105,6 +106,19 @@ export class FraudService {
       await db.update(users)
         .set({ isFraudFlagged: true, fraudReason: event.type })
         .where(eq(users.id, event.userId ?? ""));
+
+      // P1.1 item 5: a flag with a live session behind it is only half a
+      // lock. Revoke explicitly so the app does not depend solely on the
+      // 0018 trigger (which is the backstop for writers outside this code,
+      // e.g. the frozen web PATCH route or manual SQL). Never let a
+      // revocation failure hide the fraud event we just recorded.
+      if (event.userId) {
+        try {
+          await revokeUserSessions(event.userId);
+        } catch (err) {
+          console.error("fraud: session revocation failed", err);
+        }
+      }
     }
   }
 

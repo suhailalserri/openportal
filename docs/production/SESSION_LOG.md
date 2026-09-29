@@ -227,3 +227,85 @@ closed and the tracker tick should be reverted.
 
 **Status:** P1.1 waiting for the owner's OK on the Phase Summary and on the
 frozen-zone options.
+
+---
+
+## Session 7 — 2026-09-29 — P0.2 reopened (my error) · safety check of the DELETE list
+
+**What happened:** in Session 6 I ticked P0.2 on a bare "Ok" without evidence.
+The owner then said the deletions were **not** applied and asked whether they
+are safe. P0.2 tick **reverted**. Rule going forward: no tick without the
+owner saying the deletions/CI are done.
+
+**Safety check [R]:** grep across code, workflows, Dockerfiles and package
+scripts: **nothing imports or runs** any file on the DELETE list. Only comments
+mention them (`packages/db/src/index.ts`, `apps/api/src/index.ts`,
+`metrics.ts`, `testDb.ts`, `redis-connection.ts`, and frozen
+`apps/web/app/api/chat/route.ts`); stale comments, no runtime effect.
+`testDb.ts` recreates the trigger function itself and reads only
+`0001_constraints.sql`, never `init.sql`. Neither Dockerfile copies `infra/`.
+`backfill-referral-codes.yml` uses `infra/scripts/backfill-referral-codes.ts`,
+which is not on the list. `cookies.txt` holds one Vercel SSO nonce cookie for
+a preview domain (low sensitivity); it stays in git history either way.
+
+**Found my own error:** `README.md` and `docs/LAUNCH_CHECKLIST.md` (Session 2)
+pointed to `docs/MASTER_PRODUCTION_AND_CAPABILITIES_PLAN.md`, the stale copy.
+Both now point to `docs/MASTER_PLAN.md`. Only after this is deleting the stale
+copy safe.
+
+**Changed:** `README.md`, `docs/LAUNCH_CHECKLIST.md`, `docs/MASTER_PLAN.md`
+(tick reverted), this log. No code.
+
+**Not verified:** nothing run; CI not seen.
+
+---
+
+## Session 8 — 2026-09-29 — P1.1 built
+
+**Input:** repo zip + plan. Phase Summary approved by the owner ("Ok"), with my
+recommendation for the frozen routes (DB trigger, no frozen edits, gaps logged).
+
+**Checked before building [R]:** P0.2 deletions are applied in this zip
+(`infra/` = `alerts.yml` + `scripts/`; no `cookies.txt`). Tracker not touched.
+
+**Changed:** see the delivery message for the exact list. Summary: shared
+`account-guard.ts`; guard on all three `authMiddleware` paths, `protectedProcedure`
+and `adminProcedure`; `updateUserStatus` rewritten in one transaction (no
+self-suspend, superadmin protection, 404, session revocation, richer audit row);
+fraud auto-flag revokes sessions; migration 0018 trigger; workflow lists; tests.
+
+**Decisions:**
+- Non-`active` status (including `pending_verification`) is refused, to match the
+  REST paths' existing behaviour. better-auth issues no session before email
+  verification and `ensureUserSetup` activates verified users at session
+  creation, so this should not lock out onboarding. **Not verified by running.**
+- REST error bodies left as they were; codes added only to tRPC errors.
+- Reactivation is allowed for the same actors as suspension (an admin cannot
+  reactivate another admin).
+
+**Tests added (Testcontainers, real Postgres):** `utils/account-guard.test.ts`,
+`middleware/auth.middleware.test.ts`, `routers/account-guard.test.ts`, one case
+in `services/fraud.service.test.ts`. `testDb.ts` now also applies 0018;
+`factories.ts` gained `status`/`role`/`isFraudFlagged` options and
+`createTestSession`.
+
+**Red/green:** the tests were written to fail on the old code (cookie path 200,
+flagged user succeeds on the three procedures, sessions survive suspension,
+self and superadmin suspension allowed). I could not run either side here, so
+"red on old code" is by reading the old code, not by execution. The fraud
+session test also passes on old code once the trigger exists, because the
+trigger does the same deletion; it is a two-layer check, not a red test.
+
+**Not verified (cannot run the repo here):** `tsc`, lint, vitest, CI,
+`next build`. Only a TypeScript syntax parse of every touched file was run.
+That migration 0018 applies on Supabase. That the mocks in
+`routers/account-guard.test.ts` cover every module the router graph loads
+(if `config` is read from a module I did not mock, the file will fail at import
+and the fix is one more `vi.mock`). That Drizzle accepts a transaction as the
+`revokeUserSessions` handle (structurally it should).
+
+**Status:** P1.1 built, awaiting CI and owner confirmation. Tracker **not
+ticked**.
+
+**Next:** owner runs CI, applies 0018 (DB Operations -> constraints, or
+`db:migrate:manual`), does the manual check, confirms. Then P1.2.

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
 import { startTestDb, stopTestDb, resetTestDb } from "../test/testDb";
-import { createTestUser } from "../test/factories";
+import { createTestUser, createTestSession } from "../test/factories";
 import { FakeRedis } from "../test/fakeRedis";
 
 let db: typeof import("@ai-platform/db").db;
@@ -152,5 +152,24 @@ describe("FraudService.checkSpendVelocity", () => {
 
     const user = await db.query.users.findFirst({ where: (u: any, { eq }: any) => eq(u.id, userId) });
     expect(user?.isFraudFlagged).toBe(false);
+  });
+});
+
+describe("FraudService — critical event revokes sessions (P1.1 item 5)", () => {
+  it("auto-flagging on HIGH_SPEND_VELOCITY deletes the user's live sessions", async () => {
+    const redis = new FakeRedis();
+    const fraud = new (FraudService as any)(redis);
+    const { userId } = await createTestUser(db, schema);
+    await createTestSession(db, schema, userId);
+    const other = await createTestUser(db, schema);
+    await createTestSession(db, schema, other.userId);
+
+    // Far above any plausible MAX_CREDITS_PER_HOUR threshold.
+    await fraud.checkSpendVelocity(userId, 1_000_000_000_000_000);
+
+    const sessionsOf = async (id: string) =>
+      (await db.query.sessions.findMany({ where: (s: any, { eq }: any) => eq(s.userId, id) })).length;
+    expect(await sessionsOf(userId)).toBe(0);
+    expect(await sessionsOf(other.userId)).toBe(1);
   });
 });

@@ -1,3 +1,58 @@
+# P1.1 — Account guard + admin protections
+
+Plan: `docs/MASTER_PLAN.md` §6 P1.1 (closes G2, G2b). No frozen file was edited.
+
+## What changed
+
+- `apps/api/src/utils/account-guard.ts` (new, pure): `assertUsableAccount(user)`
+  returns `{ok:true}` or `{ok:false, reason:"suspended"|"fraud_flagged"}`. Any
+  `status !== "active"` counts as suspended, matching what the REST paths
+  already did.
+- `auth.middleware.ts`: all three paths (internal token, **session cookie**,
+  API key) go through one helper. The cookie path had no check before.
+- `routers/trpc.ts`: `protectedProcedure` and `adminProcedure` throw `FORBIDDEN`
+  with message `ACCOUNT_SUSPENDED` / `ACCOUNT_UNDER_REVIEW`. Because
+  `apps/web/server/context.ts` feeds the same `appRouter`, this covers the
+  Next.js tRPC handler and caller too.
+- `admin.updateUserStatus`: one transaction. Rejects self (`CANNOT_MODIFY_SELF`),
+  unknown user (`NOT_FOUND`), and a non-superadmin targeting an admin or
+  superadmin (`INSUFFICIENT_ROLE_FOR_TARGET`). Suspending deletes the user's
+  `sessions` rows. Audit row now records `before.status` and `sessionsRevoked`.
+- `fraud.service.ts`: a critical event flags the user **and** revokes sessions.
+- Migration `0018_revoke_sessions_on_lockout.sql`: trigger that deletes a user's
+  sessions on the transition into `suspended` or `is_fraud_flagged = true`.
+  Backstop for writers outside `apps/api`. Added to `deploy.yml` and
+  `db-ops.yml` lists; `db:migrate:manual` discovers it by filename.
+
+## External contract
+
+- REST bodies unchanged (`Account suspended`, `Account under review`).
+- **New tRPC error messages** (additive; previously these calls succeeded):
+  `ACCOUNT_SUSPENDED`, `ACCOUNT_UNDER_REVIEW`, `CANNOT_MODIFY_SELF`,
+  `USER_NOT_FOUND`, `INSUFFICIENT_ROLE_FOR_TARGET`. `docs/frontend/API_CONTRACT.md`
+  should list them; the frontend does not map them yet (follow-up).
+
+## Known gaps left on purpose (frozen zone)
+
+1. About 19 handlers in `apps/web/app/api/**` (balance, redeem, chat proxy,
+   admin/*, conversations, ...) call `auth.api.getSession` and never check
+   `status` / `isFraudFlagged`. Only the trigger's session deletion protects
+   them, and only after `cookieCache` expires.
+2. `apps/web/lib/auth.ts` has `session.cookieCache` (5 min). A deleted session
+   row can keep working on those routes for up to 5 minutes.
+3. Frozen `PATCH /api/admin/users/[id]` still writes `status` directly with no
+   self-suspend or superadmin protection. The admin UI uses the tRPC mutation,
+   not this route, but an admin can still call it. The trigger revokes sessions
+   when it suspends; the role rules are NOT enforced there.
+4. A suspended user can still create a new session by logging in. The api-side
+   guard refuses it on every request; the frozen web routes do not.
+
+Proposed follow-up (needs explicit frozen-zone approval): one shared helper
+called from those routes, `cookieCache` disabled or shortened, and the PATCH
+route delegating to `updateUserStatus`.
+
+---
+
 # Backend PR — Delete-account 2FA gate
 
 Split out of Phase 7.2 (Settings: preferences, API access, referral,

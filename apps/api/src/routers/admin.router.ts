@@ -8,6 +8,7 @@ import {
 } from "@ai-platform/db";
 import { eq, desc, count, and, or, ilike, sql } from "drizzle-orm";
 import { alias }           from "drizzle-orm/pg-core";
+import { revokeUserSessions } from "../services/session-revocation.service";
 import { REFERRAL_BONUS_MICRO_CREDITS } from "@ai-platform/config";
 import { creditBalance, deductCreditsAtomic } from "../services/balance.service";
 import { generateCode }    from "../services/redeem.service";
@@ -244,20 +245,60 @@ export const adminRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await db.update(users)
-        .set({ status: input.status, updatedAt: new Date() })
-        .where(eq(users.id, input.userId));
+      // P1.1 (G2b). Everything below runs in ONE transaction so the status
+      // flip, the session revocation and the audit row commit together.
+      return await db.transaction(async (tx) => {
+        // 1. No self-service lockout/unlock: an admin can neither suspend
+        //    themselves (locking out the only person who can undo it) nor
+        //    reactivate themselves.
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN", message: "CANNOT_MODIFY_SELF",
+          });
+        }
 
-      await db.insert(auditLogs).values({
-        adminId:    ctx.user.id,
-        action:     `user.${input.status}`,
-        targetType: "user",
-        targetId:   input.userId,
-        after:      { status: input.status, reason: input.reason },
-        ip:         ctx.ip,
+        const [target] = await tx
+          .select({ id: users.id, role: users.role, status: users.status })
+          .from(users)
+          .where(eq(users.id, input.userId))
+          .limit(1);
+        if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "USER_NOT_FOUND" });
+
+        // 2. Only a superadmin may change the status of an admin or another
+        //    superadmin. A plain admin can only act on plain users.
+        if (
+          (target.role === "admin" || target.role === "superadmin") &&
+          ctx.user.role !== "superadmin"
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN", message: "INSUFFICIENT_ROLE_FOR_TARGET",
+          });
+        }
+
+        await tx.update(users)
+          .set({ status: input.status, updatedAt: new Date() })
+          .where(eq(users.id, input.userId));
+
+        // 3. Suspension kills live sessions immediately. The API key row is
+        //    left intact on purpose: the account guard blocks it while the
+        //    account is suspended, and reactivation restores it.
+        let sessionsRevoked = 0;
+        if (input.status === "suspended") {
+          sessionsRevoked = await revokeUserSessions(input.userId, tx);
+        }
+
+        await tx.insert(auditLogs).values({
+          adminId:    ctx.user.id,
+          action:     `user.${input.status}`,
+          targetType: "user",
+          targetId:   input.userId,
+          before:     { status: target.status },
+          after:      { status: input.status, reason: input.reason, sessionsRevoked },
+          ip:         ctx.ip,
+        });
+
+        return { success: true };
       });
-
-      return { success: true };
     }),
 
   adjustCredits: adminProcedure

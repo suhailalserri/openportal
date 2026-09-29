@@ -26,7 +26,7 @@ describes the retired original design and is historical only.
 
 ## Docs to read first
 
-- `docs/MASTER_PRODUCTION_AND_CAPABILITIES_PLAN.md` — production-readiness and capability roadmap
+- `docs/MASTER_PLAN.md` — production-readiness and capability roadmap
 - `docs/production/SESSION_LOG.md` — what was done in each session of that plan
 - `docs/FRONTEND_REBUILD_PLAN.md` and `docs/frontend/BRANCH_AND_CI_NOTES.md` — frontend rebuild track
 - `docs/architecture/decisions.md` — ADRs

@@ -3,7 +3,7 @@
 Rewritten 2026-09-29 (plan P0.2) to match the real stack: Vercel (web),
 Render (api + gateway), Supabase (Postgres), Upstash (Redis); payments are
 Jaib vouchers + manual transfer (ADR-007). The gate is the plan's §11 in
-`docs/MASTER_PRODUCTION_AND_CAPABILITIES_PLAN.md`; walk it with evidence in
+`docs/MASTER_PLAN.md`; walk it with evidence in
 session P4.3. **Nothing here is ticked unless someone verified it.**
 Items name the plan phase that produces the evidence.
 

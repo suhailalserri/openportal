@@ -113,6 +113,12 @@ export async function startTestDb(): Promise<void> {
     const cronMarker = "-- ── CRON JOBS";
     const withoutCron = raw.includes(cronMarker) ? raw.split(cronMarker)[0]! : raw;
     await sql.unsafe(withoutCron);
+
+    // 4. Apply 0018 (P1.1): the trigger that deletes a user's sessions when
+    //    they become suspended / fraud-flagged. Read from the real migration
+    //    file so the test exercises exactly what production runs.
+    const lockoutPath = path.join(DB_PACKAGE_DIR, "src/migrations/0018_revoke_sessions_on_lockout.sql");
+    await sql.unsafe(fs.readFileSync(lockoutPath, "utf-8"));
   } finally {
     await sql.end();
   }
