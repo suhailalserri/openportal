@@ -1,13 +1,26 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { FRAUD }        from "@ai-platform/config";
-import { checkLimit }   from "../utils/rate-limiter";
+import { checkRateLimit } from "../utils/redis-rate-limiter";
 import { fraudService } from "../services/fraud.service";
 import { resolveApiClientIp, trustCfConnectingIpFromEnv } from "../utils/client-ip";
 
-// Re-exported for any existing importers — prefer importing directly from
-// ../utils/rate-limiter in new code (see that file for why this split exists).
-export { checkLimit };
+const WINDOW_MS = 60_000;
 
+/**
+ * P3.1: ONE Redis-backed check per /chat request (shared across replicas).
+ *
+ * - Fixed window whose expiry is set on the first hit only, so a steadily
+ *   active user gets a clean window every 60 s (the old fraud-service counter
+ *   re-armed its TTL on every request and never reset).
+ * - Retry-After is the real time left in the window.
+ * - Redis down -> per-process fallback (see utils/redis-rate-limiter.ts);
+ *   paid chat is never blocked by a rate-limiter outage.
+ * - Identity tracking (multi-IP / shared-IP signals) still runs for signed-in
+ *   users after an allowed request; it never blocks and fails open.
+ *
+ * The per-process `checkLimit` is no longer called here. It remains exported
+ * from ../utils/rate-limiter for the frozen apps/web routes.
+ */
 export async function rateLimitMiddleware(
   request: FastifyRequest,
   reply:   FastifyReply
@@ -22,38 +35,32 @@ export async function rateLimitMiddleware(
     trustCfConnectingIp: trustCfConnectingIpFromEnv(),
   });
 
-  const userId  = request.user?.id;
-  const key     = userId ? `user:${userId}` : `ip:${ip}`;
-  const allowed = checkLimit(key, FRAUD.MAX_REQUESTS_PER_MINUTE, 60_000);
+  const userId = request.user?.id;
+  const key    = userId ? `chat:user:${userId}` : `chat:ip:${ip}`;
+  const result = await checkRateLimit(key, FRAUD.MAX_REQUESTS_PER_MINUTE, WINDOW_MS);
 
-  if (!allowed) {
-    reply.status(429).header("Retry-After", "60").send({
-      error:   "RATE_LIMIT_EXCEEDED",
-      message: "تجاوزت الحد المسموح. انتظر دقيقة وحاول مجدداً.",
+  if (!result.allowed) {
+    // One audit row per window (the first denial), not one per rejected request.
+    if (userId && result.count === FRAUD.MAX_REQUESTS_PER_MINUTE + 1) {
+      try {
+        await fraudService.recordRequestRateExceeded(userId, ip, result.count);
+      } catch (err) {
+        console.error("[rateLimit] failed to record rate-limit event:", err);
+      }
+    }
+    reply.status(429).header("Retry-After", String(result.retryAfterSeconds)).send({
+      error:             "RATE_LIMIT_EXCEEDED",
+      message:           "تجاوزت الحد المسموح. انتظر قليلاً وحاول مجدداً.",
+      retryAfterSeconds: result.retryAfterSeconds, // additive; body keeps the old error/message shape
     });
     return;
   }
 
-  // Redis-backed check — this is the piece that was previously never
-  // called outside tests. checkLimit above is a fast, per-process,
-  // in-memory first pass (still useful even if Redis is briefly down);
-  // this catches the patterns checkLimit structurally can't: velocity
-  // *and* multi-IP-per-user / multi-user-per-IP, and it's correct across
-  // multiple api container replicas since the counters live in Redis, not
-  // this process. Fails OPEN on error — a fraud-service outage must never
-  // block chat traffic.
   if (userId) {
     try {
-      const fraudCheck = await fraudService.checkRequestVelocity(userId, ip);
-      if (!fraudCheck.allowed) {
-        reply.status(429).header("Retry-After", "60").send({
-          error:   "RATE_LIMIT_EXCEEDED",
-          message: "تجاوزت الحد المسموح. انتظر دقيقة وحاول مجدداً.",
-        });
-        return;
-      }
+      await fraudService.trackRequestIdentity(userId, ip);
     } catch (err) {
-      console.error("[rateLimit] fraud check failed, allowing request:", err);
+      console.error("[rateLimit] identity tracking failed, allowing request:", err);
     }
   }
 }

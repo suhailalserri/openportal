@@ -77,6 +77,7 @@ const shutdown = createShutdownController({
     { name: "redis:billing-lock", close: async () => (await import("./services/billing-lock.service")).closeBillingLockRedis() },
     { name: "redis:idempotency",  close: async () => (await import("./services/chat-idempotency.service")).closeIdempotencyRedis() },
     { name: "redis:fraud",        close: async () => (await import("./services/fraud.service")).closeFraudRedis() },
+    { name: "redis:rate-limit",   close: async () => (await import("./utils/redis-rate-limiter")).closeRateLimitRedis() },
     { name: "redis:metrics",      close: () => closeMetricsRedis() },
     // 4. Database (waits for already-sent queries, so the post-stream message save lands), then Sentry.
     { name: "db",     close: () => closeDb(5) },

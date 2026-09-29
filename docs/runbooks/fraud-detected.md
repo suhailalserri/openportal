@@ -22,10 +22,13 @@ Check the fraud event:
 
 **Before trusting the numbers:** check whether a `RedisMemoryHigh` or
 `ExporterDown` alert fired around the same time. Every fraud check
-(`checkRequestVelocity`, `checkRedeemAttempt`, `checkSpendVelocity` in
+(`trackRequestIdentity`, `checkRedeemAttempt`, `checkSpendVelocity` in
 `fraud.service.ts`) fails OPEN on a Redis error — it skips the check
 rather than blocking the request. So a Redis blip doesn't just degrade
 the app; it also means fraud checks were silently off for that window.
+The request-rate limit (`utils/redis-rate-limiter.ts`, P3.1) does not go
+fully open: it falls back to a per-process cap and increments
+`aip_rate_limit_fallback_total`.
 If the two alerts overlap, treat this event's counts as a floor, not a
 complete picture — some abuse in that window may not have been caught
 or logged at all.

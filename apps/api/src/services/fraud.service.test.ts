@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
 import { startTestDb, stopTestDb, resetTestDb } from "../test/testDb";
 import { createTestUser, createTestSession } from "../test/factories";
@@ -30,60 +29,29 @@ async function fraudEventsFor(userId: string) {
   return db.query.fraudEvents.findMany({ where: (e: any, { eq }: any) => eq(e.userId, userId) });
 }
 
-describe("FraudService.checkRequestVelocity", () => {
-  it("allows requests at or under the per-minute threshold (20)", async () => {
+describe("FraudService.trackRequestIdentity (P3.1: identity signals only, never blocks)", () => {
+  it("resolves without blocking however many requests a user sends (rate limiting moved to redis-rate-limiter)", async () => {
     const redis = new FakeRedis();
     const fraud = new (FraudService as any)(redis);
     const { userId } = await createTestUser(db, schema);
 
-    for (let i = 0; i < 20; i++) {
-      const result = await fraud.checkRequestVelocity(userId, "1.2.3.4");
-      expect(result.allowed).toBe(true);
+    for (let i = 0; i < 60; i++) {
+      await expect(fraud.trackRequestIdentity(userId, "1.2.3.4")).resolves.toBeUndefined();
     }
-  });
-
-  it("blocks and logs a fraud event once the per-minute threshold is exceeded — no false negative", async () => {
-    const redis = new FakeRedis();
-    const fraud = new (FraudService as any)(redis);
-    const { userId } = await createTestUser(db, schema);
-
-    let blockedAt = -1;
-    for (let i = 0; i < 30; i++) {
-      const result = await fraud.checkRequestVelocity(userId, "1.2.3.4");
-      if (!result.allowed) { blockedAt = i; break; }
-    }
-
-    expect(blockedAt).toBe(20); // the 21st request (index 20) trips the limit
     const events = await fraudEventsFor(userId);
-    expect(events.some((e: any) => e.type === "HIGH_REQUEST_VELOCITY" && e.severity === "medium")).toBe(true);
+    expect(events.some((e: any) => e.type === "HIGH_REQUEST_VELOCITY")).toBe(false);
   });
 
-  it("property-style: any burst of >20 requests/minute is always blocked before it ends", async () => {
-    for (const burstSize of [21, 25, 40, 75, 200]) {
-      const redis = new FakeRedis();
-      const fraud = new (FraudService as any)(redis);
-      const { userId } = await createTestUser(db, schema, { email: `burst-${burstSize}@example.com` });
+  it("does not write a per-minute rate counter any more (the buggy rate:{user}:rpm key is gone)", async () => {
+    const redis = new FakeRedis();
+    const fraud = new (FraudService as any)(redis);
+    const { userId } = await createTestUser(db, schema);
+    let incrCalls = 0;
+    const origIncr = redis.incr.bind(redis);
+    redis.incr = async (k: string) => { incrCalls++; return origIncr(k); };
 
-      let sawBlock = false;
-      for (let i = 0; i < burstSize; i++) {
-        const result = await fraud.checkRequestVelocity(userId, "9.9.9.9");
-        if (!result.allowed) { sawBlock = true; break; }
-      }
-      expect(sawBlock, `burst of ${burstSize} should have been blocked`).toBe(true);
-    }
-  });
-
-  it("property-style: any sequence at or below 20 requests/minute is never blocked", async () => {
-    for (const trial of Array.from({ length: 10 }, () => Math.floor(Math.random() * 20) + 1)) {
-      const redis = new FakeRedis();
-      const fraud = new (FraudService as any)(redis);
-      const { userId } = await createTestUser(db, schema, { email: `safe-${randomUUID()}@example.com` });
-
-      for (let i = 0; i < trial; i++) {
-        const result = await fraud.checkRequestVelocity(userId, "5.5.5.5");
-        expect(result.allowed).toBe(true);
-      }
-    }
+    await fraud.trackRequestIdentity(userId, "2.2.2.2");
+    expect(incrCalls).toBe(0);
   });
 
   it("flags HIGH severity when more than 3 distinct users share one IP in a day", async () => {
@@ -94,13 +62,51 @@ describe("FraudService.checkRequestVelocity", () => {
 
     for (let i = 0; i < 5; i++) {
       const { userId } = await createTestUser(db, schema, { email: `shared-${i}@example.com` });
-      await fraud.checkRequestVelocity(userId, sharedIp);
+      await fraud.trackRequestIdentity(userId, sharedIp);
       flaggedUserIds.push(userId);
     }
 
     // The 4th and 5th distinct users from this IP should trigger the event.
     const lastUserEvents = await fraudEventsFor(flaggedUserIds[flaggedUserIds.length - 1]!);
     expect(lastUserEvents.some((e: any) => e.type === "SHARED_IP_MULTI_ACCOUNT" && e.severity === "high")).toBe(true);
+  });
+
+  it("logs a low-severity MULTIPLE_IPS event when one user appears from more than 5 IPs in a day", async () => {
+    const redis = new FakeRedis();
+    const fraud = new (FraudService as any)(redis);
+    const { userId } = await createTestUser(db, schema);
+
+    for (let i = 1; i <= 6; i++) await fraud.trackRequestIdentity(userId, `8.8.8.${i}`);
+
+    const events = await fraudEventsFor(userId);
+    expect(events.some((e: any) => e.type === "MULTIPLE_IPS" && e.severity === "low")).toBe(true);
+  });
+});
+
+describe("FraudService.recordRequestRateExceeded (P3.1)", () => {
+  it("writes one HIGH_REQUEST_VELOCITY medium-severity row with the count and ip", async () => {
+    const redis = new FakeRedis();
+    const fraud = new (FraudService as any)(redis);
+    const { userId } = await createTestUser(db, schema);
+
+    await fraud.recordRequestRateExceeded(userId, "3.3.3.3", 21);
+
+    const events = await fraudEventsFor(userId);
+    const hit = events.filter((e: any) => e.type === "HIGH_REQUEST_VELOCITY");
+    expect(hit).toHaveLength(1);
+    expect(hit[0].severity).toBe("medium");
+    expect(hit[0].details).toMatchObject({ count: 21, ip: "3.3.3.3" });
+  });
+
+  it("does not suspend the user (medium severity is audit-only)", async () => {
+    const redis = new FakeRedis();
+    const fraud = new (FraudService as any)(redis);
+    const { userId } = await createTestUser(db, schema);
+
+    await fraud.recordRequestRateExceeded(userId, "3.3.3.3", 21);
+
+    const user = await db.query.users.findFirst({ where: (u: any, { eq }: any) => eq(u.id, userId) });
+    expect(user?.isFraudFlagged).toBe(false);
   });
 });
 

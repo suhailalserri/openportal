@@ -336,3 +336,11 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - New routes: `GET /health/gateway` (public, cached 30 s, up/down only) and `POST /internal/sentry-alert?token=` (404 unless `SENTRY_WEBHOOK_TOKEN` set; forwards title/rule/project/link only).
 - Deleted `infra/alerts.yml`; mapping in `docs/runbooks/ALERTING.md`.
 - Behaviour change: none on request paths (L12). `fraud.service` now imports the shared sender instead of calling fetch itself.
+
+## P3.1 — Redis-backed rate limiter (closes G9)
+- New `apps/api/src/utils/redis-rate-limiter.ts`: `checkRateLimit(key, max, windowMs)` -> `{allowed, count, limit, retryAfterSeconds, degraded}`. Atomic Lua (INCR; PEXPIRE only on the first hit or if the key has no TTL). Own lazy Redis client (1.5 s command timeout), no work at import.
+- Moved to it: `/chat` middleware (one Redis check per request, key `chat:user:{id}` or `chat:ip:{ip}`), `billing.submitManualPayment` (3 limits), `user.generateApiKey` / `claimWelcomeBonus`. The 429 `Retry-After` is now the real time left; the body keeps `error`/`message` and adds `retryAfterSeconds`.
+- Bug fixed: `fraud.checkRequestVelocity` re-armed its 60 s expiry on every request, so a user chatting every ~30 s got a 429 after ~10 min. That counter is removed; the method is now `trackRequestIdentity` (multi-IP / shared-IP signals only, never blocks). `HIGH_REQUEST_VELOCITY` is still logged, once per window, via `recordRequestRateExceeded`. The old in-memory pass that double-counted `/chat` is gone.
+- Redis outage: per-process fallback (not fully open, a deliberate deviation from the plan); Redis skipped for 5 s after a failure so a dead Redis adds no latency; metric `aip_rate_limit_fallback_total`; one alert per 5 min. Money paths (billing lock, affordability) still fail closed.
+- NOT changed (frozen zone): `apps/web/app/api/redeem`, `user/delete-account`, `user/export-data` still call the synchronous per-process `checkLimit`. Recommended follow-up (needs approval, one `await` each): switch them to `checkRateLimit`. `redeem` is also covered by the Redis fraud check; the other two are per-process only until then.
+- Known limit: fixed window, so a burst can reach 2x `max` across a window boundary.

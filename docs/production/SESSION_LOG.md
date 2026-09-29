@@ -680,3 +680,24 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 
 **Not verified:** the `index.ts` cast (needs the real BullMQ/ioredis types), real `tsc` across the api, lint (Turbo stopped after the api failure, so `Lint` never ran), and the 2 appended `gateway.service.test.ts` tests. If lint or tsc fails again, send the log.
 
+
+## Session 20 - 2026-09-30 - P3.1 Redis-backed rate limiter (closes G9) - code done, owner checks pending
+
+**Plan vs code (told to owner, approved before building; owner said "do what is best for the project"):**
+- `checkLimit` is synchronous and three callers are in the frozen zone (`apps/web/app/api/redeem`, `user/delete-account`, `user/export-data`). A Redis limiter must be async, so those routes were left on `checkLimit` and a new async limiter was built for the api callers. Decision taken: no frozen-zone exception now; recommended for later (one `await` each, logged in PR_NOTES).
+- Real bug found on the chat path: `fraud.checkRequestVelocity` called `expire` on every request, so the window never reset for a steadily active user (429 after ~10 min of chatting every 30 s). The in-memory pass in front of it also counted the same request twice.
+- Deviation from the plan: on a Redis outage the limiter degrades to the per-process limit instead of failing fully open (paid users are never blocked, each replica keeps a cap, metric + throttled alert). Money paths still fail closed.
+
+**New:** `apps/api/src/utils/redis-rate-limiter.ts`, `apps/api/src/utils/redis-rate-limiter.test.ts`.
+**Changed:** `middleware/rateLimit.middleware.ts` (one Redis check per request; real `Retry-After`; identity tracking after an allowed request), `services/fraud.service.ts` (`checkRequestVelocity` -> `trackRequestIdentity`, + `recordRequestRateExceeded`), `services/fraud.service.test.ts` (velocity block replaced, 2 new describes), `routers/billing.router.ts` (3 limits), `routers/user.router.ts` (1 helper, 2 call sites now awaited), `metrics.ts` (+`aip_rate_limit_fallback_total`), `index.ts` (+`redis:rate-limit` shutdown closer), `docs/MASTER_PLAN.md`, `docs/LAUNCH_CHECKLIST.md`, `docs/PR_NOTES.md`. `utils/rate-limiter.ts` and every frozen file untouched; `packages/config` untouched. No DELETE list.
+
+**Verified (executed here, no node_modules, no Redis, no network):** Node type-strip parse of all touched files; the limiter's logic run against a JS model of the Lua semantics with stubs (20 of 25 allowed, count/`retryAfterSeconds` right, window rollover, 12 min of chat every 30 s gives 0 false denials, outage falls back with a 20 cap, backoff skips then re-probes Redis, one alert per throttle window). This proves the logic, not the real script.
+
+**Not verified (cannot run the repo here):**
+- `tsc`, lint, vitest, CI. Typing from memory: `eval` rest-args assignability in the tests, `Promise.race` timer `.unref?.()` (same pattern as billing-lock), FakeRedis `incr` monkeypatch in `fraud.service.test.ts`.
+- The Lua script on a real Redis, and on real Upstash (EVAL support and `PTTL`/`PEXPIRE` inside a script). The new tests are written for a real Redis (`TEST_REDIS_URL`, already in CI) but were never run.
+- The "unreachable client" test's wall time (< 8 s) depends on ioredis' connect-failure behaviour.
+- How the module behaves inside the Vercel bundle (user.router runs there too). If `REDIS_URL` is unset on Vercel it silently uses the per-process fallback and raises the throttled alert.
+- The fraud tests that touch Postgres (Testcontainers).
+
+**Next (owner):** CI green (`API Tests` should list `redis-rate-limiter.test.ts` and the changed `fraud.service.test.ts`). Manual: 25 `/chat` requests within a minute (20 pass, then 429 with an accurate `Retry-After`); then chat steadily for 12 minutes, no 429. Check `aip_rate_limit_fallback_total` stays 0 on Render. Tick P3.1 and the LAUNCH_CHECKLIST line when both pass. Decide whether to approve the frozen-route exception (see PR_NOTES).

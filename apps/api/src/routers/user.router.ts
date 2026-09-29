@@ -4,7 +4,7 @@ import { TRPCError }           from "@trpc/server";
 import { db, users, balances } from "@ai-platform/db";
 import { eq }                  from "drizzle-orm";
 import { randomBytes, createHash } from "node:crypto";
-import { checkLimit }          from "../utils/rate-limiter";
+import { checkRateLimit }       from "../utils/redis-rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
 import { getReferralStats }    from "../services/referral.service";
 import {
@@ -12,8 +12,9 @@ import {
   type WelcomeBonusErrorCode,
 } from "../services/welcome-bonus.service";
 
-function assertNotRateLimited(userId: string, action: string) {
-  const allowed = checkLimit(`sensitive:${action}:${userId}`, FRAUD.SENSITIVE_ACTION_PER_HOUR, 60 * 60_000);
+async function assertNotRateLimited(userId: string, action: string) {
+  // P3.1: Redis-backed (shared across replicas); falls back per-process if Redis is down.
+  const { allowed } = await checkRateLimit(`sensitive:${action}:${userId}`, FRAUD.SENSITIVE_ACTION_PER_HOUR, 60 * 60_000);
   if (!allowed) {
     throw new TRPCError({
       code:    "TOO_MANY_REQUESTS",
@@ -71,7 +72,7 @@ export const userRouter = router({
   // lookup hash). bcrypt is correct for passwordHash above (verified via
   // compare, never looked up by value); it is wrong for apiKeyHash.
   generateApiKey: protectedProcedure.mutation(async ({ ctx }) => {
-    assertNotRateLimited(ctx.user.id, "generateApiKey");
+    await assertNotRateLimited(ctx.user.id, "generateApiKey");
 
     const rawKey   = `sk-aip-${randomBytes(36).toString("hex")}`;
     const keyHash  = createHash("sha256").update(rawKey).digest("hex");
@@ -105,7 +106,7 @@ export const userRouter = router({
   // (see welcome-bonus.service.ts), NOT here — the rate limit below is only
   // abuse protection against hammering the endpoint.
   claimWelcomeBonus: protectedProcedure.mutation(async ({ ctx }) => {
-    assertNotRateLimited(ctx.user.id, "claimWelcomeBonus");
+    await assertNotRateLimited(ctx.user.id, "claimWelcomeBonus");
     try {
       const res = await claimWelcomeBonus(ctx.user.id);
       return { success: true as const, ...res };

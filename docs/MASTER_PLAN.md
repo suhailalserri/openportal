@@ -112,7 +112,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 0** — [x] P0.1 · [x] P0.2
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
-**Stage 3** — [ ] P3.1 · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
+**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
 **Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
@@ -203,6 +203,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 ### P3.1 Redis-backed rate limiter (1 session)
 **Closes:** G9. **Depends:** P1.3.
 - Replace in-memory `checkLimit` with Redis `INCR`+`EXPIRE` (atomic Lua or `MULTI`). Fail **open** on Redis outage for rate limiting only (log + alert), because the affordability check and the P1.2 lock still fail closed on money.
+- **As built (P3.1):** new async `utils/redis-rate-limiter.ts` (Lua: INCR, expiry only on first hit). On a Redis outage it degrades to the per-process limit instead of fully open (paid users never blocked, each replica still capped; metric `aip_rate_limit_fallback_total` + throttled alert). Frozen web routes (`redeem`, `delete-account`, `export-data`) still use the sync `checkLimit` until a logged exception is approved.
 - **Tests:** two limiter instances sharing one Redis count against one budget; window rolls over correctly.
 
 ### P3.2 Graceful shutdown + health/readiness (1 session)

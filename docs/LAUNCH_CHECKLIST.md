@@ -19,6 +19,7 @@ Items name the plan phase that produces the evidence.
 - [ ] Sessions revoked on suspend; no self-suspend; admin cannot suspend superadmin — P1.1
 - [ ] Concurrent same-user requests rejected before any provider call, tested on real Redis — P1.2
 - [ ] Rate-limit / fraud identity cannot be forged with headers — P1.3
+- [ ] `/chat` rate limit is shared across replicas (Redis) and gives no false 429 for steady chat — P3.1
 - [ ] Ledger invariant holds after load test (sum of transactions = sum of balances) — P4.2
 
 ## Database

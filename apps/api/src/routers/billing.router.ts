@@ -8,7 +8,7 @@ import { eq, desc }            from "drizzle-orm";
 import { redeemCode }          from "../services/redeem.service";
 import { submitManualPayment } from "../services/manual-payment.service";
 import { stripUndefined }      from "../utils/strip-undefined";
-import { checkLimit }          from "../utils/rate-limiter";
+import { checkRateLimit }       from "../utils/redis-rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
 import {
   getUsageSummary, getUsageTimeseries, getUsageByModel, listUsage,
@@ -62,25 +62,21 @@ export const billingRouter = router({
       // reaching submitManualPayment(), and logs a fraud_events row so a
       // spike is visible in /admin/fraud rather than only in the queue.
       const userKey = `manualPayment:${ctx.user.id}`;
-      if (!checkLimit(`${userKey}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_HOUR, 60 * 60 * 1000)) {
+      if (!(await checkRateLimit(`${userKey}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_HOUR, 60 * 60 * 1000)).allowed) {
         await logManualPaymentAbuse(ctx.user.id, ctx.ip, "medium", "HOURLY_LIMIT");
         throw new TRPCError({ code: "TOO_MANY_REQUESTS",
           message: "تجاوزت عدد المحاولات المسموحة. حاول بعد ساعة." });
       }
-      if (!checkLimit(`${userKey}:day`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_DAY, 24 * 60 * 60 * 1000)) {
+      if (!(await checkRateLimit(`${userKey}:day`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_DAY, 24 * 60 * 60 * 1000)).allowed) {
         await logManualPaymentAbuse(ctx.user.id, ctx.ip, "high", "DAILY_LIMIT");
         throw new TRPCError({ code: "TOO_MANY_REQUESTS",
           message: "وصلت إلى الحد اليومي لطلبات التحويل. حاول غداً أو تواصل مع الدعم." });
       }
-      // Per-IP, across accounts — same signal as SHARED_IP_MULTI_ACCOUNT
-      // in fraud.service.ts, applied here since that class is Redis-backed
-      // and nothing in this deploy instantiates a real Redis client for it
-      // (see apps/api/src/services/fraud.service.ts's constructor — it's
-      // unused/uncallable in production right now). checkLimit's in-memory
-      // counter is what's actually wired up and running (redeem route),
-      // so this stays consistent with that rather than adding a second,
-      // half-working abuse-protection mechanism.
-      if (!checkLimit(`manualPayment:ip:${ctx.ip}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_IP_PER_HOUR, 60 * 60 * 1000)) {
+      // Per-IP, across accounts — same signal as SHARED_IP_MULTI_ACCOUNT in
+      // fraud.service.ts. P3.1: all three limits here are Redis-backed
+      // (utils/redis-rate-limiter.ts), so they hold across api replicas; if
+      // Redis is down they degrade to the per-process counter, not to "open".
+      if (!(await checkRateLimit(`manualPayment:ip:${ctx.ip}:hour`, FRAUD.MANUAL_PAYMENT_ATTEMPTS_PER_IP_PER_HOUR, 60 * 60 * 1000)).allowed) {
         await logManualPaymentAbuse(ctx.user.id, ctx.ip, "high", "IP_LIMIT");
         throw new TRPCError({ code: "TOO_MANY_REQUESTS",
           message: "عدد كبير من الطلبات من هذا الاتصال. حاول لاحقاً." });

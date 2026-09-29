@@ -108,6 +108,12 @@ export const billingLockLostTotal = new client.Counter({
   registers: [registry],
 });
 
+export const rateLimitFallbackTotal = new client.Counter({
+  name:      "aip_rate_limit_fallback_total",
+  help:      "Rate-limit checks answered by the per-process fallback because Redis was unavailable (P3.1). Paid traffic is not blocked.",
+  registers: [registry],
+});
+
 export const fraudEventsTotal = new client.Counter({
   name:       "aip_fraud_events_total",
   help:       "Fraud events logged, by type and severity",

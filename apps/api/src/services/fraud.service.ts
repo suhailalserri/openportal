@@ -23,18 +23,13 @@ export class FraudService {
     return new Date().toISOString().slice(0, 10);
   }
 
-  /** Check per-minute and per-hour request rate */
-  async checkRequestVelocity(userId: string, ip: string): Promise<FraudCheckResult> {
-    const rpmKey = `rate:${userId}:rpm`;
-    const count  = await this.redis.incr(rpmKey) as number;
-    await this.redis.expire(rpmKey, 60);
-
-    if (count > FRAUD.MAX_REQUESTS_PER_MINUTE) {
-      await this.logEvent({ userId, type: "HIGH_REQUEST_VELOCITY", severity: "medium",
-        details: { count, ip }, ip });
-      return { allowed: false, reason: "RATE_LIMIT_EXCEEDED" };
-    }
-
+  /**
+   * P3.1: identity signals only (multi-IP per user, multi-user per IP).
+   * The per-minute request counter that used to live here refreshed its expiry
+   * on every call (the window never reset for a steadily active user); request
+   * rate limiting now lives in utils/redis-rate-limiter.ts. Never blocks.
+   */
+  async trackRequestIdentity(userId: string, ip: string): Promise<void> {
     // Track unique IPs per user today
     const ipKey = `user:${userId}:ips:${this.today()}`;
     await this.redis.sadd(ipKey, ip);
@@ -56,8 +51,12 @@ export class FraudService {
       await this.logEvent({ userId, type: "SHARED_IP_MULTI_ACCOUNT", severity: "high",
         details: { ip, usersFromIp }, ip });
     }
+  }
 
-    return { allowed: true };
+  /** P3.1: audit row when the request rate limiter denies a user (called once per window, not per 429). */
+  async recordRequestRateExceeded(userId: string, ip: string, count: number): Promise<void> {
+    await this.logEvent({ userId, type: "HIGH_REQUEST_VELOCITY", severity: "medium",
+      details: { count, ip }, ip });
   }
 
   /** Check redeem attempt rate limits */
