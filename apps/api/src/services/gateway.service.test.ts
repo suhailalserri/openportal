@@ -369,6 +369,29 @@ describe("streamChat — B1 additions", () => {
     expect(sentBody.max_tokens).toBe(8192); // clamped, not 50_000
   });
 
+  it("P1.2: uses the route-supplied requestId as the gateway X-Request-ID and the billing request id", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      body: makeSseStream([
+        `data: {"choices":[{"delta":{"content":"hi"}}]}\n\n`,
+        `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+        `data: [DONE]\n\n`,
+      ]),
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, requestId: "lock-req-123", reply });
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    expect((init as RequestInit & { headers: Record<string, string> }).headers["X-Request-ID"]).toBe("lock-req-123");
+    expect(deductCreditsAtomicMock).toHaveBeenCalledWith(
+      "user-1", expect.any(Number), "Chat usage",
+      expect.objectContaining({ requestId: "lock-req-123" }),
+    );
+  });
+
   it("omits temperature/top_p when not provided (no false 0s/nulls), but always sends an affordability-bounded max_tokens", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),

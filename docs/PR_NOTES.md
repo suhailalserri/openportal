@@ -155,3 +155,54 @@ in CI/preview rather than being swallowed as "invalid code."
     (existing anonymization transaction already deletes it — verify
     that still runs after the new check, not bypassed by an early
     return).
+
+
+---
+
+# P1.2 — Per-user in-flight billing lock (closes G5)
+
+Plan: `docs/MASTER_PLAN.md` §6 P1.2. **No frozen file was edited.** The lock lives
+in `apps/api` (`index.ts` `/chat`), not in the frozen `apps/web` proxy.
+
+## Changes
+
+- New `apps/api/src/services/billing-lock.service.ts` — `withBilledOperationLock(userId, fn, opts?)`
+  (reusable by transcription/agents), `replyForLockError()`, error classes.
+- `apps/api/src/index.ts` — `/chat` wraps `streamChat` in the lock (after auth, rate limit and the
+  DB-only zero-balance check; before `streamChat`'s idempotency claim). Passes `requestId` down.
+- `apps/api/src/services/gateway.service.ts` — optional `requestId` option (`opts.requestId ?? randomUUID()`);
+  comment on G5 updated. No behaviour change without the option.
+- `apps/api/src/metrics.ts` — `aip_billing_lock_rejected_total`, `aip_billing_lock_unavailable_total`,
+  `aip_billing_lock_lost_total`.
+- `.github/workflows/deploy.yml` — `api-tests` gets a `redis:7-alpine` service container + `TEST_REDIS_URL`.
+- Tests: `billing-lock.service.test.ts` (real Redis), one case in `gateway.service.test.ts`.
+
+## External contract change (`docs/frontend/API_CONTRACT.md` updated)
+
+`POST /chat` (and the web proxy that streams it through) can now return:
+- `409 REQUEST_IN_PROGRESS` — `retryable: true`, `retryAfterSeconds: 2`, header `Retry-After: 2`.
+- `503 SERVICE_TEMPORARILY_UNAVAILABLE` — lock store down (fail closed), `Retry-After: 5`.
+
+**Frontend gap:** neither code is mapped in the chat UI yet. Until it is, a fast follow-up or a
+two-tab send surfaces as a generic error. Needed: retry once after ~2 s on 409 with the same
+`clientMessageId`. This is a `FRONTEND_REBUILD_PLAN` item, not part of this session.
+
+## Behaviour to know
+
+- A follow-up sent in the few ms between stream end and deduction commit gets a 409 (by design).
+- Retrying the same `clientMessageId` while the first request still runs gets a 409; after release the
+  retry proceeds and the idempotency claim prevents a duplicate user row.
+- Lock lost mid-stream (heartbeat sees another owner or none): logged + counted, stream is **not**
+  aborted; billing stays atomic (`WHERE credits >= X`). Say so if abort is preferred.
+- If Stop / tab close does not reach the API through the Vercel proxy (proxy is frozen and does not
+  forward `req.signal`; unverified), the API keeps streaming and holds the lock up to the 120 s stream
+  ceiling. Logged, not fixed.
+- Upstash budget (L15): +2 commands per chat (SET, release EVAL) and +1 per 10 s of streaming (heartbeat).
+
+## Ops
+
+- Stuck lock: `redis-cli DEL lock:billed:<userId>`. Self-heals in 30 s if the holder died.
+- Alert: on the first 503 in each 5-minute window a critical alert is queued (best effort; the alert
+  queue is on the same Redis, so during a full outage it may not deliver — P2.2 adds the external
+  uptime check that covers this).
+

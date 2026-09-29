@@ -110,7 +110,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 ## 4. Progress tracker
 
 **Stage 0** — [x] P0.1 · [x] P0.2
-**Stage 1** — [ ] P1.1 · [ ] P1.2 · [ ] P1.3
+**Stage 1** — [x] P1.1 · [ ] P1.2 (built, awaiting CI + manual check) · [ ] P1.3
 **Stage 2** — [ ] P2.1 · [ ] P2.2 · [ ] P2.3
 **Stage 3** — [ ] P3.1 · [ ] P3.2 · [ ] P3.3 · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
 **Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**

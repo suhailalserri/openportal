@@ -53,6 +53,21 @@ jobs:
     name: API Tests (Testcontainers)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # P1.2: the per-user billing lock uses Lua + SET NX PX + TTLs, which the
+    # in-memory fakeRedis.ts cannot model. A real Redis runs alongside the job;
+    # billing-lock.service.test.ts fails in CI if TEST_REDIS_URL is missing.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
 

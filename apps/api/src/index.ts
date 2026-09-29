@@ -92,6 +92,8 @@ app.post("/chat", {
 
   const { getBalance }    = await import("./services/balance.service");
   const { streamChat }    = await import("./services/gateway.service");
+  const { withBilledOperationLock, replyForLockError } =
+    await import("./services/billing-lock.service");
 
   // Cheap, coarse fast-path: reject a fully zeroed-out balance before we
   // even resolve the model. This is NOT the real affordability guard —
@@ -125,19 +127,40 @@ app.post("/chat", {
     new DOMException("Client disconnected", "AbortError"),
   ));
 
-  await streamChat({
-    userId:          req.user.id,
-    model:           body.model,
-    messages:        body.messages,
-    conversationId:  body.conversationId ?? crypto.randomUUID(),
-    temperature:     body.temperature,
-    top_p:           body.top_p,
-    max_tokens:      body.max_tokens,
-    clientMessageId: body.clientMessageId,
-    regenerate:      body.regenerate,
-    abortSignal:     clientDisconnectController.signal,
-    reply,
-  });
+  // P1.2 (closes G5): one billed operation in flight per user. The lock sits
+  // HERE, above streamChat, because streamChat makes provider-side calls
+  // (history compaction) before its own affordability check, and because the
+  // deduction happens after the stream ends — the lock must span all of it
+  // (success, upstream error, client abort) and is released in a `finally`.
+  //
+  // Ordering matters: this runs after auth, rate limiting and the DB-only
+  // zero-balance check, and BEFORE streamChat's idempotency claim, so a 409
+  // never consumes a clientMessageId claim (the client's retry still inserts
+  // its user row exactly once).
+  //
+  // Busy -> 409 REQUEST_IN_PROGRESS (retryable, Retry-After: 2).
+  // Redis down -> 503 (fail CLOSED, unlike rate limiting: this guards money).
+  try {
+    await withBilledOperationLock(req.user.id, (lock) =>
+      streamChat({
+        userId:          req.user!.id,
+        model:           body.model,
+        messages:        body.messages,
+        conversationId:  body.conversationId ?? crypto.randomUUID(),
+        temperature:     body.temperature,
+        top_p:           body.top_p,
+        max_tokens:      body.max_tokens,
+        clientMessageId: body.clientMessageId,
+        regenerate:      body.regenerate,
+        requestId:       lock.requestId,
+        abortSignal:     clientDisconnectController.signal,
+        reply,
+      }),
+    );
+  } catch (err) {
+    if (replyForLockError(err, reply)) return;
+    throw err;
+  }
 });
 
 // ── Start server ───────────────────────────────────────────────────────

@@ -88,6 +88,24 @@ export const balanceDeductionFailuresTotal = new client.Counter({
   registers: [registry],
 });
 
+export const billingLockRejectedTotal = new client.Counter({
+  name:      "aip_billing_lock_rejected_total",
+  help:      "Billed requests rejected with 409 because the user already had one in flight (P1.2)",
+  registers: [registry],
+});
+
+export const billingLockUnavailableTotal = new client.Counter({
+  name:      "aip_billing_lock_unavailable_total",
+  help:      "Billed requests rejected with 503 because the lock store (Redis) was unreachable (P1.2, fail closed)",
+  registers: [registry],
+});
+
+export const billingLockLostTotal = new client.Counter({
+  name:      "aip_billing_lock_lost_total",
+  help:      "Locks found lost/expired mid-operation by the heartbeat (P1.2). The stream still completes; billing stays atomic.",
+  registers: [registry],
+});
+
 export const fraudEventsTotal = new client.Counter({
   name:       "aip_fraud_events_total",
   help:       "Fraud events logged, by type and severity",

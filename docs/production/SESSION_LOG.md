@@ -344,3 +344,55 @@ enough for the web vitest setup.
 PR_NOTES). Suspended users cannot self-serve data export or account deletion.
 
 **Next:** P1.2 Phase Summary, then wait for the owner's OK.
+
+---
+
+## Session 10 — 2026-09-29 — P1.2 per-user in-flight billing lock (closes G5)
+
+**Owner:** "OK" to the Session 10 Phase Summary (30 s TTL + 10 s heartbeat, 409 shape,
+continue on lock loss). The owner's uploaded `MASTER_PLAN.md` shows P1.1 ticked, taken as
+"CI green + manual check done"; the repo copy of the plan had it unticked, so the tracker
+now carries the owner's tick. The uploaded repo zip was byte-identical to the Session 9
+delivery, so this builds on that state.
+
+**Plan vs code:** two deviations, both announced in the summary and approved.
+(1) TTL 30 s + heartbeat instead of "max stream time + margin". (2) Real Redis via a
+`redis:7-alpine` CI service container + `TEST_REDIS_URL`, not Testcontainers (no lockfile
+change possible here). A guard test fails in CI if the variable is missing.
+
+**Changed:** `apps/api/src/index.ts` (`/chat` wrapped in the lock),
+`services/gateway.service.ts` (optional `requestId`), `metrics.ts` (3 counters),
+`.github/workflows/deploy.yml` (Redis service). **New:** `services/billing-lock.service.ts`,
+`services/billing-lock.service.test.ts`. **Tests added:** `gateway.service.test.ts` (requestId
+passthrough). **Docs:** `docs/PR_NOTES.md`, `docs/frontend/API_CONTRACT.md` (new 409/503),
+`docs/MASTER_PLAN.md` tracker. No frozen-zone edits. No DELETE list.
+
+**Design:** lock key `lock:billed:{userId}`; acquire `SET NX PX 30000`; heartbeat every 10 s via
+compare-and-PEXPIRE Lua; release via compare-and-DEL Lua in `finally`. Busy -> `409
+REQUEST_IN_PROGRESS` before any provider call and before the idempotency claim. Redis down ->
+`503` fail closed + throttled best-effort alert. Lock lost mid-stream -> logged and counted, stream
+continues, billing still atomic.
+
+**Tests (red first, by reading):** on the old code there is no lock, so "second concurrent request
+rejected before the provider call" and "exactly one of four simultaneous acquires wins" cannot
+pass. Also covered: release on success / upstream error / abort, expiry takeover (late release
+does not delete the new owner's key), heartbeat keeps a long operation alive, lost-lock detection,
+fail-closed with Redis down, 409/503 reply shape, alert throttle. The "10 concurrent deductions"
+test in `balance.service.test.ts` is untouched.
+
+**Not verified (cannot run the repo here):** `tsc`, lint, vitest, CI. Only a TypeScript syntax
+parse of every touched file and a YAML parse of `deploy.yml` were run. No Redis binary in the
+sandbox, so the Lua scripts and all real-Redis tests have never executed. Also unverified:
+Lua/EVAL behaviour on Upstash; ioredis `commandTimeout` behaviour during a real outage (the
+fail-closed test uses an unreachable port, which approximates but is not the same as an Upstash
+brownout); timing-based tests (300-1000 ms sleeps) on a loaded CI runner; whether Stop/tab-close
+reaches the API through the frozen Vercel proxy; that the `redis` service container is reachable at
+`localhost:6379` from the job (standard for GitHub-hosted runners).
+
+**Status:** P1.2 built, awaiting CI and the manual check. Tracker **not ticked** for P1.2.
+
+**Next:** owner runs CI (`api-tests` must show `billing-lock.service.test.ts` executed, not skipped),
+then the manual check: two tabs sending at once -> second gets 409; kill the API mid-stream and
+confirm `lock:billed:<id>` expires within 30 s. Frontend needs a 409 retry mapping (see PR_NOTES).
+Then P1.3.
+
