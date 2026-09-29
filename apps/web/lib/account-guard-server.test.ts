@@ -32,10 +32,15 @@ describe("rejectUnusableAccount", () => {
     expect(await res!.json()).toEqual({ error: "Account under review", code: "ACCOUNT_UNDER_REVIEW" });
   });
 
-  it("fails closed: a missing user row is 401, a DB error propagates", async () => {
+  it("fails closed: a missing user row is 401", async () => {
     findFirst.mockResolvedValue(undefined);
     expect((await rejectUnusableAccount("gone"))?.status).toBe(401);
-    findFirst.mockRejectedValue(new Error("db down"));
+  });
+
+  it("fails closed: a DB error propagates instead of letting the request through", async () => {
+    // async impl: the rejection is created only when the mock is called and
+    // is awaited immediately, so it can never surface as an unhandled error.
+    findFirst.mockImplementation(async () => { throw new Error("db down"); });
     await expect(rejectUnusableAccount("u1")).rejects.toThrow("db down");
   });
 });

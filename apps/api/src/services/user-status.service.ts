@@ -74,15 +74,22 @@ export async function applyUserStatusChange(
       return { ok: false, code: "INSUFFICIENT_ROLE_FOR_TARGET" };
     }
 
-    await tx.update(users)
-      .set({ status: input.status, updatedAt: new Date() })
-      .where(eq(users.id, input.targetId));
-
     // Suspension kills live sessions immediately. The API key row is left
     // intact on purpose: the account guard blocks it while suspended and
     // reactivation restores it.
+    //
+    // ORDER MATTERS: migration 0018's `users_revoke_sessions_on_lockout`
+    // trigger deletes the user's sessions during the status UPDATE below. If
+    // we revoked AFTER the update, our DELETE would find nothing and the
+    // audit row would record sessionsRevoked: 0. Revoking first (same
+    // transaction, so still all-or-nothing) yields the true count; the
+    // trigger stays as the backstop for writers outside this code.
     const sessionsRevoked =
       input.status === "suspended" ? await revokeUserSessions(input.targetId, tx) : 0;
+
+    await tx.update(users)
+      .set({ status: input.status, updatedAt: new Date() })
+      .where(eq(users.id, input.targetId));
 
     await tx.insert(auditLogs).values({
       adminId:    input.actorId,
