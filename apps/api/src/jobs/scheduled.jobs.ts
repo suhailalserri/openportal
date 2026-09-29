@@ -4,7 +4,7 @@ import { eq, lt, and, lte } from "drizzle-orm";
 import { queueAlert, queueEmail, reportQueue as healthQueue } from "./queue";
 import { LOW_BALANCE_THRESHOLD }  from "@ai-platform/config";
 import { syncModelsFromGateway }  from "../services/model-sync.service";
-import { createRedisHealthMonitor } from "./redis-health";
+import { createRedisHealthMonitor, type RedisHealthClient } from "./redis-health";
 import { reportError } from "../monitoring/error-hook";
 
 // Called on server startup to register scheduled jobs
@@ -57,11 +57,10 @@ const redisHealth = createRedisHealthMonitor({
 /** P2.3. Uses the reports queue's own ioredis client; never throws. */
 export async function runRedisHealthCheck() {
   try {
-    const client = await healthQueue.client;
-    await redisHealth.run({
-      call: (cmd, ...args) => client.call(cmd, ...args),
-      info: (section) => (section ? client.info(section) : client.info()),
-    });
+    // BullMQ types `queue.client` as its own minimal IRedisClient, but at runtime it
+    // is the underlying ioredis instance, which has call() and info().
+    const client = (await healthQueue.client) as unknown as RedisHealthClient;
+    await redisHealth.run(client);
   } catch (err) {
     console.error("[redis-health] check failed:", err instanceof Error ? err.message : err);
   }

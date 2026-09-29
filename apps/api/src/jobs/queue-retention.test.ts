@@ -50,7 +50,7 @@ describe.skipIf(!TEST_REDIS_URL)("failing job: captured, counted, expires (real 
   const prefix = `t-${randomUUID().slice(0, 8)}`;
   let conn: Redis;
   let queue: Queue;
-  let worker: Worker;
+  let worker: Worker<unknown, void>;
   const sinkCalls: Array<{ tags?: Record<string, string> | undefined }> = [];
   const counted: string[] = [];
 
@@ -60,7 +60,7 @@ describe.skipIf(!TEST_REDIS_URL)("failing job: captured, counted, expires (real 
       connection: conn, prefix,
       defaultJobOptions: { attempts: 1, ...jobRetention({ failAgeSeconds: 1 }) },
     });
-    worker = new Worker("p23", async () => { throw new Error("deliberate p2.3 failure"); },
+    worker = new Worker<unknown, void>("p23", async (): Promise<void> => { throw new Error("deliberate p2.3 failure"); },
       { connection: conn.duplicate(), prefix });
     setErrorSink((_e, ctx) => { sinkCalls.push({ tags: ctx?.tags }); });
     attachWorkerErrorReporting(worker, "p23");

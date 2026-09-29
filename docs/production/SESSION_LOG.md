@@ -628,3 +628,18 @@ fallback because `queueAlert` goes through Redis).
 - Sentry/Render/Vercel/Supabase UI steps in the runbook are from memory.
 
 **Next (owner):** CI green; set `SENTRY_WEBHOOK_TOKEN` on Render; do runbook sections 2-4; run the drills; tick P2.2 and the LAUNCH_CHECKLIST line. Then P3.2 (graceful shutdown) or P1.3 leftovers per triage; P3.1 needs P1.3 (done).
+
+## Session 17 - 2026-09-30 - Type-check fix for P2.2/P2.3 (CI `Type-check & Lint` red)
+
+**Symptom:** `tsc --noEmit` in `apps/api`: TS2375 at `queue-retention.test.ts(63,5)` (Worker<any,never,string> not
+assignable to Worker<any,any,string>) and TS2339/TS2554 at `scheduled.jobs.ts(62,38)/(63,49)`
+(`call`/`info` not on BullMQ's `IRedisClient`).
+
+**Cause:** both were flagged in Session 15 as "typing from memory, tsc will say". A worker whose processor only throws
+infers result type `never`; and `queue.client` is typed as BullMQ's minimal interface although it is an ioredis instance at runtime.
+
+**Changed:** `apps/api/src/jobs/queue-retention.test.ts` (explicit `Worker<unknown, void>` + `Promise<void>` processor),
+`apps/api/src/jobs/scheduled.jobs.ts` (cast `queue.client` to `RedisHealthClient`, pass it straight to the monitor). No behaviour change. No DELETE list.
+
+**Not verified:** `tsc` (cannot run here). Turbo stopped after the api failure, so `apps/web` type-check and lint have not
+been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2. If they fail, send the log.
