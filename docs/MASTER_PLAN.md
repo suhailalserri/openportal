@@ -112,7 +112,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 0** — [x] P0.1 · [x] P0.2
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
-**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
+**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 · [ ] P3.5 · [ ] P3.6
 **Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
@@ -215,6 +215,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Closes:** G8.
 - Multi-stage build; runtime runs compiled `dist` with production deps only; `USER node`; `HEALTHCHECK` hitting `/health`; pinned base image digest.
 - **Done when:** `docker inspect` shows non-root, no `tsx`/dev deps in the final image, and the app boots.
+- **As built (P3.3):** `apps/api/build.mjs` bundles with esbuild (not `tsc`: the workspace packages export TypeScript source) into `dist/index.js`; api `dependencies` stay external, `@ai-platform/*` and `postgres` are inlined. 3-stage `apps/api/Dockerfile` (build / prod-deps via `pnpm install --prod --filter @ai-platform/api` / runner), `USER node`, `HEALTHCHECK` on `/health`, `CMD node dist/index.js`. `tsx` moved to devDependencies, `esbuild` (pinned to the repo override 0.21.5) added. Base image is pinned by tag with a `NODE_IMAGE` build arg for a digest. New CI job `API Docker Image`. Render was confirmed to run this Dockerfile (Docker runtime, path `apps/api/Dockerfile`, context `.`, no Docker Command override).
 
 ### P3.4 Secrets & rotation (1 session)
 **Closes:** G12.

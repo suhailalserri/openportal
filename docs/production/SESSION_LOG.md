@@ -711,3 +711,27 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 **Changed:** `apps/api/src/services/fraud.service.test.ts` (`hit[0]!.`, two lines). No behaviour change. No DELETE list.
 
 **Not verified:** `tsc` (cannot run here). Turbo stopped after the api failure, so `apps/web` type-check and `Lint` have not run yet; if they fail, send the log.
+
+## Session 22 - 2026-09-30 - P3.3 Container hardening (closes G8) - code done, CI + owner deploy pending
+
+**Plan vs code (told to owner before building; owner said OK and "do what is best for the project"):**
+- Render **does** run this Dockerfile (owner screenshot: Docker runtime, `apps/api/Dockerfile`, context `.`, no Docker Command override). So the change reaches production on the next deploy, not "once switched to Docker".
+- `tsc` cannot produce a runnable `dist` (workspace packages export TS source), so the bundle is esbuild. This deviates from the plan's wording, not its intent.
+- Correction to the pre-build summary: `postgres` is also a `dependency` of `@ai-platform/db`, but the api's production install does not include the db package (it is bundled), so `postgres` is inlined as planned.
+- `pnpm deploy` was not used: it would copy the db package and its dependencies (better-auth, ...) into the image for nothing. `pnpm install --prod --filter @ai-platform/api` installs only the api's own production dependencies from the lockfile.
+
+**New:** `apps/api/build.mjs`, `.dockerignore`, `docs/runbooks/API_CONTAINER.md`.
+**Changed:** `apps/api/Dockerfile` (3 stages, `USER node`, `HEALTHCHECK`, `CMD node --enable-source-maps dist/index.js`, `NODE_IMAGE` build arg), `apps/api/package.json` (+`build:bundle`, +`start:prod`, `tsx` to devDependencies, +`esbuild` `0.21.5` = the repo's pnpm override), `pnpm-lock.yaml` (three importer edits under `apps/api` only; no `packages:`/`snapshots:` change, v9 lockfiles do not store a dev flag), `.github/workflows/deploy.yml` (+job `API Docker Image`), `docs/MASTER_PLAN.md`, `docs/LAUNCH_CHECKLIST.md`. Frozen zone untouched (`apps/web/**` not modified). No DELETE list.
+
+**Verified (executed here):** YAML parses and lists the new job; `build.mjs` passes `node --check`; `package.json` parses; the lockfile diff is exactly the three intended importer hunks against the uploaded zip.
+
+**Not verified (no Docker, no network, no node_modules here):**
+- The Docker build, the esbuild bundle, and that the bundle boots. First real proof is the CI job `API Docker Image`.
+- `pnpm install --frozen-lockfile` against the hand-edited lockfile. If it fails, send the log.
+- `pnpm install --frozen-lockfile --prod --filter @ai-platform/api` under pnpm 9.0.0 with only 4 manifests copied (same manifest set as the old Dockerfile, but the `--filter` form is new). Fallback if it errors: `pnpm --filter @ai-platform/api deploy --prod /out` in that stage.
+- That the tag `node:20.19-alpine` exists. It is from memory. A wrong tag fails the build (and CI shows it first).
+- Sentry: externals load from node_modules exactly as before, so instrumentation should be unchanged, but that is untested. Owner check 4 in the runbook covers it.
+- That the CI leak check has no false positive on transitive dependencies (it checks `tsx`, `vitest`, `drizzle-kit`, `esbuild`, `pino-pretty`, `@testcontainers`).
+- Render behaviour: that `PORT` is injected (the api reads it), and that the Pre-Deploy Command is empty (the screenshot did not show that field).
+
+**Next (owner):** put this on a branch/PR first, not straight on `main` (Render builds `main` without waiting for CI). Wait for `API Docker Image` and the other jobs to be green, then merge. Follow "Owner checks after the first deploy" in `docs/runbooks/API_CONTAINER.md`. Optional: set Render to *After CI Checks Pass* and add `API Docker Image` as a required check on `main`. Then tick P3.3 and the LAUNCH_CHECKLIST line. Flagged, not done: Node 20 is end-of-life (2026-04-30); moving to Node 22 is its own change.

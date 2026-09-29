@@ -38,7 +38,7 @@ Items name the plan phase that produces the evidence.
 - [ ] Gateway reachable only from the api, or protected as ADR-011 records — N8
 - [ ] `/metrics` not publicly readable — N9 / P3.5
 - [ ] Graceful shutdown verified with a mid-stream deploy — P3.2
-- [ ] Container non-root, compiled, healthcheck — P3.3
+- [ ] Container non-root, compiled, healthcheck — P3.3 (code done; tick after CI `API Docker Image` is green and the Render deploy is verified)
 - [ ] Secret-rotation runbook rehearsed once — P3.4
 - [ ] CORS, headers, body limits, Zod limits, admin 2FA enforced, Turnstile live — P3.5
 - [ ] Dependabot, `pnpm audit`, secret scanning, branch protection (`api-tests`, `web-build`) on — P3.5

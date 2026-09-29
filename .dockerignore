@@ -1,0 +1,30 @@
+# Build context is the repo root (Render: Docker Build Context Directory ".").
+# Only things that are never needed by ANY Dockerfile in this repo. docs/ and
+# apps/web are deliberately NOT ignored: apps/web/Dockerfile does `COPY . .`
+# and the web build syncs docs/legal.
+
+# Host installs must never overwrite the container's own pnpm install.
+**/node_modules
+
+# Build output / caches
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+
+# VCS and CI metadata
+.git
+.github
+
+# Secrets and local files (.env.example stays)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+cookies.txt
+*.log
+.DS_Store

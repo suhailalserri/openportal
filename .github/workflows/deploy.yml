@@ -84,6 +84,114 @@ jobs:
       - name: Run API test suite
         run: pnpm --filter @ai-platform/api test
 
+  # ─── API DOCKER IMAGE ────────────────────────────────────────────────
+  # P3.3 (closes G8). Render builds apps/api/Dockerfile on every push to main
+  # and does NOT wait for CI, so this job is the only place a broken image is
+  # caught before it reaches production. It proves the three things the plan's
+  # "done when" asks for: non-root, no tsx/dev deps in the final image, and the
+  # app boots (and the image's own HEALTHCHECK turns healthy).
+  #
+  # Env values are dummies that satisfy apps/api/src/config.ts. DB and Redis are
+  # deliberately unreachable: /health has no dependencies and the api listens
+  # before touching Redis, so this also guards that property.
+  api-docker:
+    name: API Docker Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f apps/api/Dockerfile -t ai-platform-api:ci .
+
+      - name: Image is non-root, has a healthcheck, runs the bundle
+        run: |
+          set -euo pipefail
+          user=$(docker inspect --format '{{.Config.User}}' ai-platform-api:ci)
+          echo "Config.User = '$user'"
+          [ "$user" = "node" ] || { echo "::error::image must run as USER node"; exit 1; }
+
+          uid=$(docker run --rm --entrypoint id ai-platform-api:ci -u)
+          echo "effective uid = $uid"
+          [ "$uid" != "0" ] || { echo "::error::container runs as root"; exit 1; }
+
+          hc=$(docker inspect --format '{{json .Config.Healthcheck}}' ai-platform-api:ci)
+          echo "Healthcheck = $hc"
+          [ "$hc" != "null" ] || { echo "::error::no HEALTHCHECK"; exit 1; }
+
+          cmd=$(docker inspect --format '{{json .Config.Cmd}}' ai-platform-api:ci)
+          echo "Cmd = $cmd"
+          echo "$cmd" | grep -q 'dist/index.js' || { echo "::error::CMD must run dist/index.js"; exit 1; }
+          if echo "$cmd" | grep -Eq 'tsx|pnpm'; then echo "::error::CMD must not use tsx/pnpm"; exit 1; fi
+
+      - name: No dev dependencies or source in the final image
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh ai-platform-api:ci -c '
+            fail=0
+            for name in tsx vitest drizzle-kit esbuild pino-pretty; do
+              if [ -e "/app/apps/api/node_modules/$name" ]; then echo "LEAK (direct): $name"; fail=1; fi
+              if ls /app/node_modules/.pnpm | grep -q "^$name@"; then echo "LEAK (store): $name"; fail=1; fi
+            done
+            if ls /app/node_modules/.pnpm | grep -q "^@testcontainers"; then echo "LEAK (store): @testcontainers"; fail=1; fi
+            [ ! -e /app/apps/api/src ] || { echo "LEAK: apps/api/src is in the image"; fail=1; }
+            [ ! -e /app/packages ]     || { echo "LEAK: packages/ is in the image"; fail=1; }
+            command -v pnpm >/dev/null 2>&1 && { echo "LEAK: pnpm is in the runtime image"; fail=1; }
+            [ -f /app/apps/api/dist/index.js ] || { echo "MISSING: dist/index.js"; fail=1; }
+            exit $fail
+          '
+
+      - name: Container boots and /health returns 200
+        run: |
+          set -uo pipefail
+          docker run -d --name api-ci -p 4000:4000 \
+            --health-interval 5s --health-start-period 5s --health-retries 3 \
+            -e NODE_ENV=production \
+            -e PORT=4000 \
+            -e DATABASE_URL="postgres://placeholder:placeholder@127.0.0.1:1/unused" \
+            -e REDIS_URL="redis://127.0.0.1:1/0" \
+            -e GATEWAY_URL="http://127.0.0.1:1" \
+            -e GATEWAY_MASTER_KEY="ci-placeholder" \
+            -e GATEWAY_ROOT_TOKEN="ci-placeholder" \
+            -e BETTER_AUTH_SECRET="ci-placeholder-32-bytes-minimum-xxxxxxxx" \
+            -e INTERNAL_SERVICE_TOKEN="ci-placeholder-internal-service-token-32plus" \
+            -e RESEND_API_KEY="ci-placeholder" \
+            -e RESEND_FROM_EMAIL="noreply@openportal.site" \
+            -e CODE_SALT="ci-placeholder-salt" \
+            ai-platform-api:ci
+
+          ok=""
+          for i in $(seq 1 30); do
+            if [ "$(docker inspect -f '{{.State.Running}}' api-ci)" != "true" ]; then break; fi
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::/health never returned 200"
+            docker logs api-ci || true
+            exit 1
+          fi
+          echo "/health -> 200"
+
+          # The image's own HEALTHCHECK command must also work.
+          status=""
+          for i in $(seq 1 24); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' api-ci)
+            [ "$status" = "healthy" ] && break
+            sleep 5
+          done
+          echo "HEALTHCHECK status = $status"
+          if [ "$status" != "healthy" ]; then
+            echo "::error::HEALTHCHECK did not become healthy"
+            docker logs api-ci || true
+            exit 1
+          fi
+
+      - name: Container logs (always)
+        if: always()
+        run: docker logs api-ci 2>&1 | tail -n 80 || true
+
   # ─── WEB BUILD ───────────────────────────────────────────────────────
   # `next build` with dummy env vars. This is the job that would have
   # caught the build-breaking-import-reaches-prod-500 failures noted in
