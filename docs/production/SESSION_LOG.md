@@ -701,3 +701,13 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - The fraud tests that touch Postgres (Testcontainers).
 
 **Next (owner):** CI green (`API Tests` should list `redis-rate-limiter.test.ts` and the changed `fraud.service.test.ts`). Manual: 25 `/chat` requests within a minute (20 pass, then 429 with an accurate `Retry-After`); then chat steadily for 12 minutes, no 429. Check `aip_rate_limit_fallback_total` stays 0 on Render. Tick P3.1 and the LAUNCH_CHECKLIST line when both pass. Decide whether to approve the frozen-route exception (see PR_NOTES).
+
+## Session 21 - 2026-09-30 - Type-check fix for P3.1 (CI `Type-check & Lint` red)
+
+**Symptom:** `tsc --noEmit` in `apps/api`: TS2532 at `fraud.service.test.ts(97,12)` and `(98,12)` (`Object is possibly 'undefined'`). tsc listed only these two.
+
+**Cause:** `hit[0].severity` / `hit[0].details` in the new `recordRequestRateExceeded` test; the repo's `noUncheckedIndexedAccess` types an array index as possibly undefined. Same class as Sessions 17 and 19 (typing from memory, flagged in Session 20).
+
+**Changed:** `apps/api/src/services/fraud.service.test.ts` (`hit[0]!.`, two lines). No behaviour change. No DELETE list.
+
+**Not verified:** `tsc` (cannot run here). Turbo stopped after the api failure, so `apps/web` type-check and `Lint` have not run yet; if they fail, send the log.

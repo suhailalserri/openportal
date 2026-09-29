@@ -94,8 +94,8 @@ describe("FraudService.recordRequestRateExceeded (P3.1)", () => {
     const events = await fraudEventsFor(userId);
     const hit = events.filter((e: any) => e.type === "HIGH_REQUEST_VELOCITY");
     expect(hit).toHaveLength(1);
-    expect(hit[0].severity).toBe("medium");
-    expect(hit[0].details).toMatchObject({ count: 21, ip: "3.3.3.3" });
+    expect(hit[0]!.severity).toBe("medium");
+    expect(hit[0]!.details).toMatchObject({ count: 21, ip: "3.3.3.3" });
   });
 
   it("does not suspend the user (medium severity is audit-only)", async () => {
