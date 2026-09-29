@@ -1,5 +1,6 @@
 import { rejectUnusableAccount } from "@/lib/account-guard-server";
 import { applyUserStatusChange } from "@ai-platform/api/services/user-status";
+import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";
 import { NextRequest, NextResponse } from "next/server";
 import { auth }          from "@/lib/auth";
 import { headers }       from "next/headers";
@@ -52,12 +53,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // users.status directly - no session revocation, no self-suspend guard, no
   // superadmin protection (G2b through a second door). It now delegates to the
   // same service the tRPC mutation uses, so both doors enforce the same rules.
-  // IP: P1.3 will replace this with the shared getClientIp().
+  // IP: P1.3 - shared resolver (Vercel-trusted headers only, never cf-connecting-ip).
   const result = await applyUserStatusChange({
     actorId:  session.user.id,
     targetId: id,
     status:   parsed.data.status,
-    ip:       req.headers.get("x-forwarded-for"),
+    ip:       resolveWebClientIp((name) => req.headers.get(name)) ?? null,
   });
   if (!result.ok) {
     const status = result.code === "USER_NOT_FOUND" ? 404 : 403;

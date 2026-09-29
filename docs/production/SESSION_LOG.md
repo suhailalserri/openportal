@@ -438,3 +438,39 @@ up to ~6 s on repeated 409s - checked by reading only).
   returns the mock, and vitest runs a function returned from a hook as teardown, so the
   "db down" mock was called again after the test and its throw was reported as the failure. Fixed with a
   braced hook body. Same pattern searched for in other web tests. Still not run locally.
+
+---
+
+## Session 12 - 2026-09-29 - P1.3 client-IP trust chain (closes G10, partly: see below)
+
+**Owner:** OK to the Phase Summary: both frozen-zone edits (`app/api/chat/route.ts`,
+`app/api/admin/users/[id]/route.ts`), trust `cf-connecting-ip` only on direct api calls and never on
+the web side. Owner confirmed the P1.2 manual checks passed, so **P1.2 is ticked**.
+
+**Plan vs code:** the plan lists 3 files; the code has 6 sites. The api ones (`trpc.ts`,
+`rateLimit.middleware.ts`) and the two approved web routes are done. `web/server/context.ts` and
+`lib/turnstile-server.ts` are frozen and were NOT in the approved list: left untouched, exact patches
+in `docs/PR_NOTES.md` Session 12. **G10 is not fully closed until the owner approves those two.**
+The plan also said "Stop preferring cf-connecting-ip"; P0.1 showed `server: cloudflare` + `cf-ray` on
+the api, so on direct api calls it is kept behind `TRUST_CF_CONNECTING_IP` (default on).
+
+**Vercel headers:** confirmed from Vercel's documentation (not from a live deployment): `x-forwarded-for`
+is overwritten with the client IP, `x-real-ip` and `x-vercel-forwarded-for` are identical to it.
+
+**Tests (written, not run):** `client-ip.test.ts` (parse/validation, internal-token gating, forged
+`x-client-ip` / `x-forwarded-for` / `cf-connecting-ip` ignored, env helpers, web resolver, and a Fastify
+`inject` case proving a forged first `x-forwarded-for` entry is ignored with `trustProxy: 1`);
+`app/api/chat/route.test.ts` (Vercel header forwarded, forged `x-client-ip` never copied, header omitted
+when absent, internal auth headers intact).
+
+**Not verified (cannot run the repo here):** `tsc`, lint, vitest, CI, `next build`. Only a TypeScript
+syntax parse of touched files. Specifically unverified: the Fastify `trustProxy: 1` result (expected
+`2.2.2.2` in the inject test), the address Render actually appends (and whether Cloudflare in front of
+Render overwrites `cf-connecting-ip`, so the default-on trust is an assumption from the P0.1 headers);
+that `@ai-platform/api/utils/client-ip` resolves from `apps/web` like the other util exports; the chat
+route test's mocks against the web vitest setup; and real behaviour behind Vercel.
+
+**Status:** P1.3 built, awaiting CI. Tracker **not ticked** for P1.3.
+
+**Next:** owner runs CI; then manual checks below; then the owner decides on the two pending frozen
+edits; then P0.1's leftovers / P2.3 per the plan order.

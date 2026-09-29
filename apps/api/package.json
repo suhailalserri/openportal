@@ -10,6 +10,7 @@
     "./services/usage": "./src/services/usage.service.ts",
     "./utils/rate-limiter": "./src/utils/rate-limiter.ts",
     "./utils/account-guard": "./src/utils/account-guard.ts",
+    "./utils/client-ip": "./src/utils/client-ip.ts",
     "./services/user-status": "./src/services/user-status.service.ts"
   },
   "scripts": {

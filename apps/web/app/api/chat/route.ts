@@ -1,4 +1,5 @@
 import { rejectUnusableAccount } from "@/lib/account-guard-server";
+import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";
 import { NextRequest } from "next/server";
 import { auth }        from "@/lib/auth";
 import { headers }     from "next/headers";
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // P1.3 (owner-approved frozen-zone edit): forward the real client IP so the
+  // api's rate limit and fraud velocity see the user, not Vercel. Built only
+  // from Vercel's trusted headers; a client-supplied X-Client-IP on the
+  // incoming request is never copied (headers below are listed explicitly).
+  // Omitted when no valid address is found, so the api falls back safely.
+  const clientIp = resolveWebClientIp((name) => req.headers.get(name));
+
   let upstream: Response;
   try {
     upstream = await fetch(`${apiUrl}/chat`, {
@@ -40,6 +48,7 @@ export async function POST(req: NextRequest) {
         "Authorization": `Bearer ${process.env.INTERNAL_SERVICE_TOKEN ?? ""}`,
         "X-User-ID":     session.user.id,
         "X-User-Email":  session.user.email,
+        ...(clientIp ? { "X-Client-IP": clientIp } : {}),
       },
       body:   JSON.stringify(body),
       signal: AbortSignal.timeout(125_000), // slightly above the API's own 120s stream timeout

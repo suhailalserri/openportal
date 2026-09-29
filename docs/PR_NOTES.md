@@ -227,3 +227,44 @@ current client. It is safe here anyway: a 409/503 is returned before any row is 
 - `.github/workflows/deploy.yml` - `Build apps/web` in `web-build` and `e2e` retried up to 3 times
   (15 s / 30 s pauses) for the transient `next/font/google` failure.
 - No frozen-zone edits (`app/api/**`, `lib/auth.ts` untouched).
+
+---
+
+## Session 12 - P1.3 client-IP trust chain (closes G10 for the api and the two approved web routes)
+
+**New:** `apps/api/src/utils/client-ip.ts` (pure, exported as `@ai-platform/api/utils/client-ip`),
+`client-ip.test.ts`, `apps/web/app/api/chat/route.test.ts`.
+**Changed:** `apps/api/src/index.ts` (`trustProxy` from `TRUSTED_PROXY_HOPS`, default 1),
+`middleware/rateLimit.middleware.ts`, `routers/trpc.ts` (both now call `resolveApiClientIp`),
+`apps/api/package.json` (export), `.env.example`, `docs/frontend/API_CONTRACT.md`,
+`docs/MASTER_PLAN.md` (P1.2 ticked).
+**Frozen zone, owner-approved:** `apps/web/app/api/chat/route.ts` (adds `X-Client-IP` from
+`resolveWebClientIp`; omitted when no valid IP), `apps/web/app/api/admin/users/[id]/route.ts`
+(audit `ip` now from the same resolver instead of raw `x-forwarded-for`).
+
+**Trust rules:** api believes `X-Client-IP` only when the request carried the internal token;
+`x-forwarded-for` is never read on the api; `cf-connecting-ip` only while `TRUST_CF_CONNECTING_IP`
+is not `false`; otherwise Fastify `request.ip` (trustProxy). Web reads only Vercel-set headers on
+Vercel (docs: Vercel overwrites `x-forwarded-for`, `x-real-ip` and `x-vercel-forwarded-for` with the
+client IP) and never `cf-connecting-ip`.
+
+### NOT DONE - needs owner approval (frozen files, so G10 is not fully closed)
+Two web files still trust the forgeable `cf-connecting-ip` and are outside the approved edits:
+
+1. `apps/web/server/context.ts` (tRPC context for web: feeds `ctx.ip` to manual-payment IP limits,
+   redeem fraud checks and admin audit rows). Replace the `ip` block with:
+   `const ip = resolveWebClientIp((n) => req.headers.get(n)) ?? "unknown";`
+   plus `import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";`
+2. `apps/web/lib/turnstile-server.ts` `getClientIp` (used by `lib/auth.ts` and `/api/redeem`).
+   Replace its body with `return resolveWebClientIp((n) => headers.get(n));` (same import). Call sites
+   in `auth.ts` and `redeem/route.ts` stay untouched.
+
+Until both land, someone who can set `cf-connecting-ip` on a request to Vercel can still pick their
+IP identity on those paths (signup/redeem Turnstile-adjacent limits and web-side tRPC limits).
+
+### Behaviour to know
+- Rate-limit and fraud keys change identity (Vercel IP -> real client IP). Existing per-IP counters
+  simply stop matching; no migration.
+- Off Vercel (dev, CI/E2E) the web side reads `x-forwarded-for` so specs can choose identities. Do not
+  self-host `apps/web` on the open internet without a proxy you control.
+- Internal-token requests with no valid `X-Client-IP` fall back to the old behaviour (Vercel's IP).

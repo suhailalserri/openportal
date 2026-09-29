@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { FRAUD }        from "@ai-platform/config";
 import { checkLimit }   from "../utils/rate-limiter";
 import { fraudService } from "../services/fraud.service";
+import { resolveApiClientIp, trustCfConnectingIpFromEnv } from "../utils/client-ip";
 
 // Re-exported for any existing importers — prefer importing directly from
 // ../utils/rate-limiter in new code (see that file for why this split exists).
@@ -11,10 +12,15 @@ export async function rateLimitMiddleware(
   request: FastifyRequest,
   reply:   FastifyReply
 ): Promise<void> {
-  const ip      = request.headers["cf-connecting-ip"] as string
-               ?? request.headers["x-forwarded-for"] as string
-               ?? request.ip
-               ?? "unknown";
+  // P1.3: one shared resolver. X-Client-IP counts only on internal-token
+  // requests (authMiddleware sets isInternalAuth); x-forwarded-for is never
+  // read here, so a caller cannot mint a fresh identity by changing a header.
+  const ip      = resolveApiClientIp({
+    headers:             request.headers,
+    requestIp:           request.ip,
+    internalAuth:        request.isInternalAuth === true,
+    trustCfConnectingIp: trustCfConnectingIpFromEnv(),
+  });
 
   const userId  = request.user?.id;
   const key     = userId ? `user:${userId}` : `ip:${ip}`;

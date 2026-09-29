@@ -4,6 +4,7 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { db, users, sessions } from "@ai-platform/db";
 import { eq, and, gt } from "drizzle-orm";
 import { assertUsableAccount, ACCOUNT_ERROR_CODE } from "../utils/account-guard";
+import { resolveApiClientIp, isInternalTokenAuth, trustCfConnectingIpFromEnv } from "../utils/client-ip";
 
 // ── Context ───────────────────────────────────────────────────────────
 
@@ -53,10 +54,15 @@ export async function createContext({
   // (Next.js has no FastifyRequest), and meant this whole file's types had
   // to be resolved by Next.js's build in the first place — the root cause
   // of the build failures this file's git history is fixing.
-  const ip = (req.headers["cf-connecting-ip"] as string)
-          ?? (req.headers["x-forwarded-for"] as string)
-          ?? req.ip
-          ?? "unknown";
+  // P1.3: shared resolver (see ../utils/client-ip.ts for the trust rules).
+  // `internalAuth` is recomputed from the Authorization header because this
+  // runs outside authMiddleware.
+  const ip = resolveApiClientIp({
+    headers:             req.headers,
+    requestIp:           req.ip,
+    internalAuth:        isInternalTokenAuth(req.headers.authorization, process.env.INTERNAL_SERVICE_TOKEN),
+    trustCfConnectingIp: trustCfConnectingIpFromEnv(),
+  });
 
   return { db, user: await getUser(), ip };
 }
