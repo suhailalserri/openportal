@@ -429,3 +429,12 @@ build is enough for the font failure; the UI while waiting (the composer should 
 up to ~6 s on repeated 409s - checked by reading only).
 
 **Next:** owner re-runs CI; then the P1.2 manual checks; then P1.3.
+
+### Session 11 addendum - second CI run
+
+- **Type-check:** `stream-reader.test.ts` lines 287/321, TS2493 (`calls[0]` on an empty tuple): the
+  `sleep` mocks were `vi.fn(async () => ...)` with no parameters. Now typed `(_ms: number, _signal: AbortSignal)`.
+- **Web Unit Tests:** the previous fix was wrong. Real cause: `beforeEach(() => findFirst.mockReset())`
+  returns the mock, and vitest runs a function returned from a hook as teardown, so the
+  "db down" mock was called again after the test and its throw was reported as the failure. Fixed with a
+  braced hook body. Same pattern searched for in other web tests. Still not run locally.

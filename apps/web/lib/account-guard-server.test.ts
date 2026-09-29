@@ -10,7 +10,13 @@ vi.mock("drizzle-orm", () => ({ eq: vi.fn(() => "eq") }));
 
 import { rejectUnusableAccount } from "./account-guard-server";
 
-beforeEach(() => findFirst.mockReset());
+// Braces matter: `mockReset()` returns the mock itself, and vitest treats a
+// function returned from a beforeEach hook as a TEARDOWN and calls it after
+// the test. With an arrow-expression body, the "db down" mock was invoked
+// again as teardown and its throw was reported as a failure of the test.
+beforeEach(() => {
+  findFirst.mockReset();
+});
 
 describe("rejectUnusableAccount", () => {
   it("returns null for an active, unflagged user", async () => {

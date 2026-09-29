@@ -272,7 +272,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
       .mockResolvedValueOnce(jsonError(409, BUSY))
       .mockResolvedValueOnce({ ok: true, status: 200, body: okReader } as unknown as Response);
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => true);
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => true);
 
     const cb = collectingCallbacks();
     await runChatStream(
@@ -293,7 +293,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
   it("gives up after 3 retries of 409 and shows the server's own message as retryable", async () => {
     const fetchMock = vi.fn(async () => jsonError(409, BUSY));
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => true);
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => true);
 
     const errors: { message: string; retryable: boolean }[] = [];
     await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, {
@@ -309,7 +309,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
   it("retries 503 SERVICE_TEMPORARILY_UNAVAILABLE exactly once, after the server's delay", async () => {
     const fetchMock = vi.fn(async () => jsonError(503, UNAVAILABLE));
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => true);
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => true);
 
     const errors: { message: string; retryable: boolean }[] = [];
     await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, {
@@ -325,7 +325,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
   it("does not auto-retry when the status and code do not match the policy", async () => {
     const fetchMock = vi.fn(async () => jsonError(500, BUSY));
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => true);
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => true);
 
     const cb = collectingCallbacks();
     await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb, { sleep });
@@ -340,7 +340,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
       jsonError(402, { error: "INSUFFICIENT_BALANCE", message: "رصيدك صفر." }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => true);
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => true);
 
     await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal,
       collectingCallbacks(), { sleep });
@@ -352,7 +352,7 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
   it("reports stopped, not error, and sends nothing more when Stop is pressed while waiting", async () => {
     const fetchMock = vi.fn(async () => jsonError(409, BUSY));
     vi.stubGlobal("fetch", fetchMock);
-    const sleep = vi.fn(async () => false); // aborted during the wait
+    const sleep = vi.fn(async (_ms: number, _signal: AbortSignal) => false); // aborted during the wait
 
     const cb = collectingCallbacks();
     await runChatStream({ model: "gpt-4o", messages: [] }, new AbortController().signal, cb, { sleep });
