@@ -309,3 +309,38 @@ ticked**.
 
 **Next:** owner runs CI, applies 0018 (DB Operations -> constraints, or
 `db:migrate:manual`), does the manual check, confirms. Then P1.2.
+
+---
+
+## Session 9 — 2026-09-29 — P1.1 follow-up (frozen-zone gaps) · P1.2 summary
+
+**Owner:** "Do it now and move to phase 1.2", answering my offer to close the
+frozen-route gaps. Taken as explicit approval of the frozen-zone follow-up
+described in Session 8 / `docs/PR_NOTES.md`. **CI status of Session 8 was not
+reported**, so P1.1 is still **not ticked**. The owner did confirm from a
+screenshot that trigger `users_revoke_sessions_on_lockout` exists in production.
+
+**Changed (frozen zone, approved):** 19 route files (24 handlers) gained the
+shared account guard; `admin/users/[id]` PATCH delegates to the shared service;
+`lib/auth.ts` `cookieCache` disabled. New: `apps/web/lib/account-guard-server.ts`,
+`apps/api/src/services/user-status.service.ts`. `admin.router.ts` now delegates to
+the same service; `apps/api/package.json` gained two exports. Full list and
+per-file behaviour in `docs/PR_NOTES.md`.
+
+**Verified:** every changed or new TypeScript file parses. Each frozen route
+diff was measured: pure additions (3 lines per file, 5 to 7 where a file has
+several handlers) except the PATCH rewrite and one comment-plus-line change in
+`auth.ts`. The service was exercised by reading, not running.
+
+**Not verified (cannot run the repo here):** `tsc`, lint, vitest, CI, `next build`.
+Specifically: that `@ai-platform/api/utils/account-guard` and
+`.../services/user-status` resolve from `apps/web` the same way the existing
+`.../utils/rate-limiter` export does; that Next's build accepts the new import in
+route files; that disabling `cookieCache` behaves as documented on the pinned
+better-auth version; that the new mocks in `account-guard-server.test.ts` are
+enough for the web vitest setup.
+
+**Decisions:** blocking session creation for locked users was NOT done (see
+PR_NOTES). Suspended users cannot self-serve data export or account deletion.
+
+**Next:** P1.2 Phase Summary, then wait for the owner's OK.

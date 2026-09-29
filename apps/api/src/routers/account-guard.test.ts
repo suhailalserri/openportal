@@ -212,6 +212,49 @@ describe("admin.updateUserStatus — protections (G2b)", () => {
   });
 });
 
+describe("user-status.service — shared by the tRPC mutation and the web PATCH route", () => {
+  let applyUserStatusChange: typeof import("../services/user-status.service").applyUserStatusChange;
+  let toInetOrNull: typeof import("../services/user-status.service").toInetOrNull;
+  beforeAll(async () => {
+    ({ applyUserStatusChange, toInetOrNull } = await import("../services/user-status.service"));
+  });
+
+  it("toInetOrNull keeps a valid IP and nulls anything Postgres inet would reject", () => {
+    expect(toInetOrNull("203.0.113.9")).toBe("203.0.113.9");
+    expect(toInetOrNull("203.0.113.9, 10.0.0.1")).toBe("203.0.113.9");
+    expect(toInetOrNull("2001:db8::1")).toBe("2001:db8::1");
+    expect(toInetOrNull("unknown")).toBeNull();
+    expect(toInetOrNull("")).toBeNull();
+    expect(toInetOrNull(null)).toBeNull();
+    expect(toInetOrNull(undefined)).toBeNull();
+  });
+
+  it("an unparsable IP (e.g. the literal 'unknown') no longer breaks the audit insert", async () => {
+    const admin  = await createTestUser(db, schema, { role: "admin" });
+    const target = await createTestUser(db, schema);
+    const r = await applyUserStatusChange({
+      actorId: admin.userId, targetId: target.userId, status: "suspended", ip: "unknown",
+    });
+    expect(r).toEqual({ ok: true, sessionsRevoked: 0 });
+    const [row] = await db.select().from(schema.auditLogs);
+    expect(row!.ip).toBeNull();
+  });
+
+  it("refuses a caller who is not an admin, even if the route above it let them through", async () => {
+    const plain  = await createTestUser(db, schema);
+    const target = await createTestUser(db, schema);
+    expect(await applyUserStatusChange({ actorId: plain.userId, targetId: target.userId, status: "suspended" }))
+      .toEqual({ ok: false, code: "NOT_AN_ADMIN" });
+    expect(await statusOf(target.userId)).toBe("active");
+  });
+
+  it("an unknown actor id is ACTOR_NOT_FOUND", async () => {
+    const target = await createTestUser(db, schema);
+    expect(await applyUserStatusChange({ actorId: randomUUID(), targetId: target.userId, status: "suspended" }))
+      .toEqual({ ok: false, code: "ACTOR_NOT_FOUND" });
+  });
+});
+
 describe("migration 0018 trigger — DB-level backstop for writers outside apps/api", () => {
   // Simulates the frozen apps/web PATCH /api/admin/users/[id] route, which
   // updates users.status with a bare UPDATE and revokes nothing itself.

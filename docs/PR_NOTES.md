@@ -32,24 +32,54 @@ Plan: `docs/MASTER_PLAN.md` §6 P1.1 (closes G2, G2b). No frozen file was edited
   `USER_NOT_FOUND`, `INSUFFICIENT_ROLE_FOR_TARGET`. `docs/frontend/API_CONTRACT.md`
   should list them; the frontend does not map them yet (follow-up).
 
-## Known gaps left on purpose (frozen zone)
+## Follow-up: frozen-zone edits (owner-approved 2026-09-29)
 
-1. About 19 handlers in `apps/web/app/api/**` (balance, redeem, chat proxy,
-   admin/*, conversations, ...) call `auth.api.getSession` and never check
-   `status` / `isFraudFlagged`. Only the trigger's session deletion protects
-   them, and only after `cookieCache` expires.
-2. `apps/web/lib/auth.ts` has `session.cookieCache` (5 min). A deleted session
-   row can keep working on those routes for up to 5 minutes.
-3. Frozen `PATCH /api/admin/users/[id]` still writes `status` directly with no
-   self-suspend or superadmin protection. The admin UI uses the tRPC mutation,
-   not this route, but an admin can still call it. The trigger revokes sessions
-   when it suspends; the role rules are NOT enforced there.
-4. A suspended user can still create a new session by logging in. The api-side
-   guard refuses it on every request; the frozen web routes do not.
+The owner approved closing the frozen-route gaps now. These files under
+`apps/web` were edited on purpose; every edit is listed here.
 
-Proposed follow-up (needs explicit frozen-zone approval): one shared helper
-called from those routes, `cookieCache` disabled or shortened, and the PATCH
-route delegating to `updateUserStatus`.
+- `apps/web/lib/account-guard-server.ts` (**new**): `rejectUnusableAccount(userId)`
+  reads the user row and applies the shared `assertUsableAccount`. Returns
+  `null` or a 403 `{ error, code }`; a missing user is 401; a DB error
+  propagates (fail closed).
+- 19 route files, 24 handlers under `apps/web/app/api/**`: each got the same
+  import plus two lines right after its existing session check
+  (`const lockedAccount = await rejectUnusableAccount(session.user.id); if (lockedAccount) return lockedAccount;`).
+  Nothing else in those files changed except the PATCH route below.
+  Files: admin/{codes,fraud,fraud/[id]/resolve,logs,stats,users,users/[id],users/[id]/credits},
+  balance, chat, conversations, conversations/[id], redeem, transactions,
+  usage/export, user/{delete-account,export-data,sessions,sessions/[id]}.
+- `apps/web/app/api/admin/users/[id]/route.ts` PATCH: no longer writes
+  `users.status` itself. It calls `applyUserStatusChange`
+  (`apps/api/src/services/user-status.service.ts`), the same code the tRPC
+  mutation now uses: no self-suspend, superadmin protection, 404, session
+  revocation, audit row. Bad JSON or a non-UUID id is now 400 (was a 500 or
+  an unhandled throw).
+- `apps/web/lib/auth.ts`: `session.cookieCache` **disabled** (was 5 min).
+  Trade-off: one session lookup per `getSession` call. If P4.2 shows it hurts,
+  restore a short `maxAge` (about 30 s), not 5 min.
+- `apps/api/package.json`: two new `exports` entries
+  (`./utils/account-guard`, `./services/user-status`).
+
+Behaviour changes to be aware of:
+
+- A suspended or fraud-flagged user now gets 403 on every one of those routes,
+  including `user/export-data` and `user/delete-account`. They must go through
+  support for those. Say so if you want those two exempted.
+- The 403 body is `{ error: "Account suspended" | "Account under review", code }`.
+  `code` is new and additive.
+- `audit_logs.ip` is now stored as NULL when the caller's IP is not a single
+  valid address (previously a value like `unknown` made the insert throw).
+- P1.3 will replace the raw `x-forwarded-for` read in the PATCH route with the
+  shared `getClientIp()`.
+
+Still open after this:
+
+- A suspended user can still log in and get a session row. Every surface now
+  refuses it, but blocking creation (`databaseHooks.session.create.before`) was
+  not done: it needs a better-auth hook signature I cannot verify here, and a
+  blocked login gives the user a generic error instead of the "suspended" copy.
+- The frontend does not map `ACCOUNT_SUSPENDED` / `ACCOUNT_UNDER_REVIEW` yet.
+- `docs/frontend/API_CONTRACT.md` should list the new codes.
 
 ---
 

@@ -1,3 +1,4 @@
+import { rejectUnusableAccount } from "@/lib/account-guard-server";
 import { NextRequest, NextResponse } from "next/server";
 import { auth }                          from "@/lib/auth";
 import { headers }                       from "next/headers";
@@ -9,6 +10,8 @@ interface Params { params: Promise<{ id: string }> }
 export async function GET(_: NextRequest, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
 
   const { id } = await params;
   const conv    = await db.query.conversations.findFirst({
@@ -27,6 +30,8 @@ export async function GET(_: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
 
   const { id }  = await params;
   // systemPrompt removed entirely (product decision — users don't get a
@@ -50,6 +55,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_: NextRequest, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
 
   const { id } = await params;
   await db.update(conversations)

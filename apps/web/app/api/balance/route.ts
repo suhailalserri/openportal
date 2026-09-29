@@ -1,3 +1,4 @@
+import { rejectUnusableAccount } from "@/lib/account-guard-server";
 import { NextResponse } from "next/server";
 import { auth }         from "@/lib/auth";
 import { headers }      from "next/headers";
@@ -7,6 +8,8 @@ import { eq }           from "drizzle-orm";
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
   const row = await db.query.balances.findFirst({ where: eq(balances.userId, session.user.id) });
   return NextResponse.json({ credits: row?.credits ?? 0 });
 }

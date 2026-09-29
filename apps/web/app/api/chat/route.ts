@@ -1,3 +1,4 @@
+import { rejectUnusableAccount } from "@/lib/account-guard-server";
 import { NextRequest } from "next/server";
 import { auth }        from "@/lib/auth";
 import { headers }     from "next/headers";
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
 
   const body   = await req.json() as unknown;
   const apiUrl = process.env.INTERNAL_API_URL;

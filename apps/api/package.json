@@ -8,7 +8,9 @@
     "./services/redeem": "./src/services/redeem.service.ts",
     "./services/fraud": "./src/services/fraud.service.ts",
     "./services/usage": "./src/services/usage.service.ts",
-    "./utils/rate-limiter": "./src/utils/rate-limiter.ts"
+    "./utils/rate-limiter": "./src/utils/rate-limiter.ts",
+    "./utils/account-guard": "./src/utils/account-guard.ts",
+    "./services/user-status": "./src/services/user-status.service.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

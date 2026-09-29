@@ -209,7 +209,14 @@ export const auth = betterAuth({
   session: {
     expiresIn:   60 * 60 * 24 * 7,  // 7 days
     updateAge:   60 * 60 * 24,      // Refresh after 1 day of use
-    cookieCache: { enabled: true, maxAge: 60 * 5 },
+    // P1.1 follow-up (owner-approved frozen-zone edit): cache OFF. With a
+    // 5-minute cookie cache, deleting a suspended user's session row (which
+    // updateUserStatus, fraud.service and the 0018 trigger all do) did not
+    // take effect on the app/api/** routes for up to 5 minutes, because
+    // getSession trusted the signed cookie without touching the DB. Cost: one
+    // session lookup per getSession call. If P4.2's load test shows that read
+    // hurting, restore a SHORT maxAge (e.g. 30 s) rather than the old 5 min.
+    cookieCache: { enabled: false },
     // Your `sessions` table uses `ip` instead of better-auth's canonical
     // `ipAddress` — map it so better-auth writes to the right column.
     fields: {

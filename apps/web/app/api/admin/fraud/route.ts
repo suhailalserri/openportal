@@ -1,3 +1,4 @@
+import { rejectUnusableAccount } from "@/lib/account-guard-server";
 import { NextRequest, NextResponse } from "next/server";
 import { auth }          from "@/lib/auth";
 import { headers }       from "next/headers";
@@ -8,6 +9,8 @@ export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || !["admin","superadmin"].includes((session.user as unknown as {role:string}).role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const lockedAccount = await rejectUnusableAccount(session.user.id);
+  if (lockedAccount) return lockedAccount;
 
   const resolved = req.nextUrl.searchParams.get("resolved") === "true";
   const items    = await db.query.fraudEvents.findMany({
