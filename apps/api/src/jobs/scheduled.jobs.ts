@@ -1,9 +1,11 @@
 import { Queue } from "bullmq";
 import { db, users, balances, redeemCodes } from "@ai-platform/db";
 import { eq, lt, and, lte } from "drizzle-orm";
-import { queueAlert, queueEmail } from "./queue";
+import { queueAlert, queueEmail, reportQueue as healthQueue } from "./queue";
 import { LOW_BALANCE_THRESHOLD }  from "@ai-platform/config";
 import { syncModelsFromGateway }  from "../services/model-sync.service";
+import { createRedisHealthMonitor } from "./redis-health";
+import { reportError } from "../monitoring/error-hook";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -37,10 +39,34 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "model-latency-sync",
   });
 
+  // P2.3: Redis eviction policy + memory check (see redis-health.ts).
+  await queue.add("redisHealth", {}, {
+    repeat: { pattern: "*/10 * * * *" },
+    jobId:  "redis-health",
+  });
+
   console.log("✓ Scheduled jobs registered");
 }
 
 // ── Job handlers ──────────────────────────────────────────────────────
+const redisHealth = createRedisHealthMonitor({
+  alert:  (message, level) => { void queueAlert(message, level).catch(() => {}); },
+  report: (error, tags)    => reportError(error, { tags }),
+});
+
+/** P2.3. Uses the reports queue's own ioredis client; never throws. */
+export async function runRedisHealthCheck() {
+  try {
+    const client = await healthQueue.client;
+    await redisHealth.run({
+      call: (cmd, ...args) => client.call(cmd, ...args),
+      info: (section) => (section ? client.info(section) : client.info()),
+    });
+  } catch (err) {
+    console.error("[redis-health] check failed:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function runLowBalanceWarnings() {
   const lowUsers = await db
     .select({ userId: balances.userId, credits: balances.credits })

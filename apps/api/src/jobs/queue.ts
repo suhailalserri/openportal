@@ -1,6 +1,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { config } from "../config";
 import { parseRedisConnection } from "../utils/redis-connection";
+import { jobRetention } from "./queue-policy";
 
 const connection = parseRedisConnection(config.REDIS_URL);
 
@@ -16,10 +17,10 @@ function logRedisErrors(queue: Queue, name: string) {
 }
 
 // ── Queues ─────────────────────────────────────────────────────────────
-export const emailQueue   = new Queue("email",   { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 2000 } } });
-export const alertQueue   = new Queue("alerts",  { connection, defaultJobOptions: { attempts: 3 } });
-export const messageQueue = new Queue("messages",{ connection, defaultJobOptions: { attempts: 2 } });
-export const reportQueue  = new Queue("reports", { connection, defaultJobOptions: { attempts: 2 } });
+export const emailQueue   = new Queue("email",   { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 2000 }, ...jobRetention() } });
+export const alertQueue   = new Queue("alerts",  { connection, defaultJobOptions: { attempts: 3, ...jobRetention() } });
+export const messageQueue = new Queue("messages",{ connection, defaultJobOptions: { attempts: 2, ...jobRetention() } });
+export const reportQueue  = new Queue("reports", { connection, defaultJobOptions: { attempts: 2, ...jobRetention() } });
 
 logRedisErrors(emailQueue, "email");
 logRedisErrors(alertQueue, "alerts");

@@ -121,6 +121,13 @@ export const queueJobDuration = new client.Histogram({
   registers:  [registry],
 });
 
+export const jobFailuresTotal = new client.Counter({
+  name:       "aip_job_failures_total",
+  help:       "BullMQ job attempts that failed, by queue (P2.3). Counts every attempt, not only final failures.",
+  labelNames: ["queue"] as const,
+  registers:  [registry],
+});
+
 // ── Business metrics ─────────────────────────────────────────────────
 export const creditsSpentTotal = new client.Counter({
   name:       "aip_credits_spent_total",

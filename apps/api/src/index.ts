@@ -9,9 +9,10 @@ import { createContext } from "./routers/trpc";
 import { startEmailWorker } from "./jobs/email.worker";
 import { startAlertWorker } from "./jobs/alert.worker";
 import { startReportWorker } from "./jobs/report.worker";
-import { registerScheduledJobs } from "./jobs/scheduled.jobs";
-import { reportQueue } from "./jobs/queue";
-import { metricsHandler, recordHttpRequest, instrumentWorker } from "./metrics";
+import { registerScheduledJobs, runRedisHealthCheck } from "./jobs/scheduled.jobs";
+import { createFailureTracker, attachJobFailureTracking } from "./jobs/job-failures";
+import { reportQueue, queueAlert } from "./jobs/queue";
+import { metricsHandler, recordHttpRequest, instrumentWorker, jobFailuresTotal } from "./metrics";
 import { parseRedisConnection } from "./utils/redis-connection";
 // B1: kept as a plain top-level import (not the lazy `await import(...)`
 // pattern used for ./services/* below) — chat.schema.ts is pure validation
@@ -253,14 +254,22 @@ if (config.NODE_ENV === "production") {
   void (async () => {
     try {
       // P2.1: every worker gets metrics AND Sentry `failed` reporting.
+      // P2.3: + failed-job metric and burst alert.
+      const failureTracker = createFailureTracker({
+        count: (queue) => jobFailuresTotal.labels(queue).inc(),
+        alert: (message) => { void queueAlert(message, "warning").catch(() => {}); },
+      });
       const registerWorker = (worker: { on: Function }, name: string) => {
         instrumentWorker(worker, name);
         attachWorkerErrorReporting(worker, name);
+        attachJobFailureTracking(worker, name, failureTracker);
       };
       registerWorker(startEmailWorker(redisConn), "email");
       registerWorker(startAlertWorker(redisConn), "alerts");
       registerWorker(startReportWorker(redisConn), "reports");
       await withTimeout(registerScheduledJobs(reportQueue), 15_000, "registerScheduledJobs");
+      // P2.3: check the Redis eviction policy right away (then every 10 min via the reports queue).
+      await withTimeout(runRedisHealthCheck(), 15_000, "runRedisHealthCheck");
       console.log("✓ Background workers started");
     } catch (err) {
       app.log.error(

@@ -318,3 +318,13 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - `apps/web/next.config.ts`: `transpilePackages: ["@ai-platform/config"]` so webpack compiles the
   raw-TS `@ai-platform/config/monitoring-scrub` subpath pulled in by `instrumentation-client.ts`.
 - Fixes `Web Build (next build)` and `E2E (Playwright)`. No behaviour change at runtime.
+
+## Session 15 - P2.3 Queue hardening + Redis policy (closes G6, N1)
+- Every BullMQ queue now trims finished jobs: `removeOnComplete {age 86400, count 1000}`, `removeOnFail {age 604800}`.
+  Applies to jobs added after deploy. `queue-retention.test.ts` fails if a queue is added without it.
+- New `aip_job_failures_total{queue}`; failed-job burst (>=5 in 5 min per queue) -> one Telegram warning per 15 min.
+  The `alerts` queue is counted but never alerts about itself.
+- New `redisHealth` scheduled job (every 10 min + at startup): critical alert if `maxmemory-policy` != `noeviction`,
+  warning at >=70% memory. Provider blocking CONFIG/INFO degrades to a one-time log line, never an error.
+- Behaviour change: none on request paths; all additions are fire-and-forget (L12).
+- Owner steps + drills: `docs/runbooks/REDIS_POLICY.md`.

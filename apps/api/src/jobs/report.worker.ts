@@ -4,6 +4,7 @@ import {
   runProviderBalanceCheck,
   runWeeklyReport,
   runModelLatencySync,
+  runRedisHealthCheck,
 } from "./scheduled.jobs";
 
 // Consumes the "reports" queue — the queue registerScheduledJobs() (see
@@ -25,6 +26,9 @@ export function startReportWorker(connection: { host: string; port: number; pass
         break;
       case "modelLatencySync":
         await runModelLatencySync();
+        break;
+      case "redisHealth":
+        await runRedisHealthCheck();
         break;
       default:
         console.warn(`Unknown report job: ${job.name}`);

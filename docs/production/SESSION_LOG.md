@@ -573,3 +573,36 @@ send the new log.
 
 **Next (owner):** push; `Web Build` and `E2E` must go green (others stay green); then continue
 the P2.1 owner steps from Session 13 (DSN, smoke drill). P2.2 only after CI is green.
+
+## Session 15 - 2026-09-30 - P2.3 Queue hardening + Redis policy (closes G6, N1) - code done, drill pending
+
+**Decision (owner delegated):** P2.3 before P2.2, per the plan's triage order. P2.1 ticked (owner confirmed
+Sentry live and working). P2.2 is next.
+
+**Plan vs code (told to owner):** the plan says "all four workers"; there are THREE workers
+(email, alerts, reports). The `messages` queue has no worker and no producer (`queueSaveMessage` unused).
+It received retention like the others; not removed (separate cleanup).
+
+**New:** `apps/api/src/jobs/queue-policy.ts` (retention: complete 24 h/1000, fail 7 d),
+`job-failures.ts` (metric + burst alert, alerts queue never alerts about itself),
+`redis-health.ts` (policy must be noeviction; memory >= 70%), tests `job-failures.test.ts`,
+`redis-health.test.ts`, `queue-retention.test.ts` (real Redis), runbook `docs/runbooks/REDIS_POLICY.md`.
+**Changed:** `jobs/queue.ts` (all 4 queues spread `jobRetention()`), `jobs/scheduled.jobs.ts`
+(`redisHealth` every 10 min + `runRedisHealthCheck`), `jobs/report.worker.ts` (dispatch), `metrics.ts`
+(`aip_job_failures_total{queue}`), `index.ts` (failure tracker on every worker; health check at startup),
+`docs/MASTER_PLAN.md` (P2.1 ticked). No frozen file touched. No DELETE list.
+
+**Verified (executed here, no node_modules):** syntax parse of all touched TS files; under a minimal vitest
+shim the 24 pure tests (`job-failures`, `redis-health`) pass.
+
+**Not verified (cannot run the repo here):** `tsc`, lint, real vitest, CI.
+- `queue-retention.test.ts` never ran. It relies on BullMQ trimming an old failed job when a later job
+  finishes; if the "expires" test is flaky/red, tell me and I will loosen it to assert the stored options only.
+- `reportQueue.client` typing / `client.call` signature (ioredis via BullMQ) is from memory; `tsc` will say.
+- Whether Upstash allows `CONFIG GET` and reports `maxmemory` in `INFO`: if not, the app logs it once and
+  the owner steps in the runbook are the control.
+- The production eviction setting itself (owner: Upstash console).
+
+**Next (owner):** CI green (`api-tests` must list the 3 new test files); do the runbook steps + drills;
+then tick P2.3 and LAUNCH_CHECKLIST line 33. Next phase: P2.2 (alert delivery, incl. direct-Telegram
+fallback because `queueAlert` goes through Redis).
