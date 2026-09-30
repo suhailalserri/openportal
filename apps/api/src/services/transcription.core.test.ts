@@ -26,9 +26,12 @@ function mk(over: Partial<TranscriptionDeps> = {}) {
     onError:       vi.fn(),
     ...over,
   };
-  return deps as typeof deps & TranscriptionDeps;
+  return deps as TranscriptionDeps;
 }
-const n = (f: { mock: { calls: unknown[] } }) => f.mock.calls.length;
+// The spies are created by vi.fn() but typed as plain TranscriptionDeps functions; read the mock state
+// through one untyped accessor instead of intersecting union types (that broke `.mock` under tsc).
+const spy = (f: unknown) => (f as { mock: { calls: unknown[][] } }).mock;
+const n = (f: unknown) => spy(f).calls.length;
 
 describe("configuration and input", () => {
   it("no transcription model -> NOT_CONFIGURED, nothing else touched", async () => {
@@ -83,9 +86,9 @@ describe("billing", () => {
     const r = await runTranscription(INPUT, d);
     expect(r).toEqual({ text: "hello", seconds: 43, creditsCharged: 8_600_000, modelId: "whisper-1" });
     expect(n(d.deduct)).toBe(1);
-    expect(d.deduct.mock.calls[0]).toEqual(["u1", 8_600_000, { modelId: "whisper-1", requestId: "r1", seconds: 43 }]);
+    expect(spy(d.deduct).calls[0]).toEqual(["u1", 8_600_000, { modelId: "whisper-1", requestId: "r1", seconds: 43 }]);
     expect(n(d.discard)).toBe(1);
-    expect(d.onBilled.mock.calls[0]).toEqual(["whisper-1", 8_600_000]);
+    expect(spy(d.onBilled).calls[0]).toEqual(["whisper-1", 8_600_000]);
   });
   it("provider reports a longer duration than declared: the provider's number is billed", async () => {
     const d = mk({ callProvider: vi.fn(async () => OK({ text: "x", usage: { type: "duration", seconds: 120 } })) });
@@ -172,7 +175,7 @@ describe("request shape", () => {
   it("forwards model, bytes, mime, a normalized language hint and the request id", async () => {
     const d = mk();
     await runTranscription({ ...INPUT, language: " AR " }, d);
-    const call = d.callProvider.mock.calls[0]![0] as { modelId: string; mime: string; language?: string; requestId: string; userId: string };
+    const call = spy(d.callProvider).calls[0]![0] as { modelId: string; mime: string; language?: string; requestId: string; userId: string };
     expect(call.modelId).toBe("whisper-1");
     expect(call.mime).toBe("audio/webm");
     expect(call.language).toBe("ar");
@@ -182,6 +185,6 @@ describe("request shape", () => {
   it("drops a junk language hint", async () => {
     const d = mk();
     await runTranscription({ ...INPUT, language: "klingon" }, d);
-    expect((d.callProvider.mock.calls[0]![0] as { language?: string }).language).toBeUndefined();
+    expect((spy(d.callProvider).calls[0]![0] as { language?: string }).language).toBeUndefined();
   });
 });

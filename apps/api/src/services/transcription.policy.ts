@@ -74,7 +74,7 @@ export interface DurationInputs {
   sizeBytes:       number;
   mime:            string;
   /** Client-declared duration in ms (MediaRecorder timing). Untrusted; may be absent. */
-  declaredMs?:     number | null;
+  declaredMs?:     number | null | undefined;
 }
 
 /**

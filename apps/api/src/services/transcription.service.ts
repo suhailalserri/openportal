@@ -68,7 +68,11 @@ function realDeps(): TranscriptionDeps {
 
     async callProvider(a) {
       const form = new FormData();
-      form.append("file", new Blob([a.bytes as BlobPart], { type: a.mime }), audioFileName(a.mime));
+      // Copy into a fresh ArrayBuffer-backed array: a valid Blob part under both the api (no DOM lib)
+      // and the web (DOM lib) type environments, without naming the DOM-only `BlobPart` type.
+      const part = new Uint8Array(a.bytes.byteLength);
+      part.set(a.bytes);
+      form.append("file", new Blob([part], { type: a.mime }), audioFileName(a.mime));
       form.append("model", a.modelId);
       form.append("response_format", "json");
       if (a.language) form.append("language", a.language);

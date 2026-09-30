@@ -35,7 +35,7 @@ export interface TranscriptionDeps {
   loadAudio(userId: string, audioId: string): Promise<AudioRow | null>;
   getBalanceMicro(userId: string): Promise<number>;
   downloadAudio(userId: string, audio: AudioRow): Promise<Uint8Array | null>;
-  callProvider(a: { modelId: string; bytes: Uint8Array; mime: string; language?: string; userId: string; requestId: string }): Promise<ProviderOutcome>;
+  callProvider(a: { modelId: string; bytes: Uint8Array; mime: string; language?: string | undefined; userId: string; requestId: string }): Promise<ProviderOutcome>;
   deduct(userId: string, micro: number, meta: { modelId: string; requestId: string; seconds: number }): Promise<{ success: boolean }>;
   discard(userId: string, audioId: string): Promise<void>;
   creditValueUsd: number;
@@ -49,8 +49,8 @@ export interface TranscribeInput {
   audioId: string;
   requestId: string;
   /** Client-declared length from MediaRecorder timing. Untrusted; only ever raises the estimate. */
-  durationMs?: number;
-  language?: string;
+  durationMs?: number | undefined;
+  language?: string | undefined;
 }
 export interface TranscribeResult { text: string; seconds: number; creditsCharged: number; modelId: string }
 

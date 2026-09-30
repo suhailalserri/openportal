@@ -1104,3 +1104,18 @@ Also: `SUPABASE_*` are optional in `config.ts` (plan says required) so a bad val
 **If CI goes red:** send the FIRST failure block. Likeliest: a type error in `voice.router.ts` or the new DB tests, or a webpack message about a module in the `voice` import trace.
 **Open / next:** P6.3 must decide how the browser reaches `attachments.*` and `voice.*`, then build the mic button (MediaRecorder, send `durationMs`, insert the text as editable, never auto-send). Follow-up: a real `audio_minute` price column and admin-form label. P5.3 stays unticked.
 
+
+## Session 43 - 2026-10-01 - P5.3 CI fix (Type-check, Web Build, E2E)
+
+**Input:** owner's three CI screenshots after Session 42 (`Type-check & Lint`, `Web Build (next build)`, `E2E (Playwright)`). Phase Summary approved ("Ok"); Q1 yes (fix at the type source), Q2 no (web type-only `AppRouter` stays for P6.3).
+**Root cause:** `tsconfig.base.json` has `exactOptionalPropertyTypes: true`; the web app compiles `apps/api/src` too, so one api type error fails Type-check, Web Build and E2E together. Four errors:
+1. `voice.router.ts:97` (web) and `transcription.core.ts:67` / `:78`: `number | undefined` / `string | undefined` passed to optional props typed without `undefined`. Fixed at the source types (`TranscribeInput`, `DurationInputs.declaredMs`, `callProvider.language`); the router is untouched.
+2. `transcription.service.ts:71`: `BlobPart` is a DOM type, the api `lib` is ES2022 only. Now copies the bytes into a fresh `Uint8Array` (valid Blob part with or without the DOM lib). Cost: one extra copy of at most 15 MiB.
+3. `transcription.core.test.ts` (lines 151-185): `mk()` returned `typeof deps & TranscriptionDeps`, and the `...over` spread made each mock a union, so `.mock` / the `n()` helper failed to type. `mk` now returns `TranscriptionDeps`; mock state is read via `spy()`.
+The `@valkey/valkey-glide` "Module not found" and `require-in-the-middle` lines in the web log are warnings (bullmq optional dependency / OpenTelemetry); the step fails at "Failed to compile" on the type error.
+**Changed:** `apps/api/src/services/transcription.core.ts`, `transcription.policy.ts`, `transcription.service.ts`, `transcription.core.test.ts`, `docs/PR_NOTES.md`, this log. **DELETE:** none. Frozen zone: untouched. No migration, dependency, lockfile or env change.
+**Verified here (actually run):** `tsc` under the repo's strict flags (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`) over core + policy + test with a stubbed `vitest` module and a simulated router call: the ORIGINAL files reproduce the CI errors (core 67, 78, router-shape, and test errors at the same lines), the FIXED files give zero errors. `transcription.core.test.ts`: 22/22 pass with a minimal vitest shim.
+**Not verified (no node_modules, network, Docker):** the `BlobPart` fix (Node/DOM `Blob` typings were not available), the full api and web `tsc`, `next build`, Playwright, Testcontainers tests, real vitest types. Your Type-check screenshot starts at log line 60, so errors above it were not seen; I grepped every `.mock` use in the test file and fixed them all, but another family of errors could exist there.
+**If CI is still red:** send the FIRST failure block of each failing job (scroll to the first `Error:` line).
+**P5.3 stays UNTICKED** until CI is green and `docs/runbooks/VOICE.md` section 4 passes by hand.
+

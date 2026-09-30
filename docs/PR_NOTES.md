@@ -380,3 +380,7 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - Privacy policy (both copies, byte-identical): one sentence on voice recordings. "Last Updated" unchanged, as in earlier sessions.
 - Frozen zone: untouched (no file under `apps/web` edited except `apps/web/content/legal/privacy.md`, the generated copy touched in earlier sessions). No DELETE list.
 
+
+## Session 43 - P5.3 CI fix (Type-check, Web Build, E2E)
+- Type-only fix, no behaviour change: `TranscribeInput.durationMs` / `language`, `DurationInputs.declaredMs` and `callProvider`'s `language` now accept `undefined` explicitly (`exactOptionalPropertyTypes` is on); `transcription.service.ts` no longer names the DOM-only `BlobPart` (copies the bytes into a fresh `Uint8Array` for the `Blob`); `transcription.core.test.ts` reads mock state through one `spy()` accessor.
+- External contract: unchanged. No migration, dependency, lockfile or env change. Frozen zone: untouched. No DELETE list.
