@@ -5,6 +5,7 @@ import { modelsRouter }  from "./models.router";
 import { adminRouter }   from "./admin.router";
 import { platformConfigRouter } from "./platform-config.router";
 import { attachmentsRouter } from "./attachments.router";
+import { voiceRouter } from "./voice.router";
 
 export const appRouter = router({
   billing:        billingRouter,
@@ -13,6 +14,7 @@ export const appRouter = router({
   admin:          adminRouter,
   platformConfig: platformConfigRouter,
   attachments:    attachmentsRouter,
+  voice:          voiceRouter,
 });
 
 export type AppRouter = typeof appRouter;

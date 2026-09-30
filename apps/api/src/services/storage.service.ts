@@ -9,13 +9,14 @@ import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db, conversations, storageObjects, attachments } from "@ai-platform/db";
 import { getStorageClient, type StorageClient } from "./storage.client";
 import {
-  BUCKETS, STORAGE_LIMITS, StorageError, buildObjectKey, validateUpload,
+  BUCKETS, NO_CONVERSATION_SEGMENT, STORAGE_LIMITS, StorageError, buildObjectKey, validateUpload,
   type BucketName, type StorageLimits,
 } from "./storage.policy";
 
 export interface RequestUploadInput {
   userId: string;
-  conversationId: string;
+  /** Required for `attachments`. Optional ONLY for `audio` (P5.3 voice notes belong to no conversation). */
+  conversationId?: string | null;
   bucket: string;
   mimeType: string;
   sizeBytes: number;
@@ -86,16 +87,25 @@ export function createStorageService(deps: {
       if (!v.ok) throw new StorageError(v.code);
       const bucket = input.bucket as BucketName;
 
-      const [conv] = await db.select({ id: conversations.id }).from(conversations)
-        .where(and(
-          eq(conversations.id, input.conversationId),
-          eq(conversations.userId, input.userId),
-          isNull(conversations.deletedAt),
-        )).limit(1);
-      if (!conv) throw new StorageError("CONVERSATION_NOT_FOUND");
+      // A voice note (audio, no conversation) is owned by the user alone. Everything else must
+      // name one of the user's live conversations.
+      const voiceNote = bucket === "audio" && !input.conversationId;
+      let conversationId: string | null = null;
+      if (!voiceNote) {
+        if (!input.conversationId) throw new StorageError("CONVERSATION_NOT_FOUND");
+        const [conv] = await db.select({ id: conversations.id }).from(conversations)
+          .where(and(
+            eq(conversations.id, input.conversationId),
+            eq(conversations.userId, input.userId),
+            isNull(conversations.deletedAt),
+          )).limit(1);
+        if (!conv) throw new StorageError("CONVERSATION_NOT_FOUND");
+        conversationId = conv.id;
+      }
 
       const objectId = randomUUID();
-      const objectKey = buildObjectKey(input.userId, input.conversationId, objectId);
+      const objectKey = buildObjectKey(input.userId, conversationId ?? NO_CONVERSATION_SEGMENT, objectId);
+      const dailyCap = bucket === "audio" ? limits.maxAudioUploadsPerDay : limits.maxUploadsPerDay;
       const at = now();
 
       // Serialize per user so two concurrent requests cannot both pass the quota check.
@@ -106,12 +116,12 @@ export function createStorageService(deps: {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"storage:" + input.userId}::text))`);
         const [usage] = await tx.select({
           bytes: sql<string>`COALESCE(SUM(COALESCE(${storageObjects.sizeBytes}, ${storageObjects.declaredSizeBytes})) FILTER (WHERE ${storageObjects.status} IN ('pending','confirmed')), 0)`,
-          today: sql<string>`COUNT(*) FILTER (WHERE ${storageObjects.createdAt} >= ${dayAgoIso}::timestamp)`,
+          today: sql<string>`COUNT(*) FILTER (WHERE ${storageObjects.createdAt} >= ${dayAgoIso}::timestamp AND ${storageObjects.bucket} = ${bucket})`,
         }).from(storageObjects).where(eq(storageObjects.userId, input.userId));
-        if (Number(usage?.today ?? 0) >= limits.maxUploadsPerDay) throw new StorageError("QUOTA_DAILY");
+        if (Number(usage?.today ?? 0) >= dailyCap) throw new StorageError("QUOTA_DAILY");
         if (Number(usage?.bytes ?? 0) + input.sizeBytes > limits.maxTotalBytesPerUser) throw new StorageError("QUOTA_BYTES");
         await tx.insert(storageObjects).values({
-          id: objectId, userId: input.userId, conversationId: input.conversationId,
+          id: objectId, userId: input.userId, conversationId,
           bucket, objectKey, mimeType: v.mime, declaredSizeBytes: input.sizeBytes,
           status: "pending", createdAt: at,
         });
@@ -200,7 +210,8 @@ export function createStorageService(deps: {
           or(
             and(eq(storageObjects.status, "pending"), lt(storageObjects.createdAt, new Date(at.getTime() - limits.orphanAfterMs))),
             and(eq(storageObjects.bucket, "audio"), lt(storageObjects.createdAt, new Date(at.getTime() - limits.audioMaxAgeMs))),
-            isNull(storageObjects.conversationId),
+            // P5.3: voice notes legitimately have no conversation; they follow the audio rule above.
+            and(isNull(storageObjects.conversationId), sql`${storageObjects.bucket} <> 'audio'`),
             sql`${storageObjects.conversationId} IN (SELECT id FROM conversations WHERE deleted_at IS NOT NULL)`,
             sql`${storageObjects.userId} IN (SELECT id FROM users WHERE email LIKE ${ANONYMIZED_EMAIL_LIKE})`,
           ),

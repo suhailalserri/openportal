@@ -34,6 +34,8 @@ export const BUCKET_NAMES = Object.keys(BUCKETS) as BucketName[];
 export const STORAGE_LIMITS = {
   maxTotalBytesPerUser:     200 * MiB,
   maxUploadsPerDay:         30,
+  /** P5.3: voice notes are counted on their own (a chatty day must not block file attachments). */
+  maxAudioUploadsPerDay:    100,
   /** A pending object never confirmed within this window is deleted. */
   orphanAfterMs:            60 * 60 * 1000,
   /** Safety net: P5.3 deletes audio right after transcription; anything older than this goes. */
@@ -72,6 +74,9 @@ export function normalizeMime(mime: string): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (s: string): boolean => UUID_RE.test(s);
+
+/** P5.3: voice notes belong to no conversation; this keeps the key shape (and parseObjectKey) valid. */
+export const NO_CONVERSATION_SEGMENT = "00000000-0000-0000-0000-000000000000";
 
 /** `{userId}/{conversationId}/{objectId}` — the only key shape ever signed. */
 export function buildObjectKey(userId: string, conversationId: string, objectId: string): string {

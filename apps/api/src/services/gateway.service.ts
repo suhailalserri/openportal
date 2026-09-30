@@ -1,6 +1,7 @@
 import { config } from "../config";
 import { CREDIT_VALUE_USD, estimateTokenCount } from "@ai-platform/config";
 import { deductCreditsAtomic, getBalance } from "./balance.service";
+import { TRANSCRIPTION_CATEGORY } from "./transcription.policy";
 import { db, messages, conversations, models } from "@ai-platform/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
@@ -225,7 +226,8 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   const model = await db.query.models.findFirst({
     where: and(eq(models.id, modelId), eq(models.status, "published"), eq(models.isAvailable, true)),
   });
-  if (!model) {
+  // P5.3: a speech-to-text model is not a chat model, even if someone sends its id by hand.
+  if (!model || (model.categories ?? []).includes(TRANSCRIPTION_CATEGORY)) {
     reply.status(404).send({ error: "MODEL_NOT_FOUND", message: "النموذج غير موجود." });
     return;
   }

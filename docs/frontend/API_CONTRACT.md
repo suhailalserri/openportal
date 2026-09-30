@@ -69,6 +69,18 @@ comment); that mutation has been removed, not merely deprecated.
 | `publish` | admin | `{ modelId, displayName(1–100), displayNameAr(1–100), badge?(≤10), tier: "standard"\|"premium" default "standard", markupMultiplier: positive default 2.0, contextWindow: positive int, maxOutputTokens: positive int, supportsVision: bool default false, wholesaleCostInputPerM?: ≥0 default 0, wholesaleCostOutputPerM?: ≥0 default 0, rateLimitPerUserDaily?: positive int }` | Sets `status="published", isAvailable=true`. `NOT_FOUND` if `modelId` doesn't exist. |
 | `toggleAvailability` | admin | `{ modelId, isAvailable: bool }` | `NOT_FOUND` if missing. |
 
+### `voice` (3 procedures, P5.3)
+
+All **protected**. Same host rule as `attachments`: they work only on the api host (Render); through `/api/trpc` they answer `SERVICE_UNAVAILABLE` / `STORAGE_DISABLED`. Errors carry a stable code in `message` (do not reword); the frontend maps it to copy. Flow: `createUploadUrl` -> PUT the recording to `uploadUrl` -> `confirm` -> `transcribe`. A voice note belongs to no conversation, so it works in a brand-new chat.
+
+| Procedure | Input | Returns / notes |
+|---|---|---|
+| `voice.createUploadUrl` | `{ mimeType, sizeBytes }` (audio/webm, ogg, mp4, mpeg, wav; 1 byte to 15 MiB; parameters such as `;codecs=opus` are fine) | `{ audioId, uploadUrl, mimeType, maxBytes }`. `UNSUPPORTED_MEDIA_TYPE`, `PAYLOAD_TOO_LARGE`, `TOO_MANY_REQUESTS` (`QUOTA_DAILY` 100 voice notes/24 h, `QUOTA_BYTES`). |
+| `voice.confirm` | `{ audioId }` | `{ audioId, sizeBytes }`. `NOT_FOUND` (`OBJECT_NOT_FOUND`) if the PUT did not land or it is not yours. |
+| `voice.transcribe` | `{ audioId, durationMs?, language? }` (`durationMs` = MediaRecorder timing, max 300,000 accepted for billing; `language` = two-letter hint such as `ar`/`en`) | `{ text, seconds, creditsCharged, modelId }`. `text` is for an **editable composer; never auto-send it**. `creditsCharged` is in micro-credits. **Billed**; the recording is deleted afterwards. |
+
+`voice.transcribe` errors (message codes): `INSUFFICIENT_BALANCE` (`PRECONDITION_FAILED`; nothing was sent to the provider, or the final deduction was refused and the text withheld), `REQUEST_IN_PROGRESS` (`CONFLICT`; another billed operation of yours is running, retry in a moment), `BILLING_LOCK_UNAVAILABLE` (`SERVICE_UNAVAILABLE`), `AUDIO_NOT_FOUND` (`NOT_FOUND`; missing, foreign, unconfirmed or already transcribed), `AUDIO_TOO_LONG` (`PAYLOAD_TOO_LARGE`; over 5 minutes), `AUDIO_UNUSABLE` (`BAD_REQUEST`; the provider could not decode it, the recording is deleted), `TRANSCRIPTION_UNAVAILABLE` (`SERVICE_UNAVAILABLE`; provider down, **not billed**, the same `audioId` can be retried), `TRANSCRIPTION_FAILED` (`BAD_GATEWAY`; not billed), `TRANSCRIPTION_NOT_CONFIGURED` (`SERVICE_UNAVAILABLE`; no priced speech model; the mic button should be hidden or disabled). An empty `text` means silence; it is still billed. Speech models never appear in `models.list` and `/chat` answers `404 MODEL_NOT_FOUND` for them.
+
 ### `attachments` (3 procedures, P5.2a)
 
 All **protected**. Work only on the api host (Render): the Supabase service key is not on Vercel, so through `/api/trpc` they answer `SERVICE_UNAVAILABLE` with message `STORAGE_DISABLED`. Errors carry a stable code in `message` (do not reword); the frontend maps it to copy. `/chat` accepts `attachmentIds` since P5.2b (see section 3).

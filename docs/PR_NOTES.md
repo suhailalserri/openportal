@@ -371,3 +371,12 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - **Deploy order:** apply 0021 first; then set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the **Render api only**. Both unset = behaviour identical to before.
 - **Env:** two new optional vars; never on Vercel (`config.ts` is imported in-process by web).
 - Frozen zone: untouched. The deletion cascade is done by the sweep, not by editing `delete-account` / `conversations/[id]` routes.
+
+## Session 42 - P5.3 Voice input (server-side transcription)
+- New: tRPC `voice.createUploadUrl` / `confirm` / `transcribe`, `services/transcription.{policy,core,service}.ts`, `routers/voice.router.ts`, `docs/runbooks/VOICE.md`.
+- **External contract:** additive. New `voice.*` procedures (documented in `docs/frontend/API_CONTRACT.md`). Changed behaviour of existing calls: `models.list` no longer returns a model whose categories contain `transcription`; `/chat` answers `404 MODEL_NOT_FOUND` for such a model; `models.publish` keeps an existing `transcription` marker. Nothing changes for models without the marker.
+- **Deploy order:** no migration, no env var, no dependency. Gateway channel + publish + one SQL update (VOICE.md section 1) turn it on; without them every `voice.transcribe` answers `TRANSCRIPTION_NOT_CONFIGURED` and nothing else changes.
+- Storage behaviour change: voice notes (audio bucket) may have no conversation; the sweep no longer claims conversation-less **audio** immediately; audio has its own 100/day upload cap.
+- Privacy policy (both copies, byte-identical): one sentence on voice recordings. "Last Updated" unchanged, as in earlier sessions.
+- Frozen zone: untouched (no file under `apps/web` edited except `apps/web/content/legal/privacy.md`, the generated copy touched in earlier sessions). No DELETE list.
+

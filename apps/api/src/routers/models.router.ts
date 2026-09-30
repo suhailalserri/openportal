@@ -15,6 +15,7 @@ import { LIMITS, modelIdSchema } from "../security/limits";
 import { recordProviderPrice } from "../services/provider-price.service";
 import { notifyIfPriceUnsafe } from "../services/price-guard.service";
 import { sendTelegram } from "../monitoring/telegram";
+import { TRANSCRIPTION_CATEGORY } from "../services/transcription.policy";
 
 function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
@@ -28,7 +29,11 @@ export const modelsRouter = router({
   // source of truth the frontend should read from.
   list: publicProcedure.query(async () => {
     const rows = await db.query.models.findMany({
-      where: (m, { and, eq }) => and(eq(m.status, "published"), eq(m.isAvailable, true)),
+      // P5.3: a speech-to-text model (categories has "transcription") is never a chat model.
+      where: (m, { and, eq, sql }) => and(
+        eq(m.status, "published"), eq(m.isAvailable, true),
+        sql`NOT (${TRANSCRIPTION_CATEGORY} = ANY(${m.categories}))`,
+      ),
     });
     return rows.map((m) => ({
       id:               m.id,
@@ -131,6 +136,12 @@ export const modelsRouter = router({
       // P3.6: the model row and its provider_prices history change together or
       // not at all, so the dashboard's cost never disagrees with what billing used.
       const updated = await db.transaction(async (tx) => {
+      // P5.3: the "transcription" marker is set by the owner (SQL, docs/runbooks/VOICE.md) and is not
+      // a toggle in the admin form, whose category list is filtered to known keys above. Re-saving
+      // the row in the form must not silently turn the speech model into a chat model.
+      const [prev] = await tx.select({ categories: models.categories }).from(models)
+        .where(eq(models.id, input.modelId)).limit(1);
+      const keepTranscription = prev?.categories.includes(TRANSCRIPTION_CATEGORY) ?? false;
       const [row] = await tx
         .update(models)
         .set({
@@ -143,7 +154,7 @@ export const modelsRouter = router({
           contextWindow:           input.contextWindow,
           maxOutputTokens:         input.maxOutputTokens,
           supportsVision:          input.supportsVision,
-          categories:              input.categories,
+          categories:              keepTranscription ? [...input.categories, TRANSCRIPTION_CATEGORY] : input.categories,
           categoryScores:          input.categoryScores,
           wholesaleCostInputPerM:  String(input.wholesaleCostInputPerM),
           wholesaleCostOutputPerM: String(input.wholesaleCostOutputPerM),

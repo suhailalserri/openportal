@@ -324,3 +324,68 @@ describe("migration 0021", () => {
     })).rejects.toThrow();
   });
 });
+
+// ── P5.3: voice notes (audio bucket, no conversation) ───────────────────────────────────────
+describe("voice notes (P5.3)", () => {
+  const WEBM = { bucket: "audio", mimeType: "audio/webm" };
+  const HOUR_MS = 60 * 60 * 1000;
+
+  it("an audio upload needs no conversation: row has none, key uses the all-zero segment", async () => {
+    const { userId } = await createTestUser(db, schema);
+    const t = await svc().requestUpload({ userId, ...WEBM, sizeBytes: 5000 });
+    const { NO_CONVERSATION_SEGMENT, parseObjectKey } = await import("./storage.policy");
+    expect(t.objectKey).toBe(`${userId}/${NO_CONVERSATION_SEGMENT}/${t.objectId}`);
+    expect(parseObjectKey(t.objectKey)).not.toBeNull();
+    const row = await rowOf(t.objectId);
+    expect(row?.conversationId).toBeNull();
+    expect(row?.status).toBe("pending");
+  });
+
+  it("an attachment still REQUIRES a live conversation", async () => {
+    const { userId } = await createTestUser(db, schema);
+    await expect(svc().requestUpload({ userId, ...PDF, sizeBytes: 10 })).rejects.toMatchObject({ code: "CONVERSATION_NOT_FOUND" });
+    await expect(svc().requestUpload({ userId, conversationId: null, ...PDF, sizeBytes: 10 })).rejects.toMatchObject({ code: "CONVERSATION_NOT_FOUND" });
+  });
+
+  it("confirm works without a conversation, and only for the owner", async () => {
+    const { userId } = await createTestUser(db, schema);
+    const other = await createTestUser(db, schema);
+    const t = await svc().requestUpload({ userId, ...WEBM, sizeBytes: 5000 });
+    fake.put("audio", t.objectKey, 5000);
+    await expect(svc().confirmUpload({ userId: other.userId, objectId: t.objectId })).rejects.toMatchObject({ code: "OBJECT_NOT_FOUND" });
+    expect(await svc().confirmUpload({ userId, objectId: t.objectId })).toEqual({ objectId: t.objectId, sizeBytes: 5000 });
+  });
+
+  it("sweep keeps a FRESH conversation-less voice note (RED: the no-conversation rule used to claim it at once)", async () => {
+    const { userId } = await createTestUser(db, schema);
+    const t = await svc().requestUpload({ userId, ...WEBM, sizeBytes: 5000 });
+    fake.put("audio", t.objectKey, 5000);
+    await svc().confirmUpload({ userId, objectId: t.objectId });
+    expect((await svc().sweep()).claimed).toBe(0);
+    expect(fake.has("audio", t.objectKey)).toBe(true);
+    clock = new Date(clock.getTime() + 25 * HOUR_MS); // the 24 h audio safety net still applies
+    expect((await svc().sweep()).claimed).toBe(1);
+    expect(fake.has("audio", t.objectKey)).toBe(false);
+  });
+
+  it("voice notes have their own daily cap and do not use up the attachment cap", async () => {
+    const { userId } = await createTestUser(db, schema);
+    const conversationId = await conv(userId);
+    const s = svc({ maxUploadsPerDay: 1, maxAudioUploadsPerDay: 2 });
+    await s.requestUpload({ userId, conversationId, ...PDF, sizeBytes: 1 });
+    await s.requestUpload({ userId, ...WEBM, sizeBytes: 1 });
+    await s.requestUpload({ userId, ...WEBM, sizeBytes: 1 });
+    await expect(s.requestUpload({ userId, ...WEBM, sizeBytes: 1 })).rejects.toMatchObject({ code: "QUOTA_DAILY" });
+    await expect(s.requestUpload({ userId, conversationId, ...PDF, sizeBytes: 1 })).rejects.toMatchObject({ code: "QUOTA_DAILY" });
+  });
+
+  it("discardConfirmed removes a voice note at once (what transcription does after billing)", async () => {
+    const { userId } = await createTestUser(db, schema);
+    const t = await svc().requestUpload({ userId, ...WEBM, sizeBytes: 5000 });
+    fake.put("audio", t.objectKey, 5000);
+    await svc().confirmUpload({ userId, objectId: t.objectId });
+    expect(await svc().discardConfirmed({ userId, objectId: t.objectId })).toBe(true);
+    expect(fake.has("audio", t.objectKey)).toBe(false);
+    expect((await rowOf(t.objectId))?.status).toBe("deleted");
+  });
+});
