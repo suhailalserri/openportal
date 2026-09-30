@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.6.3",
     "typescript": "^5.4.0",
     "vitest": "^2.1.0",
     "@testcontainers/postgresql": "^10.13.0",
