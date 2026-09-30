@@ -954,3 +954,31 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 
 **Next (owner):** work the playbook in order, send evidence, then a P4.3 re-walk session.
 
+
+
+## Session 34 - 2026-09-30 - P5.1 Supabase Storage foundation - code done, CI + migration 0021 + owner steps pending
+
+**Input:** repo zip + plan (the uploaded plan was one P4.3 line behind `docs/MASTER_PLAN.md`; the repo copy was used). Phase Summary approved; owner ticked P4.3 ("I have already cleared it") and delegated my three open questions.
+
+**Plan vs code (told to owner before building), and what I chose:**
+1. Gate: §12 says Stages 5-7 wait for the Stage 4 gate. Owner says it is cleared; I ticked P4.3 on their word and did not re-walk it (tracker says so). The feature is also off until `SUPABASE_*` are set.
+2. Deletion cascade: the delete routes are frozen, so the sweep job does it (up to ~15 min latency) instead of a frozen-zone edit.
+3. Storage RLS: no policy migration (`storage.*` does not exist in CI's Postgres); an owner verification query is in the runbook.
+Also: `SUPABASE_*` are optional in `config.ts` (plan says required) so a bad value cannot break boot (L12). `config.ts` is imported in-process by web, so the key must be set on Render only.
+
+**New:** `packages/db/src/schema/storage-objects.ts`, `packages/db/src/migrations/0021_storage_objects.sql`, `apps/api/src/services/storage.{policy,client,service}.ts` + three `.test.ts`, `docs/runbooks/STORAGE.md`.
+**Changed:** `packages/db/src/schema/index.ts`, `apps/api/src/config.ts`, `apps/api/src/index.ts` (bucket setup at start, non-fatal), `apps/api/src/jobs/scheduled.jobs.ts` + `report.worker.ts` (`storageSweep`), `.env.example`, `docs/legal/PRIVACY_POLICY.md`, `docs/MASTER_PLAN.md` (tracker + As built), this log. **DELETE:** none. Frozen zone: untouched (nothing under `apps/web`). No API contract change, no public endpoint.
+
+**Tests written (need CI):** oversize / wrong type / bad size rejected before any URL or row; foreign and soft-deleted conversation refused; quotas (bytes, per day incl. roll-off, 5-way concurrency with cap 2 => exactly 2); signing failure does not cost quota; confirm idempotent, larger-than-declared rejected and removed; foreign user cannot confirm or download; download TTL clamp; sweep for orphans, audio >24 h, deleted conversation, anonymized account, vanished conversation, failed remove retried, purge; migration re-runnable and its CHECK enforced.
+
+**Verified (executed here):** TypeScript syntax parse of all 11 new/changed TS files; `storage.policy` and `storage.client` logic run under Node against a mock `fetch` (validation, config resolution, signed-URL request/absolutizing).
+
+**Not verified (no node_modules, Postgres, Docker, network here):**
+- vitest and `tsc` were not run: type errors are possible (notably the Drizzle `sql` aggregate select with `FILTER`, `tx.execute` of `pg_advisory_xact_lock(hashtext(...))`, the `.set({status:"deleting"})` update with `IN (SELECT ...)` subqueries, and `Partial<StorageLimits>`). The red/green claim rests on CI.
+- Every Supabase Storage endpoint path, request body and response shape is from memory (bucket create/update, upload sign, download sign, `object/list` for size, bulk delete body `{prefixes}`). Mocked tests only prove the requests I intended to send. The 409/"already exists" handling for bucket create is a guess.
+- That the browser PUT to a signed upload URL enforces the bucket's mime/size limits, and that signed upload URL lifetime is fixed (~2 h, not configurable).
+- That no storage RLS policies exist by default (runbook query checks it).
+- `db.transaction` + advisory lock behaviour under the real pool; sweep timing on Render; Upstash cost of one more repeat job (only registered when configured).
+- I did not check whether `apps/web` or `docs/` has a second copy of the privacy text.
+
+**Next (owner):** CI green (`API Tests` should list the three storage tests). Then `docs/runbooks/STORAGE.md` section 1 (apply 0021 -> set both env vars on Render only -> deploy) and section 4. Tick P5.1 only after that. Then P5.2.

@@ -364,3 +364,10 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - **Deploy order:** migration 0020 can run before or after the deploy (idempotent). No new env vars. Registered in `deploy.yml` (e2e) and `db-ops.yml` lists.
 - Frozen zone: untouched (no file under `apps/web` edited). No DELETE list.
 - Runbook: `docs/runbooks/PRICE_GUARD.md`; alert table row added to `docs/runbooks/ALERTING.md`.
+
+## Session 34 - P5.1 Supabase Storage foundation
+- New: `storage_objects` table (migration `0021_storage_objects.sql`, re-runnable, RLS on), `apps/api/src/services/storage.{policy,client,service}.ts`, `storageSweep` job (every 15 min, only registered when storage is configured), `docs/runbooks/STORAGE.md`.
+- **External contract:** no change. No new route or tRPC procedure (P5.2 adds them).
+- **Deploy order:** apply 0021 first; then set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the **Render api only**. Both unset = behaviour identical to before.
+- **Env:** two new optional vars; never on Vercel (`config.ts` is imported in-process by web).
+- Frozen zone: untouched. The deletion cascade is done by the sweep, not by editing `delete-account` / `conversations/[id]` routes.

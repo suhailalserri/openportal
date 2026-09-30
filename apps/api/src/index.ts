@@ -7,6 +7,7 @@ import { createContext } from "./routers/trpc";
 import { startEmailWorker } from "./jobs/email.worker";
 import { startAlertWorker } from "./jobs/alert.worker";
 import { startReportWorker } from "./jobs/report.worker";
+import { getStorageClient, ensureBuckets } from "./services/storage.client";
 import { registerScheduledJobs, runRedisHealthCheck } from "./jobs/scheduled.jobs";
 import { createFailureTracker, attachJobFailureTracking } from "./jobs/job-failures";
 import { reportQueue, emailQueue, alertQueue, messageQueue, queueAlert } from "./jobs/queue";
@@ -436,6 +437,13 @@ if (config.NODE_ENV === "production") {
       await withTimeout(registerScheduledJobs(reportQueue), 15_000, "registerScheduledJobs");
       // P2.3: check the Redis eviction policy right away (then every 10 min via the reports queue).
       await withTimeout(runRedisHealthCheck(), 15_000, "runRedisHealthCheck");
+      // P5.1: make sure the private buckets exist with the right limits. Idempotent, never fatal.
+      const storageClient = getStorageClient();
+      if (storageClient) {
+        await withTimeout(ensureBuckets(storageClient), 15_000, "ensureBuckets")
+          .then(() => console.log("✓ Storage buckets ready"))
+          .catch((err) => console.error("[storage] bucket setup failed (storage features may not work):", err instanceof Error ? err.message : err));
+      }
       console.log("✓ Background workers started");
     } catch (err) {
       app.log.error(

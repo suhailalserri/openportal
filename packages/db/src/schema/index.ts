@@ -19,3 +19,4 @@ export * from "./audit-logs";
 export * from "./two-factor";
 export * from "./passkey";
 export * from "./rate-limit";
+export * from "./storage-objects";

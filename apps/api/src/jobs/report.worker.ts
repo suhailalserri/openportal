@@ -7,6 +7,7 @@ import {
   runRedisHealthCheck,
   runPruneAuthRateLimit,
   runPriceGuardJob,
+  runStorageSweep,
 } from "./scheduled.jobs";
 
 // Consumes the "reports" queue — the queue registerScheduledJobs() (see
@@ -37,6 +38,9 @@ export function startReportWorker(connection: { host: string; port: number; pass
         break;
       case "priceGuard":
         await runPriceGuardJob();
+        break;
+      case "storageSweep":
+        await runStorageSweep();
         break;
       default:
         console.warn(`Unknown report job: ${job.name}`);

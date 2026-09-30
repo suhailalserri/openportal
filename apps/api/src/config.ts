@@ -56,6 +56,12 @@ const envSchema = z.object({
   SENTRY_DSN:             z.string().optional(),
   SENTRY_ENVIRONMENT:     z.string().optional(),
   SENTRY_RELEASE:         z.string().optional(),
+  // P5.1 object storage. Deliberately LENIENT and OPTIONAL (L12): unset, partial or malformed
+  // => storage features are off (services/storage.client.ts resolveStorageConfig) and a warning
+  // is logged; chat and the api boot exactly as before. SERVER-SIDE ONLY: set on Render, NEVER
+  // on Vercel (this module is also imported in-process by the web app's tRPC handler).
+  SUPABASE_URL:              z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

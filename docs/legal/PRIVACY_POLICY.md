@@ -14,6 +14,7 @@
 
 ### 1.2 Usage Data
 - Conversation history (messages sent and received)
+- Files you upload to a conversation and voice recordings, if and when those features are available (stored privately; only you can access them)
 - Credit balance and transaction history
 - Which AI models you use
 - Approximate token usage per request
@@ -70,6 +71,9 @@ contents, and we do not use it for advertising or tracking.
 | Account information | Until account deletion |
 | Conversations (free users) | 90 days |
 | Conversations (paid users) | 12 months |
+| Files attached to a conversation | Until you delete the conversation or your account (removed within about 15 minutes of deletion) |
+| Voice recordings | Deleted right after transcription; at most 24 hours if that fails |
+| Uploads that were never completed | 1 hour |
 | Transaction records | 5 years (legal requirement) |
 | System logs | 30 days |
 | Error reports | Up to 90 days |

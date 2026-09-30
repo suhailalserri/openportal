@@ -8,6 +8,7 @@ import { createRedisHealthMonitor, type RedisHealthClient } from "./redis-health
 import { reportError } from "../monitoring/error-hook";
 import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
 import { runPriceGuard } from "../services/price-guard.service";
+import { getStorageService } from "../services/storage.service";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -59,6 +60,15 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "price-guard",
   });
 
+  // P5.1: storage sweep (orphans, deleted conversations/accounts). Only when storage is configured,
+  // so an unconfigured deploy adds no Redis traffic (N11).
+  if (getStorageService()) {
+    await queue.add("storageSweep", {}, {
+      repeat: { pattern: "*/15 * * * *" },
+      jobId:  "storage-sweep",
+    });
+  }
+
   console.log("✓ Scheduled jobs registered");
 }
 
@@ -109,6 +119,24 @@ export async function runPriceGuardJob() {
   } catch (err) {
     reportError(err, { tags: { source: "scheduled", job: "priceGuard" } });
     console.error("[scheduled] priceGuard failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** P5.1. Housekeeping: a failure is reported, never retried in a hot loop (the next run is the retry). */
+export async function runStorageSweep() {
+  const svc = getStorageService();
+  if (!svc) return;
+  try {
+    const r = await svc.sweep();
+    if (r.claimed > 0 || r.failed > 0 || r.purged > 0) {
+      console.log(`[scheduled] storageSweep: claimed ${r.claimed}, removed ${r.removed}, failed ${r.failed}, purged ${r.purged}.`);
+    }
+    if (r.failed > 0) {
+      reportError(new Error(`storageSweep: ${r.failed} object(s) could not be removed; will retry`), { tags: { source: "scheduled", job: "storageSweep" } });
+    }
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "storageSweep" } });
+    console.error("[scheduled] storageSweep failed:", err instanceof Error ? err.message : err);
   }
 }
 
