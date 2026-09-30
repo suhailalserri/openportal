@@ -14,7 +14,7 @@
 
 ### 1.2 Usage Data
 - Conversation history (messages sent and received)
-- Files you upload to a conversation and voice recordings, if and when those features are available (stored privately; only you can access them)
+- Files you upload to a conversation and voice recordings, if and when those features are available (stored privately; only you can access them), and the text we extract from uploaded documents so the AI can read them (stored with the file and deleted with it)
 - Credit balance and transaction history
 - Which AI models you use
 - Approximate token usage per request

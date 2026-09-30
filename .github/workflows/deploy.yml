@@ -138,6 +138,7 @@ jobs:
             [ ! -e /app/packages ]     || { echo "LEAK: packages/ is in the image"; fail=1; }
             command -v pnpm >/dev/null 2>&1 && { echo "LEAK: pnpm is in the runtime image"; fail=1; }
             [ -f /app/apps/api/dist/index.js ] || { echo "MISSING: dist/index.js"; fail=1; }
+            [ -f /app/apps/api/dist/extract.worker.js ] || { echo "MISSING: dist/extract.worker.js (P5.2 extraction worker)"; fail=1; }
             exit $fail
           '
 

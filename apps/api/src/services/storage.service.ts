@@ -1,12 +1,12 @@
 /**
  * P5.1: upload quotas, signed URLs, orphan cleanup and the deletion cascade for the private
  * `attachments` / `audio` buckets. The DB (`storage_objects`) is the source of truth for who
- * owns what; Supabase only ever holds the bytes. No public route yet: P5.2's tRPC procedures
+ * owns what; Supabase only ever holds the bytes. P5.2's tRPC procedures
  * (`attachments.createUploadUrl` / `confirm`) call this.
  */
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
-import { db, conversations, storageObjects } from "@ai-platform/db";
+import { db, conversations, storageObjects, attachments } from "@ai-platform/db";
 import { getStorageClient, type StorageClient } from "./storage.client";
 import {
   BUCKETS, STORAGE_LIMITS, StorageError, buildObjectKey, validateUpload,
@@ -56,6 +56,17 @@ export function createStorageService(deps: {
         const chunk = list.slice(i, i + REMOVE_BATCH);
         try {
           await client.removeObjects(bucket as BucketName, chunk.map((r) => r.objectKey));
+          // P5.2a: the extracted text is a copy of the file's content, so it goes with the object.
+          // Done BEFORE marking the row deleted: if this fails the row stays 'deleting' and the
+          // next sweep retries (removing a missing object is not an error).
+          await db.update(attachments)
+            .set({
+              status: "failed",
+              errorCode: sql`COALESCE(${attachments.errorCode}, 'OBJECT_DELETED')`,
+              extractedText: null,
+              updatedAt: now(),
+            })
+            .where(inArray(attachments.id, chunk.map((r) => r.id)));
           await db.update(storageObjects)
             .set({ status: "deleted", deletedAt: now() })
             .where(and(inArray(storageObjects.id, chunk.map((r) => r.id)), eq(storageObjects.status, "deleting")));
@@ -140,6 +151,23 @@ export function createStorageService(deps: {
         .returning({ id: storageObjects.id });
       if (confirmed.length === 0) throw new StorageError("OBJECT_NOT_FOUND"); // swept while we were checking
       return { objectId: row.id, sizeBytes: info.sizeBytes };
+    },
+
+    /**
+     * P5.2a: delete a confirmed object right away (extraction failed: the file is unusable, so it
+     * should not keep counting against the user's quota or sit in storage). Returns false when
+     * the object is not the user's, not confirmed, or already gone.
+     */
+    async discardConfirmed(input: { userId: string; objectId: string }): Promise<boolean> {
+      const claimed = await db.update(storageObjects).set({ status: "deleting" })
+        .where(and(
+          eq(storageObjects.id, input.objectId),
+          eq(storageObjects.userId, input.userId),
+          eq(storageObjects.status, "confirmed"),
+        )).returning({ id: storageObjects.id });
+      if (claimed.length === 0) return false;
+      await removeClaimed().catch(() => {}); // a failure leaves it 'deleting' for the sweep
+      return true;
     },
 
     /** Short-lived download URL. A foreign, unconfirmed or deleted object is indistinguishable: OBJECT_NOT_FOUND. */

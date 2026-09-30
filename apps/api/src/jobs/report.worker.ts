@@ -8,6 +8,7 @@ import {
   runPruneAuthRateLimit,
   runPriceGuardJob,
   runStorageSweep,
+  runExtractAttachment,
 } from "./scheduled.jobs";
 
 // Consumes the "reports" queue — the queue registerScheduledJobs() (see
@@ -41,6 +42,9 @@ export function startReportWorker(connection: { host: string; port: number; pass
         break;
       case "storageSweep":
         await runStorageSweep();
+        break;
+      case "extractAttachment":
+        await runExtractAttachment(String((job.data as { attachmentId?: unknown })?.attachmentId ?? ""));
         break;
       default:
         console.warn(`Unknown report job: ${job.name}`);

@@ -69,6 +69,18 @@ comment); that mutation has been removed, not merely deprecated.
 | `publish` | admin | `{ modelId, displayName(1–100), displayNameAr(1–100), badge?(≤10), tier: "standard"\|"premium" default "standard", markupMultiplier: positive default 2.0, contextWindow: positive int, maxOutputTokens: positive int, supportsVision: bool default false, wholesaleCostInputPerM?: ≥0 default 0, wholesaleCostOutputPerM?: ≥0 default 0, rateLimitPerUserDaily?: positive int }` | Sets `status="published", isAvailable=true`. `NOT_FOUND` if `modelId` doesn't exist. |
 | `toggleAvailability` | admin | `{ modelId, isAvailable: bool }` | `NOT_FOUND` if missing. |
 
+### `attachments` (3 procedures, P5.2a)
+
+All **protected**. Work only on the api host (Render): the Supabase service key is not on Vercel, so through `/api/trpc` they answer `SERVICE_UNAVAILABLE` with message `STORAGE_DISABLED`. Errors carry a stable code in `message` (do not reword); the frontend maps it to copy. `/chat` does not accept attachments yet (P5.2b).
+
+| Procedure | Input | Returns / notes |
+|---|---|---|
+| `createUploadUrl` | `{ conversationId: uuid, fileName(1–255), mimeType(1–100), sizeBytes: int 1–20971520 }` | Mutation. `{ attachmentId, uploadUrl, mimeType, maxBytes, kind: "image"\|"document", fileName }`. Browser PUTs the file to `uploadUrl`. Errors: `INVALID_MIME` (415), `FILE_TOO_LARGE` (413), `QUOTA_BYTES` / `QUOTA_DAILY` (429), `CONVERSATION_NOT_FOUND` (404), `UPSTREAM` (502). |
+| `confirm` | `{ attachmentId: uuid }` | Mutation, idempotent. Verifies the upload and queues extraction. Returns the attachment view (status `processing`). Errors: `NOT_FOUND`, `OBJECT_NOT_FOUND` (nothing uploaded yet), `QUEUE_UNAVAILABLE` (retry). |
+| `get` | `{ attachmentId: uuid }` | Query. `{ id, conversationId, fileName, mimeType, sizeBytes, kind, status: "uploading"\|"processing"\|"ready"\|"failed", errorCode, textChars, truncated, preview(≤300 chars), createdAt }`. Poll until `ready`/`failed`. Never returns the full extracted text. Foreign id = `NOT_FOUND`. |
+
+`errorCode` when `failed`: `TYPE_MISMATCH`, `CORRUPT`, `NO_TEXT`, `TOO_COMPLEX`, `TIMEOUT`, `MEMORY`, `DOWNLOAD_FAILED`, `EXTRACT_FAILED`, `OBJECT_DELETED`, `STALLED`. Details: `docs/runbooks/ATTACHMENTS.md`.
+
 ### `admin` (27 procedures)
 
 All `adminProcedure`. Money/state-changing ones write an `auditLogs` row

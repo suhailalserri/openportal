@@ -9,6 +9,7 @@ import { reportError } from "../monitoring/error-hook";
 import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
 import { runPriceGuard } from "../services/price-guard.service";
 import { getStorageService } from "../services/storage.service";
+import { getAttachmentsService } from "../services/attachments.service";
 import { upsertRepeatable } from "./repeat-jobs";
 
 // Called on server startup to register scheduled jobs
@@ -124,6 +125,7 @@ export async function runStorageSweep() {
   if (!svc) return;
   try {
     const r = await svc.sweep();
+    await sweepStalledAttachments();
     if (r.claimed > 0 || r.failed > 0 || r.purged > 0) {
       console.log(`[scheduled] storageSweep: claimed ${r.claimed}, removed ${r.removed}, failed ${r.failed}, purged ${r.purged}.`);
     }
@@ -133,6 +135,31 @@ export async function runStorageSweep() {
   } catch (err) {
     reportError(err, { tags: { source: "scheduled", job: "storageSweep" } });
     console.error("[scheduled] storageSweep failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** P5.2a: fails attachments stuck in `processing` (the process died mid-extraction). Piggybacks on the sweep. */
+async function sweepStalledAttachments() {
+  const svc = getAttachmentsService();
+  if (!svc) return;
+  try {
+    const n = await svc.sweepStalled();
+    if (n > 0) console.log(`[scheduled] storageSweep: failed ${n} stalled attachment(s).`);
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "attachmentsStalled" } });
+  }
+}
+
+/** P5.2a: one extraction job. A bad file is a `failed` row inside process(); only infra errors throw. */
+export async function runExtractAttachment(attachmentId: string) {
+  const svc = getAttachmentsService();
+  if (!svc || !attachmentId) return;
+  try {
+    await svc.process(attachmentId);
+  } catch (err) {
+    reportError(err, { tags: { source: "worker", job: "extractAttachment" } });
+    console.error("[worker] extractAttachment failed:", err instanceof Error ? err.message : err);
+    throw err; // lets BullMQ record the failure; sweepStalled fails the row if it stays `processing`
   }
 }
 

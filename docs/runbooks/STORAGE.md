@@ -1,7 +1,7 @@
 # Runbook: Supabase Storage (P5.1)
 
 Private buckets `attachments` and `audio`. Bytes live in Supabase; ownership, quotas and cleanup live in
-the `storage_objects` table. **No user-facing feature yet**: P5.2 (attachments) and P5.3 (mic) call the
+the `storage_objects` table. **No user-facing UI yet**: P5.2 (attachments, see `docs/runbooks/ATTACHMENTS.md`) and P5.3 (mic) call the
 service. Until then this is foundation only, and with the two env vars unset the api behaves exactly as before.
 
 ## 1. Turn it on (owner, in this order)
@@ -29,7 +29,7 @@ The service-role key bypasses every Supabase access rule. Treat it like `DATABAS
 | Download URL | 5 min (max 15), only for confirmed objects of your own live conversation | `getDownloadUrl` |
 | Orphans | never confirmed within 1 h -> deleted (at most ~1.5 h) | sweep every 30 min |
 | Audio | anything older than 24 h -> deleted (P5.3 deletes right after transcription) | sweep |
-| Deletion cascade | soft-deleted conversation, or self-deleted (anonymized) account -> objects deleted on the next sweep (up to ~30 min) | sweep |
+| Deletion cascade | soft-deleted conversation, or self-deleted (anonymized) account -> objects deleted on the next sweep (up to ~30 min); since P5.2a the extracted text of an attachment is cleared in the same step | sweep |
 
 The cascade is done by the sweep on purpose: the delete-account and delete-conversation routes are in the frozen zone and stay untouched.
 
@@ -46,9 +46,9 @@ The cascade is done by the sweep on purpose: the delete-account and delete-conve
 2. Anonymous access is denied. In the SQL editor: `select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects';` should be `0`
    (no policy = no direct client access). If it is not 0, list them and remove any that mention `attachments` or `audio`.
 3. `select tablename, rowsecurity from pg_tables where tablename = 'storage_objects';` -> `rowsecurity = t`.
-4. After P5.2 ships: upload a small PDF, confirm it, download it, delete the conversation, and within ~30 min the object is gone from Storage.
+4. After P5.2a ships: run `docs/runbooks/ATTACHMENTS.md` section 4 (upload a small PDF, confirm, poll; then delete the conversation and within ~30 min the object is gone from Storage and the extracted text is cleared).
 
-Owner result, 2026-09-30: steps 1-3 passed (both buckets present with the expected size/type limits and 0 policies; `pg_policies` count for `storage.objects` = 0; `storage_objects` `rowsecurity` = t). Step 4 waits for P5.2.
+Owner result, 2026-09-30: steps 1-3 passed (both buckets present with the expected size/type limits and 0 policies; `pg_policies` count for `storage.objects` = 0; `storage_objects` `rowsecurity` = t). Step 4 waits for P5.2a's runbook check.
 
 ## 5. Turn it off / roll back
 

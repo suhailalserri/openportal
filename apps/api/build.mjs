@@ -24,9 +24,11 @@ const external = Object.keys(pkg.dependencies ?? {})
 
 rmSync(new URL("./dist", import.meta.url), { recursive: true, force: true });
 
+// P5.2a: two entries. `extract.worker` is the worker_threads script the extraction runner
+// spawns (extraction.runner.ts resolves ./extract.worker.js next to dist/index.js).
 await build({
-  entryPoints: ["src/index.ts"],
-  outfile: "dist/index.js",
+  entryPoints: { index: "src/index.ts", "extract.worker": "src/extraction/extract.worker.ts" },
+  outdir: "dist",
   bundle: true,
   platform: "node",
   target: "node20",
@@ -41,4 +43,4 @@ await build({
   logLevel: "info",
 });
 
-console.log(`api bundle ready: dist/index.js (${external.length / 2} packages left external)`);
+console.log(`api bundle ready: dist/index.js + dist/extract.worker.js (${external.length / 2} packages left external)`);
