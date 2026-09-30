@@ -7,7 +7,7 @@ name: DB Operations
 # Setup (one time):
 #   Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
 #   Name: DATABASE_URL
-#   Value: the EXTERNAL connection string from Render's Postgres dashboard,
+#   Value: the Supabase connection string (Project -> Connect). Prefer the session-mode pooler string (port 5432) for DDL; not the 6543 transaction pooler.
 #          including ?sslmode=require
 
 on:
@@ -25,14 +25,39 @@ on:
           - seed
           - seed-models
           - all
+      # P4.2: lets the STAGING database (load-test target) be migrated from the same button.
+      # Default stays production, exactly as before.
+      target:
+        description: "Which database (staging = the LOADTEST_DATABASE_URL secret)"
+        required: false
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 jobs:
   run:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # If the staging secret is EMPTY this must not silently fall back to production,
+      # hence the guard step below (a `cond && a || b` expression falls through on empty).
+      DATABASE_URL: ${{ inputs.target == 'staging' && secrets.LOADTEST_DATABASE_URL || secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      STAGING_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Guard - staging target must really be the staging database
+        if: ${{ inputs.target == 'staging' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${STAGING_DATABASE_URL:-}" ]; then
+            echo "::error::target=staging but the LOADTEST_DATABASE_URL secret is not set. Refusing (it would have run on production)."; exit 1
+          fi
+          if [ "$DATABASE_URL" = "${PRODUCTION_DATABASE_URL:-x}" ]; then
+            echo "::error::LOADTEST_DATABASE_URL equals the production DATABASE_URL. Refusing."; exit 1
+          fi
 
       # No explicit `version:` here — package.json already pins
       # "packageManager": "pnpm@9.0.0", and specifying a version in both
@@ -50,6 +75,22 @@ jobs:
 
       - name: Install psql
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      # P3.5: `reset` is `DROP SCHEMA public CASCADE` on the production
+      # DATABASE_URL, one tap away in the mobile Actions tab. It must never run
+      # once real accounts exist. This is a hard stop with no override on purpose:
+      # to wipe a populated database, do it by hand and deliberately, after
+      # taking a backup (docs/runbooks/SECURITY_SWEEP.md, "Destructive database tasks").
+      - name: Guard - refuse to reset a database that has users
+        if: ${{ inputs.task == 'reset' || inputs.task == 'reset-and-migrate-all' }}
+        run: |
+          set -euo pipefail
+          n=$(psql "$DATABASE_URL" -tA -c "select case when to_regclass('public.users') is null then 0 else (select count(*) from public.users) end")
+          echo "users in target database: $n"
+          if [ "$n" -gt 0 ]; then
+            echo "::error::Refusing to reset: the database has $n user row(s). Take a backup and reset by hand if you really mean it."
+            exit 1
+          fi
 
       - name: Reset — drop and recreate the public schema
         # DESTRUCTIVE: wipes every table. Only use pre-launch / with no
@@ -85,7 +126,7 @@ jobs:
         if: ${{ inputs.task == 'constraints' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls 0018_revoke_sessions_on_lockout 0019_auth_rate_limit 0020_provider_prices_backfill; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "src/migrations/$f.sql"
           done

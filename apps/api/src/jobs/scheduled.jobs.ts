@@ -1,9 +1,13 @@
 import { Queue } from "bullmq";
 import { db, users, balances, redeemCodes } from "@ai-platform/db";
 import { eq, lt, and, lte } from "drizzle-orm";
-import { queueAlert, queueEmail } from "./queue";
+import { queueAlert, queueEmail, reportQueue as healthQueue } from "./queue";
 import { LOW_BALANCE_THRESHOLD }  from "@ai-platform/config";
 import { syncModelsFromGateway }  from "../services/model-sync.service";
+import { createRedisHealthMonitor, type RedisHealthClient } from "./redis-health";
+import { reportError } from "../monitoring/error-hook";
+import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
+import { runPriceGuard } from "../services/price-guard.service";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -37,10 +41,77 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "model-latency-sync",
   });
 
+  // P2.3: Redis eviction policy + memory check (see redis-health.ts).
+  await queue.add("redisHealth", {}, {
+    repeat: { pattern: "*/10 * * * *" },
+    jobId:  "redis-health",
+  });
+
+  // P3.5: drop expired better-auth rate-limit counters (see auth-rate-limit.service.ts).
+  await queue.add("pruneAuthRateLimit", {}, {
+    repeat: { pattern: "30 3 * * *" },
+    jobId:  "prune-auth-rate-limit",
+  });
+
+  // P3.6: provider-cost guard. Daily, after the 03:00/03:30 housekeeping.
+  await queue.add("priceGuard", {}, {
+    repeat: { pattern: "0 4 * * *" },
+    jobId:  "price-guard",
+  });
+
   console.log("✓ Scheduled jobs registered");
 }
 
 // ── Job handlers ──────────────────────────────────────────────────────
+const redisHealth = createRedisHealthMonitor({
+  alert:  (message, level) => { void queueAlert(message, level).catch(() => {}); },
+  report: (error, tags)    => reportError(error, { tags }),
+});
+
+/** P2.3. Uses the reports queue's own ioredis client; never throws. */
+export async function runRedisHealthCheck() {
+  try {
+    // BullMQ types `queue.client` as its own minimal IRedisClient, but at runtime it
+    // is the underlying ioredis instance, which has call() and info().
+    const client = (await healthQueue.client) as unknown as RedisHealthClient;
+    await redisHealth.run(client);
+  } catch (err) {
+    console.error("[redis-health] check failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** P3.5. Housekeeping only: a failure is reported but never retried in a hot loop. */
+export async function runPruneAuthRateLimit() {
+  try {
+    const deleted = await pruneAuthRateLimit();
+    if (deleted > 0) console.log(`[scheduled] pruneAuthRateLimit: removed ${deleted} expired counter(s).`);
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "pruneAuthRateLimit" } });
+    console.error("[scheduled] pruneAuthRateLimit failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * P3.6. Compares every published+available model's price to its cost (upstream
+ * price when the OpenRouter feed matches, else our own wholesale) and sends ONE
+ * Telegram digest if anything is below cost, under the margin bar, unpriced or
+ * drifting. Silent when clean. A failure is reported to Sentry, never thrown
+ * into a retry loop (it is a daily check, tomorrow's run is the retry).
+ */
+export async function runPriceGuardJob() {
+  try {
+    const run = await runPriceGuard({ alert: (message, level) => queueAlert(message, level) });
+    console.log(
+      `[scheduled] priceGuard: checked ${run.evaluation.checked}, ${run.evaluation.findings.length} finding(s), ` +
+      `${run.evaluation.unchecked.length} without upstream match` +
+      (run.upstreamError ? `, upstream feed failed: ${run.upstreamError}` : "") + ".",
+    );
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "priceGuard" } });
+    console.error("[scheduled] priceGuard failed:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function runLowBalanceWarnings() {
   const lowUsers = await db
     .select({ userId: balances.userId, credits: balances.credits })

@@ -135,3 +135,17 @@ describe("brute-force / malformed-body resilience", () => {
     }
   });
 });
+
+// P3.5: the model id is bounded (models.id is varchar(150)).
+describe("chatRequestSchema — model bound (P3.5)", () => {
+  it("accepts a model id up to 150 characters and rejects longer", () => {
+    expect(chatRequestSchema.safeParse({ ...validBody, model: "m".repeat(150) }).success).toBe(true);
+    const tooLong = chatRequestSchema.safeParse({ ...validBody, model: "m".repeat(151) });
+    expect(tooLong.success).toBe(false);
+  });
+  it("still rejects an empty model with the existing Arabic message", () => {
+    const r = chatRequestSchema.safeParse({ ...validBody, model: "" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(formatChatValidationError(r.error).message).toBe("الرجاء اختيار نموذج.");
+  });
+});

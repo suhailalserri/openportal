@@ -65,6 +65,10 @@ function buildCsp(): string {
 
 const nextConfig: NextConfig = {
   output: "standalone",   // Required for Docker deployment
+  // P2.1 fix: @ai-platform/config exports raw .ts (no build step). The client
+  // instrumentation entry imports its `monitoring-scrub` subpath, and webpack has
+  // no TS loader for that workspace file unless it is transpiled explicitly.
+  transpilePackages: ["@ai-platform/config"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.yourdomain.com" },

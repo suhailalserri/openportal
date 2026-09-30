@@ -17,16 +17,28 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET:     z.string().min(32),
   // Shared secret between web (Next.js) and api (Fastify) for internal calls
   INTERNAL_SERVICE_TOKEN: z.string().min(32),
+  // P3.4: set ONLY during an INTERNAL_SERVICE_TOKEN rotation, on the api, to the
+  // OLD token. The api then accepts both. Lenient on purpose (a blank value from
+  // the dashboard must not stop boot); tokens under 32 chars are ignored.
+  // Remove it when the rotation is finished (docs/runbooks/secret-rotation.md).
+  INTERNAL_SERVICE_TOKEN_PREVIOUS: z.string().optional(),
   RESEND_API_KEY:         z.string().min(1),
   RESEND_FROM_EMAIL:      z.string().email(),
   RESEND_FROM_NAME:       z.string().default("AI Platform"),
   CODE_SALT:              z.string().min(16),
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
+  // P2.2: shared secret in the URL of POST /internal/sentry-alert (Sentry webhooks cannot
+  // send headers). Unset or < 24 chars => that endpoint is disabled (404).
+  SENTRY_WEBHOOK_TOKEN:   z.string().min(24).optional(),
   TURNSTILE_SECRET_KEY:   z.string().optional(),
-  MINIO_ENDPOINT:         z.string().optional(),
-  MINIO_ACCESS_KEY:       z.string().optional(),
-  MINIO_SECRET_KEY:       z.string().optional(),
+  // P3.5 (N9): Bearer token for GET /metrics. Lenient on purpose (blank must not stop boot);
+  // unset or under 24 chars => /metrics is disabled in production (security/plugins.ts).
+  METRICS_TOKEN:          z.string().optional(),
+  // P3.5: "true" makes adminProcedure require a 2FA-enrolled admin (security/admin-2fa.ts).
+  // Read from process.env at call time (it also runs inside the Vercel web app); listed
+  // here for documentation and so a typo is visible next to the other secrets.
+  ADMIN_REQUIRE_2FA:      z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
   // Model id used for the internal history-summarization call (see
   // history-compaction.ts). Deliberately a separate, cheap/fast model —
@@ -36,6 +48,14 @@ const envSchema = z.object({
   // `models` table (that table is the user-facing catalog, this is an
   // internal plumbing choice independent of it).
   SUMMARIZATION_MODEL:    z.string().min(1).default("gpt-4o-mini"),
+  // P2.1 error tracking. Deliberately LENIENT (plain optional strings): a blank
+  // or mistyped value must never stop the api booting (L12). The real decision
+  // is monitoring/options.ts `normalizeDsn` — invalid => monitoring off + a
+  // console warning. initSentry() reads process.env directly for the same
+  // reason: it must work even if this schema fails.
+  SENTRY_DSN:             z.string().optional(),
+  SENTRY_ENVIRONMENT:     z.string().optional(),
+  SENTRY_RELEASE:         z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,3 +1,9 @@
+> ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
+>
+> The **triage decision tree** is still valid and useful. The **IP-block commands** (edit `Caddyfile`, `docker compose exec caddy`) are not — there is no Caddy. Blocking an IP now means the Vercel firewall or Cloudflare, or account-level suspension in `/admin`. Revisit with plan P1.1 / P1.3.
+
+---
+
 # Runbook: Fraud Alert
 
 **Trigger:** Telegram alert `FRAUD_USER_AUTO_FLAGGED` or admin panel alert
@@ -16,10 +22,13 @@ Check the fraud event:
 
 **Before trusting the numbers:** check whether a `RedisMemoryHigh` or
 `ExporterDown` alert fired around the same time. Every fraud check
-(`checkRequestVelocity`, `checkRedeemAttempt`, `checkSpendVelocity` in
+(`trackRequestIdentity`, `checkRedeemAttempt`, `checkSpendVelocity` in
 `fraud.service.ts`) fails OPEN on a Redis error — it skips the check
 rather than blocking the request. So a Redis blip doesn't just degrade
 the app; it also means fraud checks were silently off for that window.
+The request-rate limit (`utils/redis-rate-limiter.ts`, P3.1) does not go
+fully open: it falls back to a per-process cap and increments
+`aip_rate_limit_fallback_total`.
 If the two alerts overlap, treat this event's counts as a floor, not a
 complete picture — some abuse in that window may not have been caught
 or logged at all.

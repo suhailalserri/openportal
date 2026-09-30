@@ -3,6 +3,9 @@ import type { inferAsyncReturnType } from "@trpc/server";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { db, users, sessions } from "@ai-platform/db";
 import { eq, and, gt } from "drizzle-orm";
+import { assertUsableAccount, ACCOUNT_ERROR_CODE } from "../utils/account-guard";
+import { checkAdminTwoFactor } from "../security/admin-2fa";
+import { resolveApiClientIp, isInternalTokenAuth, trustCfConnectingIpFromEnv } from "../utils/client-ip";
 
 // ── Context ───────────────────────────────────────────────────────────
 
@@ -52,10 +55,15 @@ export async function createContext({
   // (Next.js has no FastifyRequest), and meant this whole file's types had
   // to be resolved by Next.js's build in the first place — the root cause
   // of the build failures this file's git history is fixing.
-  const ip = (req.headers["cf-connecting-ip"] as string)
-          ?? (req.headers["x-forwarded-for"] as string)
-          ?? req.ip
-          ?? "unknown";
+  // P1.3: shared resolver (see ../utils/client-ip.ts for the trust rules).
+  // `internalAuth` is recomputed from the Authorization header because this
+  // runs outside authMiddleware.
+  const ip = resolveApiClientIp({
+    headers:             req.headers,
+    requestIp:           req.ip,
+    internalAuth:        isInternalTokenAuth(req.headers.authorization, process.env.INTERNAL_SERVICE_TOKEN, process.env.INTERNAL_SERVICE_TOKEN_PREVIOUS),
+    trustCfConnectingIp: trustCfConnectingIpFromEnv(),
+  });
 
   return { db, user: await getUser(), ip };
 }
@@ -88,14 +96,42 @@ export const publicProcedure = t.procedure;
  */
 export const createCallerFactory = t.createCallerFactory;
 
+/**
+ * P1.1 / L14 — the guard lives HERE, in the procedures, not in either entry
+ * point. apps/web/server/context.ts feeds this same appRouter, so guarding the
+ * procedures covers the Fastify handler and the Next.js handler/caller alike.
+ * The user row in `ctx` is read fresh from the DB on every request by both
+ * `createContext` implementations, so a status change takes effect on the
+ * very next call (no session cache involved on this path).
+ *
+ * The message is a stable code (`ACCOUNT_SUSPENDED` / `ACCOUNT_UNDER_REVIEW`)
+ * the frontend maps to copy; do not reword.
+ */
+function requireUsableAccount<U extends { status: string; isFraudFlagged: boolean }>(user: U): void {
+  const guard = assertUsableAccount(user);
+  if (!guard.ok) {
+    throw new TRPCError({ code: "FORBIDDEN", message: ACCOUNT_ERROR_CODE[guard.reason] });
+  }
+}
+
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  requireUsableAccount(ctx.user);
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
 export const adminProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  // Role check first: a non-admin learns nothing about their own account
+  // state from an admin endpoint. An admin who is suspended/flagged is
+  // locked out of admin too.
   if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin")
     throw new TRPCError({ code: "FORBIDDEN" });
+  requireUsableAccount(ctx.user);
+  // P3.5 (N6): with ADMIN_REQUIRE_2FA=true an admin must have 2FA enrolled.
+  // Off by default so a missing flag can never lock anyone out. The stable code
+  // is for the frontend to map to copy; do not reword.
+  const twoFactor = checkAdminTwoFactor(ctx.user);
+  if (!twoFactor.ok) throw new TRPCError({ code: "FORBIDDEN", message: twoFactor.reason });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

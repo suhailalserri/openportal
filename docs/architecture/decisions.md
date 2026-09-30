@@ -33,6 +33,7 @@
 - **Mitigation:** generateCode() and validateCodeFormat() utilities encapsulate this.
 
 ## ADR-005: Caddy over Nginx as reverse proxy
+- **Status:** Superseded by ADR-011 (2026-09-29) — no VPS; Vercel and Render terminate TLS.
 - **Date:** Project start
 - **Decision:** Use Caddy v2 for reverse proxy and SSL
 - **Reasoning:** Automatic Let's Encrypt with zero configuration.
@@ -41,6 +42,7 @@
 - **Mitigation:** Caddyfile is well-documented in this codebase.
 
 ## ADR-006: Valkey over Redis
+- **Status:** Superseded by ADR-011 (2026-09-29) — Redis is Upstash (managed). The app only needs the Redis protocol.
 - **Date:** Project start
 - **Decision:** Use Valkey (Redis fork) instead of Redis
 - **Reasoning:** Redis changed license to SSPL (not truly open source).
@@ -158,3 +160,118 @@
   Testcontainers tests. Only after B5 is approved does a Settings page come
   back, post-cutover. Until then no UI may present a setting that the
   backend does not read.
+
+## ADR-011: Production topology
+- **Date:** 2026-09-29 (master plan P0.1; updated after owner answers)
+- **Status:** **DRAFT — P0.1 not fully closed.** ⬜ cells still need a fact
+  from a dashboard or command. Evidence tags: **[S]** stated by the owner,
+  **[R]** read from this repo, **[D]** checked against vendor docs on
+  2026-09-29, **⬜** unconfirmed.
+- **Decision (plan L1):** web = Vercel, api = Render, gateway = Render,
+  Postgres = Supabase, Redis = Upstash. Supersedes ADR-005 (Caddy) and
+  ADR-006 (Valkey). The VPS/Docker Compose stack is retired (plan L4).
+
+| Component | Provider | Plan / tier | Region | Backup | Monitoring |
+|---|---|---|---|---|---|
+| web (Next.js) | Vercel [S] | **Hobby** [S] | ⬜ | git | Sentry [R] |
+| api (Fastify) | Render [S] | ⬜ free or paid? | ⬜ | git | none yet (P2.1) |
+| Gateway (New API, separate repo) | Render [S] | ⬜ | ⬜ | **External Postgres on Supabase** [S] (not SQLite); backup ⬜ | ⬜ |
+| Upstream models | OpenRouter [S][R] | n/a | n/a | n/a | ⬜ spend limit / alerts on the OpenRouter key |
+| Postgres (app) | Supabase [S] | ⬜ | ⬜ | ⬜ daily? PITR? | ⬜ |
+| Redis | Upstash [S] | **Free** [S] | ⬜ | ⬜ | ⬜ |
+
+### Findings from the plans the owner is on (checked 2026-09-29 [D])
+- **N11 — Upstash Free is 500,000 commands/month, 256 MB.** BullMQ polls
+  even when idle, and every chat request also does rate-limit, idempotency
+  and fraud-counter commands (soon the P1.2 lock). When the quota is hit,
+  Redis stops answering. Under plan L12/P1.2 the paid request path **fails
+  closed**, so exhausting the quota takes paid chat down. Not acceptable
+  for launch. A Fixed plan (from $10/month, no per-command billing) or
+  Pay-as-you-go fixes it. Decision L15.
+- **N12 — Vercel Hobby is personal, non-commercial use only.** Selling
+  credits (Jaib vouchers, manual transfer) is commercial use. Hobby also
+  pauses the affected feature for 30 days when a limit is exceeded, with no
+  way to pay past it. Function max duration is 300 s, which is fine against
+  the 120 s upstream timeout. Vercel Pro is required before charging
+  anyone. Decision L16.
+- **N13 — if any Render service is on the Free instance type:** it spins
+  down after 15 minutes idle (about a minute to wake), cannot use a
+  persistent disk, cannot receive private-network traffic, cannot scale
+  past one instance, and may be restarted at any time. For the **api** that
+  means cold-start latency on the first chat, in-process schedulers not
+  running while asleep, and no multi-replica (L6). For the **gateway** it
+  means New API's local data (default SQLite) is lost on every restart
+  unless it uses an external database, and it must be publicly reachable
+  (feeds N8). Decision L17.
+- **N9 — `/metrics` is unauthenticated on a public URL.** Its comment
+  assumes an internal Docker network. Planned fix: P3.5.
+- **N10 — `platform_config` (migration 0014) never had RLS.** Fixed by
+  `0017_platform_config_rls.sql` in this session; **apply it to Supabase
+  and run the verification query below.**
+
+### Established from the repo [R]
+1. api is public by design: web calls `INTERNAL_API_URL` (public URL);
+   Vercel cannot reach a Render private network. Hop auth is
+   `INTERNAL_SERVICE_TOKEN` only.
+2. No `trustProxy` in `apps/api`: behind Render's proxy `req.ip` is the
+   proxy address. Feeds P1.3.
+3. No SIGTERM handler in `index.ts` (N2 confirmed in code).
+4. DB pool defaults to `max: 1` with `prepare: false` (sized for Vercel);
+   on a long-lived Render api that stays 1 unless `DATABASE_POOL_MAX` is
+   set. A 2026-09-13 web log showed `EMAXCONNSESSION` from Supabase's
+   pooler in session mode. Matters for P4.2.
+5. BullMQ workers run inside the api process, only when
+   `NODE_ENV=production`.
+6. `allkeys-lru` existed only in the retired compose file; it says nothing
+   about Upstash.
+7. Deploys are Git-integration on both hosts (per the note in
+   `deploy.yml`); not checked in either dashboard.
+
+### Answers received 2026-09-29 (session 3) [S]
+- **Upstream:** the OpenRouter API key is connected to New API as a channel;
+  New API is the gateway the api calls. (Consistent with repo comments about
+  OpenRouter model ids in `gateway.service.ts` [R].) All model traffic
+  therefore has one upstream, OpenRouter. It is a single point of failure,
+  and the provider-per-channel failover in the old plan does not apply until a
+  second upstream is added. Not a P0.1 blocker; input to P2.2.
+- **Gateway data store:** New API uses **PostgreSQL on Supabase**, not
+  SQLite. This removes the "data lost on every Render restart" risk from
+  N13 for the gateway. ⬜ still open: is it a separate Supabase *project*
+  or a separate database/schema in the app's project? If it shares the
+  project, its tables sit in the same Data API surface as N10 and need RLS
+  or the Data API disabled; if separate, it needs its own backup check.
+- **Pooler ports:** api (Render) uses **6543**; web (Vercel) uses **5432**
+  [S]. On Supabase's pooler host, 5432 is session mode. A 2026-09-13 web log
+  showed `EMAXCONNSESSION` [R], which fits Vercel serverless on a
+  session-mode connection. ⬜ confirm the exact host in the web
+  `DATABASE_URL` (pooler `*.pooler.supabase.com:5432` vs direct
+  `db.<ref>.supabase.co:5432`; the direct host is IPv6-only). Feeds P4.2:
+  the likely fix is 6543 for web too; not changed in this session.
+- **Vercel Deployment Protection:** on [S]. The platform is **not public
+  yet** [S], still in testing. Before launch, check that protection does not
+  put a login wall in front of real users on the production domain (added to
+  the launch checklist below).
+
+### Still needed to close P0.1 (⬜ cells)
+- **Render (api and gateway, each):** instance type (Free or paid), count,
+  region, health-check path, max shutdown delay. Is the gateway URL public
+  or private? (SQLite question answered above.) From outside Render:
+  `curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://<gateway>/v1/models`
+  A `401` means it is public (N8); it will be public on Free.
+  `curl -sI https://<api>/health` and `https://<api>/metrics`.
+- **Supabase:** plan, daily-backup retention, PITR yes/no, region, Data API
+  on/off, the host in the web `DATABASE_URL`, and whether the gateway DB is
+  a separate project. After
+  applying 0017 run in the SQL editor (expect zero rows):
+  `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity;`
+- **Upstash:** region, **Eviction** toggle (must be off), this month's
+  command count (shows how fast BullMQ burns the 500K), TLS on.
+- **Vercel:** function region. (Deployment Protection answered above.)
+- **Before launch (not P0.1):** with Deployment Protection on, load the
+  production domain in a private window signed out; it must not ask for a
+  Vercel login.
+
+### Consequences
+- Plan gains N9–N13 and L15–L17 (see the plan file). None change the
+  stage order; L15–L17 are prerequisites of the launch gate.
+- When every ⬜ is filled, set Status to **Accepted** and tick P0.1.

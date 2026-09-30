@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 import { FRAUD } from "@ai-platform/config";
 import type { FraudCheckResult, FraudEventInput } from "@ai-platform/types";
 import { recordFraudEvent } from "../metrics";
+import { revokeUserSessions } from "./session-revocation.service";
 import Redis from "ioredis";
+import { closeRedisClient } from "../lifecycle/redis-close";
+import { sendTelegram } from "../monitoring/telegram";
 
 // See metrics.ts for why this reads process.env directly rather than
 // importing the full Zod-validated `./config` — same cross-boundary
@@ -13,22 +16,20 @@ const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 export class FraudService {
   constructor(private redis: { incr: Function; expire: Function; sadd: Function; scard: Function; incrby: Function }) {}
 
+  /** P2.2: last auto-suspend alert per "user:type" (per process). */
+  private suspendAlertedAt = new Map<string, number>();
+
   private today(): string {
     return new Date().toISOString().slice(0, 10);
   }
 
-  /** Check per-minute and per-hour request rate */
-  async checkRequestVelocity(userId: string, ip: string): Promise<FraudCheckResult> {
-    const rpmKey = `rate:${userId}:rpm`;
-    const count  = await this.redis.incr(rpmKey) as number;
-    await this.redis.expire(rpmKey, 60);
-
-    if (count > FRAUD.MAX_REQUESTS_PER_MINUTE) {
-      await this.logEvent({ userId, type: "HIGH_REQUEST_VELOCITY", severity: "medium",
-        details: { count, ip }, ip });
-      return { allowed: false, reason: "RATE_LIMIT_EXCEEDED" };
-    }
-
+  /**
+   * P3.1: identity signals only (multi-IP per user, multi-user per IP).
+   * The per-minute request counter that used to live here refreshed its expiry
+   * on every call (the window never reset for a steadily active user); request
+   * rate limiting now lives in utils/redis-rate-limiter.ts. Never blocks.
+   */
+  async trackRequestIdentity(userId: string, ip: string): Promise<void> {
     // Track unique IPs per user today
     const ipKey = `user:${userId}:ips:${this.today()}`;
     await this.redis.sadd(ipKey, ip);
@@ -50,8 +51,12 @@ export class FraudService {
       await this.logEvent({ userId, type: "SHARED_IP_MULTI_ACCOUNT", severity: "high",
         details: { ip, usersFromIp }, ip });
     }
+  }
 
-    return { allowed: true };
+  /** P3.1: audit row when the request rate limiter denies a user (called once per window, not per 429). */
+  async recordRequestRateExceeded(userId: string, ip: string, count: number): Promise<void> {
+    await this.logEvent({ userId, type: "HIGH_REQUEST_VELOCITY", severity: "medium",
+      details: { count, ip }, ip });
   }
 
   /** Check redeem attempt rate limits */
@@ -105,19 +110,37 @@ export class FraudService {
       await db.update(users)
         .set({ isFraudFlagged: true, fraudReason: event.type })
         .where(eq(users.id, event.userId ?? ""));
+
+      // P1.1 item 5: a flag with a live session behind it is only half a
+      // lock. Revoke explicitly so the app does not depend solely on the
+      // 0018 trigger (which is the backstop for writers outside this code,
+      // e.g. the frozen web PATCH route or manual SQL). Never let a
+      // revocation failure hide the fraud event we just recorded.
+      if (event.userId) {
+        try {
+          await revokeUserSessions(event.userId);
+        } catch (err) {
+          console.error("fraud: session revocation failed", err);
+        }
+      }
+
+      // P2.2: tell the operator about every automatic suspension (plan G4).
+      // HIGH_SPEND_VELOCITY already sends its own, more specific message.
+      // De-duplicated per user+type for an hour so a retry loop cannot spam.
+      if (event.type !== "HIGH_SPEND_VELOCITY") {
+        const key = `${event.userId ?? "unknown"}:${event.type}`;
+        const t = Date.now();
+        if (t - (this.suspendAlertedAt.get(key) ?? 0) > 3_600_000) {
+          this.suspendAlertedAt.set(key, t);
+          await this.alertAdmin(`🚨 FRAUD AUTO-SUSPEND: user ${event.userId ?? "unknown"} flagged (${event.type}). Review in admin > fraud.`);
+        }
+      }
     }
   }
 
   private async alertAdmin(message: string): Promise<void> {
-    const token  = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    if (!token || !chatId) return;
-
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ chat_id: chatId, text: message }),
-    }).catch(console.error);
+    // P2.2: shared sender (plain text, redacted, timeout, never throws).
+    await sendTelegram(message, "critical");
   }
 }
 
@@ -153,3 +176,6 @@ fraudRedis.on("error", (err) => {
 });
 
 export const fraudService = new FraudService(fraudRedis);
+
+/** P3.2: graceful shutdown. Never throws. */
+export const closeFraudRedis = (): Promise<void> => closeRedisClient(fraudRedis);

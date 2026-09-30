@@ -976,6 +976,18 @@
       "amountHint": "Whole or decimal credits each new user receives, once. Changing it applies to anyone who hasn't claimed yet.",
       "amountRequired": "Enter an amount greater than 0 to enable the bonus.",
       "claimedCount": "Claimed so far: {count}",
+      "checkTitle": "Check why an account can't see the bonus",
+      "checkHint": "Only accounts created after the bonus was first enabled ({date}) are eligible, and they must be verified.",
+      "checkButton": "Check",
+      "checkFacts": "Status: {status} · Created: {created} · Claimed: {claimed}",
+      "reasons": {
+        "ELIGIBLE": "Eligible — this account can claim now.",
+        "USER_NOT_FOUND": "No account with that email.",
+        "DISABLED": "The bonus is off, or the amount is 0.",
+        "ALREADY_CLAIMED": "Already claimed.",
+        "NOT_ELIGIBLE": "Not eligible — the account was created before the bonus was first enabled.",
+        "ACCOUNT_RESTRICTED": "Not eligible — the account isn't active, or it is fraud-flagged."
+      },
       "save": "Save",
       "saving": "Saving…",
       "saved": "Saved",

@@ -1,3 +1,9 @@
+> ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
+>
+> The **decision logic** (roll back first, investigate after; never un-migrate a destructive migration) still holds. The **commands** (SSH, `docker compose`, `backup-restore.sh` — that script never existed) do not. Real rollback = Render "Rollback" / Vercel "Instant Rollback" or `git revert` + push. Rewritten in plan P3.2 / P4.1.
+
+---
+
 # Runbook: Emergency Rollback
 
 **Trigger:** Deploy caused errors, health checks failing, users reporting issues
@@ -44,8 +50,8 @@ docker compose exec api pnpm db:status
 # Rollback last migration
 docker compose exec api pnpm db:rollback
 
-# If rollback fails — restore from backup:
-bash /opt/ai-platform/infra/scripts/backup-restore.sh backup_TIMESTAMP.sql.gz
+# If rollback fails — restore from backup (P4.1): the old backup-restore.sh never existed.
+# Use docs/runbooks/backup-restore-drill.md, section 5 ("Real disaster").
 ```
 
 ## Step 4 — Verify Recovery

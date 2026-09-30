@@ -3,10 +3,9 @@ import { and, eq, gte, lte, desc, sql, type SQL } from "drizzle-orm";
 
 /**
  * Backend B3 (docs/FRONTEND_REBUILD_PLAN.md §7, "Admin logs + audit").
- * Replaces `apps/web/app/api/admin/logs/route.ts`, which returns the
- * latest 200 `usage_debit` transactions with no filters — 8c switches
- * the admin logs page over to `admin.listUsageLogs` (that REST route is
- * left in place here; removing it is a 9.3 cleanup item, not this one).
+ * Replaced `apps/web/app/api/admin/logs/route.ts`, which returned the
+ * latest 200 `usage_debit` transactions with no filters — the admin logs page
+ * uses `admin.listUsageLogs`. That REST route was deleted in P3.5.
  *
  * These two functions are intentionally admin-wide: unlike
  * usage.service.ts (which always filters to `ctx.user.id` and is the

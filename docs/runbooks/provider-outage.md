@@ -1,3 +1,9 @@
+> ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
+>
+> The **admin-panel steps** (channels, model toggles, status banner) are still valid. References to Grafana alerts and Gatus are not. Alerts for this come from plan P2.2 (Telegram + uptime monitor).
+
+---
+
 # Runbook: AI Provider Outage
 
 **Trigger:** Grafana alert `ProviderAllChannelsFailed` OR Telegram alert from Gatus

@@ -369,6 +369,29 @@ describe("streamChat — B1 additions", () => {
     expect(sentBody.max_tokens).toBe(8192); // clamped, not 50_000
   });
 
+  it("P1.2: uses the route-supplied requestId as the gateway X-Request-ID and the billing request id", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      body: makeSseStream([
+        `data: {"choices":[{"delta":{"content":"hi"}}]}\n\n`,
+        `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+        `data: [DONE]\n\n`,
+      ]),
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, requestId: "lock-req-123", reply });
+
+    const [, init] = fetchSpy.mock.calls[0]!;
+    expect((init as RequestInit & { headers: Record<string, string> }).headers["X-Request-ID"]).toBe("lock-req-123");
+    expect(deductCreditsAtomicMock).toHaveBeenCalledWith(
+      "user-1", expect.any(Number), "Chat usage",
+      expect.objectContaining({ requestId: "lock-req-123" }),
+    );
+  });
+
   it("omits temperature/top_p when not provided (no false 0s/nulls), but always sends an affordability-bounded max_tokens", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
@@ -575,5 +598,79 @@ describe("streamChat — B1 additions", () => {
     await callStreamChat({ ...baseOpts, abortSignal: liveSignal, reply });
 
     expect(sends).toEqual([{ code: 504, body: expect.objectContaining({ error: "TIMEOUT" }) }]);
+  });
+});
+
+// ── P3.2: graceful shutdown aborts streams at the drain deadline ──────────
+// index.ts wires the shutdown signal into the same abortSignal a client
+// disconnect uses. The contract this pins: an abort in the MIDDLE of a stream
+// (content already delivered) is billed exactly once, for what was streamed,
+// and the message is saved as partial. Nothing else may bill or save.
+describe("streamChat — P3.2 shutdown abort", () => {
+  it("bills exactly once and saves an isPartial message when aborted mid-stream", async () => {
+    const encoder = new TextEncoder();
+    let pulls = 0;
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (pulls++ === 0) {
+            controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial answer"}}]}\n\n`));
+            return;
+          }
+          // Hang like a real slow upstream until the abort reaches the fetch.
+          return new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => {
+              controller.error(new DOMException("The operation was aborted.", "AbortError"));
+              resolve();
+            }, { once: true });
+          });
+        },
+      });
+      return Promise.resolve({ ok: true, status: 200, body, json: async () => ({}) });
+    }));
+
+    const shutdownAbort = new AbortController();
+    const { reply, writes } = makeReply();
+    const done = callStreamChat({ ...baseOpts, abortSignal: shutdownAbort.signal, reply });
+
+    await vi.waitFor(() => expect(writes).toEqual(["partial answer"]));
+    shutdownAbort.abort(new DOMException("Server shutting down", "AbortError"));
+    await done;
+
+    expect(deductCreditsAtomicMock).toHaveBeenCalledTimes(1);
+    const assistantSaves = insertValuesCalls.filter(
+      (c) => c.table === "messages" && (c.values as { role?: string }).role === "assistant",
+    );
+    expect(assistantSaves).toHaveLength(1);
+    expect(assistantSaves[0]!.values).toMatchObject({ content: "partial answer", isPartial: true });
+    expect(reply.raw.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not bill or save when the shutdown abort lands before any content streamed", async () => {
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          return new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => {
+              controller.error(new DOMException("The operation was aborted.", "AbortError"));
+              resolve();
+            }, { once: true });
+          });
+        },
+      });
+      return Promise.resolve({ ok: true, status: 200, body, json: async () => ({}) });
+    }));
+
+    const shutdownAbort = new AbortController();
+    const { reply } = makeReply();
+    const done = callStreamChat({ ...baseOpts, abortSignal: shutdownAbort.signal, reply });
+    await vi.waitFor(() => expect((reply.raw.setHeader as ReturnType<typeof vi.fn>)).toHaveBeenCalled());
+    shutdownAbort.abort(new DOMException("Server shutting down", "AbortError"));
+    await done;
+
+    expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
+    expect(insertValuesCalls.filter((c) => (c.values as { role?: string }).role === "assistant")).toHaveLength(0);
   });
 });

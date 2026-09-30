@@ -12,16 +12,28 @@
  *                          shaped strings before an event is sent.
  *   - beforeSend:          the Sentry hook that applies the two above.
  *
+ * P2.1: redaction, the ignore list and scrubEvent now live in ONE shared,
+ * pure module (packages/config/src/monitoring-scrub.ts) that apps/api also
+ * uses, so the two tiers cannot drift. They are re-exported here so every
+ * existing import of this file keeps working. Behaviour is a strict superset:
+ * it additionally drops `extra`, `request.env` and stack-frame `vars`,
+ * deep-redacts `contexts`/`tags`, redacts sk-* API keys and caps exception
+ * messages at 500 chars.
+ *
  * Privacy contract (mirrors docs/legal/PRIVACY_POLICY.md §3): no message
  * content, no cookies, no request bodies. Chat prompts are never captured
  * because bodies are dropped and Session Replay is not enabled.
  */
 
-type Loose = Record<string, unknown>;
+import { scrubEvent, shouldIgnoreError } from "@ai-platform/config/monitoring-scrub";
 
-function isObject(value: unknown): value is Loose {
-  return typeof value === "object" && value !== null;
-}
+export {
+  IGNORED_TRPC_CODES,
+  redactText,
+  scrubEvent,
+  scrubUrl,
+  shouldIgnoreError,
+} from "@ai-platform/config/monitoring-scrub";
 
 /** DSN is public by design (NEXT_PUBLIC_*). Unset/malformed ⇒ monitoring off.
  * Type predicate so callers can pass the narrowed `string` to Sentry.init
@@ -35,81 +47,6 @@ export function isMonitoringEnabled(dsn: string | undefined | null): dsn is stri
   }
 }
 
-// ─── Redaction ────────────────────────────────────────────────────────
-
-const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
-// Redeem code SHAPE (packages/config constants): 4×4 groups, alphabet
-// ABCDEFGHJKMNPQRSTUVWXYZ23456789. Shape only — the checksum stays server-side.
-const REDEEM_CODE_RE = /\b[A-HJKMNP-Z2-9]{4}(?:-[A-HJKMNP-Z2-9]{4}){3}\b/g;
-
-export function redactText(text: string): string {
-  return text
-    .replace(BEARER_RE, "Bearer [redacted]")
-    .replace(EMAIL_RE, "[email]")
-    .replace(REDEEM_CODE_RE, "[code]");
-}
-
-/** Drops the query string and hash (`?next=…`, `?ref=…`, tokens). */
-export function scrubUrl(url: string): string {
-  const i = url.search(/[?#]/);
-  return i === -1 ? url : url.slice(0, i);
-}
-
-// ─── Ignore list ──────────────────────────────────────────────────────
-
-/** Expected tRPC outcomes: the UI already handles them; not bugs. */
-export const IGNORED_TRPC_CODES: ReadonlySet<string> = new Set([
-  "UNAUTHORIZED",
-  "FORBIDDEN",
-  "BAD_REQUEST",
-  "NOT_FOUND",
-  "CONFLICT",
-  "PRECONDITION_FAILED",
-  "PAYLOAD_TOO_LARGE",
-  "UNPROCESSABLE_CONTENT",
-  "TOO_MANY_REQUESTS",
-  "CLIENT_CLOSED_REQUEST",
-]);
-
-const NETWORK_MESSAGE_RE =
-  /^(failed to fetch|networkerror|load failed|network request failed|the network connection was lost)/i;
-const RESIZE_OBSERVER_RE = /^ResizeObserver loop/i;
-
-function messageOf(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (isObject(error) && typeof error.message === "string") return error.message;
-  return "";
-}
-
-export function shouldIgnoreError(error: unknown): boolean {
-  if (isObject(error)) {
-    // Stop button / navigation away: not a failure.
-    if (error.name === "AbortError") return true;
-
-    // Next.js control-flow "errors" (redirect(), notFound()).
-    const digest = error.digest;
-    if (
-      typeof digest === "string" &&
-      /^(NEXT_REDIRECT|NEXT_NOT_FOUND|NEXT_HTTP_ERROR_FALLBACK)/.test(digest)
-    ) {
-      return true;
-    }
-
-    // tRPC client/server errors carry `data.code`.
-    const data = error.data;
-    if (isObject(data) && typeof data.code === "string" && IGNORED_TRPC_CODES.has(data.code)) {
-      return true;
-    }
-  }
-
-  const message = messageOf(error);
-  if (message === "NEXT_REDIRECT" || message === "NEXT_NOT_FOUND") return true;
-  if (NETWORK_MESSAGE_RE.test(message)) return true; // user offline / flaky network
-  if (RESIZE_OBSERVER_RE.test(message)) return true; // benign browser noise
-  return false;
-}
-
 /** tRPC query keys look like [["billing","getBalance"], {input,type}].
  * Returns "billing.getBalance" — the procedure path only, never the input. */
 export function procedureFromKey(queryKey: readonly unknown[] | undefined): string | undefined {
@@ -118,66 +55,6 @@ export function procedureFromKey(queryKey: readonly unknown[] | undefined): stri
     return first.join(".");
   }
   return undefined;
-}
-
-// ─── Scrubber ─────────────────────────────────────────────────────────
-
-const HEADER_ALLOWLIST = new Set(["user-agent", "accept-language", "content-type"]);
-
-function scrubBreadcrumb(crumb: unknown): void {
-  if (!isObject(crumb)) return;
-  if (typeof crumb.message === "string") crumb.message = redactText(crumb.message);
-  const data = crumb.data;
-  if (isObject(data)) {
-    for (const key of ["url", "from", "to"]) {
-      if (typeof data[key] === "string") data[key] = scrubUrl(data[key] as string);
-    }
-    delete data.arguments; // console.* breadcrumbs carry raw arguments
-    delete data.body;
-  }
-}
-
-/**
- * Mutates and returns the event. Generic so it type-checks against Sentry's
- * ErrorEvent without importing it.
- */
-export function scrubEvent<T>(event: T): T {
-  if (!isObject(event)) return event;
-  const e = event as Loose;
-
-  if (isObject(e.request)) {
-    const req = e.request;
-    if (typeof req.url === "string") req.url = scrubUrl(req.url);
-    delete req.cookies;
-    delete req.data;
-    delete req.query_string;
-    if (isObject(req.headers)) {
-      const kept: Record<string, unknown> = {};
-      for (const [name, value] of Object.entries(req.headers)) {
-        if (HEADER_ALLOWLIST.has(name.toLowerCase())) kept[name] = value;
-      }
-      req.headers = kept;
-    }
-  }
-
-  if (isObject(e.user)) {
-    const id = e.user.id;
-    if (typeof id === "string" || typeof id === "number") e.user = { id: String(id) };
-    else delete e.user;
-  }
-
-  if (typeof e.message === "string") e.message = redactText(e.message);
-
-  const exception = e.exception;
-  if (isObject(exception) && Array.isArray(exception.values)) {
-    for (const v of exception.values) {
-      if (isObject(v) && typeof v.value === "string") v.value = redactText(v.value);
-    }
-  }
-
-  if (Array.isArray(e.breadcrumbs)) e.breadcrumbs.forEach(scrubBreadcrumb);
-
-  return event;
 }
 
 /** Sentry `beforeSend`: drop expected errors, scrub the rest. */

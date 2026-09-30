@@ -1,0 +1,171 @@
+name: Load Test
+
+# P4.2 - k6 load test of POST /chat against STAGING. Manual only.
+# Runbook (setup, the mid-test deploy, thresholds, how to read the result): docs/runbooks/LOAD_TEST.md
+#
+# Secrets (Repo -> Settings -> Secrets and variables -> Actions):
+#   LOADTEST_BASE_URL      staging api URL, no trailing slash
+#   LOADTEST_DATABASE_URL  the STAGING api's database, session-mode string (port 5432)
+#   LOADTEST_SEED          long random string; derives the load-test API keys (never stored elsewhere)
+#   LOADTEST_METRICS_TOKEN optional; the staging api's METRICS_TOKEN, to snapshot /metrics before and after
+#
+# This workflow refuses to run if LOADTEST_DATABASE_URL equals a production database secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model id to call: published, available and CHEAP (real provider cost!)"
+        required: true
+        type: string
+      duration:
+        description: "How long the load runs (k6 duration, e.g. 5m). Trigger the deploy during this window."
+        required: true
+        default: "6m"
+        type: string
+      stream_vus:
+        description: "Concurrent streaming users"
+        required: true
+        default: "60"
+        type: string
+      teardown:
+        description: "Delete the load-test users afterwards"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-test
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_URL: ${{ secrets.LOADTEST_BASE_URL }}
+      DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
+      LOADTEST_SEED: ${{ secrets.LOADTEST_SEED }}
+      METRICS_TOKEN: ${{ secrets.LOADTEST_METRICS_TOKEN }}
+      LT_MODEL: ${{ inputs.model }}
+      DURATION: ${{ inputs.duration }}
+      STREAM_VUS: ${{ inputs.stream_vus }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard - never run against production
+        env:
+          PROD_1: ${{ secrets.DATABASE_URL }}
+          PROD_2: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          for v in BASE_URL DATABASE_URL LOADTEST_SEED; do
+            if [ -z "${!v:-}" ]; then echo "::error::secret for $v is not set"; exit 1; fi
+          done
+          if [ "$DATABASE_URL" = "${PROD_1:-x}" ] || [ "$DATABASE_URL" = "${PROD_2:-x}" ]; then
+            echo "::error::LOADTEST_DATABASE_URL equals a production database secret. Refusing."; exit 1
+          fi
+
+      - name: Install psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Create / top up load-test users
+        run: bash infra/loadtest/setup.sh
+
+      - name: Snapshot /metrics before
+        run: |
+          if [ -n "${METRICS_TOKEN:-}" ]; then
+            curl -sS -m 20 -H "Authorization: Bearer $METRICS_TOKEN" "$BASE_URL/metrics" > metrics-before.txt || echo "metrics fetch failed" > metrics-before.txt
+          else
+            echo "no LOADTEST_METRICS_TOKEN" > metrics-before.txt
+          fi
+
+      - name: Run k6
+        id: k6
+        continue-on-error: true
+        run: |
+          echo "### Load test started $(date -u +%H:%M:%SZ) UTC, duration $DURATION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Trigger the deploy on the staging api now (runbook step 4)." >> "$GITHUB_STEP_SUMMARY"
+          k6 run --console-output=k6-console.log infra/loadtest/chat.k6.js
+          echo "finished $(date -u +%H:%M:%SZ) UTC" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Snapshot /metrics after
+        if: ${{ always() }}
+        run: |
+          if [ -n "${METRICS_TOKEN:-}" ]; then
+            curl -sS -m 20 -H "Authorization: Bearer $METRICS_TOKEN" "$BASE_URL/metrics" > metrics-after.txt || echo "metrics fetch failed" > metrics-after.txt
+          else
+            echo "no LOADTEST_METRICS_TOKEN" > metrics-after.txt
+          fi
+          {
+            echo "### /metrics (before | after)"
+            echo '```'
+            for m in aip_streaming_connections_active aip_billing_lock_rejected_total aip_billing_lock_lost_total aip_billing_lock_unavailable_total aip_balance_deduction_failures_total aip_job_failures_total aip_upstream_errors_total aip_process_resident_memory_bytes; do
+              b="$(grep -E "^${m}" metrics-before.txt | head -3 | tr '\n' ' ')"
+              a="$(grep -E "^${m}" metrics-after.txt  | head -3 | tr '\n' ' ')"
+              echo "$m"; echo "  before: ${b:-n/a}"; echo "  after:  ${a:-n/a}"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for post-stream bookkeeping
+        if: ${{ always() }}
+        run: sleep 30   # assistant messages are saved fire-and-forget after the debit
+
+      - name: Reconcile billing (no unbilled completions)
+        id: reconcile
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          completed=0
+          if [ -f loadtest-summary.json ]; then completed="$(jq -r '.streams_completed' loadtest-summary.json)"; fi
+          out="$(psql "$DATABASE_URL" -tA -F '|' -v completed="$completed" -f infra/loadtest/reconcile.sql)"
+          echo "$out"
+          { echo "### Billing reconciliation"; echo '```'; echo "$out"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if echo "$out" | grep -q '|f$'; then echo "::error::Billing reconciliation FAILED"; exit 1; fi
+
+      - name: Ledger invariant (sum of transactions = sum of balances)
+        id: ledger
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          out="$(psql "$DATABASE_URL" -tA -F '|' -f infra/scripts/ledger-check.sql)"
+          echo "$out"
+          { echo "### Ledger check"; echo '```'; echo "$out"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if echo "$out" | grep -q '|f$'; then echo "::error::Ledger check FAILED"; exit 1; fi
+
+      - name: k6 summary
+        if: ${{ always() }}
+        run: |
+          if [ -f loadtest-summary.json ]; then
+            { echo "### k6 summary"; echo '```json'; cat loadtest-summary.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f k6-console.log ]; then
+            { echo "### First error lines (ERRLOG)"; echo '```'; grep ERRLOG k6-console.log | head -40 || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-${{ github.run_id }}
+          path: |
+            loadtest-summary.json
+            k6-console.log
+            metrics-before.txt
+            metrics-after.txt
+          if-no-files-found: ignore
+
+      - name: Teardown load-test users
+        if: ${{ always() && inputs.teardown }}
+        run: bash infra/loadtest/teardown.sh
+
+      - name: Fail the run if k6 thresholds failed
+        if: ${{ steps.k6.outcome == 'failure' }}
+        run: |
+          echo "::error::k6 thresholds failed (see the k6 summary and ERRLOG lines above)"; exit 1

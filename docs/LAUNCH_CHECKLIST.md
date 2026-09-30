@@ -1,72 +1,70 @@
-# Pre-Launch Checklist
+# Launch checklist
 
-Track all non-code tasks that must be completed before accepting real users.
+Rewritten 2026-09-29 (plan P0.2) to match the real stack: Vercel (web),
+Render (api + gateway), Supabase (Postgres), Upstash (Redis); payments are
+Jaib vouchers + manual transfer (ADR-007). The gate is the plan's §11 in
+`docs/MASTER_PLAN.md`; walk it with evidence in
+session P4.3. **Nothing here is ticked unless someone verified it.**
 
----
+**P4.3 verdict (2026-09-30): NO-GO.** Per-line evidence, status and the ordered blocker list are in
+`docs/production/LAUNCH_GATE.md`. Statuses there: DONE / CODE-READY / OWNER-PROOF / BLOCKED / DEFERRED.
+No box below was ticked by P4.3 because no owner evidence was supplied.
+Items name the plan phase that produces the evidence.
 
-## Phase 0.3 — Business & Legal Foundation
+## Hosting plans (must be true before real users)
+- [ ] Vercel on **Pro**, not Hobby (Hobby is non-commercial) — L16
+- [ ] Upstash on a **paid** plan (Fixed or Pay-as-you-go), not Free — L15
+- [ ] Render api and gateway on **paid** instance types (no spin-down) — L17
+- [ ] Supabase plan documented: daily-backup retention, PITR yes/no — P4.1
+- [ ] ADR-011 status **Accepted** (no ⬜ cells) — P0.1 (P4.3: the repo copy still says DRAFT; reconcile with the owner's copy)
 
-### Entity & Banking
-- [ ] Legal entity formed (LLC / sole proprietor / etc.)
-- [ ] Business bank account opened
-- [ ] Stripe account created and verified (or local payment gateway)
-- [ ] PayPal business account (optional secondary)
+## Access & money
+- [ ] Suspended/flagged user locked out on REST + tRPC, cookie + API key — P1.1
+- [ ] Sessions revoked on suspend; no self-suspend; admin cannot suspend superadmin — P1.1
+- [ ] Concurrent same-user requests rejected before any provider call, tested on real Redis — P1.2
+- [ ] Rate-limit / fraud identity cannot be forged with headers — P1.3 (P4.3: also do the Render `TRUSTED_PROXY_HOPS` log check from Session 12)
+- [ ] `/chat` rate limit is shared across replicas (Redis) and gives no false 429 for steady chat — P3.1
+- [ ] Ledger invariant holds after load test (sum of transactions = sum of balances) — P4.2
 
-### Tax & Compliance
-- [ ] VAT registration completed (if applicable in your jurisdiction)
-- [ ] Jurisdiction filled in legal docs (`[YOUR JURISDICTION — MUST BE FILLED BEFORE LAUNCH]`)
-- [ ] Legal docs reviewed by a lawyer (ToS, Privacy Policy, AUP)
-- [ ] Cookie consent banner implemented (required for EU users)
+## Database
+- [ ] All migrations applied to Supabase (`pnpm --filter @ai-platform/db db:migrate:manual`), including `0017_platform_config_rls`, `0018`, `0019` (**before deploy**) and `0020`
+- [ ] RLS query returns zero rows (see ADR-011) — N10
+- [ ] Seed admin account created; seed test credentials removed or rotated
+- [ ] Independent nightly export running outside Supabase; restore drill done; RTO recorded — P4.1
 
-### Domain & Email
-- [ ] Production domain purchased and DNS configured
-- [ ] Email addresses created: support@, privacy@, abuse@, noreply@
-- [ ] Email DNS records set: SPF, DKIM, DMARC (for Resend deliverability)
-- [ ] Legal doc email placeholders updated from `@yourplatform.com`
+## Visibility
+- [ ] Sentry live on web and api, PII scrubbed — P2.1 (built; needs `SENTRY_DSN` on Render + the `/internal/sentry-test` drill)
+- [ ] Telegram receives app alerts, Sentry alerts, uptime alerts, deploy failures (each drilled once) — P2.2
+- [ ] Upstash eviction is **off** (`noeviction`); job retention live; failed-job alert works — P2.3
+- [ ] Upstash memory/command-usage alert configured — P2.3
 
----
+## Infrastructure & security
+- [ ] Gateway reachable only from the api, or protected as ADR-011 records — N8
+- [ ] `/metrics` not publicly readable — N9 / P3.5 (code done: set `METRICS_TOKEN`, then `curl` returns 401 without it; SECURITY_SWEEP.md step 6)
+- [ ] Graceful shutdown verified with a mid-stream deploy — P3.2
+- [ ] Container non-root, compiled, healthcheck — P3.3 (code done; tick after CI `API Docker Image` is green and the Render deploy is verified)
+- [ ] Secret-rotation runbook rehearsed once — P3.4 (code + runbook done; tick after the INTERNAL_SERVICE_TOKEN rehearsal and GitHub secret scanning + push protection are on)
+- [ ] CORS, headers, body limits, Zod limits, admin 2FA enforced, Turnstile live — P3.5 (code done; legacy admin REST routes deleted; owner steps 2-5 in SECURITY_SWEEP.md; **apply migration 0019 before deploying**)
+- [ ] Dependabot, `pnpm audit`, secret scanning, branch protection (`API Tests (Testcontainers)`, `Web Build (next build)`) on — P3.5 (files added; owner steps 7-8)
+- [ ] Provider-cost guard alerting; model prices confirmed against `markupMultiplier` — P3.6 (code done, awaiting CI + migration 0020 + drill: docs/runbooks/PRICE_GUARD.md)
+- [ ] `db-ops.yml` "reset" options understood; production `DATABASE_URL` secret access limited — P3.5 (reset now refuses when users exist; **first check production for `admin@localhost.dev` (SECURITY_SWEEP.md step 1)**)
 
-## Phase 0.4 — Infrastructure Readiness
+## Business & legal
+- [ ] Legal entity formed; business bank account open
+- [ ] Jurisdiction filled in ToS / Privacy / AUP (`[YOUR JURISDICTION — MUST BE FILLED BEFORE LAUNCH]`); lawyer review
+- [ ] VAT registration if applicable
+- [ ] Production domain and DNS; SPF/DKIM/DMARC for Resend; support@ / privacy@ / abuse@ / noreply@ exist
+- [ ] Legal-doc email placeholders (`@yourplatform.com`) replaced
+- [ ] Cookie consent live (if serving EU users)
+- [ ] Jaib voucher stock loaded; manual-transfer wallet details set in admin
+- [ ] Announcement channel ready
 
-### Secrets
-- [ ] `CODE_SALT` generated: `openssl rand -hex 32`
-- [ ] `BETTER_AUTH_SECRET` generated: `openssl rand -hex 32`
-- [ ] `INTERNAL_SERVICE_TOKEN` generated: `openssl rand -hex 32`
-- [ ] `GATEWAY_MASTER_KEY` generated and set in New API
-- [ ] All secrets stored in password manager / secrets vault
-
-### Services
-- [ ] VPS / cloud provider provisioned (min 4 vCPU, 8 GB RAM)
-- [ ] Docker + Docker Compose installed on server
-- [ ] Caddy TLS working (domain resolves, HTTPS cert issued)
-- [ ] New API gateway pinned to specific version (`v0.6.9`) and provider keys added
-- [ ] MinIO bucket `uploads` created and access policy set
-- [ ] Resend API key created and sending domain verified
-
-### Database
-- [ ] PostgreSQL initial migration run: `pnpm db:migrate`
-- [ ] Post-migration constraints applied: `psql $DATABASE_URL < packages/db/src/migrations/0001_constraints.sql`
-- [ ] Seed run for admin user: `pnpm db:seed`
-- [ ] Backup cron configured (daily `pg_dump` to offsite storage)
-
----
-
-## Phase 0.5 — Pre-Launch Testing
-
-- [ ] Full registration → email verify → login flow tested
-- [ ] Redeem code flow tested end-to-end (generate → redeem → balance credited)
-- [ ] Chat with at least 3 different models tested (balance deducted correctly)
-- [ ] Admin dashboard accessible at `/admin`
-- [ ] Fraud system: manual flag test
-- [ ] Load test: 50 concurrent chat users (check connection pool + Redis)
-
----
-
-## Phase 0.6 — Go-Live
-
-- [ ] `NODE_ENV=production` set in all containers
-- [ ] Grafana + Prometheus dashboards reviewed and alerts configured
-- [ ] Telegram alert bot connected (set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`)
-- [ ] Error monitoring set up (Sentry or similar)
-- [ ] New API model pricing confirmed against your `markupMultiplier` settings
-- [ ] Announcement posted (Telegram channel, social, etc.)
+## Product
+- [ ] Production domain loads signed out in a private window with no Vercel Deployment Protection login wall (ADR-011)
+- [ ] Register → verify email → login → logout → password reset, on a real phone
+- [ ] Redeem end-to-end (generate → redeem → balance credited)
+- [ ] Manual claim → admin approve end-to-end
+- [ ] Chat with 3+ models; balances deducted correctly
+- [ ] Arabic RTL checked on a real device
+- [ ] Load test passed (50+ concurrent streams, mid-test deploy) — P4.2
+- [ ] Support contact channel live and monitored

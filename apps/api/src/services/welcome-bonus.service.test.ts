@@ -207,3 +207,25 @@ describe("updateWelcomeBonusConfig", () => {
     expect(view.enabled).toBe(true);
   });
 });
+
+describe("checkWelcomeBonusForEmail", () => {
+  it("reports USER_NOT_FOUND, NOT_ELIGIBLE (old account) and null (eligible)", async () => {
+    const admin = await makeAdmin();
+    await enable(admin);
+
+    expect((await svc.checkWelcomeBonusForEmail("nobody@example.com")).reason).toBe("USER_NOT_FOUND");
+
+    const { userId: oldId } = await createTestUser(db, schema, { email: "old@example.com" });
+    await db.update(schema.users)
+      .set({ createdAt: new Date(Date.now() - 24 * 3600_000) })
+      .where(eq(schema.users.id, oldId));
+    expect((await svc.checkWelcomeBonusForEmail("OLD@example.com")).reason).toBe("NOT_ELIGIBLE");
+
+    const fresh = await newUser();
+    const row = await db.query.users.findFirst({ where: eq(schema.users.id, fresh) });
+    const res = await svc.checkWelcomeBonusForEmail(row!.email);
+    expect(res.reason).toBeNull();
+    expect(res.found).toBe(true);
+  });
+});
+

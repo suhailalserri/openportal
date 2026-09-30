@@ -69,3 +69,10 @@ export * from "./schema";
 // NOTE: MICRO_CREDIT is exported from @ai-platform/config, not here.
 // Import it with: import { MICRO_CREDIT } from "@ai-platform/config"
 
+/**
+ * Graceful shutdown (P3.2): waits (up to `timeoutSeconds`) for queries that were
+ * already sent to finish, then closes the pool. Additive export; the web app
+ * never calls it.
+ */
+export const closeDb = (timeoutSeconds = 5): Promise<void> => client.end({ timeout: timeoutSeconds });
+

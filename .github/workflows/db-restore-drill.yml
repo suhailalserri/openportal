@@ -1,0 +1,91 @@
+name: DB Restore Drill
+
+# P4.1 — proves the newest backup in R2 can actually be restored, and how long it takes.
+#   target = ci-container    : restores into a throwaway Postgres 17 container on the runner
+#                              (weekly, automatic; measures download + decrypt + restore).
+#   target = scratch-supabase: restores into an EMPTY scratch database whose URL is the
+#                              SCRATCH_DATABASE_URL secret (the real RTO drill, run by hand).
+# Never restores into production: db-restore.sh refuses a target equal to the production
+# URLs and any target that already has users.
+#
+# Runbook: docs/runbooks/backup-restore-drill.md
+
+on:
+  schedule:
+    - cron: "37 3 * * 0"      # Sundays 03:37 UTC
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to restore"
+        required: true
+        default: ci-container
+        type: choice
+        options:
+          - ci-container
+          - scratch-supabase
+      backup_key:
+        description: "Object key to restore (empty = newest app backup)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+      PRODUCTION_DATABASE_URLS: ${{ secrets.BACKUP_DATABASE_URL }} ${{ secrets.DATABASE_URL }} ${{ secrets.GATEWAY_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 17 client
+        run: bash infra/scripts/install-pg17-client.sh
+
+      - name: Restore and verify
+        env:
+          TARGET_CHOICE: ${{ inputs.target || 'ci-container' }}
+          BACKUP_KEY: ${{ inputs.backup_key }}
+          SCRATCH_DATABASE_URL: ${{ secrets.SCRATCH_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET_CHOICE" = "scratch-supabase" ]; then
+            if [ -z "${SCRATCH_DATABASE_URL:-}" ]; then echo "::error::SCRATCH_DATABASE_URL secret is not set"; exit 1; fi
+            export TARGET_DATABASE_URL="$SCRATCH_DATABASE_URL"
+          else
+            export TARGET_DATABASE_URL="postgres://postgres:drill@localhost:5432/drill"
+          fi
+          bash infra/scripts/db-restore.sh app ${BACKUP_KEY:+"$BACKUP_KEY"}
+
+      - name: Alert on Telegram if the drill failed
+        if: ${{ failure() }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Telegram secrets not set; no alert sent"; exit 0
+          fi
+          curl -sS -m 20 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=CRITICAL: DB restore drill FAILED - the newest backup may not be restorable. ${RUN_URL}" > /dev/null || true

@@ -284,3 +284,44 @@ export async function updateWelcomeBonusConfig(
     };
   });
 }
+
+// ── Admin diagnostics ──────────────────────────────────────────────────
+
+export interface WelcomeBonusUserCheck {
+  found:          boolean;
+  status?:        WelcomeBonusUserFacts["status"];
+  isFraudFlagged?: boolean;
+  createdAt?:     Date;
+  claimedAt?:     Date | null;
+  /** null = this user can claim right now. */
+  reason:         WelcomeBonusErrorCode | "USER_NOT_FOUND" | null;
+  launchedAt:     Date | null;
+}
+
+/**
+ * "Why doesn't user X see the welcome bonus?" — runs the exact same
+ * decision (`ineligibilityReason`) the claim/status paths use, against one
+ * account looked up by email, and returns the facts it was based on.
+ * Admin-only (see platform-config.router.ts). Read-only.
+ */
+export async function checkWelcomeBonusForEmail(
+  email: string,
+  executor: Executor = db,
+): Promise<WelcomeBonusUserCheck> {
+  const config = await readConfig(executor);
+  const user = await executor.query.users.findFirst({
+    where:   eq(users.email, email.trim().toLowerCase()),
+    columns: { status: true, isFraudFlagged: true, createdAt: true, welcomeBonusClaimedAt: true },
+  });
+  if (!user) return { found: false, reason: "USER_NOT_FOUND", launchedAt: config.launchedAt };
+
+  return {
+    found:          true,
+    status:         user.status,
+    isFraudFlagged: user.isFraudFlagged,
+    createdAt:      user.createdAt,
+    claimedAt:      user.welcomeBonusClaimedAt,
+    reason:         ineligibilityReason(config, user),
+    launchedAt:     config.launchedAt,
+  };
+}

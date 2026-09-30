@@ -13,7 +13,9 @@
  * under-count the moment there's more than one api container.
  */
 import client from "prom-client";
+import { signalUpstreamCall } from "./monitoring/alert-hook";
 import Redis  from "ioredis";
+import { closeRedisClient } from "./lifecycle/redis-close";
 
 // Deliberately NOT importing `./config` here (the Zod-validated env
 // object) even though it already has REDIS_URL. config.ts requires ~10
@@ -88,6 +90,30 @@ export const balanceDeductionFailuresTotal = new client.Counter({
   registers: [registry],
 });
 
+export const billingLockRejectedTotal = new client.Counter({
+  name:      "aip_billing_lock_rejected_total",
+  help:      "Billed requests rejected with 409 because the user already had one in flight (P1.2)",
+  registers: [registry],
+});
+
+export const billingLockUnavailableTotal = new client.Counter({
+  name:      "aip_billing_lock_unavailable_total",
+  help:      "Billed requests rejected with 503 because the lock store (Redis) was unreachable (P1.2, fail closed)",
+  registers: [registry],
+});
+
+export const billingLockLostTotal = new client.Counter({
+  name:      "aip_billing_lock_lost_total",
+  help:      "Locks found lost/expired mid-operation by the heartbeat (P1.2). The stream still completes; billing stays atomic.",
+  registers: [registry],
+});
+
+export const rateLimitFallbackTotal = new client.Counter({
+  name:      "aip_rate_limit_fallback_total",
+  help:      "Rate-limit checks answered by the per-process fallback because Redis was unavailable (P3.1). Paid traffic is not blocked.",
+  registers: [registry],
+});
+
 export const fraudEventsTotal = new client.Counter({
   name:       "aip_fraud_events_total",
   help:       "Fraud events logged, by type and severity",
@@ -100,6 +126,13 @@ export const queueJobDuration = new client.Histogram({
   help:       "BullMQ job processing duration in seconds",
   labelNames: ["queue", "job", "status"] as const,
   buckets:    [0.05, 0.1, 0.5, 1, 2.5, 5, 10, 30],
+  registers:  [registry],
+});
+
+export const jobFailuresTotal = new client.Counter({
+  name:       "aip_job_failures_total",
+  help:       "BullMQ job attempts that failed, by queue (P2.3). Counts every attempt, not only final failures.",
+  labelNames: ["queue"] as const,
   registers:  [registry],
 });
 
@@ -167,6 +200,7 @@ export function recordUpstreamCall(
   upstreamRequestsTotal.labels(provider, model).inc();
   upstreamDuration.labels(provider, model).observe(durationSeconds);
   if (!ok) upstreamErrorsTotal.labels(provider, model, String(status ?? "network_error")).inc();
+  signalUpstreamCall(provider, ok); // P2.2: provider-outage detector -> Telegram
 }
 
 export function recordFraudEvent(type: string, severity: string): void {
@@ -220,3 +254,6 @@ export async function metricsHandler(
   reply.header("Content-Type", registry.contentType);
   reply.send(await registry.metrics());
 }
+
+/** P3.2: graceful shutdown. Never throws. */
+export const closeMetricsRedis = (): Promise<void> => closeRedisClient(metricsRedis);

@@ -11,6 +11,10 @@ import {
 } from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
+import { LIMITS, modelIdSchema } from "../security/limits";
+import { recordProviderPrice } from "../services/provider-price.service";
+import { notifyIfPriceUnsafe } from "../services/price-guard.service";
+import { sendTelegram } from "../monitoring/telegram";
 
 function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
@@ -83,27 +87,29 @@ export const modelsRouter = router({
   // status="published", isAvailable=true.
   publish: adminProcedure
     .input(z.object({
-      modelId:                 z.string(),
+      modelId:                 modelIdSchema,
       displayName:             z.string().min(1).max(100),
       displayNameAr:           z.string().min(1).max(100),
       badge:                   z.enum(ADMIN_BADGE_KEYS).optional(),
       providerIconKey:         z.string().max(50).optional(),
       tier:                    z.enum(["standard", "premium"]).default("standard"),
-      markupMultiplier:        z.number().positive().default(2.0),
-      contextWindow:           z.number().int().positive(),
-      maxOutputTokens:         z.number().int().positive(),
+      markupMultiplier:        z.number().positive().max(100).default(2.0),
+      contextWindow:           z.number().int().positive().max(10_000_000),
+      maxOutputTokens:         z.number().int().positive().max(10_000_000),
       supportsVision:          z.boolean().default(false),
       // Unrecognized values are dropped rather than rejected — an older
       // client tab open during a deploy that adds a new category
       // shouldn't get a hard validation error on save.
-      categories:              z.array(z.string()).default([])
+      categories:              z.array(z.string().max(LIMITS.LIST_ITEM_MAX)).max(LIMITS.LIST_MAX).default([])
                                  .transform((cats) => cats.filter((c) => (MODEL_CATEGORY_KEYS as readonly string[]).includes(c))),
       // Admin-entered benchmark scores (0-100) per LEADERBOARD_CATEGORY_KEYS
       // (e.g. copied in from livebench.ai). Unrecognized keys dropped for
       // the same forward-compat reason as `categories` above; out-of-range
       // values rejected outright since these come from a form, not a stale
       // client's stored list.
-      categoryScores:          z.record(z.string(), z.number().min(0).max(100)).default({})
+      categoryScores:          z.record(z.string().max(LIMITS.LIST_ITEM_MAX), z.number().min(0).max(100))
+                                 .refine((o) => Object.keys(o).length <= LIMITS.LIST_MAX, "too many scores")
+                                 .default({})
                                  .transform((scores) =>
                                    Object.fromEntries(
                                      Object.entries(scores).filter(([k]) =>
@@ -111,9 +117,9 @@ export const modelsRouter = router({
                                      ),
                                    ),
                                  ),
-      wholesaleCostInputPerM:  z.number().min(0).default(0),
-      wholesaleCostOutputPerM: z.number().min(0).default(0),
-      rateLimitPerUserDaily:   z.number().int().positive().optional(),
+      wholesaleCostInputPerM:  z.number().min(0).max(100_000).default(0),
+      wholesaleCostOutputPerM: z.number().min(0).max(100_000).default(0),
+      rateLimitPerUserDaily:   z.number().int().positive().max(1_000_000).optional(),
       // Admin-authored behavior rules for this model, layered under the
       // platform-wide base prompt at request time (see
       // history-compaction.service.ts's buildSystemPrompt in the chat
@@ -122,7 +128,10 @@ export const modelsRouter = router({
       systemPrompt:            z.string().max(20_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [updated] = await db
+      // P3.6: the model row and its provider_prices history change together or
+      // not at all, so the dashboard's cost never disagrees with what billing used.
+      const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
         .update(models)
         .set({
           displayName:             input.displayName,
@@ -148,12 +157,25 @@ export const modelsRouter = router({
         .where(eq(models.id, input.modelId))
         .returning();
 
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+      await recordProviderPrice(tx, {
+        id:               row.id,
+        provider:         row.provider,
+        wholesaleInPerM:  Number(row.wholesaleCostInputPerM),
+        wholesaleOutPerM: Number(row.wholesaleCostOutputPerM),
+      });
+      return row;
+      });
+
+      // P3.6: unsafe price (below cost / low margin) -> Telegram now, not tomorrow.
+      // Fire-and-forget and local-only: never delays or fails the admin request (L12).
+      void notifyIfPriceUnsafe(updated, (msg, level) => sendTelegram(msg, level));
+
       return { success: true };
     }),
 
   toggleAvailability: adminProcedure
-    .input(z.object({ modelId: z.string(), isAvailable: z.boolean() }))
+    .input(z.object({ modelId: modelIdSchema, isAvailable: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
         .update(models)

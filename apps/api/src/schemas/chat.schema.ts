@@ -37,7 +37,8 @@ const chatMessageSchema = z.object({
 });
 
 export const chatRequestSchema = z.object({
-  model: z.string().min(1, "الرجاء اختيار نموذج."),
+  // P3.5: models.id is varchar(150); anything longer cannot be a real model.
+  model: z.string().min(1, "الرجاء اختيار نموذج.").max(150, "اسم النموذج غير صالح."),
 
   messages: z
     .array(chatMessageSchema)

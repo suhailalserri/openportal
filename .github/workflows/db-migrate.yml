@@ -41,6 +41,20 @@ jobs:
       # instead of colliding with tables created by an earlier, different
       # version of the schema (e.g. an old `db:push` with a bigint id where
       # the current schema expects uuid).
+      # P3.5: never wipe a database that has users (see db-ops.yml for the reason).
+      - name: Guard - refuse to reset a database that has users
+        if: inputs.command == 'reset-and-migrate'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          n=$(psql "$DATABASE_URL" -tA -c "select case when to_regclass('public.users') is null then 0 else (select count(*) from public.users) end")
+          echo "users in target database: $n"
+          if [ "$n" -gt 0 ]; then
+            echo "::error::Refusing to reset: the database has $n user row(s). Take a backup and reset by hand if you really mean it."
+            exit 1
+          fi
+
       - name: Drop and recreate public schema
         if: inputs.command == 'reset-and-migrate'
         run: |

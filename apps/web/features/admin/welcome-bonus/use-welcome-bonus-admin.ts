@@ -55,6 +55,7 @@ export function useWelcomeBonusAdmin() {
     amountValid,
     needsAmount,
     claimedCount: query.data?.claimedCount ?? 0,
+    launchedAt: query.data?.launchedAt ? new Date(query.data.launchedAt) : null,
     isLoading: query.isLoading,
     isError: query.isError,
     refetch: query.refetch,

@@ -4,7 +4,9 @@ import { db, platformConfig, auditLogs, PLATFORM_CONFIG_ID } from "@ai-platform/
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { MICRO_CREDIT } from "@ai-platform/config";
-import { getWelcomeBonusAdminView, updateWelcomeBonusConfig } from "../services/welcome-bonus.service";
+import {
+  checkWelcomeBonusForEmail, getWelcomeBonusAdminView, updateWelcomeBonusConfig,
+} from "../services/welcome-bonus.service";
 
 /**
  * apps/api/src/routers/platform-config.router.ts
@@ -70,6 +72,11 @@ export const platformConfigRouter = router({
       claimedCount: v.claimedCount,
     };
   }),
+
+  // Read-only "why can't this account claim?" lookup for the admin page.
+  checkWelcomeBonusUser: adminProcedure
+    .input(z.object({ email: z.string().trim().min(3).max(255) }))
+    .query(({ input }) => checkWelcomeBonusForEmail(input.email)),
 
   updateWelcomeBonus: adminProcedure
     .input(z.object({

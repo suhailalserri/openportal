@@ -1,6 +1,7 @@
 import { auth }              from "@/lib/auth";
 import { db, users }         from "@ai-platform/db";
 import { eq }                from "drizzle-orm";
+import { resolveWebClientIp } from "@ai-platform/api/utils/client-ip";
 
 export async function createContext(req: Request) {
   const session = await auth.api.getSession({ headers: new Headers(req.headers) })
@@ -19,9 +20,10 @@ export async function createContext(req: Request) {
   // Mirrors apps/api/src/routers/trpc.ts's ip extraction — Context.ip must
   // exist regardless of which platform (Fastify or Next.js) supplies it,
   // since both call into the same shared appRouter.
-  const ip = req.headers.get("cf-connecting-ip")
-          ?? req.headers.get("x-forwarded-for")
-          ?? "unknown";
+  // P1.3 (owner-approved frozen-zone edit): shared web resolver. Reads only
+  // Vercel-set headers on Vercel and never cf-connecting-ip, which a caller
+  // could forge because no Cloudflare sits in front of Vercel here.
+  const ip = resolveWebClientIp((name) => req.headers.get(name)) ?? "unknown";
 
   return { db, user, ip };
 }
