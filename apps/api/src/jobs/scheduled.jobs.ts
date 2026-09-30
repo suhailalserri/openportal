@@ -6,6 +6,7 @@ import { LOW_BALANCE_THRESHOLD }  from "@ai-platform/config";
 import { syncModelsFromGateway }  from "../services/model-sync.service";
 import { createRedisHealthMonitor, type RedisHealthClient } from "./redis-health";
 import { reportError } from "../monitoring/error-hook";
+import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -45,6 +46,12 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "redis-health",
   });
 
+  // P3.5: drop expired better-auth rate-limit counters (see auth-rate-limit.service.ts).
+  await queue.add("pruneAuthRateLimit", {}, {
+    repeat: { pattern: "30 3 * * *" },
+    jobId:  "prune-auth-rate-limit",
+  });
+
   console.log("✓ Scheduled jobs registered");
 }
 
@@ -63,6 +70,17 @@ export async function runRedisHealthCheck() {
     await redisHealth.run(client);
   } catch (err) {
     console.error("[redis-health] check failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/** P3.5. Housekeeping only: a failure is reported but never retried in a hot loop. */
+export async function runPruneAuthRateLimit() {
+  try {
+    const deleted = await pruneAuthRateLimit();
+    if (deleted > 0) console.log(`[scheduled] pruneAuthRateLimit: removed ${deleted} expired counter(s).`);
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "pruneAuthRateLimit" } });
+    console.error("[scheduled] pruneAuthRateLimit failed:", err instanceof Error ? err.message : err);
   }
 }
 

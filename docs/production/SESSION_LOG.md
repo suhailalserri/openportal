@@ -797,3 +797,23 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 
 **Next (owner):** CI green (`API Tests` should list the four new files; check `Security Audit`). Then SECURITY_SWEEP.md steps 1 to 8 in order: step 1 (seed account) before anything else. Decide the frozen-zone exception (REST admin routes, login rate-limit storage). Frontend follow-ups (not done): map `ADMIN_2FA_REQUIRED` to a banner linking Settings > Security; add `maxLength` 500 to the admin credit-reason textarea; users list `pageSize` from the URL above 100 now returns an error. Next per plan: P3.6.
 
+## Session 26 - 2026-09-30 - P3.5 follow-up: delete legacy admin REST routes + shared login rate limit
+
+**Context:** Session 25's zip was pushed and CI run #321 (`Hardening Phase V3.5`, all 8 jobs) is green. Owner approved both frozen-zone items: "Fix them and delete them if they are not wired with anything."
+
+**Delete (verified unwired first):** repo-wide search for `api/admin` found no caller in code, tests, e2e specs, middleware or config; only comments and docs. All eight have a tRPC equivalent, so nothing is lost. Deleted: `apps/web/app/api/admin/{codes,fraud,fraud/[id]/resolve,logs,stats,users,users/[id],users/[id]/credits}/route.ts`. No other web REST route checks an admin role (grep), so nothing else bypasses the 2FA gate. New tripwire `security/rest-admin-guard.test.ts`.
+
+**Rate limit fix:** `apps/web/lib/auth.ts` (frozen, approved): `rateLimit: { window: 60, max: 5, storage: "database" }` + `rateLimit: rateLimitTable` in the adapter schema map. New `packages/db/src/schema/rate-limit.ts` (`rate_limit`: id, key, count, last_request bigint ms), migration `0019_auth_rate_limit.sql` (RLS on, no policies; `key` indexed but not unique so a concurrent first request cannot 500), 0019 added to the migration lists in `deploy.yml` (e2e) and `db-ops.yml`. Nightly `pruneAuthRateLimit` (03:30) in `services/auth-rate-limit.service.ts` + `jobs/{scheduled.jobs,report.worker}.ts`, with `auth-rate-limit.service.test.ts`.
+
+**Changed docs/comments:** `docs/runbooks/SECURITY_SWEEP.md` (sections 1, 2, 3 rewritten; new step 2 = apply 0019 first; break-glass lines), `docs/frontend/API_CONTRACT.md`, `docs/{MASTER_PLAN,LAUNCH_CHECKLIST,PR_NOTES}.md`, comments in `user-status.service.ts`, `account-guard.test.ts`, `admin-logs.service.ts`.
+
+**Verified (executed here):** Node type-strip parse of every touched TS file; YAML parse of both edited workflows; the tripwire's role-check patterns match the deleted routes' exact line; 0019 is listed once in each workflow.
+
+**Not verified (no node_modules, no network, no Docker):**
+- `tsc`, lint, vitest, CI. Typing from memory: `storage: "database"` against better-auth 1.7.5's option type; `bigint({ mode: "number" })` with `.returning()` in the prune query; the second argument of `pgTable` (index builders) on drizzle-orm 0.31.
+- **That better-auth 1.7.5 reads/writes the table as I assumed** (model name `rateLimit`; fields `key`, `count`, `lastRequest`; numeric ms). This is from memory of its docs. If wrong, every `/api/auth/*` call fails, so the runbook forces migration-first and gives a one-line revert. The e2e login specs are the first real test.
+- Which auth paths better-auth counts and whether a shared counter now produces 429s that per-instance memory hid (limit is per IP and path, 5 per 60 s, unchanged).
+- The nightly job on a real Redis/BullMQ; `drizzle-kit push` (Testcontainers) with the new indexed table.
+
+**Next (owner):** CI green (`API Tests` should list `rest-admin-guard`, `auth-rate-limit.service` tests and E2E). **Apply 0019 to production BEFORE merging/deploying** (SECURITY_SWEEP.md step 2), then the remaining steps there (seed-account check first). Next per plan: P3.6.
+

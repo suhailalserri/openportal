@@ -8,6 +8,7 @@ import {
   users, sessions, accounts, verifications, balances,
   twoFactor as twoFactorTable,
   passkeys as passkeyTable,
+  rateLimits as rateLimitTable,
 } from "@ai-platform/db";
 import { eq }               from "drizzle-orm";
 import { verifyTurnstileToken, getClientIp } from "./turnstile-server";
@@ -183,6 +184,10 @@ export const auth = betterAuth({
       // Passkey plugin's canonical model name; table in
       // packages/db/src/schema/passkey.ts (migration 0011_passkey.sql).
       passkey:      passkeyTable,
+      // Rate-limit counters (rateLimit.storage: "database" below). Model name is
+      // better-auth's own `rateLimit`. Table in packages/db/src/schema/rate-limit.ts
+      // (migration 0019_auth_rate_limit.sql).
+      rateLimit:    rateLimitTable,
     },
   }),
 
@@ -322,7 +327,12 @@ export const auth = betterAuth({
     },
   },
 
-  rateLimit: { window: 60, max: 5 },
+  // P3.5 (owner-approved frozen-zone exception): the default storage is
+  // per-process memory, so on Vercel every serverless instance counted
+  // separately and "5 per minute" was really "5 per minute per instance".
+  // "database" makes the counter shared. Requires migration 0019 to be applied
+  // BEFORE this ships (docs/runbooks/SECURITY_SWEEP.md).
+  rateLimit: { window: 60, max: 5, storage: "database" },
 
   emailVerification: {
     sendOnSignUp: true,

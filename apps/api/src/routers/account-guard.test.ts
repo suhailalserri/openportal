@@ -256,8 +256,9 @@ describe("user-status.service — shared by the tRPC mutation and the web PATCH 
 });
 
 describe("migration 0018 trigger — DB-level backstop for writers outside apps/api", () => {
-  // Simulates the frozen apps/web PATCH /api/admin/users/[id] route, which
-  // updates users.status with a bare UPDATE and revokes nothing itself.
+  // Simulates any writer outside apps/api (e.g. a hand-run SQL update, or the
+  // former PATCH /api/admin/users/[id] route, deleted in P3.5) that changes
+  // users.status with a bare UPDATE and revokes nothing itself.
   it("a raw status update to 'suspended' deletes that user's sessions only", async () => {
     const a = await createTestUser(db, schema);
     const b = await createTestUser(db, schema);

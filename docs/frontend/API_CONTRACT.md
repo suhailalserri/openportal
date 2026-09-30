@@ -145,20 +145,9 @@ its own session check is unauthenticated by default.
 | `/api/auth/[...all]` | `GET`, `POST` | n/a (Better Auth's own handler) | — | `toNextJsHandler(auth)` — every Better Auth endpoint (`sign-in`, `sign-up`, `verify-email`, `change-password`, `list-sessions`, `revoke-session`, 2FA, etc.) lives under this one catch-all. Not previously listed in Appendix C. |
 | `/api/trpc/[trpc]` | `GET`, `POST` | per-procedure (see §1) | — | `fetchRequestHandler` mount for `appRouter`. `onError` **always logs server-side now** (previously gated to non-production, which meant Vercel — always `NODE_ENV=production` — silently dropped every tRPC error from Runtime Logs). Not previously listed in Appendix C as an explicit route. |
 
-### Legacy admin REST (removal candidates, Phase 9.3)
+### Legacy admin REST (DELETED in P3.5)
 
-All eight below independently check `["admin","superadmin"].includes(session.user.role)` inline (not shared middleware) and return `403 Forbidden` otherwise. Verified present on every one — no gap found.
-
-| Route | Methods | Body | Notes |
-|---|---|---|---|
-| `/api/admin/users` | `GET` | — | Left-joins `balances`, limit 200, `createdAt DESC`. |
-| `/api/admin/users/[id]` | `GET`, `PATCH` | `PATCH: { status?: "active"\|"suspended" }` | Same safe-column exclusion as the tRPC equivalent. |
-| `/api/admin/users/[id]/credits` | `POST` | `{ amount: int ≥1, type: "admin_credit"\|"admin_debit", reason: string(min 1) }` | **Not atomic** — direct `sql\`credits + ${delta}\`` update with no `deductCreditsAtomic`/floor check, unlike the tRPC `admin.adjustCredits`. A debit here could take a balance negative; the DB's `credits >= 0` CHECK constraint (Phase 5.2) is the only thing stopping it, and would make this route 500 on that case rather than returning a clean `BAD_REQUEST` the way the tRPC path does. Worth flagging for the 9.3 cleanup rather than silently carrying the discrepancy forward. |
-| `/api/admin/fraud` | `GET` | query `?resolved` | Limit 100. |
-| `/api/admin/fraud/[id]/resolve` | `POST` | — | |
-| `/api/admin/stats` | `GET` | — | Coarse totals only (`totalUsers`, `totalRedeemed`, `totalSpent`) — much thinner than `admin.getDashboardStats`. |
-| `/api/admin/logs` | `GET` | — | `usage_debit` transactions only, limit 200, no filters (thinner than `admin.listUsageLogs`, which doesn't exist yet — see plan B3). |
-| `/api/admin/codes` | `POST` | `{ count: 1–1000, creditValue: int ≥1, label(1–100), expiresAt?: string }` | Duplicate of `admin.generateCodes` minus the package-derived-value logic and audit-log write. |
+The eight `/api/admin/**` routes (users, users/[id], users/[id]/credits, stats, fraud, fraud/[id]/resolve, logs, codes) were removed on 2026-09-30: nothing called them, they checked only the role (bypassing the admin 2FA gate), and the credits route was not atomic. Use the tRPC `admin.*` procedures. `apps/api/src/security/rest-admin-guard.test.ts` keeps the directory from coming back ungated.
 
 ---
 
@@ -214,7 +203,7 @@ surfaced as error code `WEAK_PASSWORD`; captcha failure surfaces as
 1. **In-memory rate limiting, not Redis.** `utils/rate-limiter.ts`'s `checkLimit` is a plain in-process `Map`. It resets on redeploy and does **not** coordinate across multiple container replicas or between the Fastify (`apps/api`) and Next.js (`apps/web`) processes — each has its own counter state. Only `FraudService.checkRedeemAttempt` (used inside `redeemCode()`) is actually Redis-backed and coordinates across instances; everything else using `checkLimit` (`submitManualPayment`, `generateApiKey`, `/api/redeem`'s pre-check, export-data, delete-account) is best-effort per-instance only.
 2. **`/api/redeem`'s rate-limit responses are `200 OK` with `success:false`**, not `429` — a client that only checks HTTP status for throttling will miss this.
 3. **`/api/transactions`'s `hasMore` can be wrong for `limit > 100`** — it compares against the unclamped requested limit, not the actual (capped) query limit. `billing.getTransactions` (tRPC) does not have this bug — its Zod schema caps `limit` at the input-validation layer instead of after the fact.
-4. **`/api/admin/users/[id]/credits` is not atomic** — see the legacy-REST table above. The equivalent tRPC `admin.adjustCredits` is the safe one.
+4. ~~`/api/admin/users/[id]/credits` is not atomic~~ — route deleted in P3.5; `admin.adjustCredits` (tRPC) is the only path.
 5. **Session lookup is by `token`, not `id`**, everywhere in the tRPC context (`trpc.ts`). Any new code reading the `sessions` table must follow the same convention or auth will silently never match.
 6. **API keys are SHA-256, not bcrypt** — by design, because lookup is by-value equality, not a compare. Do not "fix" this to bcrypt.
 7. **Delete-account is anonymize-in-place, not a hard delete.** `balances`/`transactions`/`conversations` rows survive; only `users` PII, `accounts`, `twoFactor`, and `sessions` are removed/scrubbed.

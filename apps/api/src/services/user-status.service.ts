@@ -5,11 +5,10 @@ import { revokeUserSessions } from "./session-revocation.service";
 
 /**
  * The single implementation of "suspend / reactivate a user" (plan P1.1,
- * G2b). Two callers, one set of rules:
- *   - tRPC `admin.updateUserStatus` (what the admin UI uses)
- *   - the Next.js `PATCH /api/admin/users/[id]` route (frozen file, edited
- *     with explicit owner approval to delegate here instead of writing
- *     `users.status` itself)
+ * G2b). Its only caller is tRPC `admin.updateUserStatus` (what the admin UI
+ * uses). The legacy Next.js `PATCH /api/admin/users/[id]` route that used to
+ * share these rules was deleted in P3.5 (it bypassed the admin 2FA gate);
+ * migration 0018's trigger stays as the DB-level backstop for any other writer.
  *
  * Returns a result instead of throwing so each caller maps errors to its own
  * transport (TRPCError vs HTTP status). Every early return happens BEFORE any

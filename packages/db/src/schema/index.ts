@@ -18,3 +18,4 @@ export * from "./provider-prices";
 export * from "./audit-logs";
 export * from "./two-factor";
 export * from "./passkey";
+export * from "./rate-limit";
