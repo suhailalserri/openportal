@@ -113,7 +113,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
 **Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
-**Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
+**Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
 **Stage 7** — [ ] P7.1 · [ ] P7.2 · [ ] P7.3 · [ ] P7.4
@@ -243,6 +243,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Closes:** G11. **Depends:** P0.1.
 - Confirm what Supabase's plan gives (daily backup retention, PITR yes/no) and record it. Add an **independent** nightly export (extend the existing `db-ops.yml` GitHub Action) to storage outside Supabase. `docs/runbooks/backup-restore-drill.md`: exact commands to restore into a scratch DB, plus a verification checklist (`users` count, `balances` sum, latest `transactions` timestamp, ledger invariant: sum of transactions = sum of balances).
 - **Done when:** the drill has been run for real once, passed, and the wall-clock time is written into the runbook as your RTO.
+- **As built (P4.1):** not an extension of `db-ops.yml` (manual-only, `task`-driven, holds the `reset` guard): new `.github/workflows/db-backup.yml` (02:17 UTC + manual; `pg_dump` custom format with a PG17 client, AES-256 encrypted with `BACKUP_PASSPHRASE`, uploaded to Cloudflare R2 (chosen by owner), size verified; optional second target `GATEWAY_DATABASE_URL`; live ledger check after the dump; Telegram on failure) and `db-restore-drill.yml` (weekly into a throwaway Postgres 17 container, or by hand into `SCRATCH_DATABASE_URL`; refuses production URLs and non-empty targets; prints timings). Logic in `infra/scripts/{db-backup,db-restore,install-pg17-client}.sh` and `ledger-check.sql`, the latter covered by `apps/api/src/services/ledger-check.test.ts`. The ledger invariant `sum(balances.credits) = sum(transactions.amount)` holds only because `SIGNUP_BONUS_MICRO_CREDITS = 0`; hand-seeded credits (`seed.ts`) break it by design. Runbook: `docs/runbooks/backup-restore-drill.md` (Supabase tier and RTO cells are the owner's to fill in). Stale `backup-restore.sh` references removed.
 
 ### P4.2 Load test (1 session)
 - k6 against staging: 50+ concurrent `/chat` streams for several minutes, plus concurrent same-user requests (must hit the P1.2 lock), plus a deploy mid-test (P3.2). Watch DB pool, Redis memory/policy, error rate, job failures.

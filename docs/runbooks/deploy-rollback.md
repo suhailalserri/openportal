@@ -50,8 +50,8 @@ docker compose exec api pnpm db:status
 # Rollback last migration
 docker compose exec api pnpm db:rollback
 
-# If rollback fails — restore from backup:
-bash /opt/ai-platform/infra/scripts/backup-restore.sh backup_TIMESTAMP.sql.gz
+# If rollback fails — restore from backup (P4.1): the old backup-restore.sh never existed.
+# Use docs/runbooks/backup-restore-drill.md, section 5 ("Real disaster").
 ```
 
 ## Step 4 — Verify Recovery

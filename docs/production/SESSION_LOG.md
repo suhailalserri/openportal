@@ -859,3 +859,27 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - `Web Build (next build)` and `E2E (Playwright)` were not green in your screenshot and I did not see their logs. If they fail, send them.
 
 **Next (owner):** CI green (`Type-check & Lint`, `API Tests` 493/493). Then still open from Session 27: apply migration 0020 to production, run `price-audit`, do the drill in `docs/runbooks/PRICE_GUARD.md`.
+
+
+## Session 29 - 2026-09-30 - P4.1 Backup and restore drill (closes G11) - code done, secrets + first real drill + RTO pending
+
+**Input:** repo zip + plan; P3.6 CI confirmed green by the owner. Phase Summary approved ("Ok"); owner accepted my default of Cloudflare R2 for the external storage.
+
+**Plan vs code (told to owner before building):** (1) the plan says extend `db-ops.yml`; that workflow is manual-only and `task`-driven, so I added separate scheduled workflows and left its `reset` guard alone. (2) L2 says Supabase Storage, but a backup must live outside Supabase; R2 chosen. (3) The plan's ledger invariant "sum of transactions = sum of balances" holds only because `SIGNUP_BONUS_MICRO_CREDITS = 0` in `apps/web/lib/auth.ts` (checked: every other write to `balances.credits` goes through `deductCreditsAtomic` / `creditBalance` / the payment webhook, each writing a signed transaction in the same DB transaction). `seed.ts` and `createTestUser({initialMicroCredits})` write credits with no transaction and fail the check by design (seed refuses a database with users, since P3.5).
+
+**Note for the owner:** you work from a phone, so the drill is a one-tap workflow (`DB Restore Drill`) rather than a laptop procedure; only a real disaster restore (runbook section 5) needs a machine with `psql`/`aws`.
+
+**New:** `.github/workflows/db-backup.yml`, `.github/workflows/db-restore-drill.yml`, `infra/scripts/db-backup.sh`, `infra/scripts/db-restore.sh`, `infra/scripts/install-pg17-client.sh`, `infra/scripts/ledger-check.sql`, `apps/api/src/services/ledger-check.test.ts`, `docs/runbooks/backup-restore-drill.md`.
+**Changed:** `docs/MASTER_PLAN.md` (tracker + "As built (P4.1)"), `docs/runbooks/deploy-rollback.md` and `disk-full.md` (removed the `backup-restore.sh` / `infra/backups` references to files that never existed), this log. **DELETE:** none. Frozen zone: untouched. No API contract change.
+
+**Tests:** `ledger-check.test.ts` runs the real SQL file on Testcontainers: passes on an empty DB and after real credits/debits (totals asserted); RED when a balance changes without a transaction (`ledger_total_matches` = 5) and when credits are hand-seeded.
+
+**Verified (executed here):** `bash -n` on the three scripts; YAML parse of both workflows; by reading, that the SQL is a single statement (one `WITH ... UNION ALL`) with consistent column types.
+
+**Not verified (no node_modules, Postgres, Docker, network or shellcheck here):**
+- vitest/tsc/lint on the new test, and that `db.execute(sql.raw(file))` returns rows as an array (I copied the cast used in `dashboard.service.ts`).
+- Everything that touches the outside world: `pg_dump` against your Supabase string (session-mode, port 5432 required; a 6543 string fails), the PGDG install script, `aws s3` against R2 (I set the two AWS checksum env vars because newer CLIs are known to be rejected by R2; from memory), the `head-object` size check, `openssl` decrypt round trip, `pg_restore --clean --if-exists` into an empty Supabase project, whether restore warnings from Supabase-specific objects (roles, RLS from 0017) appear (the script tolerates warnings and judges by the ledger check), and the cron firing.
+- Your Supabase plan, backup retention and PITR: I have no evidence; the runbook cells are blank on purpose. L18 (Pro) is unconfirmed.
+- Whether the gateway database is a separate Supabase project and what schema it uses; the optional `GATEWAY_DATABASE_URL` target dumps only its `public` schema.
+
+**Next (owner):** CI green (`API Tests` should list `ledger-check.test.ts`). Then runbook section 2 (R2 bucket, lifecycle rule, secrets), run `DB Backup` once, run `DB Restore Drill` with `ci-container`, then the real drill (section 4) and fill in section 6 with the RTO. P4.1 is not done until that RTO is written.

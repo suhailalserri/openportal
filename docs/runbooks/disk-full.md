@@ -1,6 +1,6 @@
 > ⚠️ **VPS-ERA RUNBOOK — PARTLY SUPERSEDED (2026-09-29).** Production is Vercel (web), Render (api + gateway), Supabase (Postgres) and Upstash (Redis) — see ADR-011 in `docs/architecture/decisions.md`. There is no VPS, Docker Compose, Caddy, Grafana or Gatus.
 >
-> Mostly **not applicable**: there is no server disk to fill. The equivalents are Supabase database size and Upstash memory/command quota (plan P2.3, P4.1). Kept only for its Postgres-bloat diagnostics. Do not run the Docker/`du` commands.
+> Mostly **not applicable**: there is no server disk to fill. The equivalents are Supabase database size and Upstash memory/command quota (plan P2.3, P4.1). Kept only for its Postgres-bloat diagnostics. Do not run the Docker/`du` commands. Backups now live in Cloudflare R2 (P4.1): see `docs/runbooks/backup-restore-drill.md`; the `infra/backups` paths below no longer exist.
 
 ---
 

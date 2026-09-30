@@ -1,0 +1,83 @@
+name: DB Backup
+
+# P4.1 — independent nightly logical backup, stored OUTSIDE Supabase (Cloudflare R2),
+# encrypted before it leaves the runner. Also runs the ledger check on the live
+# database and alerts on Telegram if anything fails.
+#
+# Setup and drill: docs/runbooks/backup-restore-drill.md (section 2 lists every secret).
+# Note: GitHub only runs `schedule` from the default branch and pauses scheduled
+# workflows after 60 days without repository activity; a failure alert or a missing
+# nightly object in R2 are the signals to look for.
+
+on:
+  schedule:
+    - cron: "17 2 * * *"      # 02:17 UTC, away from the 04:00 UTC price-guard job
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Session-mode / direct string (port 5432). BACKUP_DATABASE_URL wins; DATABASE_URL is the fallback.
+      APP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
+      GATEWAY_DATABASE_URL: ${{ secrets.GATEWAY_DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 17 client
+        run: bash infra/scripts/install-pg17-client.sh
+
+      - name: Back up the app database
+        run: bash infra/scripts/db-backup.sh app APP_DATABASE_URL
+
+      - name: Back up the gateway database (only if GATEWAY_DATABASE_URL is set)
+        run: |
+          if [ -z "${GATEWAY_DATABASE_URL:-}" ]; then
+            echo "::notice::GATEWAY_DATABASE_URL not set - gateway database NOT backed up by this workflow"
+            exit 0
+          fi
+          bash infra/scripts/db-backup.sh gateway GATEWAY_DATABASE_URL
+
+      # After the backups on purpose: a ledger problem must never stop a backup being taken.
+      - name: Ledger check on the live app database (read-only)
+        run: |
+          set -euo pipefail
+          out="$(psql "$APP_DATABASE_URL" -tA -F '|' -f infra/scripts/ledger-check.sql)"
+          echo "$out"
+          {
+            echo "### Ledger check (live)"
+            echo '```'
+            echo "$out"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if echo "$out" | grep -q '|f$'; then
+            echo "::error::Ledger check FAILED on the live database"
+            exit 1
+          fi
+
+      - name: Alert on Telegram if anything failed
+        if: ${{ failure() }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Telegram secrets not set; no alert sent"; exit 0
+          fi
+          curl -sS -m 20 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=CRITICAL: nightly DB backup or ledger check FAILED. ${RUN_URL}" > /dev/null || true
