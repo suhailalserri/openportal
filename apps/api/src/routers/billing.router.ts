@@ -10,6 +10,7 @@ import { submitManualPayment } from "../services/manual-payment.service";
 import { stripUndefined }      from "../utils/strip-undefined";
 import { checkRateLimit }       from "../utils/redis-rate-limiter";
 import { FRAUD }               from "@ai-platform/config";
+import { pageOffset }          from "../security/limits";
 import {
   getUsageSummary, getUsageTimeseries, getUsageByModel, listUsage,
 } from "../services/usage.service";
@@ -90,7 +91,7 @@ export const billingRouter = router({
     }),
 
   myManualPayments: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }))
     .query(({ ctx, input }) =>
       db.query.pendingManualPayments.findMany({
         where: eq(pendingManualPayments.userId, ctx.user.id),
@@ -112,7 +113,7 @@ export const billingRouter = router({
   }),
 
   getTransactions: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(100).default(20), offset: z.number().default(0) }))
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(20), offset: pageOffset }))
     .query(async ({ ctx, input }) => {
       const items = await db.query.transactions.findMany({
         where: eq(transactions.userId, ctx.user.id),
@@ -159,7 +160,7 @@ export const billingRouter = router({
   listUsage: protectedProcedure
     .input(z.object({
       ...usageRangeInput,
-      limit:  z.number().min(1).max(100).default(20),
+      limit:  z.number().int().min(1).max(100).default(20),
       cursor: z.string().uuid().optional(),
     }))
     .query(({ ctx, input }) => listUsage(ctx.user.id, input)),

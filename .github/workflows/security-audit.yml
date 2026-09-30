@@ -1,0 +1,77 @@
+name: Security Audit
+
+# P3.5 (closes N6): fail on known HIGH/CRITICAL advisories in PRODUCTION
+# dependencies. Runs on every push/PR AND weekly, because new advisories are
+# published against code that has not changed.
+#
+# Why a separate workflow (not a job in deploy.yml): the weekly schedule must not
+# re-run the whole test/e2e pipeline, and this check should not be a *required*
+# status on main. A newly published advisory would otherwise block every PR,
+# including the Dependabot PR that fixes it. Required checks stay
+# `API Tests (Testcontainers)` and `Web Build (next build)`.
+
+on:
+  push:
+    branches: [main, frontend-v2]
+  pull_request:
+    branches: [main, frontend-v2]
+  schedule:
+    - cron: "17 5 * * 1"   # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The repo pins pnpm 9.0.0 (package.json "packageManager"). Its audit
+      # request goes to an npm endpoint that npm has been retiring, so the audit
+      # runs with pnpm 10 through npx. Both flags stop pnpm 10 from switching back
+      # to the pinned 9.0.0 (which would defeat the point). Nothing is installed
+      # and no lockfile is written: `pnpm audit` reads pnpm-lock.yaml only.
+      - name: pnpm audit (production dependencies, high and above)
+        env:
+          npm_config_manage_package_manager_versions: "false"
+        run: |
+          set -uo pipefail
+          npx --yes pnpm@10 audit --prod --audit-level high \
+            --config.manage-package-manager-versions=false 2>&1 | tee audit.log
+          status=${PIPESTATUS[0]}
+
+          if [ "$status" -eq 0 ]; then
+            echo "No high or critical advisories in production dependencies."
+            exit 0
+          fi
+
+          # Non-zero can mean "vulnerabilities found" OR "the audit could not run"
+          # (endpoint retired, network, unknown flag). Only the first is a real
+          # finding; the second must never read as a pass or be mistaken for one.
+          if grep -Eq '[0-9]+ vulnerabilit(y|ies) found|Severity:|│ *(high|critical) *│' audit.log; then
+            echo "::error::High or critical advisories found in production dependencies. See the table above."
+            exit 1
+          fi
+          echo "::error::The audit could not run (registry/endpoint/flag error), which is NOT a pass. See the log above."
+          exit 2
+
+      - name: Upload audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-audit-log
+          path: audit.log
+          if-no-files-found: ignore
+          retention-days: 14

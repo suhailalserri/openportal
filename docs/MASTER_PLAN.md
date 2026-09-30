@@ -112,7 +112,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 0** — [x] P0.1 · [x] P0.2
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
-**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 · [ ] P3.6
+**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6
 **Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
@@ -227,6 +227,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Closes:** N6.
 - Verify/fix: CORS allow-list (web origin only); security headers on api; request body size limit on `/chat` and tRPC; Zod limits on every free-text field; admin/superadmin **must have 2FA** enabled to use admin procedures; login/registration rate limits and Turnstile confirmed live; Dependabot + `pnpm audit` in CI failing on high severity; branch protection on `main` (required `api-tests`, `web-build`); logs contain no message content or tokens.
 - **Done when:** each item has a test or a screenshot/config note in the PR.
+- **As built (P3.5):** `apps/api/src/security/` (`plugins.ts`: strict JSON-API CSP, single exact-origin CORS, body limits 1 MiB default / 4 MiB `/chat` (not 2 MiB: under Vercel's 4.5 MB cap, long histories fit), logger redaction, `/metrics` Bearer guard `METRICS_TOKEN`, closes N9; `limits.ts`: shared Zod bounds applied to admin, models, billing and chat inputs; `admin-2fa.ts`: `ADMIN_REQUIRE_2FA=true` gate in `adminProcedure`, default OFF, code `ADMIN_2FA_REQUIRED`; `log-scan.ts` + `log-hygiene.test.ts`). `.github/dependabot.yml`, `.github/workflows/security-audit.yml` (weekly + PR, not a required check). Added during the sweep: `db-ops.yml` / `db-migrate.yml` refuse to reset a database with users, and `seed.ts` refuses a database with users (it created a superadmin with a public password). Open, frozen zone (need an approved exception): 8 legacy `apps/web/app/api/admin/**` REST routes bypass the 2FA gate; better-auth's login rate limit storage; Turnstile is off without its secret. Owner steps and click paths: `docs/runbooks/SECURITY_SWEEP.md`.
 
 ### P3.6 Provider-cost guard (1 session)
 **Closes:** N7.

@@ -32,6 +32,13 @@ const envSchema = z.object({
   // send headers). Unset or < 24 chars => that endpoint is disabled (404).
   SENTRY_WEBHOOK_TOKEN:   z.string().min(24).optional(),
   TURNSTILE_SECRET_KEY:   z.string().optional(),
+  // P3.5 (N9): Bearer token for GET /metrics. Lenient on purpose (blank must not stop boot);
+  // unset or under 24 chars => /metrics is disabled in production (security/plugins.ts).
+  METRICS_TOKEN:          z.string().optional(),
+  // P3.5: "true" makes adminProcedure require a 2FA-enrolled admin (security/admin-2fa.ts).
+  // Read from process.env at call time (it also runs inside the Vercel web app); listed
+  // here for documentation and so a typo is visible next to the other secrets.
+  ADMIN_REQUIRE_2FA:      z.string().optional(),
   FRONTEND_URL:           z.string().url().default("http://localhost:3000"),
   // Model id used for the internal history-summarization call (see
   // history-compaction.ts). Deliberately a separate, cheap/fast model —

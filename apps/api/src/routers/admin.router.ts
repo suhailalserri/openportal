@@ -23,6 +23,7 @@ import { stripUndefined }  from "../utils/strip-undefined";
 import { fetchGatewayChannels } from "../services/gateway-channels.service";
 import { listUsageLogs, listAuditLogs } from "../services/admin-logs.service";
 import { listUserConversations, getConversationMessages } from "../services/admin-conversations.service";
+import { LIMITS, pageLimit, pageOffset, creditsAmount, reasonText } from "../security/limits";
 
 // B3: shared range/cursor shape for the two log-viewer procedures below —
 // same convention as billing.router.ts's usageRangeInput (range clamped
@@ -123,9 +124,9 @@ export const adminRouter = router({
   // ── User management ─────────────────────────────────────────────────
   listUsers: adminProcedure
     .input(z.object({
-      limit:  z.number().default(50),
-      offset: z.number().default(0),
-      search: z.string().optional(),
+      limit:  pageLimit(50),
+      offset: pageOffset,
+      search: z.string().trim().max(LIMITS.SEARCH_MAX).optional(),
     }))
     .query(async ({ input }) => {
       // 8b: `search` was accepted but silently ignored (see
@@ -242,7 +243,7 @@ export const adminRouter = router({
     .input(z.object({
       userId: z.string().uuid(),
       status: z.enum(["active", "suspended"]),
-      reason: z.string().optional(),
+      reason: z.string().max(LIMITS.REASON_MAX).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       // P1.1 (G2b). All rules live in user-status.service.ts so the frozen
@@ -267,9 +268,10 @@ export const adminRouter = router({
   adjustCredits: adminProcedure
     .input(z.object({
       userId:      z.string().uuid(),
-      amount:      z.number().int(),
+      // Sign is ignored (Math.abs below); the bound keeps amount * 1e6 exact.
+      amount:      z.number().int().min(-LIMITS.CREDITS_MAX).max(LIMITS.CREDITS_MAX),
       type:        z.enum(["admin_credit", "admin_debit"]),
-      reason:      z.string().min(1),
+      reason:      reasonText,
     }))
     .mutation(async ({ ctx, input }) => {
       // input.amount is always a positive count of credits the admin entered;
@@ -323,7 +325,7 @@ export const adminRouter = router({
   generateCodes: adminProcedure
     .input(z.object({
       count:           z.number().int().min(1).max(1000),
-      creditValue:     z.number().int().min(1),
+      creditValue:     creditsAmount,
       label:           z.string().min(1).max(100),
       expiresAt:       z.string().datetime().optional(),
       packageId:       z.string().uuid().optional(),
@@ -447,7 +449,7 @@ export const adminRouter = router({
     }),
 
   revokeCode: adminProcedure
-    .input(z.object({ code: z.string() }))
+    .input(z.object({ code: z.string().min(1).max(LIMITS.CODE_MAX) }))
     .mutation(async ({ ctx, input }) => {
       await db.update(redeemCodes)
         .set({ status: "revoked" })
@@ -467,7 +469,7 @@ export const adminRouter = router({
   listFraudEvents: adminProcedure
     .input(z.object({
       resolved: z.boolean().default(false),
-      limit:    z.number().default(50),
+      limit:    pageLimit(50),
     }))
     .query(async ({ input }) => {
       return db.query.fraudEvents.findMany({
@@ -510,12 +512,12 @@ export const adminRouter = router({
     .input(z.object({
       name:               z.string().min(1).max(100),
       nameAr:             z.string().min(1).max(100),
-      priceYer:           z.number().int().positive(),
-      priceUsdEquivalent: z.number().positive(),
-      credits:            z.number().int().positive(), // display credits — converted to micro-credits below
+      priceYer:           z.number().int().positive().max(1_000_000_000),
+      priceUsdEquivalent: z.number().positive().max(1_000_000),
+      credits:            creditsAmount, // display credits — converted to micro-credits below
       description:        z.string().max(1000).optional(),
       descriptionAr:      z.string().max(1000).optional(),
-      sortOrder:          z.number().int().default(0),
+      sortOrder:          z.number().int().min(-10_000).max(10_000).default(0),
     }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await db.insert(creditPackages).values(stripUndefined({
@@ -536,13 +538,13 @@ export const adminRouter = router({
       id:                 z.string().uuid(),
       name:               z.string().min(1).max(100).optional(),
       nameAr:             z.string().min(1).max(100).optional(),
-      priceYer:           z.number().int().positive().optional(),
-      priceUsdEquivalent: z.number().positive().optional(),
-      credits:            z.number().int().positive().optional(), // display credits
+      priceYer:           z.number().int().positive().max(1_000_000_000).optional(),
+      priceUsdEquivalent: z.number().positive().max(1_000_000).optional(),
+      credits:            creditsAmount.optional(), // display credits
       description:        z.string().max(1000).optional(),
       descriptionAr:      z.string().max(1000).optional(),
       isActive:           z.boolean().optional(),
-      sortOrder:          z.number().int().optional(),
+      sortOrder:          z.number().int().min(-10_000).max(10_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, priceUsdEquivalent, credits, ...rest } = input;
@@ -580,7 +582,7 @@ export const adminRouter = router({
       accountCode:    z.string().max(100).optional(),
       instructions:   z.string().max(2000).optional(),
       instructionsAr: z.string().max(2000).optional(),
-      sortOrder:      z.number().int().default(0),
+      sortOrder:      z.number().int().min(-10_000).max(10_000).default(0),
     }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await db.insert(paymentMethods).values(stripUndefined(input)).returning();
@@ -601,7 +603,7 @@ export const adminRouter = router({
       instructions:   z.string().max(2000).optional(),
       instructionsAr: z.string().max(2000).optional(),
       isActive:       z.boolean().optional(),
-      sortOrder:      z.number().int().optional(),
+      sortOrder:      z.number().int().min(-10_000).max(10_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;

@@ -1,6 +1,4 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
-import cors              from "@fastify/cors";
-import helmet            from "@fastify/helmet";
 import cookie            from "@fastify/cookie";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import { config }        from "./config";
@@ -42,6 +40,11 @@ import {
   type ShutdownCloser,
 } from "./lifecycle/shutdown";
 import { createReadiness } from "./lifecycle/readiness";
+import {
+  registerSecurity, createMetricsGuard, resolveMetricsAccess, metricsBootWarning,
+  DEFAULT_BODY_LIMIT_BYTES, CHAT_BODY_LIMIT_BYTES, LOG_REDACT,
+} from "./security/plugins";
+import { adminTwoFactorBootWarning } from "./security/admin-2fa";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
 // No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
@@ -94,9 +97,12 @@ const app = Fastify({
   // (Render's edge), not the first X-Forwarded-For entry a caller can forge.
   // Hop count from TRUSTED_PROXY_HOPS (default 1; 0 turns trustProxy off).
   trustProxy: proxyHops > 0 ? trustProxyByHops(proxyHops) : false,
+  // P3.5: explicit global body limit (the /chat route raises it, see below).
+  bodyLimit: DEFAULT_BODY_LIMIT_BYTES,
+  // P3.5: credentials and message content are censored if ever logged.
   logger: config.NODE_ENV === "development"
-    ? { level: "info", transport: { target: "pino-pretty" } }
-    : { level: "warn" },
+    ? { level: "info", redact: LOG_REDACT, transport: { target: "pino-pretty" } }
+    : { level: "warn", redact: LOG_REDACT },
 });
 
 // P2.1: catch-all for errors thrown outside tRPC (/chat handler + preHandler,
@@ -104,8 +110,8 @@ const app = Fastify({
 registerFastifyErrorReporting(app);
 
 // ── Plugins ────────────────────────────────────────────────────────────
-await app.register(helmet, { contentSecurityPolicy: false });
-await app.register(cors,   { origin: config.FRONTEND_URL, credentials: true });
+// P3.5: strict JSON-API CSP + single exact-origin CORS (security/plugins.ts, tested).
+await registerSecurity(app, { frontendUrl: config.FRONTEND_URL });
 await app.register(cookie);
 
 // ── tRPC ──────────────────────────────────────────────────────────────
@@ -206,11 +212,12 @@ app.post("/internal/sentry-test", async (req, reply) => {
 });
 
 // ── Metrics ────────────────────────────────────────────────────────────
-// Matches prometheus.yml's "api-middleware" scrape job (api:4000/metrics).
-// Not IP-restricted at the app level — internal Docker network already
-// keeps this unreachable from the internet (see Phase 4.2 / security
-// checklist: internal services never exposed publicly).
-app.get("/metrics", metricsHandler);
+// P3.5 (closes N9): this route is on the PUBLIC Render URL, so the old
+// assumption ("internal Docker network keeps it unreachable") does not hold.
+// METRICS_TOKEN set  -> Bearer token required.
+// METRICS_TOKEN unset in production -> 404 (fail closed).
+const metricsGuard = createMetricsGuard(resolveMetricsAccess(config.METRICS_TOKEN, config.NODE_ENV));
+app.get("/metrics", { preHandler: metricsGuard }, metricsHandler);
 app.addHook("onResponse", async (req, reply) => {
   // Skip the /metrics route itself — instrumenting the metrics endpoint's
   // own latency in the same histogram it serves is noise, not signal.
@@ -220,6 +227,9 @@ app.addHook("onResponse", async (req, reply) => {
 
 // ── Chat streaming endpoint ────────────────────────────────────────────
 app.post("/chat", {
+  // P3.5: the conversation history rides in the body, so /chat gets a larger cap
+  // than the 1 MiB default (still under Vercel's 4.5 MB request limit).
+  bodyLimit: CHAT_BODY_LIMIT_BYTES,
   preHandler: async (req, reply) => {
     const { authMiddleware }    = await import("./middleware/auth.middleware");
     const { rateLimitMiddleware } = await import("./middleware/rateLimit.middleware");
@@ -368,6 +378,13 @@ async function handleChat(
 try {
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
   console.log(`🚀 API running on :${config.PORT} [${config.NODE_ENV}]`);
+  // P3.5: say so at every boot while these protections are not fully configured.
+  for (const warning of [
+    adminTwoFactorBootWarning(config.NODE_ENV),
+    metricsBootWarning(config.METRICS_TOKEN, config.NODE_ENV),
+  ]) {
+    if (warning) console.warn(warning);
+  }
   // P3.4: a leftover overlap token keeps a retired secret valid. Say so at every boot.
   if (config.INTERNAL_SERVICE_TOKEN_PREVIOUS && config.INTERNAL_SERVICE_TOKEN_PREVIOUS.length >= 32) {
     console.warn(

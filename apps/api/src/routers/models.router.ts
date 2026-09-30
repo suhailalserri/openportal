@@ -11,6 +11,7 @@ import {
 } from "@ai-platform/config";
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
+import { LIMITS, modelIdSchema } from "../security/limits";
 
 function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
@@ -83,27 +84,29 @@ export const modelsRouter = router({
   // status="published", isAvailable=true.
   publish: adminProcedure
     .input(z.object({
-      modelId:                 z.string(),
+      modelId:                 modelIdSchema,
       displayName:             z.string().min(1).max(100),
       displayNameAr:           z.string().min(1).max(100),
       badge:                   z.enum(ADMIN_BADGE_KEYS).optional(),
       providerIconKey:         z.string().max(50).optional(),
       tier:                    z.enum(["standard", "premium"]).default("standard"),
-      markupMultiplier:        z.number().positive().default(2.0),
-      contextWindow:           z.number().int().positive(),
-      maxOutputTokens:         z.number().int().positive(),
+      markupMultiplier:        z.number().positive().max(100).default(2.0),
+      contextWindow:           z.number().int().positive().max(10_000_000),
+      maxOutputTokens:         z.number().int().positive().max(10_000_000),
       supportsVision:          z.boolean().default(false),
       // Unrecognized values are dropped rather than rejected — an older
       // client tab open during a deploy that adds a new category
       // shouldn't get a hard validation error on save.
-      categories:              z.array(z.string()).default([])
+      categories:              z.array(z.string().max(LIMITS.LIST_ITEM_MAX)).max(LIMITS.LIST_MAX).default([])
                                  .transform((cats) => cats.filter((c) => (MODEL_CATEGORY_KEYS as readonly string[]).includes(c))),
       // Admin-entered benchmark scores (0-100) per LEADERBOARD_CATEGORY_KEYS
       // (e.g. copied in from livebench.ai). Unrecognized keys dropped for
       // the same forward-compat reason as `categories` above; out-of-range
       // values rejected outright since these come from a form, not a stale
       // client's stored list.
-      categoryScores:          z.record(z.string(), z.number().min(0).max(100)).default({})
+      categoryScores:          z.record(z.string().max(LIMITS.LIST_ITEM_MAX), z.number().min(0).max(100))
+                                 .refine((o) => Object.keys(o).length <= LIMITS.LIST_MAX, "too many scores")
+                                 .default({})
                                  .transform((scores) =>
                                    Object.fromEntries(
                                      Object.entries(scores).filter(([k]) =>
@@ -111,9 +114,9 @@ export const modelsRouter = router({
                                      ),
                                    ),
                                  ),
-      wholesaleCostInputPerM:  z.number().min(0).default(0),
-      wholesaleCostOutputPerM: z.number().min(0).default(0),
-      rateLimitPerUserDaily:   z.number().int().positive().optional(),
+      wholesaleCostInputPerM:  z.number().min(0).max(100_000).default(0),
+      wholesaleCostOutputPerM: z.number().min(0).max(100_000).default(0),
+      rateLimitPerUserDaily:   z.number().int().positive().max(1_000_000).optional(),
       // Admin-authored behavior rules for this model, layered under the
       // platform-wide base prompt at request time (see
       // history-compaction.service.ts's buildSystemPrompt in the chat
@@ -153,7 +156,7 @@ export const modelsRouter = router({
     }),
 
   toggleAvailability: adminProcedure
-    .input(z.object({ modelId: z.string(), isAvailable: z.boolean() }))
+    .input(z.object({ modelId: modelIdSchema, isAvailable: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await db
         .update(models)

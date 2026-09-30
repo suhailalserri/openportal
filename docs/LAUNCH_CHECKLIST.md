@@ -36,14 +36,14 @@ Items name the plan phase that produces the evidence.
 
 ## Infrastructure & security
 - [ ] Gateway reachable only from the api, or protected as ADR-011 records — N8
-- [ ] `/metrics` not publicly readable — N9 / P3.5
+- [ ] `/metrics` not publicly readable — N9 / P3.5 (code done: set `METRICS_TOKEN`, then `curl` returns 401 without it; SECURITY_SWEEP.md step 6)
 - [ ] Graceful shutdown verified with a mid-stream deploy — P3.2
 - [ ] Container non-root, compiled, healthcheck — P3.3 (code done; tick after CI `API Docker Image` is green and the Render deploy is verified)
 - [ ] Secret-rotation runbook rehearsed once — P3.4 (code + runbook done; tick after the INTERNAL_SERVICE_TOKEN rehearsal and GitHub secret scanning + push protection are on)
-- [ ] CORS, headers, body limits, Zod limits, admin 2FA enforced, Turnstile live — P3.5
-- [ ] Dependabot, `pnpm audit`, secret scanning, branch protection (`api-tests`, `web-build`) on — P3.5
+- [ ] CORS, headers, body limits, Zod limits, admin 2FA enforced, Turnstile live — P3.5 (code done; owner steps 3-5 in SECURITY_SWEEP.md; 2FA is only fully enforced once the 8 legacy admin REST routes are removed or gated)
+- [ ] Dependabot, `pnpm audit`, secret scanning, branch protection (`API Tests (Testcontainers)`, `Web Build (next build)`) on — P3.5 (files added; owner steps 7-8)
 - [ ] Provider-cost guard alerting; model prices confirmed against `markupMultiplier` — P3.6
-- [ ] `db-ops.yml` "reset" options understood; production `DATABASE_URL` secret access limited — P3.5
+- [ ] `db-ops.yml` "reset" options understood; production `DATABASE_URL` secret access limited — P3.5 (reset now refuses when users exist; **first check production for `admin@localhost.dev` (SECURITY_SWEEP.md step 1)**)
 
 ## Business & legal
 - [ ] Legal entity formed; business bank account open

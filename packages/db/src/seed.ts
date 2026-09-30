@@ -5,6 +5,7 @@
 import { db, users, balances, redeemCodes, accounts } from "./index";
 import { hashPassword } from "better-auth/crypto";
 import { createHmac } from "node:crypto";
+import { count, notInArray } from "drizzle-orm";
 import crypto from "node:crypto";
 
 // ── Code generation (mirrors apps/api/src/services/redeem.service.ts) ──
@@ -28,7 +29,30 @@ function generateSeedCode(): string {
 }
 // ───────────────────────────────────────────────────────────────────────
 
+// P3.5: the accounts this script creates have PUBLIC, fixed passwords
+// (Admin123! / User123!), and the admin is a superadmin. On a database with real
+// users that is a backdoor, so refuse unless the only users are these two.
+// ALLOW_SEED_ON_NONEMPTY=1 is for a deliberate local override; never set it in
+// CI or against production.
+const SEEDED_EMAILS = ["admin@localhost.dev", "user@localhost.dev"];
+
+async function assertSafeToSeed(): Promise<void> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(users)
+    .where(notInArray(users.email, SEEDED_EMAILS));
+  const others = Number(row?.n ?? 0);
+  if (others > 0 && process.env.ALLOW_SEED_ON_NONEMPTY !== "1") {
+    console.error(
+      `❌ Refusing to seed: this database has ${others} user(s) other than the seed accounts. ` +
+      "Seeding would add a superadmin with a public password. Set ALLOW_SEED_ON_NONEMPTY=1 only for a throwaway local database.",
+    );
+    process.exit(1);
+  }
+}
+
 async function seed() {
+  await assertSafeToSeed();
   console.log("🌱 Seeding database...");
 
   // ── Superadmin ────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { db, users, sessions } from "@ai-platform/db";
 import { eq, and, gt } from "drizzle-orm";
 import { assertUsableAccount, ACCOUNT_ERROR_CODE } from "../utils/account-guard";
+import { checkAdminTwoFactor } from "../security/admin-2fa";
 import { resolveApiClientIp, isInternalTokenAuth, trustCfConnectingIpFromEnv } from "../utils/client-ip";
 
 // ── Context ───────────────────────────────────────────────────────────
@@ -127,5 +128,10 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin")
     throw new TRPCError({ code: "FORBIDDEN" });
   requireUsableAccount(ctx.user);
+  // P3.5 (N6): with ADMIN_REQUIRE_2FA=true an admin must have 2FA enrolled.
+  // Off by default so a missing flag can never lock anyone out. The stable code
+  // is for the frontend to map to copy; do not reword.
+  const twoFactor = checkAdminTwoFactor(ctx.user);
+  if (!twoFactor.ok) throw new TRPCError({ code: "FORBIDDEN", message: twoFactor.reason });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

@@ -344,3 +344,11 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - Redis outage: per-process fallback (not fully open, a deliberate deviation from the plan); Redis skipped for 5 s after a failure so a dead Redis adds no latency; metric `aip_rate_limit_fallback_total`; one alert per 5 min. Money paths (billing lock, affordability) still fail closed.
 - NOT changed (frozen zone): `apps/web/app/api/redeem`, `user/delete-account`, `user/export-data` still call the synchronous per-process `checkLimit`. Recommended follow-up (needs approval, one `await` each): switch them to `checkRateLimit`. `redeem` is also covered by the Redis fraud check; the other two are per-process only until then.
 - Known limit: fixed window, so a burst can reach 2x `max` across a window boundary.
+
+## P3.5 - Security sweep (closes N6, N9)
+- New `apps/api/src/security/`: `plugins.ts` (CSP `default-src 'none'`, exact-origin CORS, 1 MiB body limit, 4 MiB on `/chat`, logger redaction, `/metrics` guard), `limits.ts` (shared Zod bounds), `admin-2fa.ts`, `log-scan.ts`. `index.ts` now calls them; its behaviour on valid requests is unchanged.
+- Behaviour changes: `GET /metrics` returns 404 in production until `METRICS_TOKEN` is set, then requires a Bearer token. `listUsers`/`listFraudEvents` `limit` is 1..100 (was unbounded), offsets are capped at 100,000, amounts/credits/prices/strings have maximums (`security/limits.ts`). Admin 2FA gate is OFF unless `ADMIN_REQUIRE_2FA=true` on both Render and Vercel.
+- Body limit deviation from the pre-build summary: 4 MiB on `/chat`, not 2 MiB (Vercel's cap is 4.5 MB; 2 MiB would reject long Arabic histories).
+- Also changed: `db-ops.yml`, `db-migrate.yml` (reset refuses when users exist), `packages/db/src/seed.ts` (refuses on a database with real users), `.env.example`, `apps/api/package.json` (export `./security/admin-2fa`).
+- Frozen zone: **not edited**. Needs approval: the 8 `apps/web/app/api/admin/**` REST routes (delete, or add `checkAdminTwoFactor`), better-auth `rateLimit` storage in `lib/auth.ts`.
+

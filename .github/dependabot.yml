@@ -1,0 +1,51 @@
+# P3.5 (closes N6): automated dependency and base-image updates.
+#
+# Minor + patch updates are grouped into one PR per ecosystem per week so they
+# do not flood the repo; a major version bump is always its own PR so it gets
+# its own CI run and review. Security updates are raised immediately by GitHub
+# regardless of this schedule (enable "Dependabot security updates" in
+# Settings > Advanced Security, see docs/runbooks/SECURITY_SWEEP.md).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Aden
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Aden
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "ci"
+
+  # apps/api/Dockerfile (Render builds this on every push to main).
+  - package-ecosystem: docker
+    directory: "/apps/api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Aden
+    open-pull-requests-limit: 2
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: "docker"

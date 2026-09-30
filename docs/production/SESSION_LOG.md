@@ -770,3 +770,30 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - Whether any other caller besides web chat uses the internal token (uptime monitor, scripts): grep found only `apps/web/app/api/chat/route.ts`.
 
 **Next (owner):** CI green (`API Tests` should list `internal-token-rotation.test.ts` and 2 new middleware tests). Turn on GitHub secret scanning + push protection. Rehearse the `INTERNAL_SERVICE_TOKEN` rotation from the runbook (25 chat requests before and after, zero 401s), then tick P3.4 and the LAUNCH_CHECKLIST line. Check Render/Vercel/GitHub for a stray Supabase service-role key. Next per plan: P3.5 (security sweep).
+
+## Session 25 - 2026-09-30 - P3.5 Security sweep (closes N6, N9) - code done, owner steps pending
+
+**Plan vs code (told to owner before building; owner said OK and "do what is best for the project"):**
+- Login rate limit (`apps/web/lib/auth.ts` line 325) has no storage option, so it is probably per serverless instance. Frozen file, reported only.
+- Turnstile fails open when `TURNSTILE_SECRET_KEY` is unset (`turnstile-server.ts`). Config check for the owner.
+- **Missed in the pre-build summary, found while building:** N9 (`/metrics` unauthenticated) is assigned to P3.5 by the plan. Done: `METRICS_TOKEN` Bearer guard, 404 in production until it is set.
+- **Missed in the pre-build summary:** LAUNCH_CHECKLIST tags `db-ops.yml` reset and production `DATABASE_URL` access to P3.5. Reviewing it turned up that `seed.ts` creates a **superadmin `admin@localhost.dev` / `Admin123!` with 100,000 credits** and that `db-ops.yml` `all`/`seed`/`reset-and-migrate-all` ran it against the production `DATABASE_URL`, and `reset` drops the schema in one tap. Added guards (workflows refuse to reset a database that has users; `seed.ts` refuses a database with other users). **Owner must check production for that account first** (SECURITY_SWEEP.md step 1).
+- **Weakens the 2FA claim:** eight legacy `apps/web/app/api/admin/**` REST routes check only `role`, are called by nothing in the UI, and one adjusts credits. They bypass `adminProcedure`, so the 2FA gate does not cover them. Frozen; needs an approved exception (delete, or add `checkAdminTwoFactor`, export already in `apps/api/package.json`).
+- Deviation from the summary: `/chat` body limit is 4 MiB, not 2 MiB (Vercel caps requests at 4.5 MB; 2 MiB would reject long Arabic histories). Default stays 1 MiB.
+- Also bounded (beyond the listed strings): money amounts (`adjustCredits`, `generateCodes`, packages), model metadata caps, non-integer `limit`s, so `amount * 1e6` stays exact.
+
+**New:** `apps/api/src/security/{plugins,limits,admin-2fa,log-scan}.ts`; tests `plugins.test.ts`, `input-bounds.test.ts`, `admin-2fa.test.ts`, `log-hygiene.test.ts`; `.github/dependabot.yml`; `.github/workflows/security-audit.yml`; `docs/runbooks/SECURITY_SWEEP.md`.
+**Changed:** `apps/api/src/index.ts`, `config.ts` (+`METRICS_TOKEN`, `ADMIN_REQUIRE_2FA`, both optional), `routers/{trpc,admin.router,models.router,billing.router}.ts`, `schemas/chat.schema.ts` (+test), `apps/api/package.json` (+export), `.github/workflows/{db-ops,db-migrate}.yml`, `packages/db/src/seed.ts`, `.env.example`, `SECURITY.md`, `docs/{MASTER_PLAN,LAUNCH_CHECKLIST,PR_NOTES}.md`. Frozen zone untouched (no file under `apps/web` edited). No DELETE list (the 8 REST routes are a proposal, not done).
+
+**Verified (executed here):** Node type-strip parse of every touched TS file (and the check catches a deliberate syntax error); YAML parse of the three workflows and dependabot.yml; the 2FA, origin and `/metrics` decision logic run directly (all cases as in the tests); the log scanner on 18 fixtures (10 leaks caught, 8 clean allowed) and over all 68 api source files (55 log-like calls, 0 findings).
+
+**Not verified (no node_modules, no network, no Docker here):**
+- `tsc`, lint, vitest, CI. Typing from memory: Fastify `logger.stream` / `redact` option types (used in `plugins.test.ts` and `index.ts`), `preHandler` on `app.get` with `metricsHandler`, `z.record(...).refine(...).default(...)` chain in `models.publish`.
+- Every new test has never run. Highest risk: helmet accepting `useDefaults: false` with those directives; `@fastify/cors` preflight returning 204 for a route with no OPTIONS handler; the redaction paths being accepted by pino at boot (a bad path throws at construction and would stop the api).
+- The `Security Audit` job: whether `npx pnpm@10 audit` with the two anti-switch flags works against the v9 lockfile, and whether its output matches my grep. Expect it to go red on existing advisories; triage next session.
+- Whether better-auth sets `users.two_factor_enabled` only after the first code is confirmed (the lockout hinges on it; hence the SQL check before enabling the flag).
+- The Actions guard steps (`to_regclass` query, psql availability on `db-migrate.yml`), and all dashboard click paths.
+- Web bundle: `trpc.ts` now imports `../security/admin-2fa` inside the Vercel build.
+
+**Next (owner):** CI green (`API Tests` should list the four new files; check `Security Audit`). Then SECURITY_SWEEP.md steps 1 to 8 in order: step 1 (seed account) before anything else. Decide the frozen-zone exception (REST admin routes, login rate-limit storage). Frontend follow-ups (not done): map `ADMIN_2FA_REQUIRED` to a banner linking Settings > Security; add `maxLength` 500 to the admin credit-reason textarea; users list `pageSize` from the URL above 100 now returns an error. Next per plan: P3.6.
+

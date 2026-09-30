@@ -11,7 +11,8 @@
     "./utils/rate-limiter": "./src/utils/rate-limiter.ts",
     "./utils/account-guard": "./src/utils/account-guard.ts",
     "./utils/client-ip": "./src/utils/client-ip.ts",
-    "./services/user-status": "./src/services/user-status.service.ts"
+    "./services/user-status": "./src/services/user-status.service.ts",
+    "./security/admin-2fa": "./src/security/admin-2fa.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
