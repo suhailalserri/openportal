@@ -982,3 +982,14 @@ Also: `SUPABASE_*` are optional in `config.ts` (plan says required) so a bad val
 - I did not check whether `apps/web` or `docs/` has a second copy of the privacy text.
 
 **Next (owner):** CI green (`API Tests` should list the three storage tests). Then `docs/runbooks/STORAGE.md` section 1 (apply 0021 -> set both env vars on Render only -> deploy) and section 4. Tick P5.1 only after that. Then P5.2.
+
+
+## Session 35 - 2026-09-30 - P5.1 CI fixes (first CI run of Session 34)
+
+**Input:** owner's screenshots of the failed run (#338): Type-check, API Tests, Legal Docs In Sync, Security Audit.
+**Found and fixed (my bugs):**
+1. `tsc` TS2379 in `storage.client.ts`: `exactOptionalPropertyTypes` rejects `body: undefined`; `body` is now omitted when absent.
+2. `legal-sync` CI: I changed `docs/legal/PRIVACY_POLICY.md` but did not update its committed copy `apps/web/content/legal/privacy.md` (I had listed "second copy of the privacy text" as unchecked in Session 34; it existed). Copied, byte-identical. This one file is under `apps/web` but not on the frozen-zone list (`app/api`, `server`, the named `lib` files, `middleware`, etc.); it is generated content.
+3. API Tests: 17 failures in `storage.service.test.ts`, only the first visible (concurrency test got 0 fulfilled of 5, i.e. `requestUpload` rejected every call). The trace ended in postgres-js `Bind`/`ParameterDescription`. Most likely cause: a raw JS `Date` inside a `sql` template (the daily-count `FILTER`), which Drizzle does not serialize for postgres-js. Now an ISO string cast `::timestamp`; the advisory-lock key also cast `::text`. **This diagnosis is from a partial log, not reproduced.**
+**Not mine / not changed:** `Security Audit` (weekly + PR, not a required check): 16 advisories (1 critical) in transitive deps via `next` (postcss) and `ai` (jsondiffpatch); P5.1 changed no dependency. Needs its own session (upgrade `next` / `ai` or pnpm overrides).
+**Not verified:** nothing re-run here (no node_modules, Docker). If `API Tests` still fails, send the FIRST failure block (`[1/N]`) in full.

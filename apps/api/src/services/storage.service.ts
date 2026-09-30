@@ -88,11 +88,14 @@ export function createStorageService(deps: {
       const at = now();
 
       // Serialize per user so two concurrent requests cannot both pass the quota check.
+      // A raw JS Date inside a `sql` template is not serialized by postgres-js (Drizzle only maps
+      // Dates for typed columns), so pass an ISO string and cast it in SQL.
+      const dayAgoIso = new Date(at.getTime() - 24 * 60 * 60 * 1000).toISOString();
       await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"storage:" + input.userId}))`);
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"storage:" + input.userId}::text))`);
         const [usage] = await tx.select({
           bytes: sql<string>`COALESCE(SUM(COALESCE(${storageObjects.sizeBytes}, ${storageObjects.declaredSizeBytes})) FILTER (WHERE ${storageObjects.status} IN ('pending','confirmed')), 0)`,
-          today: sql<string>`COUNT(*) FILTER (WHERE ${storageObjects.createdAt} >= ${new Date(at.getTime() - 24 * 60 * 60 * 1000)})`,
+          today: sql<string>`COUNT(*) FILTER (WHERE ${storageObjects.createdAt} >= ${dayAgoIso}::timestamp)`,
         }).from(storageObjects).where(eq(storageObjects.userId, input.userId));
         if (Number(usage?.today ?? 0) >= limits.maxUploadsPerDay) throw new StorageError("QUOTA_DAILY");
         if (Number(usage?.bytes ?? 0) + input.sizeBytes > limits.maxTotalBytesPerUser) throw new StorageError("QUOTA_BYTES");

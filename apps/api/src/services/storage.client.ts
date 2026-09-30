@@ -70,7 +70,8 @@ export function createSupabaseStorageClient(
           apikey: cfg.serviceKey,
           ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
         },
-        body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+        // exactOptionalPropertyTypes: omit `body` entirely instead of passing undefined.
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (err) {
