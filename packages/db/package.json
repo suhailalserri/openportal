@@ -18,12 +18,12 @@
   },
   "dependencies": {
     "@ai-platform/config": "workspace:*",
-    "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.31.0",
+    "better-auth": "^1.7.6",
+    "drizzle-orm": "^0.45.3",
     "postgres": "^3.4.0"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.22.0",
+    "drizzle-kit": "^0.31.11",
     "typescript": "^5.4.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0"
