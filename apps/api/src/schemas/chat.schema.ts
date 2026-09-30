@@ -36,7 +36,7 @@ const chatMessageSchema = z.object({
   content: z.string().max(200_000, "الرسالة طويلة جداً."),
 });
 
-export const chatRequestSchema = z.object({
+const chatRequestObject = z.object({
   // P3.5: models.id is varchar(150); anything longer cannot be a real model.
   model: z.string().min(1, "الرجاء اختيار نموذج.").max(150, "اسم النموذج غير صالح."),
 
@@ -78,6 +78,34 @@ export const chatRequestSchema = z.object({
    * clientMessageId/idempotency-claim state.
    */
   regenerate: z.boolean().optional(),
+
+  // ── Attachments (P5.2b) ─────────────────────────────────────────────
+  /**
+   * Ids of attachments (see attachments.* tRPC) to use in THIS turn. Optional: absent means the
+   * exact pre-5.2b behaviour. There is no attachment-to-message link, so a follow-up turn only
+   * sees a file if the client sends its id again (and it is billed again, as prompt tokens).
+   * Ownership, status, conversation match and the vision check happen in gateway.service.ts.
+   */
+  attachmentIds: z
+    .array(z.string().uuid("معرّف المرفق غير صالح."))
+    .min(1, "قائمة المرفقات فارغة.")
+    .max(5, "عدد المرفقات أكبر من الحد المسموح (5).")
+    .optional(),
+});
+
+export const chatRequestSchema = chatRequestObject.superRefine((body, ctx) => {
+  if (!body.attachmentIds) return;
+  // Without a conversationId the route invents a random one, which no attachment can belong to.
+  if (!body.conversationId) {
+    ctx.addIssue({ code: "custom", path: ["conversationId"], message: "معرّف المحادثة مطلوب عند إرفاق ملفات." });
+  }
+  // The files are attached to the turn being sent, which must be a user turn.
+  if (body.messages.at(-1)?.role !== "user") {
+    ctx.addIssue({ code: "custom", path: ["messages"], message: "آخر رسالة يجب أن تكون من المستخدم عند إرفاق ملفات." });
+  }
+  if (new Set(body.attachmentIds).size !== body.attachmentIds.length) {
+    ctx.addIssue({ code: "custom", path: ["attachmentIds"], message: "المرفقات مكرّرة." });
+  }
 });
 
 export type ChatRequestBody = z.infer<typeof chatRequestSchema>;

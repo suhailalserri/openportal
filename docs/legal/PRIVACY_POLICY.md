@@ -49,7 +49,7 @@ to generate a response:
 - **Google** (Gemini): policies.google.com/privacy
 - **DeepSeek**: deepseek.com/privacy
 
-We transmit only the message content required to generate a response. We do not share your
+We transmit only the message content required to generate a response. If you attach a document or an image to a message, the text extracted from the document or the image itself (with its metadata, such as location data, removed) is sent to the AI provider together with that message. Attachments are never sent on later messages unless you attach them again. We do not share your
 email address or account details with AI providers.
 
 **We do NOT use your conversations to train AI models.**

@@ -149,3 +149,47 @@ describe("chatRequestSchema — model bound (P3.5)", () => {
     if (!r.success) expect(formatChatValidationError(r.error).message).toBe("الرجاء اختيار نموذج.");
   });
 });
+
+// ── P5.2b: attachmentIds ─────────────────────────────────────────────────
+describe("chatRequestSchema — attachmentIds (P5.2b)", () => {
+  const conv = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+  const a1 = "11111111-1111-4111-8111-111111111111";
+  const a2 = "22222222-2222-4222-8222-222222222222";
+  const withAtt = { ...validBody, conversationId: conv, attachmentIds: [a1] };
+
+  it("the old request shape (no attachmentIds) still parses and has no attachmentIds key", () => {
+    const r = chatRequestSchema.safeParse(validBody);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.attachmentIds).toBeUndefined();
+  });
+
+  it("accepts 1 to 5 uuids with a conversationId and a last user message", () => {
+    expect(chatRequestSchema.safeParse(withAtt).success).toBe(true);
+    const five = Array.from({ length: 5 }, (_, i) => `${i}1111111-1111-4111-8111-111111111111`);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: five }).success).toBe(true);
+  });
+
+  it("rejects 6 ids, an empty list, a non-uuid and duplicates", () => {
+    const six = Array.from({ length: 6 }, (_, i) => `${i}1111111-1111-4111-8111-111111111111`);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: six }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: [] }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: ["nope"] }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: [a1, a1] }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...withAtt, attachmentIds: [a1, a2] }).success).toBe(true);
+  });
+
+  it("requires conversationId when attachmentIds is present (the route would invent a random one)", () => {
+    const { conversationId: _omit, ...noConv } = withAtt;
+    const r = chatRequestSchema.safeParse(noConv);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(formatChatValidationError(r.error).message).toMatch(/[\u0600-\u06ff]/);
+  });
+
+  it("requires the last message to be from the user", () => {
+    const r = chatRequestSchema.safeParse({
+      ...withAtt,
+      messages: [{ role: "user", content: "q" }, { role: "assistant", content: "a" }],
+    });
+    expect(r.success).toBe(false);
+  });
+});

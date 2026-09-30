@@ -342,6 +342,7 @@ async function handleChat(
         max_tokens:      body.max_tokens,
         clientMessageId: body.clientMessageId,
         regenerate:      body.regenerate,
+        attachmentIds:   body.attachmentIds,
         requestId:       lock.requestId,
         abortSignal:     clientDisconnectController.signal,
         reply,

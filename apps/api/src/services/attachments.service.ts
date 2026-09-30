@@ -1,7 +1,7 @@
 /**
  * P5.2a: attachments on top of the P5.1 storage service: create an upload, confirm it (queues
- * extraction), report status, and run the extraction job. `/chat` does NOT use attachments yet
- * (5.2b), so nothing here touches chat, billing or the gateway.
+ * extraction), report status, and run the extraction job. Using them in /chat (5.2b) lives in
+ * chat-attachments.service.ts; nothing in this file touches chat, billing or the gateway.
  *
  * Imported by the tRPC router, which the Next.js app also loads: so NO static import of
  * ../config or ../jobs/queue here (the queue is reached through the injected `enqueue`, bound
@@ -61,7 +61,7 @@ function toView(r: Row): AttachmentView {
 }
 
 /** Reads a response body with a hard byte cap. null = too large. */
-async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array | null> {
+export async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array | null> {
   const declared = Number(res.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > maxBytes) return null;
   if (!res.body) return null;
@@ -173,7 +173,7 @@ export function createAttachmentsService(deps: AttachmentsDeps) {
       if (!bytes) { await fail(row, "DOWNLOAD_FAILED"); return "failed"; }
 
       if (row.kind === "image") {
-        // 5.2a: real-bytes check only. Re-encoding (strip metadata, cap dimensions) is 5.2b.
+        // Real-bytes check only here. Metadata stripping and the dimension cap run at chat time (image-sanitize.ts).
         if (detectMime(bytes) !== row.mimeType) { await fail(row, "TYPE_MISMATCH"); return "failed"; }
         const ok = await db.update(attachments)
           .set({ status: "ready", errorCode: null, updatedAt: now() })

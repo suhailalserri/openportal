@@ -1,8 +1,8 @@
-# Runbook: Attachments (P5.2a: upload + extraction)
+# Runbook: Attachments (P5.2a upload + extraction, P5.2b use in /chat)
 
 Files are uploaded to the private `attachments` bucket (P5.1), then text is extracted from PDF, DOCX and TXT in an
-isolated worker thread. **5.2a has no UI and `/chat` does not use attachments yet** (that is 5.2b and the P6.3
-composer). You test it by calling the api with curl.
+isolated worker thread. Since 5.2b, `POST /chat` accepts `attachmentIds` so a document contributes text and an image is
+answered by a vision model. **There is still no UI** (the composer is P6.3): you test everything by calling the api with curl.
 
 ## 1. Turn it on (owner, in this order)
 
@@ -19,14 +19,22 @@ composer). You test it by calling the api with curl.
 | Real type | the bytes must match the declared type (magic bytes; DOCX must contain `word/document.xml`); else `TYPE_MISMATCH` | `extraction/file-type.ts` |
 | Extraction | one worker thread per file, heap cap 256 MB, hard timeout 20 s, then terminated | `extraction.runner.ts`, `attachments.policy.ts` |
 | DOCX bomb guard | max 5,000 zip entries, `document.xml` max 30 MB inflated | `extract.ts` |
-| Text cap | 400,000 characters stored (`truncated = true` when cut). 5.2b cuts again to the model's context window | `attachments.policy.ts` |
+| Text cap | 400,000 characters stored (`truncated = true` when cut). `/chat` cuts again to what fits the chosen model's context window | `attachments.policy.ts` |
 | Failed file | status `failed` + `errorCode`, extracted text cleared, **object deleted immediately** (frees quota) | `attachments.service.ts` |
 | Stuck job | `processing` for over 10 min -> `failed` / `STALLED` (runs with the 30-min storage sweep) | `sweepStalled` |
+| `/chat` ids | optional `attachmentIds` (1-5 uuids, no duplicates); needs `conversationId`; last message must be a user turn | `chat.schema.ts` |
+| `/chat` ownership | id must be yours, in THIS conversation, status `ready`; foreign / other-conversation / missing all answer `404 ATTACHMENT_NOT_FOUND`; not ready or failed `409 ATTACHMENT_NOT_READY`; audio or oversize/invalid image `400 ATTACHMENT_UNSUPPORTED`; >5 `400 TOO_MANY_ATTACHMENTS` | `chat-attachments.service.ts` |
+| Vision | an image on a model with `supports_vision = false` (and no `vision` category) is `400 VISION_NOT_SUPPORTED`, never silently dropped | `chat-attachments.service.ts` |
+| Image in chat | max **5 MiB**, max 8,000 px per side and 40 MP; metadata stripped (EXIF incl. GPS, XMP, IPTC, comments, text chunks; JPEG keeps only the orientation). **Pixels are not re-encoded** (no native library on purpose), so this is weaker than a real re-encode | `image-sanitize.ts` |
+| Document in prompt | text goes inside a delimited **untrusted document** block (random per-request marker, header says it is data), in the USER turn, after history compaction. The saved chat row is only the text the user typed | `gateway.service.ts`, `chat-attachments.policy.ts` |
+| Fit to the window | text is cut so prompt + reserve (min of output cap, 8,192 tokens, 25% of window) fits 95% of the window; the block says when it was shortened; no room at all -> `400 CONTEXT_TOO_LONG` | `documentCharBudget` |
+| Pre-send estimate | counts the attachment text, plus **1,600 tokens per image** (a flat, conservative allowance: the gate only). The real bill is the provider's `prompt_tokens`, ledger unchanged | `CHAT_ATTACHMENT_LIMITS` |
+| No request is half-saved | attachments are resolved BEFORE the conversation/user-row insert: a rejected request leaves no user message | `gateway.service.ts` |
 | Deletion cascade | when the storage sweep removes an object (conversation/account deleted, orphan), the extracted text is cleared and the row becomes `failed` / `OBJECT_DELETED` | `storage.service.ts` |
 
 `errorCode` values: `TYPE_MISMATCH`, `CORRUPT` (also password-protected PDFs), `NO_TEXT` (scanned PDF, empty file), `TOO_COMPLEX`,
 `TIMEOUT`, `MEMORY`, `DOWNLOAD_FAILED`, `EXTRACT_FAILED`, `OBJECT_DELETED`, `STALLED`.
-Known limits: no OCR; `.txt` must be UTF-8 (Windows-1256 files are rejected as `TYPE_MISMATCH`); DOCX text comes from the main document only (no headers/footers/footnotes).
+Known limits: a file is used only in the turn whose request carries its id (no link to earlier messages), so a follow-up question needs the id again and pays for the file's tokens again; no OCR; `.txt` must be UTF-8 (Windows-1256 files are rejected as `TYPE_MISMATCH`); DOCX text comes from the main document only (no headers/footers/footnotes).
 
 ## 3. Where it works (important)
 
