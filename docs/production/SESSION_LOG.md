@@ -896,3 +896,30 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 **Changed:** `apps/api/src/services/redeem.service.test.ts`, this log. **DELETE:** none. Frozen zone: untouched.
 
 **Not verified (no node_modules or Postgres here):** vitest was not run. The probability figure is my own arithmetic, not measured. Product note, no action taken: a 16-bit checksum is only a cheap pre-filter; brute-force protection rests on the DB lookup, the single-use constraint and the Redis attempt limits, not on the checksum alone.
+
+
+## Session 31 - 2026-09-30 - P4.2 Load test - code done, staging + first run + results pending
+
+**Input:** repo zip + plan; P4.1 CI confirmed green by the owner. Phase Summary approved ("Ok"), owner accepted my default of a new staging api and database.
+
+**Plan vs code (told to owner before building):** (1) No staging exists (Sessions 16 and 24 say so); the plan says "against staging", so the runbook builds one. (2) The per-user limit is 20 requests/minute (`FRAUD.MAX_REQUESTS_PER_MINUTE`) and one billed operation may be in flight per user (P1.2), so 50+ concurrent streams needs 50+ distinct users with API keys, not one busy user. (3) `DATABASE_POOL_MAX` defaults to 1 (`packages/db/src/index.ts`); the pool result depends on the Render value, recorded in the runbook. (4) Real provider calls cost money; calls are capped at 48 tokens and the model must be cheap.
+
+**Design:** the link between a completed stream and its bill is `messages.gateway_request_id` = `transactions.request_id` (both come from the P1.2 lock's requestId). `reconcile.sql` checks: assistant message with a charge but no `usage_debit` (a free answer), a request billed twice, cost mismatch, and k6-completed greater than debits. Users are created with `admin_credit` ledger rows so the P4.1 invariant holds after the run. Users' API keys are `HMAC-SHA256(LOADTEST_SEED, "user-i")` derived independently in bash and in k6, so no key file exists.
+
+**New:** `infra/loadtest/{chat.k6.js,setup.sh,teardown.sh,reconcile.sql}`, `.github/workflows/load-test.yml`, `apps/api/src/services/loadtest-reconcile.test.ts`, `docs/runbooks/LOAD_TEST.md`.
+**Changed:** `.github/workflows/db-ops.yml` (new `target` input, default production; `staging` uses `LOADTEST_DATABASE_URL` with a guard step that fails if that secret is empty or equals production), `docs/MASTER_PLAN.md` (tracker + "As built (P4.2)"), this log. **DELETE:** none. Frozen zone: untouched. No API contract change.
+
+**Tests:** `loadtest-reconcile.test.ts` runs the real SQL on Testcontainers: passes for a real debit + message; RED for an unbilled completion, a request billed twice, and k6 completed > debits; ignores non-load-test users.
+
+**Verified (executed here):** `node --check` on the k6 script (syntax only, k6 itself is not installed); `bash -n` on both shell scripts; YAML parse of both workflows.
+
+**Not verified (no node_modules, Postgres, Docker, k6, network here):**
+- vitest/tsc on the new test; that `db.execute` returns rows as an array for this UNION query; the `:'completed'` textual replacement in the test.
+- The k6 script has never run: `k6/crypto` `hmac` signature, `res.body` handling of a streamed `text/plain` response, `handleSummary` file output, `--console-output`, and the VU-id to user mapping (I avoided depending on k6's cross-scenario VU numbering, but that is reasoning, not a run).
+- `setup.sh` SQL against a real schema: the `users` insert relies on column defaults (no `referral_code`, `password_hash` null), the CTE top-up, and `sha256sum` matching `createHash("sha256")` of the key (it should; same bytes). The auth middleware accepts any key starting `sk-aip-`; mine starts `sk-aip-lt`.
+- Whether fraud identity tracking flags or locks the load-test users because they all share one runner IP (recorded as events per the rate-limit comment, not proven non-blocking under 60 users). If it does, `account_locked_403` shows it.
+- `db-ops.yml` change: the `inputs.target == 'staging' && ... || ...` expression and the guard step.
+- Everything about the real outcome: pool exhaustion, Redis growth, deploy behaviour, provider throttling, cost.
+- The Supabase SQL to publish the model (`status`/`is_available` column values) is from reading the schema, not run.
+
+**Next (owner):** CI green (`API Tests` should list `loadtest-reconcile.test.ts`). Then LOAD_TEST.md section 2 (staging Supabase, Upstash, Render service, secrets, migrate, publish one cheap model), run `Load Test`, trigger the staging deploy about 2 minutes in, fill in section 7. P4.2 is not done until a run passes section 6.

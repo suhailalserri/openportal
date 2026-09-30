@@ -25,14 +25,39 @@ on:
           - seed
           - seed-models
           - all
+      # P4.2: lets the STAGING database (load-test target) be migrated from the same button.
+      # Default stays production, exactly as before.
+      target:
+        description: "Which database (staging = the LOADTEST_DATABASE_URL secret)"
+        required: false
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 jobs:
   run:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # If the staging secret is EMPTY this must not silently fall back to production,
+      # hence the guard step below (a `cond && a || b` expression falls through on empty).
+      DATABASE_URL: ${{ inputs.target == 'staging' && secrets.LOADTEST_DATABASE_URL || secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      STAGING_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Guard - staging target must really be the staging database
+        if: ${{ inputs.target == 'staging' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${STAGING_DATABASE_URL:-}" ]; then
+            echo "::error::target=staging but the LOADTEST_DATABASE_URL secret is not set. Refusing (it would have run on production)."; exit 1
+          fi
+          if [ "$DATABASE_URL" = "${PRODUCTION_DATABASE_URL:-x}" ]; then
+            echo "::error::LOADTEST_DATABASE_URL equals the production DATABASE_URL. Refusing."; exit 1
+          fi
 
       # No explicit `version:` here — package.json already pins
       # "packageManager": "pnpm@9.0.0", and specifying a version in both

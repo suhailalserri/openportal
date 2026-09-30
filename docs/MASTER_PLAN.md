@@ -113,7 +113,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
 **Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
-**Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
+**Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 (code done, awaiting staging + first run + results: docs/runbooks/LOAD_TEST.md) · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
 **Stage 7** — [ ] P7.1 · [ ] P7.2 · [ ] P7.3 · [ ] P7.4
@@ -248,6 +248,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 ### P4.2 Load test (1 session)
 - k6 against staging: 50+ concurrent `/chat` streams for several minutes, plus concurrent same-user requests (must hit the P1.2 lock), plus a deploy mid-test (P3.2). Watch DB pool, Redis memory/policy, error rate, job failures.
 - **Done when:** no pool exhaustion, no unbounded Redis growth, no unbilled completions, no lost streams beyond the shutdown grace.
+- **As built (P4.2):** `infra/loadtest/` (`chat.k6.js`: 60 streaming users plus a same-user scenario that must hit the P1.2 lock with `409 REQUEST_IN_PROGRESS`; `setup.sh` creates `loadtest-%@example.invalid` users with seed-derived API keys and ledger-consistent credits, refuses a database with real users; `reconcile.sql` proves every completed response has exactly one matching `usage_debit`; `teardown.sh`), `.github/workflows/load-test.yml` (setup, k6, before/after `/metrics`, reconcile, P4.1 ledger check, optional teardown; refuses a production DB URL) and `db-ops.yml` gained a guarded `target = staging` input so staging can be migrated from the same button. Tested: `apps/api/src/services/loadtest-reconcile.test.ts`. No staging existed (owner chose to build one): the runbook `docs/runbooks/LOAD_TEST.md` says how. Notes: `transactions.request_id` has no unique constraint, so double billing would not be blocked by the database, only detected here; a mid-test deploy is triggered by the owner by hand.
 
 ### P4.3 LAUNCH GATE (1 session)
 Nothing new is built. Walk §11 line by line with evidence. Any unticked item is either fixed or explicitly deferred in writing with a reason. **Launch happens after this session, not before.**
