@@ -99,7 +99,7 @@ STAGE 3  Scale & safety      P3.1 Redis rate limit · P3.2 graceful shutdown · 
 STAGE 4  Recovery & launch   P4.1 backup drill · P4.2 load test · P4.3 LAUNCH GATE
 ══════════════════════════ LAUNCH LINE ══════════════════════════
 STAGE 5  Storage & inputs    P5.1 Supabase Storage · P5.2 attachments · P5.3 mic
-STAGE 6  Streaming           P6.1 protocol · P6.2 normalization · P6.3 UI · P6.4 persistence
+STAGE 6  Streaming           P6.1 protocol · P6.2 normalization · P6.3 UI · P6.4 persistence · P6.5 tool-call groundwork
 STAGE 7  Agents (gated)      P7.1 runtime · P7.2 tools + egress · P7.3 billing/fraud · P7.4 UI
 ```
 
@@ -115,7 +115,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
 **Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 (code done, awaiting staging + first run + results: docs/runbooks/LOAD_TEST.md) · [x] P4.3 **← LAUNCH GATE** (ticked on the owner's word, 2026-09-30: owner states the gate is cleared; Claude did not re-walk it. First walk was NO-GO, evidence pack: docs/production/LAUNCH_GATE.md)
 **Stage 5** — [x] P5.1 (ticked 2026-09-30: CI green, migration 0021 applied, buckets live, owner verified docs/runbooks/STORAGE.md section 4 steps 1-3; step 4 end-to-end check happens with P5.2) · [x] P5.2 (ticked 2026-09-30: 5.2a and 5.2b CI green, owner passed docs/runbooks/ATTACHMENTS.md section 4b) · [x] P5.3 (ticked 2026-10-01: CI green after the Session 43 type fix, owner passed docs/runbooks/VOICE.md section 4)
-**Stage 6** — [ ] P6.1 (code done, awaiting CI + owner check: docs/PR_NOTES.md Session 44) · [ ] P6.2 (code done, awaiting CI + owner check: docs/PR_NOTES.md Session 45) · [ ] P6.3 · [ ] P6.4
+**Stage 6** — [ ] P6.1 (code done, awaiting CI + owner check: docs/PR_NOTES.md Session 44) · [ ] P6.2 (code done, awaiting CI + owner check: docs/PR_NOTES.md Session 45) · [ ] P6.3 · [ ] P6.4 · [ ] P6.5 (code done, awaiting the owner's spike run: docs/runbooks/TOOL_SPIKE.md)
 **Stage 7** — [ ] P7.1 · [ ] P7.2 · [ ] P7.3 · [ ] P7.4
 
 ---
@@ -305,6 +305,10 @@ Nothing new is built. Walk §11 line by line with evidence. Any unticked item is
 **P6.4 Persist structured messages** (1 session)
 - Add `messages.contentBlocks jsonb` (source of truth); keep `content text` as the flattened projection for search/export. No backfill: old rows render as one text block.
 - **Tests:** thinking + tool_use + text round-trip; flat `content` equals concatenated text blocks.
+
+**P6.5 Tool-call groundwork** (1 session; added after P6.2, before any tool loop)
+- Measure before building: `scripts/gateway-tool-spike.mjs` runs four probes per model against the gateway (tool call, parallel tools, reasoning default, reasoning effort) and reports what comes back and under which field names. Reuse the existing admin `categories` flags `functionCalling` and `reasoning` (no new column); a pure helper `modelSupportsTools` / `modelSupportsReasoning` reads them. `/chat` still never sends `tools`.
+- **As built (P6.5; UNTICKED until the owner runs the spike and reports the output):** `scripts/gateway-tool-spike.mjs` (+ `.test.mjs`, run with `node --test scripts/gateway-tool-spike.test.mjs`, not in CI), `apps/api/src/services/model-capabilities.ts` (+ test), runbook `docs/runbooks/TOOL_SPIKE.md`. **Deviation from the earlier suggestion, deliberate:** no `supportsTools` / `supportsReasoning` columns: `categories` already has those keys, an admin toggle and forward-compatible handling. A flag is an admin claim backed by the spike; nothing sets it automatically. **Next (not scheduled):** after P6.4 (persist blocks), a tool registry + server tool loop (max steps, per-tool timeout, per-turn credit ceiling, every round trip billed, tool output treated as untrusted), then `web_search` / `web_fetch` through the P7.2 egress proxy.
 
 ### Stage 7 — Agents (gated: Stage 4 signed off, Stages 5–6 stable)
 Scope in detail only when you get here.

@@ -413,3 +413,15 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   2. Console fetch with `Accept: application/vnd.aip.stream+v2` (same snippet as Session 44) against a **reasoning model** if you have one published: expect a `thinking` block before the `text` block, and `message_delta.usage.outputTokens` > 0. Against a normal model: same output as in Session 44.
   3. Same call without the header and one message in the real chat UI: plain text, looks and bills exactly as before; one "Chat usage" transaction.
   4. Optional: send to a slow model and watch for one `status` frame at about 2 s. If it arrives only at the end, the Vercel proxy is buffering SSE (report it; do not fix it in web).
+
+---
+
+## Session 46 - P6.5 Tool-call groundwork (gateway spike + capability helper)
+- New: `scripts/gateway-tool-spike.mjs` (+ `gateway-tool-spike.test.mjs`), `apps/api/src/services/model-capabilities.ts` (+ `model-capabilities.test.ts`), `docs/runbooks/TOOL_SPIKE.md`. Changed: `docs/MASTER_PLAN.md` only (P6.5 section + tracker).
+- **External contract:** none. `/chat`, the stream and every API are unchanged; nothing calls the new helper yet, and the request still never sends `tools`. No migration, dependency, lockfile or env change. Frozen zone: untouched.
+- **Design note:** capability flags reuse the existing `models.categories` values `functionCalling` and `reasoning` (admin toggles already exist; model sync does not touch them). No new column.
+- **Deploy order:** nothing to deploy for behaviour; the api change is an unused module.
+- **How to verify** (P6.5 stays unticked until 2 is done):
+  1. CI: Type-check & Lint and API Tests green (new: `model-capabilities.test.ts`, 6 tests).
+  2. Follow `docs/runbooks/TOOL_SPIKE.md` section 1: run the script for 3-6 published model ids and send me the report. Costs a few cents (calls the gateway with the master key, bypasses billing).
+  3. Optional: `node --test scripts/gateway-tool-spike.test.mjs` (11 tests; not in CI).
