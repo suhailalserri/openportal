@@ -19,5 +19,5 @@ export function startAlertWorker(connection: { host: string; port: number; passw
     if (result.configured && !result.ok) {
       throw new Error(`Telegram send failed (status ${result.status ?? "network"})`);
     }
-  }, { connection, concurrency: 2 });
+  }, { connection, concurrency: 2, drainDelay: 60, stalledInterval: 300_000 });
 }

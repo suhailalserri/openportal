@@ -41,5 +41,5 @@ export function startReportWorker(connection: { host: string; port: number; pass
       default:
         console.warn(`Unknown report job: ${job.name}`);
     }
-  }, { connection, concurrency: 2 });
+  }, { connection, concurrency: 2, drainDelay: 60, stalledInterval: 300_000 });
 }

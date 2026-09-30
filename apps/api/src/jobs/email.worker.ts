@@ -48,5 +48,5 @@ export function startEmailWorker(connection: { host: string; port: number; passw
       default:
         console.warn(`Unknown email job: ${job.name}`);
     }
-  }, { connection, concurrency: 5 });
+  }, { connection, concurrency: 2, drainDelay: 60, stalledInterval: 300_000 });
 }
