@@ -30,10 +30,10 @@ Production: web = Vercel, api = Render, gateway (New API) = Render, Postgres = S
 | `SENTRY_AUTH_TOKEN` | Vercel (build time) | New token, update, delete old | Source-map upload skipped |
 | `TURNSTILE_SECRET_KEY` | web | Cloudflare: roll secret, update | Register/redeem checks fail if a secret is set but wrong |
 | `GOOGLE_CLIENT_SECRET` | web | Google Cloud console: add new secret, update, delete old | Google sign-in fails until updated |
-| Supabase service-role key | **not used by this repo** | Verify unused (below) | n/a |
+| `SUPABASE_SERVICE_ROLE_KEY` (+ `SUPABASE_URL`) | **api only** (Render). Never Vercel | Supabase: create a new secret key, set on Render, deploy, delete the old key | Storage features (P5.1) fail until updated; chat unaffected. Full DB/Storage access if leaked: rotate immediately |
 
-### Supabase service-role key
-No code in this repo reads it (searched `apps`, `packages`, `.env.example`). Check Render and Vercel environment lists and GitHub secrets for a variable like `SUPABASE_SERVICE_ROLE_KEY`. If present and unused, delete it. If you ever add a use, add a row above first.
+### Supabase service-role / secret key (used since P5.1)
+Read only by `apps/api/src/services/storage.client.ts` and `config.ts`. Either the legacy `service_role` JWT or a new `sb_secret_...` key works. Set it on Render only; if it appears on Vercel or in a `NEXT_PUBLIC_` name, remove it and rotate. After rotating, the next api boot logs `Storage buckets ready`; a `[storage] Supabase storage disabled` line means the value is missing or malformed. (The earlier "delete if unused" advice no longer applies.)
 
 ## INTERNAL_SERVICE_TOKEN: zero-401 rotation (rehearse this one)
 

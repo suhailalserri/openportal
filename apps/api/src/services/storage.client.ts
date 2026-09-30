@@ -6,6 +6,9 @@
  * L12: storage is optional. With SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing or malformed
  * `getStorageClient()` returns null and the api boots and serves chat exactly as before.
  *
+ * Keys: both the legacy JWT `service_role` key and the new `sb_secret_...` key are accepted (see
+ * supabaseAuthHeaders). The sb_secret_ path is NOT verified against a live project.
+ *
  * NOT VERIFIED against a live project (no network in the build sandbox): endpoint paths and
  * response shapes below are from Supabase's documented Storage REST API / supabase-js, written
  * from memory. Every call is covered by a mocked-fetch test of the request we send, not by a
@@ -48,6 +51,16 @@ export function resolveStorageConfig(env: { SUPABASE_URL?: string; SUPABASE_SERV
 
 const TIMEOUT_MS = 10_000;
 
+/**
+ * Supabase's new `sb_secret_...` keys are opaque strings, not JWTs, and belong in `apikey` only
+ * (Supabase docs: "Authorization headers"). Only a legacy JWT `service_role` key may also go in
+ * `Authorization: Bearer`. Sending an opaque key as a bearer token risks a 401.
+ */
+export function supabaseAuthHeaders(serviceKey: string): Record<string, string> {
+  const isJwt = /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(serviceKey);
+  return isJwt ? { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } : { apikey: serviceKey };
+}
+
 function absolutize(base: string, p: string): string {
   if (/^https?:\/\//i.test(p)) return p;
   const path = p.startsWith("/") ? p : `/${p}`;
@@ -66,8 +79,7 @@ export function createSupabaseStorageClient(
       res = await fetchImpl(`${api}${path}`, {
         method: init.method,
         headers: {
-          Authorization: `Bearer ${cfg.serviceKey}`,
-          apikey: cfg.serviceKey,
+          ...supabaseAuthHeaders(cfg.serviceKey),
           ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
         },
         // exactOptionalPropertyTypes: omit `body` entirely instead of passing undefined.

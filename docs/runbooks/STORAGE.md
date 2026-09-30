@@ -9,7 +9,8 @@ service. Until then this is foundation only, and with the two env vars unset the
 1. **Migration first.** Supabase SQL editor (app project) -> paste `packages/db/src/migrations/0021_storage_objects.sql` -> Run. Safe to run twice.
 2. **Render api -> Environment**, add both (the api only, never Vercel, never a `NEXT_PUBLIC_` name):
    - `SUPABASE_URL` = the project URL (Supabase -> Project Settings -> API), like `https://xxxx.supabase.co`
-   - `SUPABASE_SERVICE_ROLE_KEY` = the `service_role` (secret) key from the same page.
+   - `SUPABASE_SERVICE_ROLE_KEY` = the legacy `service_role` key, or a new `sb_secret_...` secret key (Project Settings -> API Keys). `sb_secret_` keys are sent in the `apikey` header only. **Not yet verified against a live project**: if boot logs `Storage buckets ready`, it works; an HTTP 401/403 in a `[storage]` warning means the key is wrong or from another project.
+   - The URL's project ref must be the project where migration 0021 was run.
 3. Deploy. The api creates/updates both buckets on start (private, size and type limits). Look for `Storage buckets ready` in the Render log.
    A line starting `[storage] Supabase storage disabled: configuration is ...` means a missing or malformed value; chat is unaffected.
 4. Verify (section 4).

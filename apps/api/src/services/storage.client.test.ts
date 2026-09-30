@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSupabaseStorageClient, ensureBuckets, resolveStorageConfig } from "./storage.client";
+import { createSupabaseStorageClient, ensureBuckets, resolveStorageConfig, supabaseAuthHeaders } from "./storage.client";
 
 const cfg = { url: "https://abc.supabase.co", serviceKey: "service-role-key-0123456789" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -24,6 +24,17 @@ describe("resolveStorageConfig", () => {
   });
 });
 
+describe("supabaseAuthHeaders", () => {
+  it("sb_secret_ keys go in apikey only", () => {
+    const k = "sb_secret_" + "a".repeat(22) + "_" + "b".repeat(8);
+    expect(supabaseAuthHeaders(k)).toEqual({ apikey: k });
+  });
+  it("legacy JWT service_role keys go in both headers", () => {
+    const k = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.c2lnbmF0dXJl";
+    expect(supabaseAuthHeaders(k)).toEqual({ apikey: k, Authorization: `Bearer ${k}` });
+  });
+});
+
 describe("createSupabaseStorageClient (request shapes; responses are mocked, not real)", () => {
   it("signs an upload URL and makes it absolute", async () => {
     const f = mockFetch(json({ url: "/object/upload/sign/attachments/u/c/o?token=T" }));
@@ -32,7 +43,9 @@ describe("createSupabaseStorageClient (request shapes; responses are mocked, not
     const { url: reqUrl, init } = call(f);
     expect(reqUrl).toBe("https://abc.supabase.co/storage/v1/object/upload/sign/attachments/u/c/o");
     expect(init.method).toBe("POST");
-    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${cfg.serviceKey}`);
+    // Opaque (non-JWT) key: apikey only, no Authorization bearer.
+    expect((init.headers as Record<string, string>).apikey).toBe(cfg.serviceKey);
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
   it("signs a download URL with expiresIn", async () => {
     const f = mockFetch(json({ signedURL: "/object/sign/attachments/u/c/o?token=T" }));

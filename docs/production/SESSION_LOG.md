@@ -993,3 +993,16 @@ Also: `SUPABASE_*` are optional in `config.ts` (plan says required) so a bad val
 3. API Tests: 17 failures in `storage.service.test.ts`, only the first visible (concurrency test got 0 fulfilled of 5, i.e. `requestUpload` rejected every call). The trace ended in postgres-js `Bind`/`ParameterDescription`. Most likely cause: a raw JS `Date` inside a `sql` template (the daily-count `FILTER`), which Drizzle does not serialize for postgres-js. Now an ISO string cast `::timestamp`; the advisory-lock key also cast `::text`. **This diagnosis is from a partial log, not reproduced.**
 **Not mine / not changed:** `Security Audit` (weekly + PR, not a required check): 16 advisories (1 critical) in transitive deps via `next` (postcss) and `ai` (jsondiffpatch); P5.1 changed no dependency. Needs its own session (upgrade `next` / `ai` or pnpm overrides).
 **Not verified:** nothing re-run here (no node_modules, Docker). If `API Tests` still fails, send the FIRST failure block (`[1/N]`) in full.
+
+
+## Session 36 - 2026-09-30 - P5.1 follow-up: Supabase key handling, secret-rotation doc, Security Audit
+
+**Input:** owner's Supabase log (100 lines), Security Audit screenshot, question whether `SUPABASE_URL` / `sb_secret_...` are acceptable. Phase Summary approved. Owner did not send the Render boot log or audit log lines 1-64.
+**Found:**
+1. `SUPABASE_URL` and `sb_secret_` key pass `resolveStorageConfig`. But the client sent the key as `Authorization: Bearer` too; Supabase documents the new keys as non-JWT, `apikey` header only. Fixed: `supabaseAuthHeaders` (JWT key -> both headers, opaque key -> `apikey` only) + tests.
+2. `docs/runbooks/secret-rotation.md` still said the service-role key is unused and should be deleted. Wrong since P5.1 (following it would switch storage off). Corrected.
+3. Supabase log: 90x `schema "pg_pgrst_no_exposed_schemas" does not exist` and 2x `503 /rest-admin/v1/ready`: look like Data API with no exposed schemas, not P5.1 (assessment, not confirmed). No `/storage/v1` request appears in that window.
+4. Security Audit: 16 advisories (2 low, 8 moderate, 5 high, 1 critical). Visible: `postcss` <=8.5.17 via `next`, `jsondiffpatch` <0.7.6 via `ai`. The critical one was not visible.
+**Changed:** `apps/api/src/services/storage.client.ts`, `storage.client.test.ts`, root `package.json` (overrides `postcss@<8.5.18`, `jsondiffpatch@<0.7.6`), `docs/runbooks/STORAGE.md`, `docs/runbooks/secret-rotation.md`, this log. **DELETE:** none. Frozen zone: untouched. `pnpm-lock.yaml` NOT regenerated (cannot here): run the **Update Lockfile** workflow after merge, otherwise every `--frozen-lockfile` job fails with ERR_PNPM_OUTDATED_LOCKFILE.
+**Not verified (nothing run here):** that Storage accepts `sb_secret_` keys on the endpoints used; vitest/tsc; that the overrides resolve and `next build` still passes; that they clear the critical advisory; whether the `postcss` override is honoured by Next's bundled CSS pipeline.
+**Open:** send Render boot log (`storage` lines) and audit log lines 1-64. P5.1 stays unticked until runbook section 4 passes.
