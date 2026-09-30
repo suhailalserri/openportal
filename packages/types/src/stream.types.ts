@@ -10,6 +10,7 @@
  * content_block_stop; at most one block open at a time), then message_delta, then message_stop.
  * `message_stop` is ALWAYS the last event and is sent exactly once, including after an error.
  * An `error` event is informational and may appear before message_delta.
+ * P6.2: an informational `status` event may appear before the first block (never inside or after one).
  */
 
 /** Negotiated per request (see the header above). Runtime helpers live in apps/api (services/stream-v2.ts). */
@@ -36,8 +37,14 @@ export interface StreamUsage {
   creditCost: number;
 }
 
-/** "end_turn" = finished normally; "interrupted" = the upstream stream broke (partial answer, still billed). */
-export type StreamStopReason = "end_turn" | "interrupted";
+/**
+ * "end_turn" = finished normally; "interrupted" = the upstream stream broke (partial answer, still billed);
+ * "tool_use" (P6.2) = the model stopped to call tools. Nothing executes them yet (Stage 7).
+ */
+export type StreamStopReason = "end_turn" | "interrupted" | "tool_use";
+
+/** P6.2: coarse, honest progress codes. The client picks the wording. "waiting" = accepted, no output yet. */
+export type StreamStatusCode = "waiting";
 
 export type StreamEvent =
   | { type: "message_start"; message: { id: string; model: string; role: "assistant" } }
@@ -46,4 +53,5 @@ export type StreamEvent =
   | { type: "content_block_stop"; index: number }
   | { type: "message_delta"; delta: { stopReason: StreamStopReason }; usage: StreamUsage }
   | { type: "message_stop" }
+  | { type: "status"; code: StreamStatusCode }
   | { type: "error"; code: string; message: string };

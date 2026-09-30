@@ -18,6 +18,7 @@ import {
 import type { ResolveArgs, ResolvedAttachments } from "./chat-attachments.service";
 import type { StreamVersion } from "@ai-platform/types";
 import { StreamV2Writer } from "./stream-v2";
+import { StreamNormalizer, STATUS_AFTER_MS } from "./stream-normalize";
 
 /** What is actually sent to the provider: content is a string, or parts when an image is attached (P5.2b). */
 type ProviderMessage = { role: string; content: ProviderContent };
@@ -550,6 +551,14 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     ? new StreamV2Writer((frame) => { reply.raw.write(frame); }, { id: requestId, model: modelId })
     : null;
   v2?.start();
+  // P6.2: v2 maps reasoning and tool-call chunks too; v1 never does, so its path below is untouched.
+  const normalizer = v2 ? new StreamNormalizer(v2, requestId) : null;
+  // P6.2: if the upstream stays silent, say so once (status "waiting"). Cleared on the first output and
+  // in the finally below, so it can never fire after content or after the stream ended.
+  let statusTimer: ReturnType<typeof setTimeout> | null = v2
+    ? setTimeout(() => { statusTimer = null; v2.status("waiting"); }, STATUS_AFTER_MS)
+    : null;
+  const cancelStatus = () => { if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; } };
 
   streamingConnectionsActive.inc();
   try {
@@ -580,10 +589,15 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
           continue;
         }
 
-        const delta = parsed?.choices?.[0]?.delta?.content;
-        if (typeof delta === "string" && delta.length > 0) {
-          streamedContent += delta;
-          if (v2) v2.text(delta); else reply.raw.write(delta);
+        if (normalizer) {
+          if (normalizer.push(parsed)) cancelStatus();
+          streamedContent = normalizer.text;
+        } else {
+          const delta = parsed?.choices?.[0]?.delta?.content;
+          if (typeof delta === "string" && delta.length > 0) {
+            streamedContent += delta;
+            reply.raw.write(delta);
+          }
         }
 
         if (parsed?.usage) {
@@ -595,6 +609,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   } catch {
     // Stream interrupted — isPartial stays true
   } finally {
+    cancelStatus();
     streamingConnectionsActive.dec();
   }
 
@@ -608,8 +623,11 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     // downstream). Never let a missing usage object mean "bill nothing" —
     // fall back to the same char/4 estimate used for the pre-send estimate
     // shown in the UI. This is the last line of defense against a $0 chat.
-    if (streamedContent.length > 0 && outputTokens === 0) {
-      outputTokens = estimateTokenCount(streamedContent);
+    // P6.2: in v2, reasoning and tool-call arguments are output the model produced and the user pays for
+    // (v1 never has any, so `extraOutput` is "" there and nothing changes). The saved message stays text only.
+    const extraOutput = normalizer?.extraOutput ?? "";
+    if ((streamedContent.length > 0 || extraOutput.length > 0) && outputTokens === 0) {
+      outputTokens = estimateTokenCount(streamedContent + extraOutput);
     }
     if (inputTokens === 0) {
       // Billing must reflect what was actually SENT to the provider
@@ -630,14 +648,15 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     const isGarbageReply = isSafetyClassifierStub(streamedContent);
 
     // Bill exactly once, and only for output the user actually received (or a partial that streamed).
-    shouldBill = outputTokens > 0 || (isPartial && streamedContent.length > 0);
+    shouldBill = outputTokens > 0 || (isPartial && (streamedContent.length > 0 || extraOutput.length > 0));
     cost       = shouldBill && !isGarbageReply ? calcCreditCost(model, inputTokens, outputTokens) : 0;
 
     // P6.1: the v2 tail carries the usage, so it is written here, after the pure cost math and
     // before the response ends. Billing/saving below is unchanged and still runs after end().
     if (v2) {
       if (isPartial) v2.error("STREAM_INTERRUPTED", "انقطع الاتصال أثناء الاستجابة. يمكنك إعادة المحاولة.");
-      v2.finish(isPartial ? "interrupted" : "end_turn", { inputTokens, outputTokens, creditCost: cost });
+      const stopReason = isPartial ? "interrupted" : normalizer?.finishReason === "tool_calls" ? "tool_use" : "end_turn";
+      v2.finish(stopReason, { inputTokens, outputTokens, creditCost: cost });
     }
   } finally {
     // Always end the response, even if the bookkeeping above threw.

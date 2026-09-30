@@ -103,3 +103,53 @@ describe("StreamV2Writer block boundaries", () => {
     expect(() => { w.start(); w.text("x"); w.error("E", "m"); w.finish("interrupted", USAGE); }).not.toThrow();
   });
 });
+
+describe("StreamV2Writer (P6.2 additions)", () => {
+  it("thinking() opens a thinking block and appends to it; text closes it", () => {
+    const { w, events } = harness();
+    w.thinking("a"); w.thinking("b"); w.text("c"); w.finish("end_turn", USAGE);
+    expect(events().map((e) => e.type)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_delta",
+      "content_block_stop", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"]);
+  });
+
+  it("toolStart/toolArgs: fragments go to the open tool block only; an empty fragment is fine", () => {
+    const { w, events } = harness();
+    w.toolStart("t1", "f");
+    expect(w.toolArgs("t1", "{")).toBe(true);
+    expect(w.toolArgs("t1", "")).toBe(true);
+    expect(w.toolArgs("other", "x")).toBe(false);
+    w.toolStart("t2", "g");
+    expect(w.toolArgs("t1", "}")).toBe(false);   // t1 is closed now
+    w.finish("end_turn", USAGE);
+    const deltas = events().filter((e) => e.type === "content_block_delta");
+    expect(deltas).toHaveLength(1);
+    expect(events().filter((e) => e.type === "content_block_start")).toHaveLength(2);
+  });
+
+  it("toolArgs with no open block writes nothing; nothing is written after finish()", () => {
+    const { w, frames } = harness();
+    expect(w.toolArgs("t1", "{")).toBe(false);
+    expect(frames).toHaveLength(0);
+    w.finish("tool_use", USAGE);
+    const n = frames.length;
+    w.thinking("x"); w.toolStart("t", "f"); w.status("waiting");
+    expect(frames).toHaveLength(n);
+  });
+
+  it("status() is sent once before any block, never after one, and finish() still ends the stream", () => {
+    const a = harness();
+    a.w.status("waiting"); a.w.text("hi"); a.w.status("waiting"); a.w.finish("end_turn", USAGE);
+    expect(a.types()).toEqual(["message_start", "status", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"]);
+    expect(a.events()[1]).toEqual({ type: "status", code: "waiting" });
+    const b = harness();
+    b.w.status("waiting"); b.w.finish("end_turn", USAGE);
+    expect(b.types()).toEqual(["message_start", "status", "message_delta", "message_stop"]);
+  });
+
+  it("message_delta can carry stopReason tool_use", () => {
+    const { w, events } = harness();
+    w.finish("tool_use", USAGE);
+    expect(events()[1]).toMatchObject({ type: "message_delta", delta: { stopReason: "tool_use" } });
+  });
+});
+

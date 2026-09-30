@@ -10,7 +10,7 @@
  *   - a write that throws (client already gone) never throws out of the emitter.
  */
 import type {
-  StreamBlockDelta, StreamBlockStart, StreamEvent, StreamStopReason, StreamUsage, StreamVersion,
+  StreamBlockDelta, StreamBlockStart, StreamEvent, StreamStatusCode, StreamStopReason, StreamUsage, StreamVersion,
 } from "@ai-platform/types";
 
 export const STREAM_V2_MEDIA_TYPE = "application/vnd.aip.stream+v2";
@@ -42,7 +42,7 @@ export class StreamV2Writer {
   private finished = false;
   private nextIndex = 0;
   /** Index of the open block and its kind, or null when none is open. */
-  private open: { index: number; kind: StreamBlockStart["type"] } | null = null;
+  private open: { index: number; kind: StreamBlockStart["type"]; toolId?: string } | null = null;
 
   constructor(
     private readonly write: (frame: string) => void,
@@ -67,7 +67,44 @@ export class StreamV2Writer {
     this.emit({ type: "content_block_delta", index: this.open!.index, delta: { type: "text_delta", text } });
   }
 
-  /** Generic entry point for P6.2 (thinking, tool_use): same block rules as text(). */
+  /** P6.2: append reasoning text, opening a thinking block if the current block is not one. */
+  thinking(thinking: string): void {
+    if (this.finished || thinking.length === 0) return;
+    this.start();
+    this.ensureBlock({ type: "thinking" });
+    this.emit({ type: "content_block_delta", index: this.open!.index, delta: { type: "thinking_delta", thinking } });
+  }
+
+  /** P6.2: open a tool_use block (closing whatever is open). Its arguments follow via toolArgs(). */
+  toolStart(id: string, name: string): void {
+    if (this.finished) return;
+    this.start();
+    this.ensureBlock({ type: "tool_use", id, name });
+  }
+
+  /**
+   * P6.2: append a JSON fragment to the tool_use block `id`. Returns false (and writes nothing) when that
+   * block is not the open one, e.g. text or another call started in between: a fragment can never land in
+   * the wrong block.
+   */
+  toolArgs(id: string, partialJson: string): boolean {
+    if (this.finished || !this.open || this.open.kind !== "tool_use" || this.open.toolId !== id) return false;
+    if (partialJson.length === 0) return true;
+    this.emit({ type: "content_block_delta", index: this.open.index, delta: { type: "input_json_delta", partialJson } });
+    return true;
+  }
+
+  /**
+   * P6.2: coarse progress note. Only before the first block: once content exists it is no longer
+   * "waiting", and a status can never sit inside or after a block. No-op after finish().
+   */
+  status(code: StreamStatusCode): void {
+    if (this.finished || this.nextIndex > 0) return;
+    this.start();
+    this.emit({ type: "status", code });
+  }
+
+  /** Generic entry point: same block rules as text(). */
   delta(block: StreamBlockStart, delta: StreamBlockDelta): void {
     if (this.finished) return;
     this.start();
@@ -97,7 +134,7 @@ export class StreamV2Writer {
     if (this.open && this.open.kind === block.type && (block.type === "text" || block.type === "thinking")) return;
     this.closeBlock();
     const index = this.nextIndex++;
-    this.open = { index, kind: block.type };
+    this.open = block.type === "tool_use" ? { index, kind: block.type, toolId: block.id } : { index, kind: block.type };
     this.emit({ type: "content_block_start", index, contentBlock: block });
   }
 

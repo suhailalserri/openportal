@@ -399,3 +399,17 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   3. Same call without the `Accept` header: expect `text/plain; charset=utf-8` and plain text, as before. Send one normal message in the real chat UI: it must look and bill exactly as before.
   4. `/billing` history: the v2 call produced exactly one "Chat usage" transaction, and its amount equals `creditCost` in `message_delta` (micro-credits).
 - Frozen zone: one owner-delegated exception above; nothing else touched. No DELETE list.
+
+---
+
+## Session 45 - P6.2 Provider normalization (reasoning, tool calls, status)
+- New: `apps/api/src/services/stream-normalize.ts` (+ `stream-normalize.test.ts`). Changed: `stream-v2.ts` (+ tests), `packages/types/src/stream.types.ts`, `gateway.service.ts` (+ new P6.2 block in `gateway.service.test.ts`), `docs/frontend/API_CONTRACT.md` section 3, `docs/MASTER_PLAN.md`.
+- **External contract:** additive, v2 stream only. New event `status {code:"waiting"}` (once, before the first block, after ~2 s of upstream silence), new block types actually emitted (`thinking`, `tool_use`), new `stopReason: "tool_use"`. v1 (the whole current UI) is byte-identical. No migration, dependency, lockfile or env change. Frozen zone: untouched.
+- **Internal changes to know about:** (1) in v2 the usage fallback estimate and the "partial answer, bill it" check also count reasoning text and tool-call arguments (before, a reasoning-only partial billed nothing); saved `content` is still text only. v1 billing is unchanged. (2) A timer runs during every v2 stream (cleared on first output and in the read loop's `finally`).
+- **Known limits:** the request never sends `tools` or asks for reasoning, so `tool_use` does not occur today and `thinking` appears only if the gateway returns it by default; status cannot fire before the provider's headers arrive; out-of-order tool fragments are dropped (counted, never misplaced).
+- **Deploy order:** api only matters (web forwards nothing new). No migration.
+- **How to verify after deploy** (P6.2 stays unticked until 1-3 pass):
+  1. CI: Type-check & Lint, API Tests (look for `stream-normalize`, `stream-v2`, `gateway.service` P6.2 block), Web Build, E2E green.
+  2. Console fetch with `Accept: application/vnd.aip.stream+v2` (same snippet as Session 44) against a **reasoning model** if you have one published: expect a `thinking` block before the `text` block, and `message_delta.usage.outputTokens` > 0. Against a normal model: same output as in Session 44.
+  3. Same call without the header and one message in the real chat UI: plain text, looks and bills exactly as before; one "Chat usage" transaction.
+  4. Optional: send to a slow model and watch for one `status` frame at about 2 s. If it arrives only at the end, the Vercel proxy is buffering SSE (report it; do not fix it in web).

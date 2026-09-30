@@ -994,3 +994,191 @@ describe("streamChat — P6.1 stream protocol", () => {
     expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
   });
 });
+
+// ── P6.2: provider normalization in the v2 stream (reasoning, tool calls, status) ──────────────────
+describe("streamChat — P6.2 provider normalization", () => {
+  const sse = (obj: unknown) => `data: ${JSON.stringify(obj)}\n\n`;
+  const delta = (d: Record<string, unknown>, extra: Record<string, unknown> = {}) => sse({ choices: [{ delta: d, ...extra }] });
+  const stub = (chunks: string[]) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body: makeSseStream(chunks), json: async () => ({}) }));
+  const parse = (writes: string[]) =>
+    writes.join("").split("\n\n").filter(Boolean).map((f) => JSON.parse(f.split("\ndata: ")[1]!) as { type: string } & Record<string, any>);
+  const usage = sse({ usage: { prompt_tokens: 20, completion_tokens: 50 } });
+  const savedAssistant = () =>
+    insertValuesCalls.map((c) => c.values as { role?: string; content?: string; isPartial?: boolean }).filter((v) => v?.role === "assistant");
+
+  /** A stream the test feeds by hand, for the status timer. */
+  function controlled() {
+    const enc = new TextEncoder();
+    let ctrl!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({ start(c) { ctrl = c; } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+    return { push: (s: string) => ctrl.enqueue(enc.encode(s)), close: () => ctrl.close(), fail: () => ctrl.error(new Error("drop")) };
+  }
+
+  it("reasoning_content streams as a thinking block, then text; saved content is the text only; billed once", async () => {
+    stub([
+      delta({ role: "assistant", content: "" }),
+      delta({ reasoning_content: "Let me " }), delta({ reasoning_content: "think." }),
+      delta({ content: "The answer" }), delta({ content: " is 42" }, { finish_reason: "stop" }),
+      usage, `data: [DONE]\n\n`,
+    ]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const ev = parse(writes);
+    expect(ev.filter((e) => e.type === "content_block_start").map((e) => e.contentBlock.type)).toEqual(["thinking", "text"]);
+    expect(ev.filter((e) => e.delta?.type === "thinking_delta").map((e) => e.delta.thinking).join("")).toBe("Let me think.");
+    expect(ev.filter((e) => e.delta?.type === "text_delta").map((e) => e.delta.text).join("")).toBe("The answer is 42");
+    expect(ev.find((e) => e.type === "message_delta")!.delta).toEqual({ stopReason: "end_turn" });
+    expect(ev.at(-1)!.type).toBe("message_stop");
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(savedAssistant().map((v) => v.content)).toEqual(["The answer is 42"]);
+  });
+
+  it("tool calls: parallel, split arguments, valid JSON, stopReason tool_use, billed once", async () => {
+    stub([
+      delta({ tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "get_weather", arguments: "" } }] }),
+      delta({ tool_calls: [{ index: 0, function: { arguments: '{"city":"Da' } }] }),
+      delta({ tool_calls: [{ index: 0, function: { arguments: 'mascus"}' } }] }),
+      delta({ tool_calls: [{ index: 1, id: "call_2", type: "function", function: { name: "get_time", arguments: '{"tz":"UTC"}' } }] }),
+      delta({}, { finish_reason: "tool_calls" }),
+      usage, `data: [DONE]\n\n`,
+    ]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const ev = parse(writes);
+    const starts = ev.filter((e) => e.type === "content_block_start");
+    expect(starts.map((e) => [e.contentBlock.type, e.contentBlock.id, e.contentBlock.name])).toEqual([
+      ["tool_use", "call_1", "get_weather"], ["tool_use", "call_2", "get_time"]]);
+    const json = (index: number) => ev.filter((e) => e.index === index && e.delta?.type === "input_json_delta").map((e) => e.delta.partialJson).join("");
+    expect(JSON.parse(json(0))).toEqual({ city: "Damascus" });
+    expect(JSON.parse(json(1))).toEqual({ tz: "UTC" });
+    expect(ev.find((e) => e.type === "message_delta")!.delta).toEqual({ stopReason: "tool_use" });
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+
+  it("v1 is byte-identical when the upstream sends reasoning and tool chunks: text only, no extra frames", async () => {
+    stub([
+      delta({ reasoning_content: "hidden" }), delta({ reasoning: "hidden too" }),
+      delta({ tool_calls: [{ index: 0, id: "c", function: { name: "f", arguments: "{}" } }] }),
+      delta({ content: "Hel" }), delta({ content: "lo" }), usage, `data: [DONE]\n\n`,
+    ]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+    expect(writes).toEqual(["Hel", "lo"]);
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+
+  it("reasoning-only answer without a usage chunk is still billed (estimate counts reasoning), content saved empty", async () => {
+    stub([delta({ reasoning_content: "a long chain of thought that never became an answer" }), `data: [DONE]\n\n`]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const md = parse(writes).find((e) => e.type === "message_delta")!;
+    expect(md.usage.outputTokens).toBeGreaterThan(0);
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(deductCreditsAtomicMock.mock.calls[0]![1]).toBe(md.usage.creditCost);
+    expect(savedAssistant().map((v) => v.content)).toEqual([""]);
+  });
+
+  it("interrupted while a thinking block is open: block closed, error, interrupted, billed exactly once", async () => {
+    const enc = new TextEncoder();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) { if (pulls++ === 0) c.enqueue(enc.encode(delta({ reasoning_content: "thinking hard" }))); else c.error(new Error("drop")); },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const ev = parse(writes);
+    expect(ev.map((e) => e.type)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_stop",
+      "error", "message_delta", "message_stop"]);
+    expect(ev.find((e) => e.type === "message_delta")!.delta).toEqual({ stopReason: "interrupted" });
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+
+  it("interrupted while a tool_use block is open: block closed, one message_stop, billed exactly once", async () => {
+    const enc = new TextEncoder();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulls++ === 0) c.enqueue(enc.encode(delta({ tool_calls: [{ index: 0, id: "c", function: { name: "f", arguments: '{"a":' } }] })));
+        else c.error(new Error("drop"));
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const ev = parse(writes);
+    expect(ev.filter((e) => e.type === "message_stop")).toHaveLength(1);
+    expect(ev.at(-1)!.type).toBe("message_stop");
+    expect(ev.filter((e) => e.type === "content_block_start")).toHaveLength(ev.filter((e) => e.type === "content_block_stop").length);
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+
+  describe("status after silence", () => {
+    afterEach(() => { vi.useRealTimers(); });
+    const statuses = (writes: string[]) => parse(writes).filter((e) => e.type === "status");
+
+    it("one `status waiting` after 2 s of silence, none after content starts, timer cleared at the end", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const up = controlled();
+      const { reply, writes } = makeReply();
+      const done = callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(statuses(writes)).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(statuses(writes)).toEqual([{ type: "status", code: "waiting" }]);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(statuses(writes)).toHaveLength(1);                       // once, never repeated
+      up.push(delta({ content: "hi" })); up.push(usage); up.push(`data: [DONE]\n\n`); up.close();
+      await done;
+      const ev = parse(writes);
+      expect(ev.map((e) => e.type)).toEqual(["message_start", "status", "content_block_start", "content_block_delta",
+        "content_block_stop", "message_delta", "message_stop"]);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("no status when output arrives in time (reasoning counts as output)", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const up = controlled();
+      const { reply, writes } = makeReply();
+      const done = callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+      await vi.advanceTimersByTimeAsync(1_000);
+      up.push(delta({ reasoning_content: "hmm" }));
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(statuses(writes)).toHaveLength(0);
+      up.push(usage); up.close();
+      await done;
+      expect(statuses(writes)).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("no status after the stream ended or broke: the timer is cleared on every path", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      for (const how of ["close", "fail"] as const) {
+        const up = controlled();
+        const { reply, writes } = makeReply();
+        const done = callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+        await vi.advanceTimersByTimeAsync(500);
+        up[how]();
+        await done;
+        expect(vi.getTimerCount()).toBe(0);
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(statuses(writes)).toHaveLength(0);
+        expect(parse(writes).at(-1)!.type).toBe("message_stop");
+      }
+    });
+
+    it("v1 never gets a status frame or a timer", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const up = controlled();
+      const { reply, writes } = makeReply();
+      const done = callStreamChat({ ...baseOpts, reply });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(writes).toHaveLength(0);
+      up.push(delta({ content: "hi" })); up.push(usage); up.close();
+      await done;
+      expect(writes).toEqual(["hi"]);
+    });
+  });
+});
