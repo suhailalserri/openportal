@@ -48,7 +48,12 @@ jobs:
           npm_config_manage_package_manager_versions: "false"
         run: |
           set -uo pipefail
+          # --ignore CVE-2026-39356 (GHSA-gpj5-g38j-94v9, drizzle-orm <0.45.2): accepted risk, see
+          # docs/production/LAUNCH_GATE.md "Accepted risks". Only untrusted input passed to
+          # sql.identifier()/.as() is affected; this repo uses neither. REVIEW: remove this flag when
+          # drizzle-orm is upgraded (own session), and in any case by 2026-12-31.
           npx --yes pnpm@10 audit --prod --audit-level high \
+            --ignore CVE-2026-39356 \
             --config.manage-package-manager-versions=false 2>&1 | tee audit.log
           status=${PIPESTATUS[0]}
 

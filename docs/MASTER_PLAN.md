@@ -114,7 +114,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
 **Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
 **Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 (code done, awaiting staging + first run + results: docs/runbooks/LOAD_TEST.md) · [x] P4.3 **← LAUNCH GATE** (ticked on the owner's word, 2026-09-30: owner states the gate is cleared; Claude did not re-walk it. First walk was NO-GO, evidence pack: docs/production/LAUNCH_GATE.md)
-**Stage 5** — [ ] P5.1 (code done, awaiting CI + migration 0021 + owner steps: docs/runbooks/STORAGE.md) · [ ] P5.2 · [ ] P5.3
+**Stage 5** — [x] P5.1 (ticked 2026-09-30: CI green, migration 0021 applied, buckets live, owner verified docs/runbooks/STORAGE.md section 4 steps 1-3; step 4 end-to-end check happens with P5.2) · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
 **Stage 7** — [ ] P7.1 · [ ] P7.2 · [ ] P7.3 · [ ] P7.4
 

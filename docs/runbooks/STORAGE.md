@@ -48,6 +48,8 @@ The cascade is done by the sweep on purpose: the delete-account and delete-conve
 3. `select tablename, rowsecurity from pg_tables where tablename = 'storage_objects';` -> `rowsecurity = t`.
 4. After P5.2 ships: upload a small PDF, confirm it, download it, delete the conversation, and within ~30 min the object is gone from Storage.
 
+Owner result, 2026-09-30: steps 1-3 passed (both buckets present with the expected size/type limits and 0 policies; `pg_policies` count for `storage.objects` = 0; `storage_objects` `rowsecurity` = t). Step 4 waits for P5.2.
+
 ## 5. Turn it off / roll back
 
 Remove either env var on Render and redeploy: storage features switch off, the sweep stops registering. Existing objects stay in Supabase until you delete them by hand; the table is harmless to keep.
