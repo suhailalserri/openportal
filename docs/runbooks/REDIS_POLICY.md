@@ -8,7 +8,7 @@ Redis holds BullMQ jobs, the P1.2 billing lock and rate-limit counters. Losing a
 3. Memory alert at 70% of `maxmemory`. With `noeviction`, writes fail at 100%.
 
 ## What the app does by itself
-- On api start and every 10 min (`redisHealth` job on the reports queue): reads `CONFIG GET maxmemory-policy` and `INFO memory`.
+- On api start and every 30 min (`redisHealth` job on the reports queue): reads `CONFIG GET maxmemory-policy` and `INFO memory`.
   - policy != noeviction -> Telegram CRITICAL + Sentry issue (`source:redis-health`, `check:eviction-policy`), repeated every 6 h while wrong.
   - memory >= 70% -> Telegram warning + Sentry issue (`check:memory`), repeated hourly.
   - If the provider blocks `CONFIG` or reports `maxmemory:0`, the app logs `[redis-health] ...` once and cannot judge: do the manual steps below.
@@ -23,8 +23,14 @@ Redis holds BullMQ jobs, the P1.2 billing lock and rate-limit counters. Losing a
 ## Drills (do once, then tick LAUNCH_CHECKLIST line "Upstash eviction is off")
 - **Failing job:** deploy, then trigger a job that throws (e.g. temporarily point RESEND key at garbage and register a user, or use a one-off script that adds a bad job to the `email` queue). Expect: Sentry issue tagged `queue:email`; `/metrics` shows `aip_job_failures_total{queue="email"}` rising; after 5 failures in 5 min, one Telegram message.
 - **Retention:** in the Upstash data browser, `bull:email:failed` entries older than 7 days disappear (needs new jobs to finish, BullMQ trims on job completion).
-- **Policy alert:** only if you can change the policy safely on a non-prod database: set it to `allkeys-lru`, wait <= 10 min, expect the CRITICAL Telegram, set it back.
+- **Policy alert:** only if you can change the policy safely on a non-prod database: set it to `allkeys-lru`, wait <= 30 min, expect the CRITICAL Telegram, set it back.
 
 ## Notes
 - The `messages` queue is created in `queue.ts` but has NO worker and nothing enqueues to it (`queueSaveMessage` is unused). It got retention like the others; deleting it is a separate cleanup.
 - Jobs already sitting in Redis keep their old options; retention applies to jobs added after this deploy.
+
+## Upstash Free plan budget (500k commands/month)
+- The Free plan is a hard cap. The repo docs say locks and idempotency fail closed on money paths, so hitting the cap means chat returns 503 until the month resets. Watch Upstash -> Details -> Commands; at ~70% act.
+- Scheduled jobs are 30 min apart (`modelLatencySync`, `redisHealth`, `storageSweep`). Changing a cron pattern must go through `upsertRepeatable` (`jobs/repeat-jobs.ts`), otherwise the old schedule stays in Redis and keeps running.
+- On Upstash `CONFIG` is blocked and `maxmemory` reads 0, so the `[redis-health] cannot read maxmemory-policy` / `maxmemory unknown/0` lines at boot are expected. The job cannot judge anything there: check **Eviction = off** in the Upstash console instead.
+- The remaining baseline is three idle BullMQ workers (email, alerts, reports) polling, plus chat traffic (billing lock, rate limits, idempotency). L15: move to a paid plan before real users.

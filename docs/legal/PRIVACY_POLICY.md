@@ -71,7 +71,7 @@ contents, and we do not use it for advertising or tracking.
 | Account information | Until account deletion |
 | Conversations (free users) | 90 days |
 | Conversations (paid users) | 12 months |
-| Files attached to a conversation | Until you delete the conversation or your account (removed within about 15 minutes of deletion) |
+| Files attached to a conversation | Until you delete the conversation or your account (removed within about 30 minutes of deletion) |
 | Voice recordings | Deleted right after transcription; at most 24 hours if that fails |
 | Uploads that were never completed | 1 hour |
 | Transaction records | 5 years (legal requirement) |

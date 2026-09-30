@@ -9,6 +9,7 @@ import { reportError } from "../monitoring/error-hook";
 import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
 import { runPriceGuard } from "../services/price-guard.service";
 import { getStorageService } from "../services/storage.service";
+import { upsertRepeatable } from "./repeat-jobs";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -31,22 +32,19 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "weekly-report",
   });
 
-  // ── Every 15 min: Model provider + latency sync ─────────────────────
+  // ── Every 30 min: Model provider + latency sync ─────────────────────
   // Keeps the model picker's speed/provider badges fresh without relying
   // on an admin remembering to click "Sync now". Discovery of brand-new
   // models still only happens here too, but new models still land as
   // status="pending" — this never auto-publishes anything or changes
   // pricing, same guarantee as the admin-triggered sync.
-  await queue.add("modelLatencySync", {}, {
-    repeat: { pattern: "*/15 * * * *" },
-    jobId:  "model-latency-sync",
-  });
+  // 30 min (was 15): every run costs Redis commands and the free Upstash plan is capped.
+  // upsertRepeatable also removes the old 15-min schedule left in Redis by earlier deploys.
+  await upsertRepeatable(queue, "modelLatencySync", "*/30 * * * *", "model-latency-sync");
 
   // P2.3: Redis eviction policy + memory check (see redis-health.ts).
-  await queue.add("redisHealth", {}, {
-    repeat: { pattern: "*/10 * * * *" },
-    jobId:  "redis-health",
-  });
+  // 30 min (was 10). Also clears the old 10-min schedule.
+  await upsertRepeatable(queue, "redisHealth", "*/30 * * * *", "redis-health");
 
   // P3.5: drop expired better-auth rate-limit counters (see auth-rate-limit.service.ts).
   await queue.add("pruneAuthRateLimit", {}, {
@@ -63,10 +61,8 @@ export async function registerScheduledJobs(queue: Queue) {
   // P5.1: storage sweep (orphans, deleted conversations/accounts). Only when storage is configured,
   // so an unconfigured deploy adds no Redis traffic (N11).
   if (getStorageService()) {
-    await queue.add("storageSweep", {}, {
-      repeat: { pattern: "*/15 * * * *" },
-      jobId:  "storage-sweep",
-    });
+    // 30 min: deletion cascade latency is up to ~30 min (privacy policy says "about 30 minutes").
+    await upsertRepeatable(queue, "storageSweep", "*/30 * * * *", "storage-sweep");
   }
 
   console.log("✓ Scheduled jobs registered");
@@ -170,7 +166,7 @@ export async function runProviderBalanceCheck() {
   console.log("[scheduled] providerBalanceCheck: no provider API integration configured — skipping.");
 }
 
-// ── Every 15 min: model provider + latency sync ────────────────────────
+// ── Every 30 min: model provider + latency sync ────────────────────────
 // Same sync the admin "Sync now" button triggers (see model-sync.service.ts
 // and models.router.ts `sync`), run unattended. adminUserId is omitted —
 // a scheduled run has no admin behind it, and updatedByAdminId is nullable
@@ -178,9 +174,9 @@ export async function runProviderBalanceCheck() {
 //
 // Debounced failure alerting: process-local, resets on restart. Good
 // enough here — the alternative (a Redis-backed cooldown) is real
-// complexity for a job that already re-tries every 15 minutes on its
+// complexity for a job that already re-tries every 30 minutes on its
 // own; without this, a gateway outage lasting hours would otherwise
-// re-page the same "gateway unreachable" warning every 15 minutes.
+// re-page the same "gateway unreachable" warning every 30 minutes.
 let lastSyncFailureAlertAt = 0;
 const SYNC_FAILURE_ALERT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 

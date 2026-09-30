@@ -27,15 +27,15 @@ The service-role key bypasses every Supabase access rule. Treat it like `DATABAS
 | Quotas | 200 MiB total and 30 uploads / 24 h per user | `STORAGE_LIMITS` |
 | Upload confirm | object must exist and be no larger than declared | `confirmUpload` |
 | Download URL | 5 min (max 15), only for confirmed objects of your own live conversation | `getDownloadUrl` |
-| Orphans | never confirmed within 1 h -> deleted | sweep every 15 min |
+| Orphans | never confirmed within 1 h -> deleted (at most ~1.5 h) | sweep every 30 min |
 | Audio | anything older than 24 h -> deleted (P5.3 deletes right after transcription) | sweep |
-| Deletion cascade | soft-deleted conversation, or self-deleted (anonymized) account -> objects deleted on the next sweep (up to ~15 min) | sweep |
+| Deletion cascade | soft-deleted conversation, or self-deleted (anonymized) account -> objects deleted on the next sweep (up to ~30 min) | sweep |
 
 The cascade is done by the sweep on purpose: the delete-account and delete-conversation routes are in the frozen zone and stay untouched.
 
 ## 3. Watching it
 
-- Render log, every 15 min when there is work: `[scheduled] storageSweep: claimed N, removed N, failed N, purged N.`
+- Render log, every 30 min when there is work: `[scheduled] storageSweep: claimed N, removed N, failed N, purged N.`
 - `failed > 0` also goes to Sentry (`job=storageSweep`). Failed rows stay `deleting` and are retried every run.
   Stuck for days? Check Supabase status and that the key is still valid.
 - Rows stuck in `deleting`:  `select count(*) from storage_objects where status = 'deleting' and created_at < now() - interval '1 day';`
@@ -46,7 +46,7 @@ The cascade is done by the sweep on purpose: the delete-account and delete-conve
 2. Anonymous access is denied. In the SQL editor: `select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects';` should be `0`
    (no policy = no direct client access). If it is not 0, list them and remove any that mention `attachments` or `audio`.
 3. `select tablename, rowsecurity from pg_tables where tablename = 'storage_objects';` -> `rowsecurity = t`.
-4. After P5.2 ships: upload a small PDF, confirm it, download it, delete the conversation, and within ~15 min the object is gone from Storage.
+4. After P5.2 ships: upload a small PDF, confirm it, download it, delete the conversation, and within ~30 min the object is gone from Storage.
 
 ## 5. Turn it off / roll back
 
