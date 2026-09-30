@@ -43,7 +43,7 @@ export async function loadActiveModels(): Promise<PricedModel[]> {
 
 export interface PriceGuardRun {
   evaluation: Evaluation;
-  upstreamError?: string;
+  upstreamError?: string | undefined;
   alerted: boolean;
 }
 

@@ -36,7 +36,8 @@ beforeEach(async () => { await resetTestDb(); });
 
 async function insertModel(o: Partial<typeof schema.models.$inferInsert> & { id: string }) {
   await db.insert(schema.models).values({
-    displayName: o.id, displayNameAr: o.id, provider: "openrouter",
+    // display_name / display_name_ar are varchar(100); ids can be longer (id is varchar(150)).
+    displayName: o.id.slice(0, 100), displayNameAr: o.id.slice(0, 100), provider: "openrouter",
     contextWindow: 8000, maxOutputTokens: 1000, ...o,
   });
 }

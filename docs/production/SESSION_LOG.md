@@ -841,3 +841,21 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - `apps/web` does not consume `getDashboardStats`; the "daily revenue vs cost" number exists in the API only. Showing it is frontend work.
 
 **Next (owner):** CI green (`API Tests` should list the three new test files). Apply migration 0020 to production. Run `price-audit` once and fix what it lists. Do the drill in `docs/runbooks/PRICE_GUARD.md` (save a test model at markup 0.5, expect a CRITICAL Telegram message), then tick P3.6 and the launch-checklist line. Next per plan: Stage 4, P4.1 (backup drill).
+
+
+## Session 28 - 2026-09-30 - P3.6 CI fix pass (two failures from Session 27) - code done, CI re-run pending
+
+**Input:** owner's two CI screenshots (`Type-check & Lint`, `API Tests (Testcontainers)`) after Session 27. Phase Summary approved ("Ok").
+
+**Findings (both were my mistakes, no behavior change):**
+- **Type-check:** `price-guard.service.ts(70,43)` and `(72,3)`, TS2379 / TS2375. `tsconfig.base.json` has `exactOptionalPropertyTypes: true`; I passed `upstreamError: string | undefined` into fields declared `upstreamError?: string`. Fix: declare them `upstreamError?: string | undefined` in `PriceGuardRun` and in the `formatDigest` options. Consumers only truthy-check it (`scheduled.jobs.ts`), so nothing else changes.
+- **API Tests:** 1 failed, 492 passed. `price-guard.service.test.ts > migration 0020 backfill`, `PostgresError: value too long for type character varying(100)`. Cause: the test helper `insertModel` set `displayName`/`displayNameAr` to the model id, and the over-long-id case uses a 120-char id, while `models.display_name` and `display_name_ar` are `varchar(100)`. The setup insert failed, not the migration; `0020` is unchanged and its `length(id) <= 100` filter is correct. Fix: the helper caps both display names at 100 characters.
+
+**Changed:** `apps/api/src/services/price-guard.ts`, `apps/api/src/services/price-guard.service.ts`, `apps/api/src/services/price-guard.service.test.ts`, `docs/production/SESSION_LOG.md`. **DELETE:** none. Frozen zone: untouched.
+
+**Not verified (no node_modules, Postgres or Docker here):**
+- `tsc`, lint and vitest were not run. I checked by reading that the only other users of these types are `scheduled.jobs.ts` (truthy check) and the tests.
+- Only the first failing assertion in the migration test was visible in your logs. If the test has a second problem behind the setup insert (for example the `priceRows` lookup or the idempotency step), it will show up on the next CI run.
+- `Web Build (next build)` and `E2E (Playwright)` were not green in your screenshot and I did not see their logs. If they fail, send them.
+
+**Next (owner):** CI green (`Type-check & Lint`, `API Tests` 493/493). Then still open from Session 27: apply migration 0020 to production, run `price-audit`, do the drill in `docs/runbooks/PRICE_GUARD.md`.

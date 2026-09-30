@@ -156,7 +156,7 @@ const MAX_LINES = 15;
  */
 export function formatDigest(
   ev: Evaluation,
-  opts: { upstreamError?: string } = {},
+  opts: { upstreamError?: string | undefined } = {},
 ): { level: "warning" | "critical"; message: string } | null {
   if (ev.findings.length === 0 && !opts.upstreamError) return null;
 
