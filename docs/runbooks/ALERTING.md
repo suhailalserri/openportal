@@ -11,6 +11,7 @@ Everything goes to ONE Telegram chat (`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`)
 | Fraud auto-suspend | (new) | Telegram CRITICAL per user+type, 1 per hour | app: `fraud.service.ts` |
 | Billing lock store (Redis) unreachable | (P1.2) | Telegram CRITICAL, throttled 5 min | app: `billing-lock.service.ts` |
 | Failed-job burst (>=5 in 5 min per queue) | (P2.3) | Telegram WARNING | app: `jobs/job-failures.ts` |
+| Model sold below cost / margin under 40% / unpriced / provider price drift | (new, P3.6) | Telegram CRITICAL or WARNING: at once on an admin price save, and a daily 04:00 UTC digest | app: `services/price-guard*.ts`, runbook `PRICE_GUARD.md` |
 | Redis policy != noeviction / memory >= 70% | RedisMemoryHigh | Telegram CRITICAL / WARNING | app: `jobs/redis-health.ts` |
 | Any new error type / error spike | HighErrorRate | Telegram via Sentry rule (below) | Sentry -> `/internal/sentry-alert` |
 | web / api / gateway down | ExporterDown | Telegram via uptime monitor (below) | UptimeRobot / Better Stack |

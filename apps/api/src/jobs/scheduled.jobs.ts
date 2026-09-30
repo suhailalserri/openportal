@@ -7,6 +7,7 @@ import { syncModelsFromGateway }  from "../services/model-sync.service";
 import { createRedisHealthMonitor, type RedisHealthClient } from "./redis-health";
 import { reportError } from "../monitoring/error-hook";
 import { pruneAuthRateLimit } from "../services/auth-rate-limit.service";
+import { runPriceGuard } from "../services/price-guard.service";
 
 // Called on server startup to register scheduled jobs
 export async function registerScheduledJobs(queue: Queue) {
@@ -52,6 +53,12 @@ export async function registerScheduledJobs(queue: Queue) {
     jobId:  "prune-auth-rate-limit",
   });
 
+  // P3.6: provider-cost guard. Daily, after the 03:00/03:30 housekeeping.
+  await queue.add("priceGuard", {}, {
+    repeat: { pattern: "0 4 * * *" },
+    jobId:  "price-guard",
+  });
+
   console.log("✓ Scheduled jobs registered");
 }
 
@@ -81,6 +88,27 @@ export async function runPruneAuthRateLimit() {
   } catch (err) {
     reportError(err, { tags: { source: "scheduled", job: "pruneAuthRateLimit" } });
     console.error("[scheduled] pruneAuthRateLimit failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * P3.6. Compares every published+available model's price to its cost (upstream
+ * price when the OpenRouter feed matches, else our own wholesale) and sends ONE
+ * Telegram digest if anything is below cost, under the margin bar, unpriced or
+ * drifting. Silent when clean. A failure is reported to Sentry, never thrown
+ * into a retry loop (it is a daily check, tomorrow's run is the retry).
+ */
+export async function runPriceGuardJob() {
+  try {
+    const run = await runPriceGuard({ alert: (message, level) => queueAlert(message, level) });
+    console.log(
+      `[scheduled] priceGuard: checked ${run.evaluation.checked}, ${run.evaluation.findings.length} finding(s), ` +
+      `${run.evaluation.unchecked.length} without upstream match` +
+      (run.upstreamError ? `, upstream feed failed: ${run.upstreamError}` : "") + ".",
+    );
+  } catch (err) {
+    reportError(err, { tags: { source: "scheduled", job: "priceGuard" } });
+    console.error("[scheduled] priceGuard failed:", err instanceof Error ? err.message : err);
   }
 }
 

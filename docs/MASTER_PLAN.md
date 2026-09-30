@@ -112,7 +112,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 0** — [x] P0.1 · [x] P0.2
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
-**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6
+**Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
 **Stage 4** — [ ] P4.1 · [ ] P4.2 · [ ] P4.3 **← LAUNCH GATE**
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
@@ -233,6 +233,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Closes:** N7.
 - Turn `infra/scripts/price-audit.ts` into a scheduled job: for every active model, compare `sellPrice` to gateway cost × required margin; alert (Telegram) if any model sells below cost or a provider price changed. Add a daily "revenue vs upstream cost" number to the admin dashboard.
 - **Done when:** editing a model price below cost triggers an alert in a test.
+- **As built (P3.6):** the plan's `sellPrice` and "gateway cost" do not exist as such: sell price is `wholesale x markup` on the `models` row and wholesale is admin-typed, so "gateway cost" is taken from OpenRouter's public model list (the real upstream, ADR-011), matched by model id, best-effort. `services/price-guard.ts` (pure checks + digest + OpenRouter parser), `price-guard.service.ts` (DB glue), daily `priceGuard` job at 04:00 UTC (one Telegram digest, silent when clean), and an immediate local-only alert from `models.publish`. Bug found and fixed on the way: nothing ever wrote `provider_prices`, so the dashboard's cost was always $0 and margin ~100%; `publish` now writes price history in the same transaction (`provider-price.service.ts`) and migration `0020_provider_prices_backfill.sql` seeds current prices (history before it is an estimate). `price-audit.ts` now reads the live DB. The "daily revenue vs upstream cost" number already exists in `admin.getDashboardStats` (`cost`, `marginPercent`) and `getRevenueTimeseries`; `apps/web` does not consume them yet (frontend plan). Runbook: `docs/runbooks/PRICE_GUARD.md`.
 
 ---
 

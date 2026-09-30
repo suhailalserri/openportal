@@ -353,3 +353,14 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - Frozen-zone exceptions (owner-approved 2026-09-30, "fix them and delete them if not wired"): (1) deleted the 8 `apps/web/app/api/admin/**` REST routes (repo-wide grep: zero callers; they bypassed the 2FA gate; every one has a tRPC equivalent). (2) `apps/web/lib/auth.ts`: `rateLimit.storage: "database"` + `rateLimit` in the adapter schema map (2 small edits). Supporting: `packages/db/src/schema/rate-limit.ts`, migration `0019_auth_rate_limit.sql` (RLS on, `key` indexed not unique), registered in `deploy.yml` and `db-ops.yml` lists; nightly `pruneAuthRateLimit` job (`services/auth-rate-limit.service.ts`). Comments that referred to the deleted routes updated.
 - **Deploy order:** run 0019 on production BEFORE the web deploy, or `/api/auth/*` errors.
 
+
+## P3.6 - Provider-cost guard (closes N7)
+- New pure module `apps/api/src/services/price-guard.ts`: `evaluateModelPrices()` flags `below_cost` (critical), `low_margin` (< 40%), `zero_wholesale` and `upstream_drift` (> 5%); `formatDigest()`; OpenRouter public model-list parser/fetcher. Real cost = the OpenRouter price when the model id matches, else our own wholesale. Models with no match are counted as "no upstream match", never silently passed.
+- New daily `priceGuard` job (04:00 UTC, `reports` queue): one Telegram digest via `queueAlert`, silent when clean; an unreachable feed is reported in the digest. Runs only over `published` AND `isAvailable` models.
+- `models.publish` now (1) runs inside a transaction that also writes `provider_prices`, and (2) after commit fires a local-only, fire-and-forget Telegram alert if the saved price is below cost / under the margin bar / unpriced. An alert failure never fails or rolls back the save (L12).
+- **Bug fixed:** nothing ever wrote `provider_prices`, so `dashboard.service.ts` priced all usage at $0 (admin cost 0, margin ~100%). Now written on publish (`provider-price.service.ts`, USD per 1K tokens, append-only history) and seeded by migration `0020_provider_prices_backfill.sql`. Past-period dashboard cost is an estimate (valued at today's wholesale) until prices change after deploy.
+- `infra/scripts/price-audit.ts` now reads the live `models` table and reuses the same checks (`--offline` skips the feed). Run: `pnpm --filter @ai-platform/db exec tsx ../../infra/scripts/price-audit.ts`.
+- **External contract:** no change. `models.publish` input and response are identical. `admin.getDashboardStats` / `getRevenueTimeseries` keep their shape; only the `cost` values become real.
+- **Deploy order:** migration 0020 can run before or after the deploy (idempotent). No new env vars. Registered in `deploy.yml` (e2e) and `db-ops.yml` lists.
+- Frozen zone: untouched (no file under `apps/web` edited). No DELETE list.
+- Runbook: `docs/runbooks/PRICE_GUARD.md`; alert table row added to `docs/runbooks/ALERTING.md`.

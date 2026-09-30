@@ -42,7 +42,7 @@ Items name the plan phase that produces the evidence.
 - [ ] Secret-rotation runbook rehearsed once — P3.4 (code + runbook done; tick after the INTERNAL_SERVICE_TOKEN rehearsal and GitHub secret scanning + push protection are on)
 - [ ] CORS, headers, body limits, Zod limits, admin 2FA enforced, Turnstile live — P3.5 (code done; legacy admin REST routes deleted; owner steps 2-5 in SECURITY_SWEEP.md; **apply migration 0019 before deploying**)
 - [ ] Dependabot, `pnpm audit`, secret scanning, branch protection (`API Tests (Testcontainers)`, `Web Build (next build)`) on — P3.5 (files added; owner steps 7-8)
-- [ ] Provider-cost guard alerting; model prices confirmed against `markupMultiplier` — P3.6
+- [ ] Provider-cost guard alerting; model prices confirmed against `markupMultiplier` — P3.6 (code done, awaiting CI + migration 0020 + drill: docs/runbooks/PRICE_GUARD.md)
 - [ ] `db-ops.yml` "reset" options understood; production `DATABASE_URL` secret access limited — P3.5 (reset now refuses when users exist; **first check production for `admin@localhost.dev` (SECURITY_SWEEP.md step 1)**)
 
 ## Business & legal

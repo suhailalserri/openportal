@@ -12,6 +12,9 @@ import {
 import { syncModelsFromGateway } from "../services/model-sync.service";
 import { TRPCError } from "@trpc/server";
 import { LIMITS, modelIdSchema } from "../security/limits";
+import { recordProviderPrice } from "../services/provider-price.service";
+import { notifyIfPriceUnsafe } from "../services/price-guard.service";
+import { sendTelegram } from "../monitoring/telegram";
 
 function creditsPerK(wholesaleCostPerM: number, markup: number): number {
   return Math.ceil((wholesaleCostPerM * markup / 1000) / CREDIT_VALUE_USD);
@@ -125,7 +128,10 @@ export const modelsRouter = router({
       systemPrompt:            z.string().max(20_000).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [updated] = await db
+      // P3.6: the model row and its provider_prices history change together or
+      // not at all, so the dashboard's cost never disagrees with what billing used.
+      const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
         .update(models)
         .set({
           displayName:             input.displayName,
@@ -151,7 +157,20 @@ export const modelsRouter = router({
         .where(eq(models.id, input.modelId))
         .returning();
 
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Model not found" });
+      await recordProviderPrice(tx, {
+        id:               row.id,
+        provider:         row.provider,
+        wholesaleInPerM:  Number(row.wholesaleCostInputPerM),
+        wholesaleOutPerM: Number(row.wholesaleCostOutputPerM),
+      });
+      return row;
+      });
+
+      // P3.6: unsafe price (below cost / low margin) -> Telegram now, not tomorrow.
+      // Fire-and-forget and local-only: never delays or fails the admin request (L12).
+      void notifyIfPriceUnsafe(updated, (msg, level) => sendTelegram(msg, level));
+
       return { success: true };
     }),
 

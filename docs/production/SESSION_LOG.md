@@ -817,3 +817,27 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 
 **Next (owner):** CI green (`API Tests` should list `rest-admin-guard`, `auth-rate-limit.service` tests and E2E). **Apply 0019 to production BEFORE merging/deploying** (SECURITY_SWEEP.md step 2), then the remaining steps there (seed-account check first). Next per plan: P3.6.
 
+
+## Session 27 - 2026-09-30 - P3.6 Provider-cost guard (closes N7) - code done, CI + migration 0020 + drill pending
+
+**Input:** repo zip + the plan. Phase Summary approved by the owner ("Ok") with my defaults: D1 OpenRouter public list for upstream drift (best-effort), D2 40% minimum gross margin, D3 `provider_prices` stored per 1K tokens with a backfill migration.
+
+**Correction to my own pre-build summary:** I wrote that this log "stops at Session 10" and that the tracker/repo disagreed. That was wrong: I had read only the first 400 lines. The log runs to Session 26 and the repo's `docs/MASTER_PLAN.md` tracker already carries the "code done, awaiting ..." annotations. The **uploaded** `MASTER_PLAN.md` is an older copy (bare tracker, no "As built" notes); this session edited the repo copy. No tracker box ticked.
+
+**Plan vs code (told to owner before building):** the plan's "sellPrice vs gateway cost" has no direct counterpart. Sell price = `wholesale x markup` on the `models` row; wholesale is admin-typed, never read from the gateway. "Gateway cost" is taken from OpenRouter's public list (the real upstream per ADR-011). New API's own pricing holds manual ratios, not provider cost, so it was not used. Also found: nothing ever wrote `provider_prices`, so the dashboard's cost was always $0.
+
+**Changed:** `apps/api/src/routers/models.router.ts` (publish in a transaction + price history + alert), `jobs/scheduled.jobs.ts` (job + runner), `jobs/report.worker.ts` (case), `infra/scripts/price-audit.ts` (rewritten), `.github/workflows/{deploy,db-ops}.yml` (0020 in the lists), `docs/{MASTER_PLAN,LAUNCH_CHECKLIST,PR_NOTES}.md`, `docs/runbooks/ALERTING.md`, this log.
+**New:** `services/{price-guard,price-guard.service,provider-price.service}.ts`; tests `services/price-guard.test.ts`, `services/price-guard.service.test.ts`, `routers/models-price-guard.test.ts`; migration `packages/db/src/migrations/0020_provider_prices_backfill.sql`; `docs/runbooks/PRICE_GUARD.md`. Frozen zone untouched. No DELETE list.
+
+**Tests (written to fail on the old code, by reading it):** editing a price below cost sends a critical Telegram alert (plan "done when"); healthy price sends none; alert failure does not fail the save; publish writes per-1K `provider_prices` and a later change closes the old row; dashboard cost is 0.02 for 1000 in + 1000 out at 5/15 USD per 1M (old code: 0); migration 0020 seeds only priced, short-id models and is idempotent; the daily run ignores disabled/hidden/pending models, is silent when clean, and reports a dead feed.
+
+**Verified (executed here):** Node type-strip parse of every touched TS file; `price-guard.test.ts` (31 cases, the pure logic) executed for real through a small vitest shim, 31/31 passed (a shim, not vitest itself); migration file checked for balanced quotes/parens and a single statement; both workflows list 0020 once.
+
+**Not verified (no node_modules, no Postgres, no Docker, no network here):**
+- `tsc`, lint, vitest, CI. Typing from memory: passing a drizzle transaction as `DbHandle = Pick<typeof db, "select"|"insert"|"update">` (structurally should work, same idea as `revokeUserSessions`); the `vi.mock(..., async (orig) => ...)` partial mock of `monitoring/telegram`.
+- The two DB-backed test files and migration 0020 have never run against Postgres. Highest risk: timestamp round-trips in the history test; `db.execute(sql.raw(<file>))` on a file that contains comments.
+- **The OpenRouter response shape** (`data[].id`, `pricing.prompt/completion` as USD-per-token strings, `-1` for dynamic models) is from memory. If it differs, the parser returns nothing, the fetch throws "no usable prices", and the digest says the feed is unavailable (loud, not silent). How many of your gateway model ids match OpenRouter ids is unknown until `price-audit` runs.
+- Telegram delivery, the 04:00 UTC job on real BullMQ/Redis, and the "log-hygiene" scanner over the new console calls (checked by reading the rules: no forbidden identifiers).
+- `apps/web` does not consume `getDashboardStats`; the "daily revenue vs cost" number exists in the API only. Showing it is frontend work.
+
+**Next (owner):** CI green (`API Tests` should list the three new test files). Apply migration 0020 to production. Run `price-audit` once and fix what it lists. Do the drill in `docs/runbooks/PRICE_GUARD.md` (save a test model at markup 0.5, expect a CRITICAL Telegram message), then tick P3.6 and the launch-checklist line. Next per plan: Stage 4, P4.1 (backup drill).
