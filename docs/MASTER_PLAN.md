@@ -113,7 +113,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 **Stage 1** — [x] P1.1 · [x] P1.2 · [x] P1.3
 **Stage 2** — [x] P2.1 · [ ] P2.2 · [ ] P2.3 (code done, awaiting owner drill: docs/runbooks/REDIS_POLICY.md)
 **Stage 3** — [ ] P3.1 (code done, awaiting owner checks: SESSION_LOG session 20) · [ ] P3.2 (code done, awaiting owner steps + drill: docs/runbooks/DEPLOY_SHUTDOWN.md) · [ ] P3.3 (code done, awaiting CI + owner deploy: docs/runbooks/API_CONTAINER.md) · [ ] P3.4 (code + runbook done, awaiting owner rehearsal: docs/runbooks/secret-rotation.md) · [ ] P3.5 (code done, awaiting owner steps: docs/runbooks/SECURITY_SWEEP.md) · [ ] P3.6 (code done, awaiting CI + migration 0020 + owner drill: docs/runbooks/PRICE_GUARD.md)
-**Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 (code done, awaiting staging + first run + results: docs/runbooks/LOAD_TEST.md) · [ ] P4.3 **← LAUNCH GATE**
+**Stage 4** — [ ] P4.1 (code done, awaiting secrets + first real drill + RTO: docs/runbooks/backup-restore-drill.md) · [ ] P4.2 (code done, awaiting staging + first run + results: docs/runbooks/LOAD_TEST.md) · [ ] P4.3 **← LAUNCH GATE** (walked 2026-09-30: **NO-GO**, evidence pack + blocker list: docs/production/LAUNCH_GATE.md)
 **Stage 5** — [ ] P5.1 · [ ] P5.2 · [ ] P5.3
 **Stage 6** — [ ] P6.1 · [ ] P6.2 · [ ] P6.3 · [ ] P6.4
 **Stage 7** — [ ] P7.1 · [ ] P7.2 · [ ] P7.3 · [ ] P7.4
@@ -252,6 +252,7 @@ Total before launch: **~15 sessions**. Stage 5–6: **~9**. Stage 7: scope again
 
 ### P4.3 LAUNCH GATE (1 session)
 Nothing new is built. Walk §11 line by line with evidence. Any unticked item is either fixed or explicitly deferred in writing with a reason. **Launch happens after this session, not before.**
+- **As walked (P4.3, first pass):** verdict NO-GO. `docs/production/LAUNCH_GATE.md` maps every §11 line to repo evidence and a status, and lists 12 ordered blockers (mostly owner proofs: paid plans, prod migrations 0017-0020, drills, RTO, load test, GitHub settings, business items). Mismatches found: §11 names only migration 0017 (0018-0020 also needed); the repo `decisions.md` still shows ADR-011 as DRAFT. Re-walk when the owner supplies evidence; tick only then.
 
 ---
 

@@ -5,6 +5,10 @@ Render (api + gateway), Supabase (Postgres), Upstash (Redis); payments are
 Jaib vouchers + manual transfer (ADR-007). The gate is the plan's §11 in
 `docs/MASTER_PLAN.md`; walk it with evidence in
 session P4.3. **Nothing here is ticked unless someone verified it.**
+
+**P4.3 verdict (2026-09-30): NO-GO.** Per-line evidence, status and the ordered blocker list are in
+`docs/production/LAUNCH_GATE.md`. Statuses there: DONE / CODE-READY / OWNER-PROOF / BLOCKED / DEFERRED.
+No box below was ticked by P4.3 because no owner evidence was supplied.
 Items name the plan phase that produces the evidence.
 
 ## Hosting plans (must be true before real users)
@@ -12,18 +16,18 @@ Items name the plan phase that produces the evidence.
 - [ ] Upstash on a **paid** plan (Fixed or Pay-as-you-go), not Free — L15
 - [ ] Render api and gateway on **paid** instance types (no spin-down) — L17
 - [ ] Supabase plan documented: daily-backup retention, PITR yes/no — P4.1
-- [ ] ADR-011 status **Accepted** (no ⬜ cells) — P0.1
+- [ ] ADR-011 status **Accepted** (no ⬜ cells) — P0.1 (P4.3: the repo copy still says DRAFT; reconcile with the owner's copy)
 
 ## Access & money
 - [ ] Suspended/flagged user locked out on REST + tRPC, cookie + API key — P1.1
 - [ ] Sessions revoked on suspend; no self-suspend; admin cannot suspend superadmin — P1.1
 - [ ] Concurrent same-user requests rejected before any provider call, tested on real Redis — P1.2
-- [ ] Rate-limit / fraud identity cannot be forged with headers — P1.3
+- [ ] Rate-limit / fraud identity cannot be forged with headers — P1.3 (P4.3: also do the Render `TRUSTED_PROXY_HOPS` log check from Session 12)
 - [ ] `/chat` rate limit is shared across replicas (Redis) and gives no false 429 for steady chat — P3.1
 - [ ] Ledger invariant holds after load test (sum of transactions = sum of balances) — P4.2
 
 ## Database
-- [ ] All migrations applied to Supabase (`pnpm --filter @ai-platform/db db:migrate:manual`), including `0017_platform_config_rls`
+- [ ] All migrations applied to Supabase (`pnpm --filter @ai-platform/db db:migrate:manual`), including `0017_platform_config_rls`, `0018`, `0019` (**before deploy**) and `0020`
 - [ ] RLS query returns zero rows (see ADR-011) — N10
 - [ ] Seed admin account created; seed test credentials removed or rotated
 - [ ] Independent nightly export running outside Supabase; restore drill done; RTO recorded — P4.1
@@ -56,6 +60,7 @@ Items name the plan phase that produces the evidence.
 - [ ] Announcement channel ready
 
 ## Product
+- [ ] Production domain loads signed out in a private window with no Vercel Deployment Protection login wall (ADR-011)
 - [ ] Register → verify email → login → logout → password reset, on a real phone
 - [ ] Redeem end-to-end (generate → redeem → balance credited)
 - [ ] Manual claim → admin approve end-to-end

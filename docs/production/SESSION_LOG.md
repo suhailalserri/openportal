@@ -923,3 +923,34 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - The Supabase SQL to publish the model (`status`/`is_available` column values) is from reading the schema, not run.
 
 **Next (owner):** CI green (`API Tests` should list `loadtest-reconcile.test.ts`). Then LOAD_TEST.md section 2 (staging Supabase, Upstash, Render service, secrets, migrate, publish one cheap model), run `Load Test`, trigger the staging deploy about 2 minutes in, fill in section 7. P4.2 is not done until a run passes section 6.
+
+
+## Session 32 - 2026-09-30 - P4.3 Launch gate, first walk - verdict NO-GO, evidence pack delivered
+
+**Input:** repo zip + plan (byte-identical to `docs/MASTER_PLAN.md`). Phase Summary approved ("Ok").
+
+**What I did:** walked §11 line by line against the repo and this log. Nothing built, nothing run. New `docs/production/LAUNCH_GATE.md`: status per line (DONE / CODE-READY / OWNER-PROOF / BLOCKED / DEFERRED), 12 ordered blockers, owner order of work. No line is DONE: nothing was supplied as evidence this session. No tracker box ticked.
+
+**Plan vs code (told to owner before building):** (1) `decisions.md` in this zip still says ADR-011 **DRAFT** with ⬜ cells; Session 5 says Accepted. (2) §11 lists only migration 0017; 0018-0020 also need prod. (3) The old checklist has items §11 lacks (Deployment Protection wall, seed backdoor, Turnstile); merged in. (4) Session 12's manual check (`TRUSTED_PROXY_HOPS` from a Render log) has no recorded result. (5) Checked [R]: the welcome bonus credits via `creditBalance` (ledger row), so the P4.1 ledger invariant still holds.
+
+**Changed:** `docs/production/LAUNCH_GATE.md` (new), `docs/LAUNCH_CHECKLIST.md` (verdict header + 3 line edits), `docs/MASTER_PLAN.md` (P4.3 tracker + "As walked"), this log. **DELETE:** none. Frozen zone: untouched. No API contract change.
+
+**Not verified (no network, dashboards or CI here):** plan tiers; Redis policy; prod migrations; backups, restore, RTO; load test; Telegram/Sentry/uptime drills; `/metrics` 401 in prod; CI on the latest commit; GitHub settings; all legal and business items. I mapped tests to §11 by file name and did not open each to confirm it asserts the exact bullet. I could not find the legal documents' text: a search for the jurisdiction placeholder in `docs/legal` and `apps/web` returned 0 hits, so that line is unchecked, not passed.
+
+**Next (owner):** work the blocker list in `LAUNCH_GATE.md` (B1 plans first), send evidence, then a follow-up P4.3 session re-walks and ticks. Any item you want deferred must come with a written reason.
+
+
+## Session 33 - 2026-09-30 - P4.3 follow-up: owner playbook (docs only)
+
+**Input:** owner asked for step-by-step instructions for all manual checks, with the runbooks. No new Phase Summary needed: no code, no plan phase change.
+
+**What I did:** read all runbooks (`SECURITY_SWEEP`, `REDIS_POLICY`, `DEPLOY_SHUTDOWN`, `ALERTING`, `backup-restore-drill`, `LOAD_TEST`, `PRICE_GUARD`, `API_CONTAINER`, `secret-rotation`), migrations 0017-0020 and `db-ops.yml`, and merged them into one ordered phone-friendly list. New `docs/production/OWNER_PLAYBOOK.md` (14 steps). `LAUNCH_GATE.md` now points to it.
+
+**Choices I made (flag if you disagree):** apply 0017-0020 by pasting the four files in the Supabase SQL editor rather than the `constraints` task, because I read those four (all re-runnable) but did not verify that all of 0001-0016 are safe to re-run. For the gateway project's RLS query I advise turning the Data API off instead of enabling RLS blindly on New API's tables.
+
+**Changed:** `docs/production/OWNER_PLAYBOOK.md` (new), `docs/production/LAUNCH_GATE.md` (one pointer line), this log. **DELETE:** none. Frozen zone: untouched.
+
+**Not verified:** vendor click paths (from memory, as the runbooks themselves say); that `curl` is practical on your phone; column names in the shutdown-drill SQL (from memory in the runbook); whether the gateway breaks with RLS on; what `TRUSTED_PROXY_HOPS` should be.
+
+**Next (owner):** work the playbook in order, send evidence, then a P4.3 re-walk session.
+
