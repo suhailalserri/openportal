@@ -46,6 +46,7 @@ import {
   DEFAULT_BODY_LIMIT_BYTES, CHAT_BODY_LIMIT_BYTES, LOG_REDACT,
 } from "./security/plugins";
 import { adminTwoFactorBootWarning } from "./security/admin-2fa";
+import { negotiateStreamVersion } from "./services/stream-v2";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
 // No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
@@ -345,6 +346,8 @@ async function handleChat(
         attachmentIds:   body.attachmentIds,
         requestId:       lock.requestId,
         abortSignal:     clientDisconnectController.signal,
+        // P6.1: v2 only when Accept lists application/vnd.aip.stream+v2; anything else is the v1 text stream.
+        streamVersion:   negotiateStreamVersion(req.headers.accept),
         reply,
       }),
     );

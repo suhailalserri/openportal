@@ -1119,3 +1119,21 @@ The `@valkey/valkey-glide` "Module not found" and `require-in-the-middle` lines 
 **If CI is still red:** send the FIRST failure block of each failing job (scroll to the first `Error:` line).
 **P5.3 stays UNTICKED** until CI is green and `docs/runbooks/VOICE.md` section 4 passes by hand.
 
+
+## Session 44 - 2026-10-01 - P6.1: structured stream (protocol v2) + backend emission
+
+**Input:** owner: "All green", P5.3 CI green and `VOICE.md` section 4 passed, so **P5.3 ticked** in the plan. Phase Summary approved ("OK"); Q1/Q2 delegated ("like other big aggregators / like it is your project, perfect and efficient"), Q3 "yes tick it".
+**Plan vs code (announced before building):** the frozen proxy `apps/web/app/api/chat/route.ts` builds its upstream headers from an explicit list without `Accept`, so a browser could not negotiate v2 through Vercel.
+**Decisions I made (owner delegated):**
+1. **Forward `Accept` in the proxy, only for the exact v2 media type** (frozen-zone exception, logged in PR_NOTES and the plan). Other Accept values, `*/*` and q=0 are not forwarded, so v1 stays the default for everyone. The negotiation is duplicated in the route (8 lines) because `@ai-platform/types` is type-only and not in `transpilePackages`; both copies are tested.
+2. **SSE, Anthropic-Messages style** (`event:` + `data:` frames, camelCase fields per the plan). `message_stop` always last, exactly once. `error` is flat `{code, message}`.
+3. **Usage in the stream:** `message_delta` carries `inputTokens`, `outputTokens`, `creditCost` (micro-credits, = what is charged). To have it before the response ends, the pure token-fallback/cost math now runs before `reply.raw.end()` (inside a try/finally that always ends the response); billing and saving are unchanged and run after.
+4. **Interrupted upstream in v2:** close the block, send `error STREAM_INTERRUPTED`, then the normal tail with `stopReason: "interrupted"`. The partial answer is billed once, as in v1.
+5. Runtime helpers live in the api (`stream-v2.ts`), types package stays type-only.
+**Changed/new:** NEW `packages/types/src/stream.types.ts`, `apps/api/src/services/stream-v2.ts`, `stream-v2.test.ts`; changed `packages/types/src/index.ts`, `apps/api/src/services/gateway.service.ts`, `gateway.service.test.ts` (new P6.1 block, 8 tests), `apps/api/src/index.ts`, `apps/web/app/api/chat/route.ts` (frozen, one exception) and `route.test.ts`, `docs/frontend/API_CONTRACT.md`, `docs/MASTER_PLAN.md` (P5.3 ticked, As built P6.1, tracker), `docs/PR_NOTES.md`, this log. **DELETE:** none. No migration, dependency, lockfile or env change.
+**Verified here (actually run):** `tsc` under the repo's strict flags (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`) over `stream-v2.ts`, its test and the types file: zero errors. `stream-v2.test.ts`: 10/10 with a minimal vitest shim. Mutation check: removing the block close in `finish()` makes 2 tests fail, restoring makes all pass. Syntax-only check of every changed TS file: all OK.
+**Not verified (no node_modules, network, Docker):** the gateway tests (`gateway.service.test.ts`, including the 8 new ones and the existing ones after the tail restructure), `route.test.ts`, the full api and web `tsc`, `next build`, Playwright, Testcontainers. The restructure is the riskiest part: read `gateway.service.ts` lines ~600-700 first if a gateway test fails. I also could not run a real provider stream, so the wire format is checked against the tests only, not against a live client.
+**Owner steps:** (1) merge, CI green; (2) the four checks in `docs/PR_NOTES.md` Session 44 (console fetch with and without the header, v1 UI unchanged, one transaction equal to `creditCost`); (3) only then tick P6.1.
+**If CI goes red:** send the FIRST failure block per job. Likeliest: a typing detail in the new gateway tests (`reply.raw.write.mockImplementation`, `setHeader.mock.calls`), or a v1 test that assumed `end()` runs before the cost math.
+**Open / next:** P6.2 (provider normalization: `reasoning_content` -> thinking blocks, `tool_calls` -> tool_use, coarse `status` after ~2 s of silence) is next; it reuses `StreamV2Writer.delta()`. P6.3 (UI) still has to decide how the browser reaches `attachments.*` and `voice.*` and build the mic button.
+

@@ -384,3 +384,18 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 ## Session 43 - P5.3 CI fix (Type-check, Web Build, E2E)
 - Type-only fix, no behaviour change: `TranscribeInput.durationMs` / `language`, `DurationInputs.declaredMs` and `callProvider`'s `language` now accept `undefined` explicitly (`exactOptionalPropertyTypes` is on); `transcription.service.ts` no longer names the DOM-only `BlobPart` (copies the bytes into a fresh `Uint8Array` for the `Blob`); `transcription.core.test.ts` reads mock state through one `spy()` accessor.
 - External contract: unchanged. No migration, dependency, lockfile or env change. Frozen zone: untouched. No DELETE list.
+
+## Session 44 - P6.1 Structured stream (protocol v2) + backend emission
+- New: `packages/types/src/stream.types.ts` (types only), `apps/api/src/services/stream-v2.ts` (+ `stream-v2.test.ts`). Changed: `gateway.service.ts` (+ tests), `apps/api/src/index.ts`, `packages/types/src/index.ts`, **frozen** `apps/web/app/api/chat/route.ts` (+ test).
+- **External contract:** additive and opt-in. `POST /chat` answers the structured SSE stream only when `Accept` lists `application/vnd.aip.stream+v2`; every other request (the whole current UI) gets the same plain-text stream as before. Documented in `docs/frontend/API_CONTRACT.md` section 3.
+- **Frozen-zone exception (owner-delegated 2026-10-01, revert-able by deleting one spread line + helper):** the web proxy forwards `Accept` upstream only for the exact v2 media type. Without it a browser could never reach v2 through Vercel. Other Accept values are not forwarded.
+- **Internal change to know about:** `streamChat` now ends the HTTP response after the pure token-fallback/cost math (was: before it) so the v2 tail can carry usage. v1 bytes are unchanged; billing and message saving still run after `end()`, once.
+- **Deploy order:** api and web in either order (web forwarding is a no-op until a client sends the header; api ignores the header unless exact). No migration, dependency, lockfile or env change.
+- **How to verify after deploy** (P6.1 stays unticked until both pass):
+  1. CI: Type-check & Lint, API Tests, Web Unit Tests, Web Build, E2E all green.
+  2. Logged in on the web app, browser console:
+     `const r = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/vnd.aip.stream+v2'},body:JSON.stringify({model:'<a chat model id>',messages:[{role:'user',content:'say hi'}]})}); console.log(r.headers.get('content-type')); console.log(await r.text());`
+     Expect `text/event-stream; charset=utf-8` and frames `message_start`, `content_block_start`, `content_block_delta`..., `content_block_stop`, `message_delta` (usage + creditCost), `message_stop`.
+  3. Same call without the `Accept` header: expect `text/plain; charset=utf-8` and plain text, as before. Send one normal message in the real chat UI: it must look and bill exactly as before.
+  4. `/billing` history: the v2 call produced exactly one "Chat usage" transaction, and its amount equals `creditCost` in `message_delta` (micro-credits).
+- Frozen zone: one owner-delegated exception above; nothing else touched. No DELETE list.

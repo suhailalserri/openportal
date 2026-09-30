@@ -872,3 +872,125 @@ describe("streamChat — P5.2b attachments", () => {
     expect([meta.inputTokens, meta.outputTokens]).toEqual([10, 2]);
   });
 });
+
+// ── P6.1: structured stream (v2) next to the unchanged plain-text stream (v1) ──────────────────────
+describe("streamChat — P6.1 stream protocol", () => {
+  const sseChunks = [
+    `data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n`,
+    `data: {"choices":[{"delta":{"content":"lo"}}]}\n\n`,
+    `data: {"usage":{"prompt_tokens":12,"completion_tokens":34}}\n\n`,
+    `data: [DONE]\n\n`,
+  ];
+  const stubOk = (chunks = sseChunks) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body: makeSseStream(chunks), json: async () => ({}) }));
+  const stubInterrupted = () => {
+    const encoder = new TextEncoder();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulls++ === 0) controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"partial"}}]}\n\n`));
+        else controller.error(new Error("simulated connection drop"));
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+  };
+  const parse = (writes: string[]) =>
+    writes.join("").split("\n\n").filter(Boolean).map((f) => JSON.parse(f.split("\ndata: ")[1]!) as { type: string } & Record<string, any>);
+  const contentType = (reply: ReturnType<typeof makeReply>["reply"]) =>
+    (reply.raw.setHeader.mock.calls.find((c) => c[0] === "Content-Type") ?? [])[1];
+
+  it("v1 (no streamVersion) is byte-identical to before: raw text deltas only, text/plain", async () => {
+    stubOk([
+      `data: {"choices":[{"delta":{"content":"Hel"}}]}\n\ndata: {"choices":[{"delta":{"con`,   // a line split across chunks
+      `tent":"lo"}}]}\n\ndata: {"usage":{"prompt_tokens":12,"completion_tokens":34}}\n\ndata: [DONE]\n\n`,
+    ]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+    expect(writes).toEqual(["Hel", "lo"]);
+    expect(writes.join("")).toBe("Hello");
+    expect(contentType(reply)).toBe("text/plain; charset=utf-8");
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(reply.raw.end).toHaveBeenCalledOnce();
+  });
+
+  it("an explicit streamVersion 'v1' behaves exactly like none", async () => {
+    stubOk();
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v1", reply });
+    expect(writes).toEqual(["Hel", "lo"]);
+    expect(contentType(reply)).toBe("text/plain; charset=utf-8");
+  });
+
+  it("v2: SSE events in order, usage and credit cost in message_delta, message_stop last, billed once", async () => {
+    stubOk();
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+
+    expect(contentType(reply)).toBe("text/event-stream; charset=utf-8");
+    const ev = parse(writes);
+    expect(ev.map((e) => e.type)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_delta",
+      "content_block_stop", "message_delta", "message_stop"]);
+    expect(ev[0]!.message).toMatchObject({ role: "assistant", model: "deepseek-r2" });
+    expect(ev.filter((e) => e.type === "content_block_delta").map((e) => e.delta.text).join("")).toBe("Hello");
+
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    const charged = deductCreditsAtomicMock.mock.calls[0]![1] as number;
+    expect(charged).toBeGreaterThan(0);
+    const md = ev.find((e) => e.type === "message_delta")!;
+    expect(md.delta).toEqual({ stopReason: "end_turn" });
+    expect(md.usage).toEqual({ inputTokens: 12, outputTokens: 34, creditCost: charged });
+    expect(reply.raw.end).toHaveBeenCalledOnce();
+  });
+
+  it("v2 without a usage chunk reports the same estimate that is billed", async () => {
+    stubOk([`data: {"choices":[{"delta":{"content":"some streamed answer"}}]}\n\n`, `data: [DONE]\n\n`]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const md = parse(writes).find((e) => e.type === "message_delta")!;
+    const meta = deductCreditsAtomicMock.mock.calls[0]![3] as { inputTokens: number; outputTokens: number };
+    expect(md.usage.outputTokens).toBe(meta.outputTokens);
+    expect(md.usage.inputTokens).toBe(meta.inputTokens);
+    expect(md.usage.creditCost).toBe(deductCreditsAtomicMock.mock.calls[0]![1]);
+    expect(md.usage.outputTokens).toBeGreaterThan(0);
+  });
+
+  it("v2 interrupted mid-answer: block closed, error event, stopReason interrupted, one message_stop, billed exactly once", async () => {
+    stubInterrupted();
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const ev = parse(writes);
+    expect(ev.map((e) => e.type)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_stop",
+      "error", "message_delta", "message_stop"]);
+    expect(ev.find((e) => e.type === "error")).toMatchObject({ code: "STREAM_INTERRUPTED" });
+    expect(ev.find((e) => e.type === "message_delta")!.delta).toEqual({ stopReason: "interrupted" });
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(reply.raw.end).toHaveBeenCalledOnce();
+  });
+
+  it("v1 interrupted stays silent on the wire (no error frame) and still bills once", async () => {
+    stubInterrupted();
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+    expect(writes).toEqual(["partial"]);
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+
+  it("v2 still answers pre-stream failures as plain JSON errors, with no event frames and no billing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: "rate_limited" } }) }));
+    const { reply, writes, sends } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(sends).toEqual([{ code: 429, body: expect.objectContaining({ status: 429 }) }]);
+    expect(writes).toHaveLength(0);
+    expect(deductCreditsAtomicMock).not.toHaveBeenCalled();
+    expect(reply.raw.end).not.toHaveBeenCalled();
+  });
+
+  it("v2 ends the response even when the client socket is already gone (write throws)", async () => {
+    stubOk();
+    const { reply } = makeReply();
+    reply.raw.write.mockImplementation(() => { throw new Error("socket closed"); });
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(reply.raw.end).toHaveBeenCalledOnce();
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+  });
+});

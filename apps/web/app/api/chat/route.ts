@@ -4,6 +4,18 @@ import { NextRequest } from "next/server";
 import { auth }        from "@/lib/auth";
 import { headers }     from "next/headers";
 
+// P6.1: same media type and q-handling as apps/api/src/services/stream-v2.ts (negotiateStreamVersion).
+// Duplicated on purpose: @ai-platform/types is type-only and not transpiled for the web build.
+const STREAM_V2_MEDIA_TYPE = "application/vnd.aip.stream+v2";
+function wantsStreamV2(accept: string | null): boolean {
+  return (accept ?? "").split(",").some((range) => {
+    const [type, ...params] = range.split(";").map((p) => p.trim().toLowerCase());
+    if (type !== STREAM_V2_MEDIA_TYPE) return false;
+    const q = params.find((p) => p.startsWith("q="));
+    return q === undefined || Number(q.slice(2)) > 0;
+  });
+}
+
 /**
  * Chat streaming endpoint — proxies to the Node.js API service.
  * The API service handles: auth, balance check, fraud check, streaming, billing.
@@ -49,6 +61,9 @@ export async function POST(req: NextRequest) {
         "X-User-ID":     session.user.id,
         "X-User-Email":  session.user.email,
         ...(clientIp ? { "X-Client-IP": clientIp } : {}),
+        // P6.1: opt in to the structured stream only when the browser asked for it by name. Any other
+        // Accept (including none) is not forwarded, so the api keeps answering the plain-text v1 stream.
+        ...(wantsStreamV2(req.headers.get("accept")) ? { "Accept": STREAM_V2_MEDIA_TYPE } : {}),
       },
       body:   JSON.stringify(body),
       signal: AbortSignal.timeout(125_000), // slightly above the API's own 120s stream timeout

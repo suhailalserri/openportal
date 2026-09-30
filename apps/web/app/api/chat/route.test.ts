@@ -63,3 +63,34 @@ describe("POST /api/chat - X-Client-IP forwarding", () => {
     expect(sent["Authorization"]).toBe(`Bearer ${"t".repeat(40)}`);
   });
 });
+
+describe("POST /api/chat - stream protocol negotiation (P6.1)", () => {
+  const fetchMock = vi.fn(async (_url: string, _init?: unknown) => new Response("ok", { status: 200 }));
+  beforeEach(() => {
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("INTERNAL_API_URL", "http://api.test");
+    vi.stubEnv("INTERNAL_SERVICE_TOKEN", "t".repeat(40));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+  const sent = () => (fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> }).headers;
+
+  it("forwards Accept only when the browser asked for the v2 media type by name", async () => {
+    await POST(chatRequest({ accept: "application/vnd.aip.stream+v2" }));
+    expect(sent()["Accept"]).toBe("application/vnd.aip.stream+v2");
+  });
+  it("does not forward Accept for wildcards, nothing, other types, or q=0", async () => {
+    for (const accept of ["*/*", "text/plain", "application/json", "application/vnd.aip.stream+v2;q=0"]) {
+      fetchMock.mockClear();
+      await POST(chatRequest({ accept }));
+      expect(Object.keys(sent()).map((k) => k.toLowerCase())).not.toContain("accept");
+    }
+    fetchMock.mockClear();
+    await POST(chatRequest({}));
+    expect(Object.keys(sent()).map((k) => k.toLowerCase())).not.toContain("accept");
+  });
+});
+
