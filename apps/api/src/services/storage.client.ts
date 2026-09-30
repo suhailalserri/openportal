@@ -32,7 +32,7 @@ export type StorageConfigResult =
   | { enabled: true; url: string; serviceKey: string }
   | { enabled: false; reason: "not_configured" | "partial" | "invalid_url" | "invalid_key" };
 
-export function resolveStorageConfig(env: { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string }): StorageConfigResult {
+export function resolveStorageConfig(env: Record<string, string | undefined>): StorageConfigResult {
   const url = env.SUPABASE_URL?.trim();
   const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url && !key) return { enabled: false, reason: "not_configured" };

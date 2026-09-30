@@ -7,7 +7,8 @@
  */
 import { Worker } from "node:worker_threads";
 import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ATTACHMENT_LIMITS, type ExtractionErrorCode } from "../services/attachments.policy";
 import type { ExtractResult } from "./extract";
 
@@ -20,7 +21,10 @@ export interface RunnerOptions {
 
 /** dist/index.js and dist/extract.worker.js sit side by side (apps/api/build.mjs). */
 export function defaultWorkerFile(): URL {
-  return new URL("./extract.worker.js", import.meta.url);
+  // Deliberately NOT `new URL("./extract.worker.js", import.meta.url)`: webpack (the web app's
+  // type-graph pulls this file in through the tRPC router) treats that literal as an asset import
+  // and fails the build because only extract.worker.ts exists in source. A computed path is ignored.
+  return pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), "extract.worker.js"));
 }
 
 export function runExtraction(mime: string, bytes: Uint8Array, opts: RunnerOptions = {}): Promise<ExtractResult> {
