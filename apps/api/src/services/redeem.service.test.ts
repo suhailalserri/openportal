@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { startTestDb, stopTestDb, resetTestDb } from "../test/testDb";
 import { createTestUser } from "../test/factories";
@@ -59,11 +59,23 @@ describe("validateCodeFormat (checksum) — brute-force resistance", () => {
       const insertSpy = vi.spyOn(db, "insert");
       const selectSpy = vi.spyOn(db, "select");
 
+      // The checksum is 4 hex characters (16 bits), so a purely random candidate is
+      // a genuinely valid code with probability of roughly 6e-7. Over 10,000
+      // candidates that is about a 1-in-150 chance per run, NOT astronomical, and it
+      // failed CI once. A candidate whose checksum really is correct is a valid code,
+      // not a false positive, so it is skipped by recomputing the expected checksum
+      // independently; anything else that validates would be a real bug.
+      const expectedChecksum = (candidate: string) =>
+        createHmac("sha256", process.env.CODE_SALT ?? "default-salt")
+          .update(candidate.split("-").slice(0, 3).join("-"))
+          .digest("hex")
+          .slice(0, 4)
+          .toUpperCase();
+
       let falsePositives = 0;
       for (let i = 0; i < 10_000; i++) {
         const candidate = randomCode();
-        // Astronomically unlikely to collide with a real checksum, but
-        // guard anyway rather than assume.
+        if (candidate.split("-")[3] === expectedChecksum(candidate)) continue; // a real collision
         if (validateCodeFormat(candidate)) falsePositives++;
       }
 

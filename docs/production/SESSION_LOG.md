@@ -883,3 +883,16 @@ been seen yet; web imports `fraud.service` and `metrics`, which changed in P2.2.
 - Whether the gateway database is a separate Supabase project and what schema it uses; the optional `GATEWAY_DATABASE_URL` target dumps only its `public` schema.
 
 **Next (owner):** CI green (`API Tests` should list `ledger-check.test.ts`). Then runbook section 2 (R2 bucket, lifecycle rule, secrets), run `DB Backup` once, run `DB Restore Drill` with `ci-container`, then the real drill (section 4) and fill in section 6 with the RTO. P4.1 is not done until that RTO is written.
+
+
+## Session 30 - 2026-09-30 - P4.1 CI fix: flaky redeem checksum test (not caused by P4.1) - code done, CI re-run pending
+
+**Input:** owner's screenshot of `API Tests` after Session 29: 1 failed, 496 passed (497). `Type-check & Lint` green. The failure is `redeem.service.test.ts > validateCodeFormat (checksum) > rejects 10,000 random invalid codes...`, `expected 1 to be +0` at line 70 (`falsePositives`).
+
+**Finding:** a flaky test, not a regression and not related to P4.1 (the new `ledger-check.test.ts` is not in the failure list). The code checksum is `HMAC(...).slice(0, 4)` in hex, i.e. 16 bits. The test draws each character from an alphabet where a given hex character has roughly a 2/67 chance, so a random candidate is a *genuinely valid* code with probability of roughly 6e-7 (my estimate by hand); over 10,000 candidates that is roughly 0.6% per run, about 1 in 150. The test's comment called this "astronomically unlikely", which was wrong. It passed on earlier runs by luck.
+
+**Fix (test only, no production code change):** the test now recomputes the expected checksum independently and skips a candidate that really carries the correct checksum (a real collision is a valid code, not a false positive). Any other candidate that validates still counts as a failure. `validateCodeFormat` and `generateCode` are unchanged.
+
+**Changed:** `apps/api/src/services/redeem.service.test.ts`, this log. **DELETE:** none. Frozen zone: untouched.
+
+**Not verified (no node_modules or Postgres here):** vitest was not run. The probability figure is my own arithmetic, not measured. Product note, no action taken: a 16-bit checksum is only a cheap pre-filter; brute-force protection rests on the DB lookup, the single-use constraint and the Redis attempt limits, not on the checksum alone.
