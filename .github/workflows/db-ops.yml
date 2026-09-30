@@ -46,7 +46,7 @@ jobs:
       PRODUCTION_DATABASE_URL: ${{ secrets.DATABASE_URL }}
       STAGING_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Guard - staging target must really be the staging database
         if: ${{ inputs.target == 'staging' }}
@@ -63,9 +63,9 @@ jobs:
       # "packageManager": "pnpm@9.0.0", and specifying a version in both
       # places makes pnpm/action-setup fail with "Multiple versions of
       # pnpm specified". Leaving version out makes it read from package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: "pnpm"

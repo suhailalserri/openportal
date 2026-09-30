@@ -16,9 +16,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # NOTE: deliberately NOT using setup-node's built-in pnpm cache here.
       # ORIGINAL cause suspected here was a stale cached binary; that theory
@@ -34,7 +34,7 @@ jobs:
       # multi-version tree the race depends on. Leaving cache disabled
       # here anyway since a clean install is still the right call for a
       # one-off lockfile-regeneration job.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
 

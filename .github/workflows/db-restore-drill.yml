@@ -56,7 +56,7 @@ jobs:
       R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
       PRODUCTION_DATABASE_URLS: ${{ secrets.BACKUP_DATABASE_URL }} ${{ secrets.DATABASE_URL }} ${{ secrets.GATEWAY_DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install PostgreSQL 17 client
         run: bash infra/scripts/install-pg17-client.sh
