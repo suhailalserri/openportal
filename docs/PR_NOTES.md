@@ -425,3 +425,21 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   1. CI: Type-check & Lint and API Tests green (new: `model-capabilities.test.ts`, 6 tests).
   2. Follow `docs/runbooks/TOOL_SPIKE.md` section 1: run the script for 3-6 published model ids and send me the report. Costs a few cents (calls the gateway with the master key, bypasses billing).
   3. Optional: `node --test scripts/gateway-tool-spike.test.mjs` (11 tests; not in CI).
+
+---
+
+## Session 48 - P6.3a Web renderer for the structured stream (thinking block + status line, off by default)
+- New (all `apps/web/features/chat/`): `lib/stream-v2-parser.ts`, `lib/stream-mode.ts`, `lib/wire-messages.ts` (+ a test each), `components/message/thinking-block.tsx`. Changed: `lib/stream-reader.ts`, `lib/chat-stream-reducer.ts` (+ tests), `types.ts`, `hooks/use-chat-stream.ts`, `components/message/{message,message-list,typing-indicator}.tsx`, `components/chat-view.tsx`, `styles/index.css` (3 keyframes), `messages/en.json`, `messages/ar.json`, docs.
+- **External contract:** none. No api, proxy, migration, dependency, lockfile or env change. Frozen zone: untouched (the P6.1 `Accept` forwarding already exists). No DELETE list.
+- **Default behaviour:** unchanged for everyone. v2 is requested only when `localStorage aip.flag.streamV2 === "1"` in that browser.
+- **Behaviour changes to know about:** (1) with the flag on, reasoning shows in a collapsible block and is never saved or re-sent; (2) any assistant turn with an empty answer is now left out of the history sent with the next message (also affects flag-off, where it previously sent an empty assistant message); (3) with the flag on, a reasoning-only reply is kept as a partial/finished message instead of being dropped.
+- **Known limits:** thinking is not persisted (P6.4), so it disappears on reload or conversation switch; `tool_use` blocks are ignored; token/credit fields are not filled from the stream; the status line cannot appear if Vercel buffers SSE.
+- **Deploy order:** web only; nothing else to deploy.
+- **How to verify** (P6.3 stays unticked until 1-4 pass):
+  1. CI: Type-check & Lint, Web Unit Tests (new: `stream-v2-parser`, `stream-mode`, `wire-messages`; extended: `stream-reader`, `chat-stream-reducer`), Web Build, E2E all green. Vercel preview: open it.
+  2. Flag OFF (default): send a message in the real chat. It must look, stream and bill exactly as before; no Thinking block; Network tab shows no `Accept: application/vnd.aip.stream+v2`.
+  3. Turn ON: console `localStorage.setItem("aip.flag.streamV2","1")`, reload, pick a reasoning-capable model and send. Expect: Thinking block open with moving light and a seconds counter, collapsing to "Thought for Ns" when the answer starts, answer without leading blank lines. Tap the header: it toggles and stays as you left it. One "Chat usage" transaction.
+  4. With the flag ON send a second message in the same chat: the request body's `messages` contain only `role` and `content` (Network tab). Edit an earlier message: the old reasoning disappears with the old reply.
+  5. Visual checks on a phone width, Arabic (RTL) and dark theme: aperture glyph, hairline, label, and the Arabic wording. Enable "reduce motion" in the OS: block is still, nothing animates.
+  6. Optional, slow model: one "Waiting for the model to start…" line at about 2 s. If it only appears at the end, Vercel is buffering SSE (report it).
+  7. Turn off: `localStorage.removeItem("aip.flag.streamV2")`.

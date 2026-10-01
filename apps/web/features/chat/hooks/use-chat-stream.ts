@@ -8,6 +8,8 @@ import {
   type ChatStreamState,
 } from "../lib/chat-stream-reducer";
 import { runChatStream } from "../lib/stream-reader";
+import { readStreamV2Enabled } from "../lib/stream-mode";
+import { toWireMessages } from "../lib/wire-messages";
 import type { ChatMessage, ConversationParams } from "../types";
 
 export interface UseChatStreamOptions {
@@ -120,18 +122,33 @@ export function useChatStream({
   // byte-for-byte identical to applying them one at a time — no output
   // difference, just fewer, larger appends.
   const pendingDeltaRef = React.useRef("");
+  // P6.3a. Reasoning text is coalesced the same way (same rAF flush, same reason).
+  const pendingThinkingRef = React.useRef("");
   const flushHandleRef = React.useRef<number | null>(null);
+
+  // One flush for both buffers, REASONING FIRST: within one frame the model may
+  // finish thinking and start answering, and the reducer closes the thinking
+  // timer when the first answer text lands, so the order must match the stream.
+  const drain = React.useCallback((id: string) => {
+    if (pendingThinkingRef.current.length > 0) {
+      const delta = pendingThinkingRef.current;
+      pendingThinkingRef.current = "";
+      dispatch({ type: "THINKING", id, delta, at: Date.now() });
+    }
+    if (pendingDeltaRef.current.length > 0) {
+      const delta = pendingDeltaRef.current;
+      pendingDeltaRef.current = "";
+      dispatch({ type: "CHUNK", id, delta, at: Date.now() });
+    }
+  }, []);
 
   const scheduleFlush = React.useCallback((id: string) => {
     if (flushHandleRef.current !== null) return;
     flushHandleRef.current = requestAnimationFrame(() => {
       flushHandleRef.current = null;
-      if (pendingDeltaRef.current.length === 0) return;
-      const delta = pendingDeltaRef.current;
-      pendingDeltaRef.current = "";
-      dispatch({ type: "CHUNK", id, delta });
+      drain(id);
     });
-  }, []);
+  }, [drain]);
 
   // Synchronously drain whatever hasn't been flushed yet — used at
   // stream end (onDone/onStopped/onPartial/onError all arrive AFTER the
@@ -142,11 +159,8 @@ export function useChatStream({
       cancelAnimationFrame(flushHandleRef.current);
       flushHandleRef.current = null;
     }
-    if (pendingDeltaRef.current.length === 0) return;
-    const delta = pendingDeltaRef.current;
-    pendingDeltaRef.current = "";
-    dispatch({ type: "CHUNK", id, delta });
-  }, []);
+    drain(id);
+  }, [drain]);
 
   // Shared by `send` and `edit`: identical stream-event wiring in both
   // cases (coalesced CHUNK flush, DONE/STOP/PARTIAL/ERROR dispatch) —
@@ -160,17 +174,26 @@ export function useChatStream({
         pendingDeltaRef.current += delta;
         scheduleFlush(assistantMessageId);
       },
+      onThinking: (delta: string) => {
+        pendingThinkingRef.current += delta;
+        scheduleFlush(assistantMessageId);
+      },
+      // Not buffered: one tiny event, and it must show up even if no other
+      // byte arrives for a while (that silence is exactly what it reports).
+      onStatus: (code: string) => {
+        dispatch({ type: "STATUS", code });
+      },
       onDone: () => {
         flushNow(assistantMessageId);
-        dispatch({ type: "DONE", id: assistantMessageId });
+        dispatch({ type: "DONE", id: assistantMessageId, at: Date.now() });
       },
       onStopped: () => {
         flushNow(assistantMessageId);
-        dispatch({ type: "STOP", id: assistantMessageId });
+        dispatch({ type: "STOP", id: assistantMessageId, at: Date.now() });
       },
       onPartial: () => {
         flushNow(assistantMessageId);
-        dispatch({ type: "PARTIAL", id: assistantMessageId });
+        dispatch({ type: "PARTIAL", id: assistantMessageId, at: Date.now() });
       },
       onError: (error: { message: string; retryable: boolean; redirectTo?: string | undefined }) => {
         // No flushNow here: ERROR's own reducer branch (chat-stream-
@@ -185,6 +208,7 @@ export function useChatStream({
         // onError) but the buffer is cleared here defensively so a
         // stale delta can't leak into whatever comes after.
         pendingDeltaRef.current = "";
+        pendingThinkingRef.current = "";
         if (flushHandleRef.current !== null) {
           cancelAnimationFrame(flushHandleRef.current);
           flushHandleRef.current = null;
@@ -230,10 +254,8 @@ export function useChatStream({
       return {
         model,
         conversationId,
-        messages: messages
-          .filter((m): m is ChatMessage & { role: "user" | "assistant" } =>
-            m.role === "user" || m.role === "assistant")
-          .map(({ role, content: c }) => ({ role, content: c })),
+        // Role + content only; see lib/wire-messages.ts (thinking never leaves the browser).
+        messages: toWireMessages(messages),
         ...(temperature != null ? { temperature } : {}),
         ...(topP != null ? { top_p: topP } : {}),
         ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
@@ -266,6 +288,8 @@ export function useChatStream({
         buildRequestBody([...stateRef.current.messages, userMessage]),
         controller.signal,
         makeCallbacks(assistantMessageId),
+        // Read at send time, so flipping the flag applies to the very next message.
+        { streamV2: readStreamV2Enabled() },
       );
     },
     [buildRequestBody, makeCallbacks],
@@ -305,6 +329,8 @@ export function useChatStream({
         buildRequestBody([...historyBefore, userMessage]),
         controller.signal,
         makeCallbacks(assistantMessageId),
+        // Read at send time, so flipping the flag applies to the very next message.
+        { streamV2: readStreamV2Enabled() },
       );
     },
     [buildRequestBody, makeCallbacks],

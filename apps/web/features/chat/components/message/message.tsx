@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatCredits, formatRelativeDate } from "@/lib/format";
 import { SafeMarkdown } from "@/components/markdown/safe-markdown";
 import { MessageActions } from "./message-actions";
+import { ThinkingBlock } from "./thinking-block";
 import type { ChatMessage } from "../../types";
 
 export interface MessageProps {
@@ -27,6 +28,9 @@ export interface MessageProps {
    *  stream anyway; disabling the button too avoids a confusing "I
    *  clicked Edit and nothing happened"). */
   editDisabled?: boolean | undefined;
+  /** P6.3a. True only for the assistant message currently being streamed. With
+   *  no answer text yet, its Thinking block is "live" (open, animated). */
+  streaming?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -83,6 +87,7 @@ function MessageImpl({
   onFeedback,
   onEdit,
   editDisabled,
+  streaming,
   className,
 }: MessageProps) {
   const t = useTranslations("chat");
@@ -271,7 +276,19 @@ function MessageImpl({
             <SafeMarkdown content={message.content} className="pt-0" />
           </div>
         ) : (
-          <SafeMarkdown content={message.content} className="min-w-0 pt-1 pb-0.5" />
+          <>
+            {message.thinking && (
+              <ThinkingBlock
+                trace={message.thinking}
+                live={streaming === true && message.content.length === 0}
+              />
+            )}
+            {/* A reasoning-only turn has no answer yet: skip the empty markdown
+                node rather than leave a blank gap under the Thinking block. */}
+            {(message.content.length > 0 || !message.thinking) && (
+              <SafeMarkdown content={message.content} className="min-w-0 pt-1 pb-0.5" />
+            )}
+          </>
         )}
 
         {message.isPartial && (
@@ -375,6 +392,8 @@ function messagePropsAreEqual(prev: MessageProps, next: MessageProps): boolean {
     prev.message.outputTokens === next.message.outputTokens &&
     prev.message.modelId === next.message.modelId &&
     prev.message.createdAt === next.message.createdAt &&
+    prev.message.thinking === next.message.thinking &&
+    prev.streaming === next.streaming &&
     prev.className === next.className &&
     prev.onCopy === next.onCopy &&
     prev.onRegenerate === next.onRegenerate &&

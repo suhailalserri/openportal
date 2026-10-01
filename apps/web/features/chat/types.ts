@@ -54,6 +54,22 @@ export interface ChatMessage {
   /** Micro-credits — same unit as everywhere else in the app. Passed
    *  through formatCredits() at render time, never computed here. */
   creditCost?: number | undefined;
+  /** P6.3a. The model's reasoning for this turn, from the v2 stream's
+   *  `thinking` blocks. A SEPARATE field on purpose: `content` is the answer
+   *  (what is saved, billed as text and sent back to the model as history),
+   *  `thinking` is display-only and never leaves the browser (see
+   *  lib/wire-messages.ts). Absent on every message loaded from the server
+   *  until P6.4 persists blocks, and absent when the flag is off. */
+  thinking?: ThinkingTrace | undefined;
+}
+
+/** P6.3a. Reasoning text plus the timestamps the "Thought for Ns" label needs.
+ *  Times are epoch ms taken by the caller (the reducer stays pure).
+ *  `endedAt` is set when the answer text starts or the turn ends, whichever is first. */
+export interface ThinkingTrace {
+  text: string;
+  startedAt: number;
+  endedAt?: number | undefined;
 }
 
 /** A gateway/network error surfaced in the assistant turn's slot —

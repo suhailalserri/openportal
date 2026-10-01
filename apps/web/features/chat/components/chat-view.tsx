@@ -153,6 +153,9 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   });
 
   const isBusy = stream.status === "sending" || stream.status === "streaming";
+  const lastMessage = stream.messages[stream.messages.length - 1];
+  const streamingMessageId =
+    stream.status === "streaming" && lastMessage?.role === "assistant" ? lastMessage.id : undefined;
 
   // Screen-reader announcement (9.1). Deliberately NOT a live region over
   // the streaming text itself — that would re-read the whole growing
@@ -293,6 +296,10 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           // real (growing) assistant bubble takes over from here, so
           // this never overlaps with the streaming cursor in message.tsx.
           isWaitingForReply={stream.status === "sending"}
+          // P6.3a: which assistant message is live (its Thinking block animates)
+          // and the v2 status code for the wait before the first output.
+          streamingMessageId={streamingMessageId}
+          statusCode={stream.statusCode}
           className="min-h-0 flex-1"
         />
       )}

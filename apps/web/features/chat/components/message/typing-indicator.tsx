@@ -20,12 +20,29 @@ import { cn } from "@/lib/utils";
  * here, it just tracks whichever theme is active the same way every
  * other primary-colored affordance in the app does.
  */
-export function TypingIndicator({ className }: { className?: string | undefined }) {
+export function TypingIndicator({
+  className,
+  label,
+}: {
+  className?: string | undefined;
+  /** P6.3a. The status line: the server said the request is accepted but the
+   *  model has not produced anything yet (v2 stream's `status` event; the UI
+   *  picks the wording). Absent = the plain dots, exactly as before. */
+  label?: string | undefined;
+}) {
   return (
-    <div className={cn("flex items-center gap-1.5 py-1", className)} role="status" aria-hidden="true">
-      <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:0ms]" />
-      <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:180ms]" />
-      <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:360ms]" />
+    <div
+      className={cn("flex items-center gap-2.5 py-1", className)}
+      role="status"
+      // Dots only: decorative, as before. With a label the row is real content.
+      aria-hidden={label ? undefined : "true"}
+    >
+      <span className="flex items-center gap-1.5" aria-hidden="true">
+        <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:0ms]" />
+        <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:180ms]" />
+        <span className="size-[7px] animate-typing-blink rounded-full bg-primary [animation-delay:360ms]" />
+      </span>
+      {label && <span className="text-[12.5px] text-faint-foreground">{label}</span>}
     </div>
   );
 }

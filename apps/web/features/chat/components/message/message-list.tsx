@@ -29,6 +29,12 @@ export interface MessageListProps {
    *  assistant's bubble will occupy once content starts arriving,
    *  rather than a page-level spinner elsewhere. */
   isWaitingForReply?: boolean | undefined;
+  /** P6.3a. Id of the assistant message being streamed right now (drives that
+   *  message's live Thinking block). Undefined when nothing is streaming. */
+  streamingMessageId?: string | undefined;
+  /** P6.3a. The v2 stream's progress code for the wait before the first output
+   *  (today "waiting"). Turns the typing dots into a status line. */
+  statusCode?: string | null | undefined;
   className?: string | undefined;
 }
 
@@ -69,6 +75,8 @@ export function MessageList({
   editDisabled,
   onRetryError,
   isWaitingForReply = false,
+  streamingMessageId,
+  statusCode,
   className,
 }: MessageListProps) {
   const t = useTranslations("chat");
@@ -189,10 +197,14 @@ export function MessageList({
             onFeedback={onFeedback}
             onEdit={onEdit}
             editDisabled={editDisabled}
+            streaming={message.id === streamingMessageId}
           />
         ))}
 
-        {isWaitingForReply && <TypingIndicator />}
+        {isWaitingForReply && (
+          // The UI owns the wording; an unknown code just keeps the plain dots.
+          <TypingIndicator label={statusCode === "waiting" ? t("waitingForModel") : undefined} />
+        )}
 
         {error && <ErrorMessage error={error} onRetry={onRetryError} />}
 

@@ -22,6 +22,9 @@
  * into replacement characters. stream-reader.test.ts's split-character
  * case exists specifically to catch a regression here.
  */
+import { createStreamV2Parser, type StreamV2Event } from "./stream-v2-parser";
+import { STREAM_V2_MEDIA_TYPE } from "./stream-mode";
+
 export interface ChatStreamRequestBody {
   model: string;
   // "system" removed from the client's own role union — the server no
@@ -41,6 +44,10 @@ export interface ChatStreamRequestBody {
 
 export interface StreamCallbacks {
   onChunk: (delta: string) => void;
+  /** P6.3a, v2 stream only. Reasoning text; never called on the plain-text stream. */
+  onThinking?: ((delta: string) => void) | undefined;
+  /** P6.3a, v2 stream only. A progress code (today just "waiting"); the UI picks its own wording. */
+  onStatus?: ((code: string) => void) | undefined;
   onDone: () => void;
   onStopped: () => void;
   onPartial: () => void;
@@ -129,6 +136,90 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<boolean> {
 export interface RunChatStreamOptions {
   /** Test seam. Must resolve false if `signal` aborts while waiting. */
   sleep?: (ms: number, signal: AbortSignal) => Promise<boolean>;
+  /** P6.3a. Ask for the structured v2 stream (sends `Accept`). Off by default: every
+   *  request without it is byte-identical to before. The caller reads the flag
+   *  (lib/stream-mode.ts) so this file stays free of storage. */
+  streamV2?: boolean | undefined;
+}
+
+/**
+ * P6.3a. Reads a v2 (SSE) body to its end and reports what happened.
+ *
+ * LEADING WHITESPACE: the first text delta of a reply is often just "\n\n" (seen
+ * live on openrouter/free, Session 47). Text is held back until it has a
+ * non-whitespace character, and that character's leading whitespace is cut, so
+ * the answer never starts with blank lines. Done here, not in the reducer,
+ * because the reducer's CHUNK action is shared with the plain-text stream,
+ * which must stay byte-identical.
+ *
+ * `complete` is true only when `message_stop` arrived and the stop reason is not
+ * "interrupted". A body that ends without `message_stop` (connection dropped) is
+ * NOT complete, same as a thrown read error on the old stream.
+ */
+async function consumeV2(
+  reader: { read: () => Promise<{ done: boolean; value?: Uint8Array | undefined }> },
+  decoder: TextDecoder,
+  callbacks: StreamCallbacks,
+  onProgress: () => void,
+): Promise<{ complete: boolean; error: { code: string; message: string } | null }> {
+  const parser = createStreamV2Parser();
+  let textStarted = false;
+  let sawEnd = false;
+  let stopReason: string = "unknown";
+  let error: { code: string; message: string } | null = null;
+
+  const handle = (events: StreamV2Event[]): void => {
+    for (const ev of events) {
+      switch (ev.type) {
+        case "text": {
+          let text = ev.text;
+          if (!textStarted) {
+            text = text.replace(/^\s+/, "");
+            if (text.length === 0) break;
+            textStarted = true;
+          }
+          onProgress();
+          callbacks.onChunk(text);
+          break;
+        }
+        case "thinking":
+          onProgress();
+          callbacks.onThinking?.(ev.text);
+          break;
+        case "status":
+          callbacks.onStatus?.(ev.code);
+          break;
+        case "error":
+          error = { code: ev.code, message: ev.message };
+          break;
+        case "stop":
+          stopReason = ev.stopReason;
+          break;
+        case "end":
+          sawEnd = true;
+          break;
+      }
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    handle(parser.push(decoder.decode(value, { stream: true })));
+  }
+  handle(parser.push(decoder.decode())); // flush a trailing partial sequence
+  handle(parser.finish()); // and a CR line ending that was waiting for a possible LF
+
+  return { complete: sawEnd && stopReason !== "interrupted", error };
+}
+
+/** The response's Content-Type, tolerating a test double with no `headers`. */
+function contentTypeOf(response: Response): string {
+  try {
+    return (response as { headers?: Headers }).headers?.get("content-type") ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export async function runChatStream(
@@ -145,7 +236,9 @@ export async function runChatStream(
     try {
       response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: options.streamV2
+          ? { "Content-Type": "application/json", Accept: STREAM_V2_MEDIA_TYPE }
+          : { "Content-Type": "application/json" },
         // JSON.stringify drops keys whose value is `undefined`, so unset
         // optional params never reach the wire (see the interface comment).
         body: JSON.stringify(body),
@@ -204,7 +297,28 @@ export async function runChatStream(
   const decoder = new TextDecoder();
   let receivedAny = false;
 
+  // v2 only when it was asked for AND the server actually answered with it: a
+  // server that ignores the header (older api, a proxy in between) replies
+  // text/plain, and that is then read exactly like the old stream.
+  const isV2 = options.streamV2 === true && contentTypeOf(response).toLowerCase().startsWith("text/event-stream");
+
   try {
+    if (isV2) {
+      const outcome = await consumeV2(reader, decoder, callbacks, () => {
+        receivedAny = true;
+      });
+      if (outcome.complete) {
+        callbacks.onDone();
+      } else if (receivedAny) {
+        callbacks.onPartial();
+      } else {
+        callbacks.onError({
+          message: outcome.error?.message || "Connection lost before any response arrived.",
+          retryable: true,
+        });
+      }
+      return;
+    }
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;

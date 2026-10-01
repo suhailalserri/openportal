@@ -178,6 +178,7 @@ describe("chatStreamReducer — Error", () => {
       status: "error",
       messages: [userMessage("hi")],
       error: { id: "err-1", message: "oops", retryable: true },
+      statusCode: null, // P6.3a: new required field of ChatStreamState
     };
     const reset = chatStreamReducer(errored, { type: "RESET_ERROR" });
     expect(reset.status).toBe("idle");
@@ -186,5 +187,169 @@ describe("chatStreamReducer — Error", () => {
     // No-op from any other status.
     const idleAttempt = chatStreamReducer(initialChatStreamState, { type: "RESET_ERROR" });
     expect(idleAttempt).toBe(initialChatStreamState);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────
+ * P6.3a — thinking and status. The actions above are unchanged; these
+ * pin what the structured stream adds on top of them.
+ * ───────────────────────────────────────────────────────────────────── */
+
+function sent(): ChatStreamState {
+  return chatStreamReducer(initialChatStreamState, {
+    type: "SEND",
+    userMessage: userMessage("hi"),
+    assistantMessageId: "a1",
+  });
+}
+const assistant = (s: ChatStreamState) => s.messages.find((m) => m.id === "a1");
+
+describe("chatStreamReducer — THINKING (P6.3a)", () => {
+  it("creates the assistant draft with EMPTY content and the reasoning in its own field", () => {
+    const s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "hmm", at: 1000 });
+    expect(s.status).toBe("streaming");
+    expect(assistant(s)?.content).toBe("");
+    expect(assistant(s)?.thinking).toEqual({ text: "hmm", startedAt: 1000 });
+  });
+
+  it("appends further reasoning to the same trace and keeps the first start time", () => {
+    let s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "a", at: 1000 });
+    s = chatStreamReducer(s, { type: "THINKING", id: "a1", delta: "b", at: 2500 });
+    expect(assistant(s)?.thinking).toEqual({ text: "ab", startedAt: 1000 });
+    expect(assistant(s)?.content).toBe("");
+  });
+
+  it("the first answer text closes the thinking timer and is the only thing that lands in content", () => {
+    let s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "reasoning", at: 1000 });
+    s = chatStreamReducer(s, { type: "CHUNK", id: "a1", delta: "Answer", at: 4000 });
+    expect(assistant(s)?.content).toBe("Answer");
+    expect(assistant(s)?.thinking).toEqual({ text: "reasoning", startedAt: 1000, endedAt: 4000 });
+    // a later chunk does not move endedAt
+    s = chatStreamReducer(s, { type: "CHUNK", id: "a1", delta: "!", at: 9000 });
+    expect(assistant(s)?.thinking?.endedAt).toBe(4000);
+  });
+
+  it("CHUNK without `at` (the plain-text stream) never touches thinking and behaves exactly as before", () => {
+    const s = chatStreamReducer(sent(), { type: "CHUNK", id: "a1", delta: "plain" });
+    expect(assistant(s)).toMatchObject({ content: "plain" });
+    expect(assistant(s)?.thinking).toBeUndefined();
+  });
+
+  it("is ignored outside an in-flight turn (a late frame from a stopped stream)", () => {
+    const stopped = chatStreamReducer(
+      chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "x", at: 1 }),
+      { type: "STOP", id: "a1" },
+    );
+    expect(chatStreamReducer(stopped, { type: "THINKING", id: "a1", delta: "late", at: 2 })).toBe(stopped);
+    expect(chatStreamReducer(initialChatStreamState, { type: "THINKING", id: "a1", delta: "x", at: 1 })).toBe(
+      initialChatStreamState,
+    );
+  });
+
+  it("DONE closes a reasoning-only turn's timer and keeps the message", () => {
+    let s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "only thoughts", at: 1000 });
+    s = chatStreamReducer(s, { type: "DONE", id: "a1", at: 6000 });
+    expect(s.status).toBe("done");
+    expect(assistant(s)?.thinking).toEqual({ text: "only thoughts", startedAt: 1000, endedAt: 6000 });
+    expect(assistant(s)?.content).toBe("");
+  });
+});
+
+describe("chatStreamReducer — stopping or losing a turn that only has reasoning (P6.3a)", () => {
+  it("STOP keeps a thinking-only draft, marks it partial and closes the timer", () => {
+    let s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "t", at: 1000 });
+    s = chatStreamReducer(s, { type: "STOP", id: "a1", at: 3000 });
+    expect(s.status).toBe("stopped");
+    expect(assistant(s)).toMatchObject({ isPartial: true, content: "", thinking: { text: "t", startedAt: 1000, endedAt: 3000 } });
+  });
+
+  it("PARTIAL keeps a thinking-only draft too", () => {
+    let s = chatStreamReducer(sent(), { type: "THINKING", id: "a1", delta: "t", at: 1000 });
+    s = chatStreamReducer(s, { type: "PARTIAL", id: "a1", at: 2000 });
+    expect(s.status).toBe("partial");
+    expect(assistant(s)).toMatchObject({ isPartial: true, thinking: { endedAt: 2000 } });
+  });
+
+  it("STOP and PARTIAL still drop a draft that has neither text nor reasoning (unchanged)", () => {
+    const empty = chatStreamReducer(sent(), { type: "CHUNK", id: "a1", delta: "" });
+    expect(assistant(chatStreamReducer(empty, { type: "STOP", id: "a1" }))).toBeUndefined();
+    expect(assistant(chatStreamReducer(empty, { type: "PARTIAL", id: "a1" }))).toBeUndefined();
+  });
+
+  it("the old STOP/PARTIAL with answer text still marks it partial, with or without `at`", () => {
+    const s = chatStreamReducer(sent(), { type: "CHUNK", id: "a1", delta: "some" });
+    expect(assistant(chatStreamReducer(s, { type: "STOP", id: "a1" }))?.isPartial).toBe(true);
+    expect(assistant(chatStreamReducer(s, { type: "PARTIAL", id: "a1", at: 5 }))?.isPartial).toBe(true);
+  });
+});
+
+describe("chatStreamReducer — STATUS (P6.3a)", () => {
+  it("is set while waiting for the first output", () => {
+    const s = chatStreamReducer(sent(), { type: "STATUS", code: "waiting" });
+    expect(s.status).toBe("sending");
+    expect(s.statusCode).toBe("waiting");
+  });
+
+  it("clears on the first reasoning", () => {
+    const s = chatStreamReducer(chatStreamReducer(sent(), { type: "STATUS", code: "waiting" }), {
+      type: "THINKING",
+      id: "a1",
+      delta: "t",
+      at: 1,
+    });
+    expect(s.statusCode).toBeNull();
+  });
+
+  it("clears on the first answer text", () => {
+    const s = chatStreamReducer(chatStreamReducer(sent(), { type: "STATUS", code: "waiting" }), {
+      type: "CHUNK",
+      id: "a1",
+      delta: "x",
+    });
+    expect(s.statusCode).toBeNull();
+  });
+
+  it("clears when the turn ends any other way, and on a new send", () => {
+    const waiting = chatStreamReducer(sent(), { type: "STATUS", code: "waiting" });
+    const err = { id: "e", message: "m", retryable: true };
+    expect(chatStreamReducer(waiting, { type: "ERROR", id: "a1", error: err }).statusCode).toBeNull();
+    expect(chatStreamReducer(waiting, { type: "STOP", id: "a1" }).statusCode).toBeNull();
+    expect(chatStreamReducer(waiting, { type: "PARTIAL", id: "a1" }).statusCode).toBeNull();
+    expect(chatStreamReducer(waiting, { type: "DONE", id: "a1" }).statusCode).toBeNull();
+    const again = chatStreamReducer(chatStreamReducer(waiting, { type: "STOP", id: "a1" }), {
+      type: "SEND",
+      userMessage: userMessage("again"),
+      assistantMessageId: "a2",
+    });
+    expect(again.statusCode).toBeNull();
+  });
+
+  it("is ignored once content has started, and when nothing is in flight", () => {
+    const streaming = chatStreamReducer(sent(), { type: "CHUNK", id: "a1", delta: "x" });
+    expect(chatStreamReducer(streaming, { type: "STATUS", code: "waiting" })).toBe(streaming);
+    expect(chatStreamReducer(initialChatStreamState, { type: "STATUS", code: "waiting" })).toBe(
+      initialChatStreamState,
+    );
+  });
+
+  it("starts as null in the initial state", () => {
+    expect(initialChatStreamState.statusCode).toBeNull();
+  });
+});
+
+describe("chatStreamReducer — edit after a reasoning turn (P6.3a)", () => {
+  it("EDIT_SEND drops the old reply together with its reasoning", () => {
+    let s = sent();
+    s = chatStreamReducer(s, { type: "THINKING", id: "a1", delta: "old thoughts", at: 1 });
+    s = chatStreamReducer(s, { type: "CHUNK", id: "a1", delta: "old answer", at: 2 });
+    s = chatStreamReducer(s, { type: "DONE", id: "a1", at: 3 });
+    const edited = chatStreamReducer(s, {
+      type: "EDIT_SEND",
+      truncateBeforeId: "user-1",
+      userMessage: { ...userMessage("new question"), id: "user-2" },
+      assistantMessageId: "a2",
+    });
+    expect(edited.messages.map((m) => m.id)).toEqual(["user-2"]);
+    expect(JSON.stringify(edited)).not.toContain("old thoughts");
   });
 });

@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatError } from "../types";
+import type { ChatMessage, ChatError, ThinkingTrace } from "../types";
 
 /**
  * apps/web/features/chat/lib/chat-stream-reducer.ts
@@ -28,6 +28,16 @@ import type { ChatMessage, ChatError } from "../types";
  * or double-append into a message a retry has already replaced. Every
  * mutating action below is a no-op unless the reducer is still in the
  * exact in-flight state that action expects.
+ *
+ * P6.3a (structured stream, behind a per-browser flag). Two additions, both
+ * inert unless the v2 stream is on: a THINKING action (reasoning text goes to
+ * `message.thinking`, never into `content`, so it is never saved, billed as
+ * answer text or sent back to the model as history) and a STATUS action
+ * (`statusCode`, shown as a status line until the first content). The old
+ * CHUNK/DONE/STOP/PARTIAL/ERROR actions behave exactly as before when their
+ * new optional `at` field is absent, which is how every v1 caller and every
+ * pre-P6.3 test dispatches them. Timestamps come in on the actions (`at`,
+ * epoch ms) so this stays a pure function.
  */
 
 export type ChatStreamStatus =
@@ -43,15 +53,21 @@ export interface ChatStreamState {
   status: ChatStreamStatus;
   messages: ChatMessage[];
   error: ChatError | null;
+  /** P6.3a. The server's progress code for the turn in flight (today only
+   *  "waiting"), or null. Set only while no content has arrived; cleared by the
+   *  first thinking/text and by every end-of-turn action. */
+  statusCode: string | null;
 }
 
 export type ChatStreamAction =
   | { type: "SEND"; userMessage: ChatMessage; assistantMessageId: string }
   | { type: "EDIT_SEND"; truncateBeforeId: string; userMessage: ChatMessage; assistantMessageId: string }
-  | { type: "CHUNK"; id: string; delta: string }
-  | { type: "DONE"; id: string }
-  | { type: "STOP"; id: string }
-  | { type: "PARTIAL"; id: string }
+  | { type: "CHUNK"; id: string; delta: string; at?: number }
+  | { type: "THINKING"; id: string; delta: string; at: number }
+  | { type: "STATUS"; code: string }
+  | { type: "DONE"; id: string; at?: number }
+  | { type: "STOP"; id: string; at?: number }
+  | { type: "PARTIAL"; id: string; at?: number }
   | { type: "ERROR"; id: string; error: ChatError }
   | { type: "RESET_ERROR" };
 
@@ -59,6 +75,7 @@ export const initialChatStreamState: ChatStreamState = {
   status: "idle",
   messages: [],
   error: null,
+  statusCode: null,
 };
 
 const IN_FLIGHT: ReadonlySet<ChatStreamStatus> = new Set(["sending", "streaming"]);
@@ -69,6 +86,19 @@ function replaceMessage(
   update: (m: ChatMessage) => ChatMessage,
 ): ChatMessage[] {
   return messages.map((m) => (m.id === id ? update(m) : m));
+}
+
+/** Stamps `endedAt` on a message's thinking the first time it is closed. */
+function closeThinking(m: ChatMessage, at: number | undefined): ChatMessage {
+  const t = m.thinking;
+  if (!t || t.endedAt !== undefined || at === undefined) return m;
+  const closed: ThinkingTrace = { ...t, endedAt: at };
+  return { ...m, thinking: closed };
+}
+
+/** A draft worth keeping when a turn is cut short: it has answer text OR reasoning. */
+function hasAnything(m: ChatMessage): boolean {
+  return m.content.length > 0 || (m.thinking?.text.length ?? 0) > 0;
 }
 
 export function chatStreamReducer(
@@ -87,6 +117,7 @@ export function chatStreamReducer(
       return {
         status: "sending",
         error: null,
+        statusCode: null,
         messages: [...state.messages, action.userMessage],
       };
     }
@@ -107,6 +138,7 @@ export function chatStreamReducer(
       return {
         status: "sending",
         error: null,
+        statusCode: null,
         messages: [...state.messages.slice(0, idx), action.userMessage],
       };
     }
@@ -129,29 +161,75 @@ export function chatStreamReducer(
           createdAt: new Date().toISOString(),
           isPartial: false,
         };
-        return { ...state, status: "streaming", messages: [...state.messages, draft] };
+        return { ...state, status: "streaming", statusCode: null, messages: [...state.messages, draft] };
       }
       return {
         ...state,
         status: "streaming",
+        statusCode: null,
+        messages: replaceMessage(state.messages, action.id, (m) =>
+          // Answer text starting ends the reasoning phase (P6.3a). A no-op
+          // without `at`, i.e. for the plain-text stream.
+          closeThinking({ ...m, content: m.content + action.delta }, action.at),
+        ),
+      };
+    }
+
+    case "THINKING": {
+      // P6.3a. Same in-flight guard and lazy draft as CHUNK. The draft starts
+      // with EMPTY content: the answer has not begun, the reasoning is all there is.
+      // Reasoning that resumes after the answer started (the model switched
+      // blocks) is appended to the same trace; its timestamps are not reopened.
+      if (state.status !== "sending" && state.status !== "streaming") return state;
+      const exists = state.messages.some((m) => m.id === action.id);
+      if (!exists) {
+        const draft: ChatMessage = {
+          id: action.id,
+          role: "assistant",
+          content: "",
+          createdAt: new Date().toISOString(),
+          isPartial: false,
+          thinking: { text: action.delta, startedAt: action.at },
+        };
+        return { ...state, status: "streaming", statusCode: null, messages: [...state.messages, draft] };
+      }
+      return {
+        ...state,
+        status: "streaming",
+        statusCode: null,
         messages: replaceMessage(state.messages, action.id, (m) => ({
           ...m,
-          content: m.content + action.delta,
+          thinking: m.thinking
+            ? { ...m.thinking, text: m.thinking.text + action.delta }
+            : { text: action.delta, startedAt: action.at },
         })),
       };
     }
 
+    case "STATUS": {
+      // P6.3a. The server sends this once, before any content. Only accepted
+      // in the gap before the assistant's draft exists; after that it is stale.
+      if (state.status !== "sending") return state;
+      return { ...state, statusCode: action.code };
+    }
+
     case "DONE": {
       if (state.status !== "sending" && state.status !== "streaming") return state;
-      return { ...state, status: "done" };
+      return {
+        ...state,
+        status: "done",
+        statusCode: null,
+        messages: replaceMessage(state.messages, action.id, (m) => closeThinking(m, action.at)),
+      };
     }
 
     case "STOP": {
       if (state.status !== "sending" && state.status !== "streaming") return state;
-      const hasContent = state.messages.some((m) => m.id === action.id && m.content.length > 0);
+      const hasContent = state.messages.some((m) => m.id === action.id && hasAnything(m));
       return {
         ...state,
         status: "stopped",
+        statusCode: null,
         // Nothing streamed yet when Stop landed — drop the empty draft
         // rather than leaving a blank assistant bubble in the
         // transcript. Otherwise mark it partial: the server-side
@@ -159,19 +237,20 @@ export function chatStreamReducer(
         // was received with isPartial: true and bills for it, so the
         // client's own view must match what actually got saved/billed.
         messages: hasContent
-          ? replaceMessage(state.messages, action.id, (m) => ({ ...m, isPartial: true }))
+          ? replaceMessage(state.messages, action.id, (m) => closeThinking({ ...m, isPartial: true }, action.at))
           : state.messages.filter((m) => m.id !== action.id),
       };
     }
 
     case "PARTIAL": {
       if (state.status !== "sending" && state.status !== "streaming") return state;
-      const hasContent = state.messages.some((m) => m.id === action.id && m.content.length > 0);
+      const hasContent = state.messages.some((m) => m.id === action.id && hasAnything(m));
       return {
         ...state,
         status: "partial",
+        statusCode: null,
         messages: hasContent
-          ? replaceMessage(state.messages, action.id, (m) => ({ ...m, isPartial: true }))
+          ? replaceMessage(state.messages, action.id, (m) => closeThinking({ ...m, isPartial: true }, action.at))
           : state.messages.filter((m) => m.id !== action.id),
       };
     }
@@ -185,6 +264,7 @@ export function chatStreamReducer(
       return {
         ...state,
         status: "error",
+        statusCode: null,
         error: action.error,
         messages: state.messages.filter((m) => !(m.id === action.id && m.content.length === 0)),
       };

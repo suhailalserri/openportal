@@ -376,3 +376,257 @@ describe("runChatStream — busy / unavailable auto-retry", () => {
     expect(cb.calls).toEqual(["stopped"]);
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────
+ * P6.3a — structured (v2) stream. Everything below is opt-in: the tests
+ * above run with no `streamV2` option and pin the old behaviour.
+ * ───────────────────────────────────────────────────────────────────── */
+
+function sseFrame(type: string, body: Record<string, unknown> = {}): string {
+  return `event: ${type}\ndata: ${JSON.stringify({ type, ...body })}\n\n`;
+}
+const text = (t: string) => sseFrame("content_block_delta", { index: 1, delta: { type: "text_delta", text: t } });
+const think = (t: string) =>
+  sseFrame("content_block_delta", { index: 0, delta: { type: "thinking_delta", thinking: t } });
+const tail = (stopReason = "end_turn") =>
+  sseFrame("message_delta", { delta: { stopReason }, usage: { inputTokens: 1, outputTokens: 1, creditCost: 0 } }) +
+  sseFrame("message_stop");
+
+function v2Callbacks(): StreamCallbacks & { log: string[]; text: string; thinking: string; errors: string[] } {
+  const log: string[] = [];
+  const errors: string[] = [];
+  const acc = { text: "", thinking: "" };
+  return {
+    log,
+    errors,
+    get text() {
+      return acc.text;
+    },
+    get thinking() {
+      return acc.thinking;
+    },
+    onChunk: (d) => {
+      acc.text += d;
+      log.push("text");
+    },
+    onThinking: (d: string) => {
+      acc.thinking += d;
+      log.push("thinking");
+    },
+    onStatus: (c: string) => log.push(`status:${c}`),
+    onDone: () => log.push("done"),
+    onStopped: () => log.push("stopped"),
+    onPartial: () => log.push("partial"),
+    onError: (e) => {
+      errors.push(e.message);
+      log.push("error");
+    },
+  };
+}
+
+function v2Response(chunks: Uint8Array[], contentType = "text/event-stream; charset=utf-8", opts?: Parameters<typeof fakeReader>[1]) {
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": contentType }),
+    body: fakeReader(chunks, opts),
+  } as unknown as Response;
+}
+
+const enc = (s: string) => new TextEncoder().encode(s);
+const BODY = { model: "m", messages: [] };
+
+describe("runChatStream — Accept header (P6.3a)", () => {
+  it("sends Accept: application/vnd.aip.stream+v2 only when streamV2 is on", async () => {
+    const fetchMock = vi.fn(async () => v2Response([enc(text("hi") + tail())]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await runChatStream(BODY, new AbortController().signal, v2Callbacks(), { streamV2: true });
+    const on = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(on.headers).toEqual({ "Content-Type": "application/json", Accept: "application/vnd.aip.stream+v2" });
+
+    fetchMock.mockClear();
+    await runChatStream(BODY, new AbortController().signal, v2Callbacks());
+    const off = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(off.headers).toEqual({ "Content-Type": "application/json" });
+    expect(JSON.stringify(off.headers)).not.toContain("Accept");
+
+    fetchMock.mockClear();
+    await runChatStream(BODY, new AbortController().signal, v2Callbacks(), { streamV2: false });
+    const explicitOff = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(explicitOff.headers).toEqual({ "Content-Type": "application/json" });
+  });
+});
+
+describe("runChatStream — v2 happy path (P6.3a)", () => {
+  it("routes thinking, status and text to their own callbacks, in order, then done", async () => {
+    const wire =
+      sseFrame("message_start", { message: { id: "r", model: "m", role: "assistant" } }) +
+      sseFrame("status", { code: "waiting" }) +
+      sseFrame("content_block_start", { index: 0, contentBlock: { type: "thinking" } }) +
+      think("let me ") +
+      think("think") +
+      sseFrame("content_block_stop", { index: 0 }) +
+      sseFrame("content_block_start", { index: 1, contentBlock: { type: "text" } }) +
+      text("Hel") +
+      text("lo") +
+      sseFrame("content_block_stop", { index: 1 }) +
+      tail();
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(wire)])));
+
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+
+    expect(cb.log).toEqual(["status:waiting", "thinking", "thinking", "text", "text", "done"]);
+    expect(cb.thinking).toBe("let me think");
+    expect(cb.text).toBe("Hello");
+  });
+
+  it("trims the leading whitespace of the answer, including a whitespace-only first delta", async () => {
+    const wire = think("t") + text("\n\n") + text("  \n") + text("\nHi there") + text("\n\nmore") + tail();
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(wire)])));
+
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+
+    expect(cb.text).toBe("Hi there\n\nmore"); // leading blank lines gone, inner ones kept
+    expect(cb.log.filter((l) => l === "text")).toHaveLength(2); // the two whitespace-only deltas were swallowed
+  });
+
+  it("decodes Arabic split inside a character, and a frame split mid-line, across reads", async () => {
+    const wire = think("نفكّر") + text("مرحبا بك") + tail();
+    const bytes = enc(wire);
+    // The frame JSON is ASCII up to the first Arabic letter, so the first byte
+    // >= 0xC0 is the lead byte of a 2-byte sequence: cut right after it.
+    const byteAt = bytes.findIndex((b) => b >= 0xc0) + 1;
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([bytes.slice(0, byteAt), bytes.slice(byteAt, byteAt + 7), bytes.slice(byteAt + 7)])));
+
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+
+    expect(cb.thinking).toBe("نفكّر");
+    expect(cb.text).toBe("مرحبا بك");
+    expect(cb.thinking + cb.text).not.toContain("\uFFFD");
+    expect(cb.log.at(-1)).toBe("done");
+  });
+
+  it("ignores unknown events and tool_use blocks, and still finishes with done", async () => {
+    const wire =
+      sseFrame("brand_new_event", { x: 1 }) +
+      sseFrame("content_block_start", { index: 0, contentBlock: { type: "tool_use", id: "t1", name: "search" } }) +
+      sseFrame("content_block_delta", { index: 0, delta: { type: "input_json_delta", partialJson: '{"q":1}' } }) +
+      sseFrame("content_block_stop", { index: 0 }) +
+      text("answer") +
+      tail("tool_use");
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(wire)])));
+
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+
+    expect(cb.log).toEqual(["text", "done"]);
+    expect(cb.text).toBe("answer");
+  });
+
+  it("a reasoning-only reply that ends normally is done, not an error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(think("only thoughts") + tail())])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["thinking", "done"]);
+  });
+});
+
+describe("runChatStream — v2 fallbacks and interruptions (P6.3a)", () => {
+  it("reads a text/plain answer like the old stream even though v2 was requested", async () => {
+    // e.g. an older api, or something in between that ignored the Accept header
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc("plain "), enc("text")], "text/plain; charset=utf-8")));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.text).toBe("plain text");
+    expect(cb.log).toEqual(["text", "text", "done"]);
+  });
+
+  it("does not parse SSE when v2 was not requested, even if the body looks like SSE", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(text("x") + tail())])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb);
+    expect(cb.text).toContain("event: content_block_delta"); // raw bytes, as the old reader always did
+  });
+
+  it("a response with no headers object (test double) is read as the old stream", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, body: fakeReader([enc("abc")]) }) as unknown as Response));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.text).toBe("abc");
+  });
+
+  it("becomes partial when the body ends without message_stop after some output", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(think("t") + text("half"))])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["thinking", "text", "partial"]);
+  });
+
+  it("becomes partial when only reasoning arrived before the cut", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(think("t"))])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["thinking", "partial"]);
+  });
+
+  it("becomes partial on a network drop mid-stream", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(text("some"))], undefined, { throwAfter: 1 })));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["text", "partial"]);
+  });
+
+  it("an interrupted stop reason with output is partial; the server's STREAM_INTERRUPTED error does not turn it into an error", async () => {
+    const wire = text("cut off") + sseFrame("error", { code: "STREAM_INTERRUPTED", message: "x" }) + tail("interrupted");
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(wire)])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["text", "partial"]);
+  });
+
+  it("an interrupted stream with no output at all is an error that carries the server's message and is retryable", async () => {
+    const wire = sseFrame("error", { code: "STREAM_INTERRUPTED", message: "Upstream broke" }) + tail("interrupted");
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(wire)])));
+    const cb = v2Callbacks();
+    let retryable: boolean | undefined;
+    await runChatStream(BODY, new AbortController().signal, { ...cb, onError: (e) => { retryable = e.retryable; cb.onError(e); } }, { streamV2: true });
+    expect(cb.log).toEqual(["error"]);
+    expect(cb.errors).toEqual(["Upstream broke"]);
+    expect(retryable).toBe(true);
+  });
+
+  it("an empty v2 body is an error, not a silent done", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([])));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["error"]);
+  });
+
+  it("abort mid-stream is stopped, not partial or error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => v2Response([enc(think("t"))], undefined, { throwAfter: 1, throwAsAbort: true })));
+    const cb = v2Callbacks();
+    await runChatStream(BODY, new AbortController().signal, cb, { streamV2: true });
+    expect(cb.log).toEqual(["thinking", "stopped"]);
+  });
+
+  it("an HTTP error still takes the JSON error path when v2 was requested", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 402,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({ error: "INSUFFICIENT_BALANCE", message: "No credits" }),
+      }) as unknown as Response),
+    );
+    const cb = v2Callbacks();
+    let retryable: boolean | undefined;
+    await runChatStream(BODY, new AbortController().signal, { ...cb, onError: (e) => { retryable = e.retryable; cb.onError(e); } }, { streamV2: true });
+    expect(cb.errors).toEqual(["No credits"]);
+    expect(retryable).toBe(false);
+  });
+});

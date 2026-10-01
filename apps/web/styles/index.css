@@ -179,6 +179,31 @@ p {
    * closer to light hitting a glossy card than either of those.
    */
   --animate-card-shine: card-shine 5s ease-in-out infinite;
+  /*
+   * ThinkingBlock (features/chat/components/message/thinking-block.tsx), P6.3a.
+   * All three run ONLY while the model is still reasoning, and every use in
+   * the component is behind `motion-safe:`, so prefers-reduced-motion gets a
+   * still block. `orbit`: the light dot circling the aperture glyph.
+   * `thread`: a band of gate-light travelling down the hairline beside the
+   * reasoning text. `sheen`: the same light passing once across the label.
+   */
+  --animate-thinking-orbit: thinking-orbit 2.8s linear infinite;
+  --animate-thinking-thread: thinking-thread 2.4s ease-in-out infinite;
+  --animate-thinking-sheen: thinking-sheen 2.8s linear infinite;
+}
+
+@keyframes thinking-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes thinking-thread {
+  from { background-position: 0 -80%; }
+  to   { background-position: 0 180%; }
+}
+
+@keyframes thinking-sheen {
+  from { background-position: 110% 0; }
+  to   { background-position: -110% 0; }
 }
 
 @keyframes typing-blink {
