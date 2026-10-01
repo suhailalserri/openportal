@@ -42,8 +42,13 @@ export interface UseChatStreamOptions {
   initialMessages?: ChatMessage[] | undefined;
 }
 
+/** Optional extras for one `send` (P6.3c): the files uploaded for this turn. */
+export interface SendExtra {
+  attachments?: ChatAttachment[] | undefined;
+}
+
 export interface UseChatStreamResult extends ChatStreamState {
-  send: (content: string) => void;
+  send: (content: string, extra?: SendExtra | undefined) => void;
   /** Edits a past USER turn: truncates that message and everything
    *  after it (its old assistant reply included), then sends `content`
    *  as a new turn in its place. See EDIT_SEND in chat-stream-reducer.ts
@@ -270,7 +275,7 @@ export function useChatStream({
   const lastAttachmentsRef = React.useRef<ChatAttachment[] | undefined>(undefined);
 
   const send = React.useCallback(
-    (content: string, extra?: { attachments?: ChatAttachment[] | undefined } | undefined) => {
+    (content: string, extra?: SendExtra | undefined) => {
       const trimmed = content.trim();
       if (!trimmed) return;
       if (stateRef.current.status === "sending" || stateRef.current.status === "streaming") return;

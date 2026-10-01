@@ -1234,3 +1234,17 @@ The `@valkey/valkey-glide` "Module not found" and `require-in-the-middle` lines 
 **Owner steps:** (1) run the SQL, then merge api and web, CI green (watch the api job for `office-extract`); (2) the checks in PR_NOTES Session 50; (3) screenshots against the catalog; (4) P6.3 is not ticked.
 **If CI goes red:** first failure block per job. Likeliest: `office-extract.test.ts` (fflate behaviour, the sheet-name matching, the TOO_COMPLEX test allocating a 31 MB string), a type error in `gateway.service.ts`/`index.ts`/the new hook, a gateway test if the findFirst mock lacks `title`/`modelId`, the web route test mocks.
 **Open / next:** Tier 3 (convert HEIC/BMP/TIFF/AVIF to JPEG in the browser), persistence of attachments with messages (P6.4), tool chips, the 30-per-day limit if needed.
+
+
+## Session 51 - 2026-10-01 - P6.3c CI fix (two type errors, no features)
+
+**Input:** owner ran CI on P6.3c and sent two screenshots: (1) `Type-check & Lint` failed in the api, (2) `Web Build (next build)` failed. Phase Summary approved ("Ok", default: export a named `SendExtra` type).
+**Root causes:**
+1. `apps/api/src/extraction/office-text.ts(152,36)` TS2749: `Map<number, TextDecoder>`. The api tsconfig has `lib: ["ES2022"]` (no DOM), so `TextDecoder` is a value only there. Fixed with `type Decoder = InstanceType<typeof TextDecoder>`; runtime unchanged.
+2. `apps/web/features/chat/components/chat-view.tsx:199` "Expected 1 arguments, got 2": `UseChatStreamResult.send` was still typed `(content: string) => void` while the implementation (and `retry`, and `chat-view.tsx:238`) already pass `{ attachments }`. Fixed by exporting `SendExtra` and typing `send: (content, extra?) => void`; the implementation uses the same type.
+**Not errors (left alone):** `@valkey/valkey-glide` "module not found" and the `require-in-the-middle` critical-dependency lines are build warnings: the web build bundles the api's BullMQ/queue code through the tRPC router import chain (`billing.router.ts` -> `queue.ts`). Pre-existing, not part of P6.3c; worth a separate cleanup if you want a quiet build.
+**Changed:** `apps/api/src/extraction/office-text.ts`, `apps/web/features/chat/hooks/use-chat-stream.ts`, `docs/PR_NOTES.md`, this log. **DELETE:** none. Frozen zone: untouched. No migration, dependency, lockfile or env change.
+**Verified here (actually run):** `tsc` (strict, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `lib ES2022`, a stub declaring `TextDecoder` as a value like `@types/node`): the ORIGINAL line reproduces the exact CI error TS2749, the FIXED file gives zero errors. A mini file with the new `send` signature accepts both call shapes at lines 199/238-style (`send(text, cond ? {attachments} : undefined)` and `send(text)`).
+**Not verified (no node_modules, network, Docker):** the real api and web `tsc`, `next build`, ESLint (the Lint step never ran in your screenshot, so lint findings on P6.3c files are still unseen), vitest, Playwright. Next only reports the FIRST type error and the P6.3 web components were never type-checked, so a second error may appear after this fix. The Web Build's other jobs (E2E) were still pending in the screenshot.
+**If CI is still red:** send the FIRST `Error:`/`Type error` block of each failing job, as you did.
+**Owner steps:** merge, CI green, then the Session 50 checks in PR_NOTES (flag on, phone, RTL, dark). P6.3 stays UNTICKED.

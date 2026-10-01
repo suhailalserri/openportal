@@ -141,6 +141,9 @@ const RTF_SKIP = new Set([
   "rsidtbl", "generator", "xmlnstbl", "fldinst", "bkmkstart", "bkmkend", "shpinst", "nonshppict",
 ]);
 
+/** `lib` is ES2022 without DOM here, so `TextDecoder` is a value only: derive the instance type from it. */
+type Decoder = InstanceType<typeof TextDecoder>;
+
 /** RTF source (read as latin1, one char per byte) -> text. Handles \'hh in the document's code page and \uN. */
 export function rtfToText(src: string): string {
   const out: string[] = [];
@@ -149,7 +152,7 @@ export function rtfToText(src: string): string {
   let codepage = 1252;
   let ucSkip = 1;
   let pendingSkip = 0;
-  const decoders = new Map<number, TextDecoder>();
+  const decoders = new Map<number, Decoder>();
   const decodeByte = (b: number): string => {
     let d = decoders.get(codepage);
     if (!d) {

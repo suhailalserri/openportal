@@ -481,3 +481,10 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   6. **Types:** a real xlsx (sheet names and values read), pptx, docx, pdf, odt, rtf (also an Arabic one), csv, a `.ts` file, a `.md`, a PNG on a vision model. Try refusals: `.zip` (archives message), `.doc`, `.xlsm`, `.heic`, `.mp3`, `.exe` renamed to `.txt` (the server refuses it by its bytes: "contents don't match"), a scanned PDF ("no readable text"), a 6 MB image, a 25 MB file, a 6th file.
   7. Remove a chip while it uploads (it stops); Stop/retry/edit a message that had files (the files are re-sent); a follow-up message does NOT see the files (known: attach again).
   8. Console: no CORS error on the storage upload. Turn off: `localStorage.removeItem("aip.flag.attach")`.
+
+---
+
+## Session 51 - P6.3c CI fix
+- **Changed:** `apps/api/src/extraction/office-text.ts` (type alias for `TextDecoder`, no runtime change); `apps/web/features/chat/hooks/use-chat-stream.ts` (`SendExtra` exported, `send` accepts the optional second argument in the public type).
+- **External contract / behaviour:** none. Types only. Frozen zone untouched; no migration, dependency or env change.
+- **How to verify:** (1) CI: api `Type-check & Lint` (now also runs Lint), `Web Build (next build)`, then the rest of Session 50's list. (2) The `valkey-glide` / `require-in-the-middle` lines in the web build are warnings, not failures. (3) If a new type error shows up, send the first block.
