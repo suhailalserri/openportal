@@ -34,14 +34,27 @@
  * double-invoke or a later revisit to the same id must never re-send it.
  */
 
-const pending = new Map<string, string>();
+import type { ChatAttachment } from "../types";
 
-export function setPendingFirstMessage(conversationId: string, content: string): void {
-  pending.set(conversationId, content);
+/** P6.3c: what the new-chat handoff carries: the text and, when files were attached first, their chips. */
+export interface PendingFirstSend {
+  text: string;
+  attachments?: ChatAttachment[] | undefined;
+}
+
+const pending = new Map<string, PendingFirstSend>();
+
+export function setPendingFirstMessage(conversationId: string, content: string, attachments?: ChatAttachment[]): void {
+  pending.set(conversationId, { text: content, ...(attachments && attachments.length > 0 ? { attachments } : {}) });
 }
 
 /** Returns and removes the pending message for this id, or undefined. */
 export function takePendingFirstMessage(conversationId: string): string | undefined {
+  return takePendingFirstSend(conversationId)?.text;
+}
+
+/** P6.3c: like takePendingFirstMessage, but with the attachments too. Also consumes the entry. */
+export function takePendingFirstSend(conversationId: string): PendingFirstSend | undefined {
   const value = pending.get(conversationId);
   pending.delete(conversationId);
   return value;

@@ -61,6 +61,18 @@ export interface ChatMessage {
    *  lib/wire-messages.ts). Absent on every message loaded from the server
    *  until P6.4 persists blocks, and absent when the flag is off. */
   thinking?: ThinkingTrace | undefined;
+  /** P6.3c. Files the person attached to THIS user turn (display chips only; the server reads them
+   *  by id from the request's `attachmentIds`, never from the message text). Not persisted: gone
+   *  after a reload, like `thinking`, until messages carry them. */
+  attachments?: ChatAttachment[] | undefined;
+}
+
+/** P6.3c. One uploaded, ready attachment as the chat knows it. */
+export interface ChatAttachment {
+  id: string;
+  fileName: string;
+  kind: "image" | "document";
+  sizeBytes: number;
 }
 
 /** P6.3a. Reasoning text plus the timestamps the "Thought for Ns" label needs.

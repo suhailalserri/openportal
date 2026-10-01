@@ -9,6 +9,7 @@ import { formatCredits, formatRelativeDate } from "@/lib/format";
 import { SafeMarkdown } from "@/components/markdown/safe-markdown";
 import { MessageActions } from "./message-actions";
 import { ThinkingBlock } from "./thinking-block";
+import { FileGlyph } from "../composer/file-glyph";
 import type { ChatMessage } from "../../types";
 
 export interface MessageProps {
@@ -247,6 +248,18 @@ function MessageImpl({
             </div>
           </div>
         ) : isUser ? (
+          <>
+          {/* P6.3c: the files sent with this turn (display only; the server read them by id). */}
+          {message.attachments && message.attachments.length > 0 && (
+            <ul className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+              {message.attachments.map((a) => (
+                <li key={a.id} className="flex max-w-[14rem] items-center gap-2 rounded-xl border border-border bg-secondary py-1 ps-1 pe-2.5">
+                  <FileGlyph name={a.fileName} kind={a.kind} className="size-7" />
+                  <span dir="auto" className="truncate text-[12px] font-medium text-foreground">{a.fileName}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           // `break-words [overflow-wrap:anywhere]`: still needed here even
           // though SafeMarkdown carries its own — this is the OUTER bubble
           // (border/background/padding), which must not stretch past
@@ -275,6 +288,7 @@ function MessageImpl({
           <div className="w-full min-w-0 max-w-full rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] break-words [overflow-wrap:anywhere] text-foreground">
             <SafeMarkdown content={message.content} className="pt-0" />
           </div>
+          </>
         ) : (
           <>
             {message.thinking && (
@@ -393,6 +407,7 @@ function messagePropsAreEqual(prev: MessageProps, next: MessageProps): boolean {
     prev.message.modelId === next.message.modelId &&
     prev.message.createdAt === next.message.createdAt &&
     prev.message.thinking === next.message.thinking &&
+    prev.message.attachments === next.message.attachments &&
     prev.streaming === next.streaming &&
     prev.className === next.className &&
     prev.onCopy === next.onCopy &&

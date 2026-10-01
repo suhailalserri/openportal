@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { buildLoginRedirect, sanitizeNext } from "@/lib/safe-redirect";
 import { MessageList } from "./message/message-list";
 import { appendTranscript } from "../lib/voice-recorder";
+import { useAttachments } from "../hooks/use-attachments";
+import { createConversationRow } from "../lib/attachments-client";
 import { ComposerBar } from "./composer/composer-bar";
 import { OfflineBanner } from "./offline-banner";
 import { TabConflictBanner } from "./tab-conflict-banner";
@@ -19,7 +21,7 @@ import { useChatStream } from "../hooks/use-chat-stream";
 import { useConversationMessages } from "../hooks/use-conversation-messages";
 import { useConversationCacheIdentity } from "../hooks/use-conversation-cache-identity";
 import { generateConversationId, conversationPath } from "../lib/new-chat";
-import { setPendingFirstMessage, takePendingFirstMessage, hasPendingFirstMessage } from "../lib/pending-first-message";
+import { setPendingFirstMessage, takePendingFirstSend, hasPendingFirstMessage } from "../lib/pending-first-message";
 import type { ChatMessage, ConversationParams } from "../types";
 import type { ChatModel } from "../lib/model-selection";
 
@@ -191,28 +193,51 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   const consumedPendingRef = React.useRef(false);
   React.useEffect(() => {
     if (!conversationId || consumedPendingRef.current) return;
-    const pending = takePendingFirstMessage(conversationId);
+    const pending = takePendingFirstSend(conversationId);
     if (pending) {
       consumedPendingRef.current = true;
-      stream.send(pending);
+      stream.send(pending.text, pending.attachments ? { attachments: pending.attachments } : undefined);
     }
     // stream.send is stable across renders (useCallback in use-chat-stream.ts);
     // intentionally re-running only on a conversationId change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
+  // P6.3c attachments. An attachment belongs to a conversation ROW, and a brand-new chat has none until
+  // its first message, so the first attach there creates the row (POST /api/conversations) and the chat
+  // then continues under THAT id (the server fills in its title and model when the message arrives).
+  const newChatIdRef = React.useRef<string | null>(null);
+  const creatingRef = React.useRef<Promise<string | null> | null>(null);
+  const ensureConversationId = React.useCallback(async (): Promise<string | null> => {
+    if (conversationId) return conversationId;
+    if (newChatIdRef.current) return newChatIdRef.current;
+    creatingRef.current ??= createConversationRow().then((id) => {
+      newChatIdRef.current = id;
+      creatingRef.current = null;
+      return id;
+    });
+    return creatingRef.current;
+  }, [conversationId]);
+  const attach = useAttachments({ enabled: true, ensureConversationId });
+
   const handleSend = () => {
     const trimmed = draft.trim();
     if (!trimmed) return;
+    if (attach.uploading) return; // the composer also blocks Send while files are still uploading
+    const files = attach.ready.length > 0 ? attach.ready : undefined;
     if (!conversationId) {
-      const id = generateConversationId();
-      setPendingFirstMessage(id, trimmed);
+      // An attachment already created this chat's row: reuse its id so the files belong to it.
+      const id = newChatIdRef.current ?? generateConversationId();
+      setPendingFirstMessage(id, trimmed, files);
+      newChatIdRef.current = null;
       setDraft("");
+      attach.clear();
       router.push(conversationPath(locale, id));
       return;
     }
-    stream.send(trimmed);
+    stream.send(trimmed, files ? { attachments: files } : undefined);
     setDraft("");
+    attach.clear();
   };
 
   // Stable identities (useCallback) rather than inline arrows in the
@@ -311,6 +336,8 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           onChange={setDraft}
           // P6.3b: a voice transcript is appended to the draft, editable, never sent by itself.
           onVoiceText={(text) => setDraft((d) => appendTranscript(d, text))}
+          // P6.3c: files for the next message (behind the per-browser flag; see hooks/use-attachments.ts).
+          attach={attach}
           onSend={handleSend}
           isStreaming={isBusy}
           onStop={() => stream.stop()}

@@ -280,8 +280,26 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   // above, or for any conversation created before this migration ran).
   const conversationRow = await db.query.conversations.findFirst({
     where: eq(conversations.id, opts.conversationId),
-    columns: { summary: true, summarizedMessageCount: true },
+    columns: { summary: true, summarizedMessageCount: true, title: true, modelId: true },
   });
+
+  // P6.3c: a conversation created BEFORE its first message (POST /api/conversations, used so a file can
+  // be attached in a brand-new chat) is a row with no title and no model; the insert above did nothing
+  // because the row exists. Fill them in now, for the owner's row only. Fire-and-forget like the
+  // summary update below: a failure leaves an untitled chat, never a failed request.
+  if (conversationRow && (conversationRow.title === null || conversationRow.modelId === null)) {
+    const firstTitle = opts.messages.at(-1)?.content?.slice(0, 80) ?? null;
+    const patch: { title?: string; modelId?: string } = {
+      ...(conversationRow.title === null && firstTitle ? { title: firstTitle } : {}),
+      ...(conversationRow.modelId === null ? { modelId } : {}),
+    };
+    if (Object.keys(patch).length > 0) {
+      db.update(conversations)
+        .set(patch)
+        .where(and(eq(conversations.id, opts.conversationId), eq(conversations.userId, userId)))
+        .catch((err) => console.error("[conversation] failed to fill title/model:", err));
+    }
+  }
 
   // Persist the user's turn. Only the assistant reply was ever saved
   // before (fire-and-forget, after the stream), so conversation history

@@ -10,7 +10,7 @@ import {
 import { runChatStream } from "../lib/stream-reader";
 import { readStreamV2Enabled } from "../lib/stream-mode";
 import { toWireMessages } from "../lib/wire-messages";
-import type { ChatMessage, ConversationParams } from "../types";
+import type { ChatAttachment, ChatMessage, ConversationParams } from "../types";
 
 export interface UseChatStreamOptions {
   /** undefined until a conversation exists (features/chat's own
@@ -247,7 +247,7 @@ export function useChatStream({
   // an outgoing request is a much safer failure than plainly asserting a
   // type that might not hold.
   const buildRequestBody = React.useCallback(
-    (messages: ChatMessage[]) => {
+    (messages: ChatMessage[], attachmentIds?: string[]) => {
       const temperature = params?.temperature;
       const topP = params?.topP;
       const maxTokens = params?.maxTokens;
@@ -256,6 +256,8 @@ export function useChatStream({
         conversationId,
         // Role + content only; see lib/wire-messages.ts (thinking never leaves the browser).
         messages: toWireMessages(messages),
+        // P6.3c: files for THIS turn only (the server has no attachment-to-message link).
+        ...(attachmentIds && attachmentIds.length > 0 ? { attachmentIds } : {}),
         ...(temperature != null ? { temperature } : {}),
         ...(topP != null ? { top_p: topP } : {}),
         ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
@@ -264,8 +266,11 @@ export function useChatStream({
     [model, conversationId, params],
   );
 
+  // P6.3c: the attachments of the turn in flight, kept so retry re-sends them with the same text.
+  const lastAttachmentsRef = React.useRef<ChatAttachment[] | undefined>(undefined);
+
   const send = React.useCallback(
-    (content: string) => {
+    (content: string, extra?: { attachments?: ChatAttachment[] | undefined } | undefined) => {
       const trimmed = content.trim();
       if (!trimmed) return;
       if (stateRef.current.status === "sending" || stateRef.current.status === "streaming") return;
@@ -276,16 +281,18 @@ export function useChatStream({
         content: trimmed,
         createdAt: new Date().toISOString(),
         isPartial: false,
+        ...(extra?.attachments && extra.attachments.length > 0 ? { attachments: extra.attachments } : {}),
       };
       const assistantMessageId = crypto.randomUUID();
       lastSentRef.current = trimmed;
+      lastAttachmentsRef.current = extra?.attachments;
       dispatch({ type: "SEND", userMessage, assistantMessageId });
 
       const controller = new AbortController();
       controllerRef.current = controller;
 
       void runChatStream(
-        buildRequestBody([...stateRef.current.messages, userMessage]),
+        buildRequestBody([...stateRef.current.messages, userMessage], extra?.attachments?.map((a) => a.id)),
         controller.signal,
         makeCallbacks(assistantMessageId),
         // Read at send time, so flipping the flag applies to the very next message.
@@ -310,6 +317,8 @@ export function useChatStream({
       const idx = stateRef.current.messages.findIndex((m) => m.id === id);
       if (idx === -1) return;
       const historyBefore = stateRef.current.messages.slice(0, idx);
+      // P6.3c: editing the text of a turn keeps the files that were attached to it.
+      const keptAttachments = stateRef.current.messages[idx]?.attachments;
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -317,16 +326,18 @@ export function useChatStream({
         content: trimmed,
         createdAt: new Date().toISOString(),
         isPartial: false,
+        ...(keptAttachments && keptAttachments.length > 0 ? { attachments: keptAttachments } : {}),
       };
       const assistantMessageId = crypto.randomUUID();
       lastSentRef.current = trimmed;
+      lastAttachmentsRef.current = keptAttachments;
       dispatch({ type: "EDIT_SEND", truncateBeforeId: id, userMessage, assistantMessageId });
 
       const controller = new AbortController();
       controllerRef.current = controller;
 
       void runChatStream(
-        buildRequestBody([...historyBefore, userMessage]),
+        buildRequestBody([...historyBefore, userMessage], keptAttachments?.map((a) => a.id)),
         controller.signal,
         makeCallbacks(assistantMessageId),
         // Read at send time, so flipping the flag applies to the very next message.
@@ -343,7 +354,7 @@ export function useChatStream({
   const retry = React.useCallback(() => {
     if (state.status !== "error" || !lastSentRef.current) return;
     dispatch({ type: "RESET_ERROR" });
-    send(lastSentRef.current);
+    send(lastSentRef.current, { attachments: lastAttachmentsRef.current });
   }, [state.status, send]);
 
   // Abort any in-flight stream on unmount (route change, sign-out) so a

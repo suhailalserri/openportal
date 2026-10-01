@@ -164,8 +164,16 @@ export function useConversations(): UseConversationsResult {
     [conversations, userId],
   );
 
+  // P6.3c: a chat whose row was created for an attachment but never got a message has no title yet.
+  // Hide it until it does (it gets its title when its first message is sent). Rows that were titled
+  // before this change are unaffected.
+  const visibleConversations = React.useMemo(
+    () => conversations.filter((c) => typeof c.title === "string" && c.title.trim().length > 0),
+    [conversations],
+  );
+
   return {
-    conversations,
+    conversations: visibleConversations,
     isLoading: isLoading && !hasAnyData,
     isError,
     refetch,

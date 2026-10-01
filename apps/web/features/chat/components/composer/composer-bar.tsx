@@ -20,6 +20,9 @@ import { clampMaxTokens } from "../../lib/param-slider";
 import type { ConversationParams } from "../../types";
 import { ComposerPanel, useDismiss } from "./composer-panel";
 import { MicRecording } from "./mic-recording";
+import { AttachmentSheet } from "./attachment-sheet";
+import { AttachmentStrip } from "./attachment-strip";
+import type { AttachControls } from "../../hooks/use-attachments";
 import { useVoiceInput } from "../../hooks/use-voice-input";
 import { ModelChip, ModelList } from "./model-picker";
 import { ParametersPanel } from "./parameters-panel";
@@ -92,6 +95,9 @@ export interface ComposerBarProps {
   /** P6.3b. Where a voice transcript goes (the caller appends it to the draft, editable, never sent).
    *  Absent = no voice input and the old placeholder mic. */
   onVoiceText?: ((text: string) => void) | undefined;
+  /** P6.3c. Attachment state from `useAttachments` (chat-view owns it, it needs the ready files at send time).
+   *  Absent, or its flag off = the old placeholder button, exactly as before. */
+  attach?: AttachControls | undefined;
 }
 
 const HINT_MS = 2500;
@@ -112,6 +118,7 @@ export function ComposerBar({
   onParamsChange,
   className,
   onVoiceText,
+  attach,
 }: ComposerBarProps) {
   const t = useTranslations("chat");
   const tm = useTranslations("models");
@@ -151,6 +158,15 @@ export function ComposerBar({
     clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setHint(null), HINT_MS);
   };
+
+  // P6.3c attachments: the sheet, and refusals (unsupported type, too big, too many) as the usual hint.
+  const [attachSheetOpen, setAttachSheetOpen] = React.useState(false);
+  const attachNotice = attach?.notice ?? null;
+  React.useEffect(() => {
+    if (attachNotice) showHint(t(attachNotice.key));
+    // showHint/t are stable enough for a hint; re-fire only when a NEW notice arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachNotice]);
 
   // P6.3b voice input (behind the per-browser flag; see hooks/use-voice-input.ts).
   const voice = useVoiceInput({
@@ -255,6 +271,11 @@ export function ComposerBar({
       </ComposerPanel>
     ) : null;
 
+  // P6.3c: the attached-files strip rides in the same slot as the panels (above the text box).
+  const stripNode =
+    attach?.flagOn && attach.items.length > 0 ? <AttachmentStrip items={attach.items} onRemove={attach.remove} /> : null;
+  const panelNode = stripNode || panel ? <>{stripNode}{panel}</> : null;
+
   const paramsCustomised =
     params.temperature !== null ||
     params.topP !== null ||
@@ -262,13 +283,27 @@ export function ComposerBar({
 
   const toolbarStart = (
     <>
-      <ComposerIconButton
-        aria-label={t("attach")}
-        aria-disabled="true"
-        onClick={() => showHint(t("attachComingSoon"))}
-      >
-        <Plus aria-hidden />
-      </ComposerIconButton>
+      {!attach || !attach.flagOn ? (
+        <ComposerIconButton
+          aria-label={t("attach")}
+          aria-disabled="true"
+          onClick={() => showHint(t("attachComingSoon"))}
+        >
+          <Plus aria-hidden />
+        </ComposerIconButton>
+      ) : attach.available ? (
+        <ComposerIconButton
+          aria-label={t("attach")}
+          aria-haspopup="dialog"
+          disabled={busy || attach.slots === 0}
+          onClick={() => {
+            setOpenPanel(null);
+            setAttachSheetOpen(true);
+          }}
+        >
+          <Plus aria-hidden />
+        </ComposerIconButton>
+      ) : null}
 
       {parametersEnabled ? (
         <ComposerIconButton
@@ -351,19 +386,22 @@ export function ComposerBar({
         }}
         {...(isStreaming ? { isStreaming, onStop } : {})}
         onInputFocus={() => setOpenPanel(null)}
-        placeholder={t("placeholder")}
+        placeholder={attach?.flagOn && attach.items.length > 0 ? t("attachPlaceholder") : t("placeholder")}
         disabled={composerDisabled}
         // exactOptionalPropertyTypes: only pass the prop when there IS a
         // reason; passing `sendBlockedReason={undefined}` would be an error
         // against `sendBlockedReason?: string` under that flag.
-        {...(sendBlockedReason ? { sendBlockedReason } : {})}
+        {...(attach?.uploading ? { sendBlockedReason: t("attachWaiting") } : sendBlockedReason ? { sendBlockedReason } : {})}
         toolbarStart={toolbarStart}
         toolbarEnd={toolbarEnd}
-        panel={panel}
+        panel={panelNode}
         metaLeft={metaLeft}
         metaRight={metaRight}
         {...(costInfoOpen && costLine ? { metaNote: t("estCostTooltip") } : {})}
       />
+      {attach?.flagOn && attach.available ? (
+        <AttachmentSheet open={attachSheetOpen} onOpenChange={setAttachSheetOpen} onFiles={attach.addFiles} />
+      ) : null}
     </div>
   );
 }

@@ -15,12 +15,19 @@ export interface BucketPolicy {
 export const BUCKETS: Record<BucketName, BucketPolicy> = {
   attachments: {
     maxBytes: 20 * MiB,
-    // No SVG (script-capable), no archives, no executables: never allowlisted (plan P5.2).
+    // No SVG (script-capable), no archives, no executables, no macro-enabled Office files: never allowlisted (plan P5.2).
     allowedMimes: [
       "image/png", "image/jpeg", "image/webp", "image/gif",
       "application/pdf",
       "text/plain",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      // P6.3c: more text-bearing documents. Each is verified against its REAL bytes (extraction/file-type.ts).
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.oasis.opendocument.text",
+      "application/vnd.oasis.opendocument.spreadsheet",
+      "application/vnd.oasis.opendocument.presentation",
+      "application/rtf",
     ],
   },
   audio: {

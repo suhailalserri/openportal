@@ -189,6 +189,32 @@ The eight `/api/admin/**` routes (users, users/[id], users/[id]/credits, stats, 
 
 Errors: `{ "error": "<CODE>", "message": "<CODE>" }`, same stable codes as the table above, plus `VALIDATION_ERROR` (400, a body the procedure's schema rejected), `INTERNAL_ERROR` (500, nothing leaked), `UNAUTHORIZED` (401), `NOT_FOUND` (404, unknown action or wrong method), `UPSTREAM_UNREACHABLE` (502, proxy could not reach the api). `INSUFFICIENT_BALANCE` is HTTP **402** here, like `/chat`. All responses are `Cache-Control: no-store`. The proxy forwards only these four actions, a JSON body of at most 8 KB, and never copies upstream headers.
 
+### Attachments over HTTP (P6.3c: the browser's path to `attachments.*`)
+
+Same reasoning and shape as the voice bridge above (`apps/api/src/services/attachments-http.ts`, web proxy `apps/web/app/api/attachments/[action]/route.ts`; same error shape, same stable codes, all `Cache-Control: no-store`):
+
+| Browser calls (web proxy, session cookie) | Api route | Does |
+|---|---|---|
+| `GET /api/attachments/status` | `GET /attachments/status` | `{ available }`: the storage service key is configured. The attach button is shown only when `true`. |
+| `POST /api/attachments/upload-url` | `POST /attachments/upload-url` | `attachments.createUploadUrl` `{ conversationId, fileName, mimeType, sizeBytes }` |
+| (browser) `PUT <uploadUrl>` | storage, directly | the file |
+| `POST /api/attachments/confirm` | `POST /attachments/confirm` | `attachments.confirm` `{ attachmentId }`, queues text extraction |
+| `POST /api/attachments/get` | `POST /attachments/get` | `attachments.get` `{ attachmentId }`, polled until `status` is `ready` or `failed` (`errorCode` says why) |
+
+Then the files ride on the chat request as `attachmentIds` (max 5, all belonging to the request's `conversationId`; only the CURRENT turn sees them, so retry and edit re-send them).
+
+**An attachment belongs to a conversation row.** A brand-new chat has no row until its first `/chat`, so the web app first calls the existing `POST /api/conversations` (returns the row) and continues the chat under that id. That row has no title and no model; `/chat` fills both in on its first message (`gateway.service.ts`, owner's row only). The sidebar hides untitled conversations until then.
+
+**Supported types** (the model receives text extracted from the file, or an image). The real bytes are always checked against the declared type (`extraction/file-type.ts`):
+
+| Family | Types | Handling |
+|---|---|---|
+| Text, code, data, markup, config | txt, md, csv, tsv, json, jsonl, yaml, toml, xml, html, css, sql, log, py, js, ts, tsx, java, c, cpp, cs, go, rs, rb, php, sh, ... (about 150 extensions, plus extensionless names such as Dockerfile, Makefile, LICENSE) | the browser declares `text/plain`; the server verifies valid UTF-8 and stores the text |
+| Office | pdf, docx, **xlsx, pptx, odt, ods, odp, rtf** (P6.3c) | text extracted in the isolated worker; xlsx as one tab-separated block per sheet, pptx one block per slide |
+| Images | png, jpeg, webp, gif (max 5 MiB) | sent inline; needs a vision-capable model (`VISION_NOT_SUPPORTED` otherwise) |
+
+Limits: 20 MiB per file, 5 files per message, 30 uploads per day, 200 MiB stored per user, extracted text cut at 400,000 characters (`truncated: true`). **Never accepted**: archives, executables and other binaries, SVG, audio/video, macro-enabled Office (`vbaProject.bin`), legacy `.doc/.xls/.ppt`, and HEIC/BMP/TIFF/AVIF images (the browser tells the person to convert). A scanned PDF has no text layer and fails with `NO_TEXT` (no OCR).
+
 ## 3. Chat stream contract (F2–F5, re-verified against `gateway.service.ts`)
 
 - **Request:** `POST /chat` (Fastify) body is validated by `chatRequestSchema` (`apps/api/src/schemas/chat.schema.ts`, B1) — a failure is `400 { error: "VALIDATION_ERROR", message, details }`. Fields: `model` (required), `messages` (1–500, roles `user|assistant|system`, content ≤ 200,000 chars), and **all-optional**: `conversationId` (uuid; defaults to a fresh UUID), `temperature` (0–2), `top_p` (0–1), `max_tokens` (positive int, ≤ 1,000,000, then clamped to the model's `maxOutputTokens` server-side), `systemPrompt` (≤ 20,000 chars), `clientMessageId` (uuid), `regenerate` (boolean). **Optional means `undefined`, never `null`** — the schema is `.optional()`, not `.nullable()`, so a literal `null` on the wire is a 400; omit the key instead. *(Corrected in 4c: this bullet previously described the pre-B1 bare-`as`-cast behavior.)*

@@ -7,6 +7,14 @@ import { unzipSync } from "fflate";
 import { ATTACHMENT_LIMITS } from "../services/attachments.policy";
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+// P6.3c: the Office-family formats whose text we can extract.
+export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+export const ODT_MIME = "application/vnd.oasis.opendocument.text";
+export const ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet";
+export const ODP_MIME = "application/vnd.oasis.opendocument.presentation";
+export const RTF_MIME = "application/rtf";
+const ODF_MIMES: ReadonlySet<string> = new Set([ODT_MIME, ODS_MIME, ODP_MIME]);
 
 const startsWith = (b: Uint8Array, sig: number[], at = 0): boolean =>
   b.length >= at + sig.length && sig.every((v, i) => b[at + i] === v);
@@ -28,6 +36,17 @@ export function listZipEntries(bytes: Uint8Array): string[] | null {
     return null;
   }
   return names;
+}
+
+/** The `mimetype` entry of an OpenDocument package (a tiny stored file), or null. */
+function readOdfMimetype(bytes: Uint8Array): string | null {
+  try {
+    const files = unzipSync(bytes, { filter: (f) => f.name === "mimetype" && f.originalSize <= 200 });
+    const raw = files["mimetype"];
+    return raw ? new TextDecoder("utf-8").decode(raw).trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Valid UTF-8 (optional BOM), no NUL bytes. */
@@ -57,9 +76,23 @@ export function detectMime(bytes: Uint8Array): string | null {
   if (head.includes("%PDF-")) return "application/pdf";
   if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04])) {
     const names = listZipEntries(bytes);
-    if (names && names.includes("[Content_Types].xml") && names.includes("word/document.xml")) return DOCX_MIME;
-    return null; // some other zip (xlsx, pptx, jar, plain archive): never allowed
+    if (!names) return null;
+    // Macro-enabled packages are refused even though only text is ever read.
+    if (names.some((n) => n.toLowerCase().endsWith("vbaproject.bin"))) return null;
+    if (names.includes("[Content_Types].xml")) {
+      if (names.includes("word/document.xml")) return DOCX_MIME;
+      if (names.includes("xl/workbook.xml")) return XLSX_MIME;
+      if (names.includes("ppt/presentation.xml")) return PPTX_MIME;
+      return null; // some other OOXML-looking zip
+    }
+    if (names.includes("mimetype") && names.includes("content.xml")) {
+      const declared = readOdfMimetype(bytes);
+      return declared !== null && ODF_MIMES.has(declared) ? declared : null;
+    }
+    return null; // a jar, a plain archive: never allowed
   }
+  // RTF must be recognised BEFORE the plain-text check (it is valid UTF-8 text too).
+  if (ascii(bytes, 0, 5) === "{\\rtf") return RTF_MIME;
   if (looksLikeUtf8Text(bytes)) return "text/plain";
   return null;
 }

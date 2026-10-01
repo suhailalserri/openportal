@@ -30,7 +30,7 @@ async function readCode(res: Response): Promise<string> {
   return res.status === 401 ? "UNAUTHORIZED" : "UNKNOWN";
 }
 
-async function callJson<T>(
+export async function callJson<T>(
   fetchImpl: FetchLike,
   path: string,
   init: { method: "GET" | "POST"; body?: unknown; signal?: AbortSignal | undefined },

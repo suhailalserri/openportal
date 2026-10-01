@@ -38,9 +38,31 @@ export function makeDocx(paragraphs: string[], extra: Record<string, Uint8Array>
   });
 }
 
-/** A valid ZIP that is not a DOCX (an xlsx-like package). */
+/** A valid ZIP that is not any supported document (a jar-like archive). P6.3c: it used to be xlsx-shaped, but xlsx is supported now. */
 export function makeOtherZip(): Uint8Array {
-  return zipSync({ "[Content_Types].xml": strToU8("<Types/>"), "xl/workbook.xml": strToU8("<workbook/>") });
+  return zipSync({ "META-INF/MANIFEST.MF": strToU8("Manifest-Version: 1.0\n"), "Main.class": strToU8("not really") });
+}
+
+const CT = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>';
+
+export function makeXlsx(sheets: Record<string, string>, sharedStrings = ""): Uint8Array {
+  const files: Record<string, Uint8Array> = {
+    "[Content_Types].xml": strToU8(CT),
+    "xl/workbook.xml": strToU8(`<workbook><sheets>${Object.keys(sheets).map((n, i) => `<sheet name="${n}" sheetId="${i + 1}"/>`).join("")}</sheets></workbook>`),
+  };
+  Object.values(sheets).forEach((xml, i) => { files[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(xml); });
+  if (sharedStrings) files["xl/sharedStrings.xml"] = strToU8(sharedStrings);
+  return zipSync(files);
+}
+
+export function makePptx(slides: string[]): Uint8Array {
+  const files: Record<string, Uint8Array> = { "[Content_Types].xml": strToU8(CT), "ppt/presentation.xml": strToU8("<p:presentation/>") };
+  slides.forEach((xml, i) => { files[`ppt/slides/slide${i + 1}.xml`] = strToU8(xml); });
+  return zipSync(files);
+}
+
+export function makeOdf(mimetype: string, contentXml: string, extra: Record<string, Uint8Array> = {}): Uint8Array {
+  return zipSync({ mimetype: strToU8(mimetype), "content.xml": strToU8(contentXml), ...extra });
 }
 
 export const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);

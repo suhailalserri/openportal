@@ -32,6 +32,8 @@ export interface ChatStreamRequestBody {
   // assembled entirely server-side now (gateway.service.ts).
   messages: { role: "user" | "assistant"; content: string }[];
   conversationId?: string | undefined;
+  /** P6.3c. Ready attachments to use in THIS turn (max 5, all in `conversationId`). Omitted when none. */
+  attachmentIds?: string[] | undefined;
   // Phase 4c — all optional on the server (apps/api/src/schemas/
   // chat.schema.ts, B1). Each is OMITTED from the JSON when unset: the
   // server's Zod schema is `.optional()`, not `.nullable()`, so a

@@ -12,6 +12,10 @@ export const ATTACHMENT_LIMITS = {
   /** A DOCX's document.xml may not inflate beyond this (zip-bomb guard). */
   maxDocxXmlBytes:     30 * 1024 * 1024,
   maxZipEntries:       5_000,
+  /** P6.3c: all entries inflated for ONE xlsx/pptx together (many sheets/slides), zip-bomb guard. */
+  maxZipInflatedBytes: 90 * 1024 * 1024,
+  /** P6.3c: sheets / slides read from one workbook / deck. */
+  maxOfficeParts:      60,
   /** `processing` for longer than this = the worker process died; the sweep fails it. */
   stalledAfterMs:      10 * 60 * 1000,
   maxFileNameLength:   255,

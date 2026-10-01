@@ -48,6 +48,8 @@ import {
 import { adminTwoFactorBootWarning } from "./security/admin-2fa";
 import { negotiateStreamVersion } from "./services/stream-v2";
 import { registerVoiceRoutes } from "./services/voice-http";
+import { registerAttachmentsRoutes } from "./services/attachments-http";
+import { getAttachmentsService } from "./services/attachments.service";
 import { isTranscriptionAvailable } from "./services/transcription.service";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
@@ -227,14 +229,22 @@ app.get("/metrics", { preHandler: metricsGuard }, metricsHandler);
 // The web proxy (apps/web/app/api/voice/[action]/route.ts) calls these with the internal service token;
 // authMiddleware accepts that, while the tRPC context does not. They call the existing voice.* procedures
 // in-process, so quotas, billing lock and error codes are exactly the tRPC ones.
-const createVoiceCaller = createCallerFactory(appRouter);
+const createBridgeCaller = createCallerFactory(appRouter);
+const bridgePreHandler = async (req: FastifyRequest, reply: FastifyReply) => {
+  const { authMiddleware } = await import("./middleware/auth.middleware");
+  await authMiddleware(req, reply);
+};
+const bridgeCaller = (req: FastifyRequest) => createBridgeCaller({ db, user: req.user ?? null, ip: req.ip });
 registerVoiceRoutes(app, {
-  preHandler: async (req, reply) => {
-    const { authMiddleware } = await import("./middleware/auth.middleware");
-    await authMiddleware(req, reply);
-  },
-  makeCaller: (req) => createVoiceCaller({ db, user: req.user ?? null, ip: req.ip }),
+  preHandler:  bridgePreHandler,
+  makeCaller:  bridgeCaller,
   isAvailable: isTranscriptionAvailable,
+});
+// P6.3c: same bridge for attachments (upload, confirm, poll). Available = the storage service key is set.
+registerAttachmentsRoutes(app, {
+  preHandler:  bridgePreHandler,
+  makeCaller:  bridgeCaller,
+  isAvailable: async () => getAttachmentsService() !== null,
 });
 app.addHook("onResponse", async (req, reply) => {
   // Skip the /metrics route itself — instrumenting the metrics endpoint's
