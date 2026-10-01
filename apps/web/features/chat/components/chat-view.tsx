@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildLoginRedirect, sanitizeNext } from "@/lib/safe-redirect";
 import { MessageList } from "./message/message-list";
+import { appendTranscript } from "../lib/voice-recorder";
 import { ComposerBar } from "./composer/composer-bar";
 import { OfflineBanner } from "./offline-banner";
 import { TabConflictBanner } from "./tab-conflict-banner";
@@ -308,6 +309,8 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
         <ComposerBar
           value={draft}
           onChange={setDraft}
+          // P6.3b: a voice transcript is appended to the draft, editable, never sent by itself.
+          onVoiceText={(text) => setDraft((d) => appendTranscript(d, text))}
           onSend={handleSend}
           isStreaming={isBusy}
           onStop={() => stream.stop()}

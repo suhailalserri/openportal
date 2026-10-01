@@ -190,6 +190,9 @@ p {
   --animate-thinking-orbit: thinking-orbit 2.8s linear infinite;
   --animate-thinking-thread: thinking-thread 2.4s ease-in-out infinite;
   --animate-thinking-sheen: thinking-sheen 2.8s linear infinite;
+  /* MicRecording (features/chat/components/composer/mic-recording.tsx), P6.3b. Used only behind motion-safe:. */
+  --animate-rec-pulse: rec-pulse 1.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  --animate-rec-bar: rec-bar 0.9s ease-in-out infinite;
 }
 
 @keyframes thinking-orbit {
@@ -204,6 +207,16 @@ p {
 @keyframes thinking-sheen {
   from { background-position: 110% 0; }
   to   { background-position: -110% 0; }
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 50%, transparent); }
+  50%      { opacity: 0.7; box-shadow: 0 0 0 6px color-mix(in oklab, var(--destructive) 0%, transparent); }
+}
+
+@keyframes rec-bar {
+  0%, 100% { transform: scaleY(0.55); }
+  50%      { transform: scaleY(1.15); }
 }
 
 @keyframes typing-blink {

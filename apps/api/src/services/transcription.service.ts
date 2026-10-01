@@ -109,6 +109,21 @@ function realDeps(): TranscriptionDeps {
   };
 }
 
+/**
+ * P6.3b: can voice input work at all right now? Storage configured AND a published, available model
+ * carrying the `transcription` marker exists. Read-only; used by GET /voice/status to hide the mic.
+ * It does not judge the price (the core refuses a token-sized price at transcribe time with
+ * TRANSCRIPTION_NOT_CONFIGURED, which the client also treats as "hide the mic").
+ */
+export async function isTranscriptionAvailable(): Promise<boolean> {
+  if (!getStorageService() || !getStorageClient()) return false;
+  try {
+    return (await realDeps().loadModel()) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function getTranscriptionService() {
   return {
     transcribe: (input: TranscribeInput) => runTranscription(input, realDeps()),

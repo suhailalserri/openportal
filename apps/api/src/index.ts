@@ -2,7 +2,7 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cookie            from "@fastify/cookie";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import { config }        from "./config";
-import { appRouter }     from "./routers/index";
+import { appRouter, createCallerFactory } from "./routers/index";
 import { createContext } from "./routers/trpc";
 import { startEmailWorker } from "./jobs/email.worker";
 import { startAlertWorker } from "./jobs/alert.worker";
@@ -47,6 +47,8 @@ import {
 } from "./security/plugins";
 import { adminTwoFactorBootWarning } from "./security/admin-2fa";
 import { negotiateStreamVersion } from "./services/stream-v2";
+import { registerVoiceRoutes } from "./services/voice-http";
+import { isTranscriptionAvailable } from "./services/transcription.service";
 
 // P2.1 (closes G3): error tracking comes up before anything else can throw.
 // No SENTRY_DSN => a no-op. Never throws (L12: Sentry must not affect requests).
@@ -220,6 +222,20 @@ app.post("/internal/sentry-test", async (req, reply) => {
 // METRICS_TOKEN unset in production -> 404 (fail closed).
 const metricsGuard = createMetricsGuard(resolveMetricsAccess(config.METRICS_TOKEN, config.NODE_ENV));
 app.get("/metrics", { preHandler: metricsGuard }, metricsHandler);
+
+// ── Voice input bridge (P6.3b) ─────────────────────────────────────────────
+// The web proxy (apps/web/app/api/voice/[action]/route.ts) calls these with the internal service token;
+// authMiddleware accepts that, while the tRPC context does not. They call the existing voice.* procedures
+// in-process, so quotas, billing lock and error codes are exactly the tRPC ones.
+const createVoiceCaller = createCallerFactory(appRouter);
+registerVoiceRoutes(app, {
+  preHandler: async (req, reply) => {
+    const { authMiddleware } = await import("./middleware/auth.middleware");
+    await authMiddleware(req, reply);
+  },
+  makeCaller: (req) => createVoiceCaller({ db, user: req.user ?? null, ip: req.ip }),
+  isAvailable: isTranscriptionAvailable,
+});
 app.addHook("onResponse", async (req, reply) => {
   // Skip the /metrics route itself — instrumenting the metrics endpoint's
   // own latency in the same histogram it serves is noise, not signal.

@@ -175,6 +175,20 @@ The eight `/api/admin/**` routes (users, users/[id], users/[id]/credits, stats, 
 
 ---
 
+### Voice input over HTTP (P6.3b: the browser's path to `voice.*`)
+
+`voice.*` works only on the api host, and the api's tRPC context accepts a user only from the session cookie or a Bearer session token, so the browser cannot call it directly without holding a session token in JavaScript. Instead the web app proxies to thin Fastify routes that run behind `authMiddleware` (internal service token + `X-User-ID`) and call the same procedures in-process (`apps/api/src/services/voice-http.ts`). No procedure, schema, quota or billing rule is duplicated.
+
+| Browser calls (web proxy, session cookie) | Api route | Does |
+|---|---|---|
+| `GET /api/voice/status` | `GET /voice/status` | `{ available }`: storage configured and a published speech model exists. The mic is shown only when `true`. |
+| `POST /api/voice/upload-url` | `POST /voice/upload-url` | `voice.createUploadUrl` |
+| (browser) `PUT <uploadUrl>` | storage, directly | the recording; never through Vercel or the api |
+| `POST /api/voice/confirm` | `POST /voice/confirm` | `voice.confirm` |
+| `POST /api/voice/transcribe` | `POST /voice/transcribe` | `voice.transcribe` (**billed**) |
+
+Errors: `{ "error": "<CODE>", "message": "<CODE>" }`, same stable codes as the table above, plus `VALIDATION_ERROR` (400, a body the procedure's schema rejected), `INTERNAL_ERROR` (500, nothing leaked), `UNAUTHORIZED` (401), `NOT_FOUND` (404, unknown action or wrong method), `UPSTREAM_UNREACHABLE` (502, proxy could not reach the api). `INSUFFICIENT_BALANCE` is HTTP **402** here, like `/chat`. All responses are `Cache-Control: no-store`. The proxy forwards only these four actions, a JSON body of at most 8 KB, and never copies upstream headers.
+
 ## 3. Chat stream contract (F2–F5, re-verified against `gateway.service.ts`)
 
 - **Request:** `POST /chat` (Fastify) body is validated by `chatRequestSchema` (`apps/api/src/schemas/chat.schema.ts`, B1) — a failure is `400 { error: "VALIDATION_ERROR", message, details }`. Fields: `model` (required), `messages` (1–500, roles `user|assistant|system`, content ≤ 200,000 chars), and **all-optional**: `conversationId` (uuid; defaults to a fresh UUID), `temperature` (0–2), `top_p` (0–1), `max_tokens` (positive int, ≤ 1,000,000, then clamped to the model's `maxOutputTokens` server-side), `systemPrompt` (≤ 20,000 chars), `clientMessageId` (uuid), `regenerate` (boolean). **Optional means `undefined`, never `null`** — the schema is `.optional()`, not `.nullable()`, so a literal `null` on the wire is a 400; omit the key instead. *(Corrected in 4c: this bullet previously described the pre-B1 bare-`as`-cast behavior.)*

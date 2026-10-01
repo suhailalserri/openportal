@@ -443,3 +443,22 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   5. Visual checks on a phone width, Arabic (RTL) and dark theme: aperture glyph, hairline, label, and the Arabic wording. Enable "reduce motion" in the OS: block is still, nothing animates.
   6. Optional, slow model: one "Waiting for the model to start…" line at about 2 s. If it only appears at the end, Vercel is buffering SSE (report it).
   7. Turn off: `localStorage.removeItem("aip.flag.streamV2")`.
+
+---
+
+## Session 49 - P6.3b Voice input: server bridge + mic (off by default)
+- New: `apps/api/src/services/voice-http.ts` (+ test); `apps/web/app/api/voice/[action]/route.ts` (+ test); `apps/web/features/chat/{lib/voice-recorder.ts,lib/voice-client.ts,lib/voice-flag.ts (+ tests),hooks/use-voice-input.ts,components/composer/mic-recording.tsx}`. Changed: `apps/api/src/index.ts` (registers the routes), `apps/api/src/services/transcription.service.ts` (+`isTranscriptionAvailable`), `composer-bar.tsx`, `chat-view.tsx`, `styles/index.css`, `messages/en.json`, `messages/ar.json`, docs (`API_CONTRACT.md`, `MASTER_PLAN.md`, this file, `SESSION_LOG.md`).
+- **External contract (additive):** api gains `GET /voice/status` and `POST /voice/{upload-url,confirm,transcribe}`; web gains `/api/voice/[action]`. Frozen zone: owner-approved exception, NEW files only (`app/api/voice/**`); no existing frozen file edited. No migration, dependency, lockfile or env var. No DELETE list.
+- **Default behaviour:** unchanged. The mic stays the old "coming soon" placeholder unless `localStorage aip.flag.voice === "1"`.
+- **Deploy order:** api first (Render), then web (Vercel). Web before api would only make `/api/voice/status` fail, which hides the mic (safe).
+- **Money:** `transcribe` is billed (existing P5.3 rules). A transcription that finishes is billed even if the transcript is empty (the UI says "no speech detected"). Nothing is retried automatically.
+- **How to verify** (P6.3 stays unticked):
+  1. CI all green; Vercel preview opens.
+  2. Flag OFF (default): the mic is the same placeholder as before; Network tab shows no `/api/voice/*` call.
+  3. Api: `curl -H "Authorization: Bearer $INTERNAL_SERVICE_TOKEN" -H "X-User-ID: <id>" $API/voice/status` returns `{"available":true|false}`; the same without the headers returns 401.
+  4. Flag ON (`localStorage.setItem("aip.flag.voice","1")`, reload) on a phone and a desktop: the mic appears only if status is `true`. Tap it, allow the microphone, speak 5 s, tap the red square: "Transcribing..." then the text lands in the composer, editable and NOT sent. One "voice transcription" transaction; balance drops.
+  5. Failure checks: deny the mic permission (message, no crash); tap and stop within half a second ("too short", no upload, no charge); airplane mode after recording (network message); drain the balance ("not enough credits"); the cancel X during recording and during transcribing.
+  6. Visual: phone width, Arabic RTL, dark theme, reduce-motion on (dot and bars hold still). Compare with Elements2.html no. 12 and send screenshots.
+  7. Safari/iOS specifically: it records `audio/mp4`; confirm the upload and transcription accept it.
+  8. Browser console must show no CORS error on the storage PUT. If it does, the storage bucket needs the web origin allowed.
+  9. Turn off: `localStorage.removeItem("aip.flag.voice")`.

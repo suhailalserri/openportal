@@ -19,6 +19,8 @@ import { reconcilePanel, togglePanel, type OpenPanel } from "../../lib/composer-
 import { clampMaxTokens } from "../../lib/param-slider";
 import type { ConversationParams } from "../../types";
 import { ComposerPanel, useDismiss } from "./composer-panel";
+import { MicRecording } from "./mic-recording";
+import { useVoiceInput } from "../../hooks/use-voice-input";
 import { ModelChip, ModelList } from "./model-picker";
 import { ParametersPanel } from "./parameters-panel";
 
@@ -87,6 +89,9 @@ export interface ComposerBarProps {
   onParamsChange: (next: ConversationParams) => void;
 
   className?: string;
+  /** P6.3b. Where a voice transcript goes (the caller appends it to the draft, editable, never sent).
+   *  Absent = no voice input and the old placeholder mic. */
+  onVoiceText?: ((text: string) => void) | undefined;
 }
 
 const HINT_MS = 2500;
@@ -106,6 +111,7 @@ export function ComposerBar({
   params,
   onParamsChange,
   className,
+  onVoiceText,
 }: ComposerBarProps) {
   const t = useTranslations("chat");
   const tm = useTranslations("models");
@@ -145,6 +151,15 @@ export function ComposerBar({
     clearTimeout(hintTimer.current);
     hintTimer.current = setTimeout(() => setHint(null), HINT_MS);
   };
+
+  // P6.3b voice input (behind the per-browser flag; see hooks/use-voice-input.ts).
+  const voice = useVoiceInput({
+    enabled: onVoiceText !== undefined,
+    language: locale,
+    onTranscript: (text) => onVoiceText?.(text),
+    onError: (key) => showHint(t(key)),
+  });
+  const voiceBusy = voice.phase === "requesting" || voice.phase === "transcribing";
 
   // ── send-block: advisory only now (server compacts long histories, see
   // context-estimate.ts header) — near-limit warning still shown, but a
@@ -210,7 +225,14 @@ export function ComposerBar({
 
   // ── panels ────────────────────────────────────────────────────────────
   const panel =
-    openPanel === "model" && models.length > 0 ? (
+    voice.phase === "recording" || voice.phase === "transcribing" ? (
+      <MicRecording
+        phase={voice.phase}
+        elapsedMs={voice.elapsedMs}
+        onStop={voice.stop}
+        onCancel={voice.cancel}
+      />
+    ) : openPanel === "model" && models.length > 0 ? (
       <ComposerPanel id={modelPanelId} label={t("selectModel")}>
         <ModelList
           models={models}
@@ -285,7 +307,7 @@ export function ComposerBar({
     </>
   );
 
-  const toolbarEnd = (
+  const placeholderMic = (
     <ComposerIconButton
       aria-label={t("record")}
       aria-disabled="true"
@@ -294,6 +316,29 @@ export function ComposerBar({
       <Mic aria-hidden />
     </ComposerIconButton>
   );
+
+  // Flag off (the default): exactly the old placeholder. Flag on: the real mic once the host says speech
+  // input is configured, and nothing before that (never shown-then-removed).
+  const toolbarEnd = !voice.flagOn ? (
+    placeholderMic
+  ) : voice.available ? (
+    <ComposerIconButton
+      aria-label={voice.phase === "recording" ? t("micStop") : t("record")}
+      aria-pressed={voice.phase === "recording"}
+      disabled={busy || voiceBusy}
+      onClick={() => {
+        if (voice.phase === "recording") {
+          voice.stop();
+          return;
+        }
+        setOpenPanel(null);
+        voice.start();
+      }}
+      className={cn(voice.phase === "recording" && "bg-destructive text-destructive-foreground hover:not-disabled:bg-destructive")}
+    >
+      <Mic aria-hidden />
+    </ComposerIconButton>
+  ) : null;
 
   return (
     <div ref={rootRef} className={className}>
