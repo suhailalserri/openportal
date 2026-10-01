@@ -55,7 +55,7 @@ export interface SafeMarkdownProps {
   className?: string | undefined;
 }
 
-export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
+function SafeMarkdownImpl({ content, className }: SafeMarkdownProps) {
   const t = useTranslations("chat");
 
   return (
@@ -180,3 +180,9 @@ export function SafeMarkdown({ content, className }: SafeMarkdownProps) {
     </div>
   );
 }
+
+/**
+ * P6.3f (session 54): memoized on (content, className). Parsing markdown and highlighting code is the
+ * most expensive thing a message row does; a row that re-renders with the same text now skips it.
+ */
+export const SafeMarkdown = React.memo(SafeMarkdownImpl);

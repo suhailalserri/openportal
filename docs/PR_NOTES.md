@@ -541,3 +541,18 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   3. Same again but leave while the reply is still streaming: expected to be partial or missing (P6.4), tell me what you see.
   4. Two tabs: send a message in tab B, then switch tab A to another page and back: the new message appears.
   5. Send a message while an old chat is still loading: your live reply is never replaced.
+
+
+---
+
+## Session 54 - P6.3f: long-chat performance, steps 1-3 (web only); P6.3 ticked
+- **Changed:** `apps/web/features/chat/components/chat-view.tsx` (stable handlers via `streamRef`, `onRetryError` stable, memoized history for the composer), `components/composer/composer-bar.tsx` (`useDeferredValue` draft, `useMemo` request-token count), `apps/web/components/markdown/safe-markdown.tsx` (`React.memo`). **New:** `lib/history-estimate.ts` (+ test), `lib/chat-view-handlers-guard.test.ts`. Docs: `MASTER_PLAN.md` (P6.3 ticked, P6.3f as built), this file, `SESSION_LOG.md`.
+- **DELETE:** none.
+- **External contract / behaviour:** none. No api, migration, dependency, lockfile or env change. Frozen zone untouched. Visible differences: none intended; the cost quote under the box may lag a keystroke on a slow phone (deferred), and while a reply streams it keeps the pre-reply history until the reply ends.
+- **Deploy order:** web only.
+- **How to verify:**
+  1. CI all green: web Unit Tests (`history-estimate`, `chat-view-handlers-guard`), Type-check & Lint (first real type-check of the three edited components), Build.
+  2. Galaxy A31, Chrome, the same 6-long-message chat: type a sentence, then send a message and watch the reply stream. Tell me better / same / worse for each, and send a Chrome DevTools Performance recording if you can (remote debugging from a PC: chrome://inspect).
+  3. Regression: Regenerate on the last reply works; Edit a past message works; the Retry button on an error works; Stop works.
+  4. The cost line under the box still appears when you type and updates after a reply; the context warning still appears on a very long chat.
+  5. Code blocks, tables and links in old messages still render the same.

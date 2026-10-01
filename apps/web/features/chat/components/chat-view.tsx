@@ -22,6 +22,7 @@ import { useChatStream } from "../hooks/use-chat-stream";
 import { useConversationMessages } from "../hooks/use-conversation-messages";
 import { useConversationCacheIdentity } from "../hooks/use-conversation-cache-identity";
 import { generateConversationId, conversationPath } from "../lib/new-chat";
+import { nextHistory, type HistoryCache } from "../lib/history-estimate";
 import { setPendingFirstMessage, takePendingFirstSend, hasPendingFirstMessage } from "../lib/pending-first-message";
 import type { ChatMessage, ConversationParams } from "../types";
 import type { ChatModel } from "../lib/model-selection";
@@ -254,9 +255,27 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
     void navigator.clipboard?.writeText(message.content);
   }, []);
 
+  // P6.3f (session 54): handlers read the latest `stream` through a ref instead of listing it as a
+  // dependency. `stream` is a new object on every render, so `[stream]` made these change identity on
+  // every keystroke and every streamed frame, which defeated React.memo on every message row (each row
+  // was re-parsed as markdown each time). The ref is assigned during render, so a handler always calls
+  // the CURRENT retry/edit (retry checks the live status). Guarded by chat-view-handlers-guard.test.ts.
+  const streamRef = React.useRef(stream);
+  streamRef.current = stream;
+
   const handleRegenerate = React.useCallback(() => {
-    stream.retry();
-  }, [stream]);
+    streamRef.current.retry();
+  }, []);
+
+  const handleRetryError = React.useCallback(() => {
+    streamRef.current.retry();
+  }, []);
+
+  // P6.3f: one `{ content }[]` per messages list, kept as-is while a reply is in flight (the composer's
+  // estimates are advisory; the final text is picked up when the turn ends). See lib/history-estimate.ts.
+  const historyCacheRef = React.useRef<HistoryCache | null>(null);
+  historyCacheRef.current = nextHistory(stream.messages, historyCacheRef.current, isBusy);
+  const estimateHistory = historyCacheRef.current.value;
 
   // NOT WIRED — flagged, not fixed (see docs/frontend/BRANCH_AND_CI_NOTES.md
   // Patch v10). No persistence endpoint exists for `messages.feedback`
@@ -268,9 +287,9 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
 
   const handleEditMessage = React.useCallback(
     (message: ChatMessage, newContent: string) => {
-      stream.edit(message.id, newContent);
+      streamRef.current.edit(message.id, newContent);
     },
-    [stream],
+    [],
   );
 
   const isNewChat = !conversationId;
@@ -318,7 +337,7 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           onFeedback={handleFeedback}
           onEdit={handleEditMessage}
           editDisabled={isBusy}
-          onRetryError={() => stream.retry()}
+          onRetryError={handleRetryError}
           // "sending" is specifically the gap between the user's turn
           // landing and the assistant's first token — see
           // chat-stream-reducer.ts's own CHUNK-branch comment. Once a
@@ -349,7 +368,7 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           models={models}
           selectedModelId={selectedId}
           onSelectModel={select}
-          history={stream.messages.map((m) => ({ content: m.content }))}
+          history={estimateHistory}
           parametersEnabled
           params={params}
           onParamsChange={setParams}

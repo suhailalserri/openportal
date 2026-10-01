@@ -184,12 +184,20 @@ export function ComposerBar({
   // context-estimate.ts header) — near-limit warning still shown, but a
   // long conversation is no longer client-blocked from sending; the
   // server's own CONTEXT_TOO_LONG response is the authoritative reject.
+  // P6.3f (session 54): the estimates read a DEFERRED copy of the draft. The text box itself keeps the
+  // urgent `value`, so typing never waits for the estimate; React may skip the intermediate estimates
+  // on a slow phone and compute only the latest one.
+  const deferredValue = React.useDeferredValue(value);
   const contextEstimate = React.useMemo(
     () =>
       selected
-        ? estimateContext({ history, draft: value }, selected.contextWindow)
+        ? estimateContext({ history, draft: deferredValue }, selected.contextWindow)
         : undefined,
-    [selected, history, value],
+    [selected, history, deferredValue],
+  );
+  const requestTokens = React.useMemo(
+    () => (deferredValue.trim().length > 0 ? estimateRequestTokens({ history, draft: deferredValue }) : 0),
+    [history, deferredValue],
   );
   const ratio = contextEstimate ? contextUsageRatio(contextEstimate) : 0;
   const nearLimit = ratio >= CONTEXT_WARN_RATIO;
@@ -206,7 +214,7 @@ export function ComposerBar({
   const hasDraft = value.trim().length > 0;
   let costLine: string | null = null;
   if (selected && hasDraft) {
-    const tokens = estimateRequestTokens({ history, draft: value });
+    const tokens = requestTokens;
     const inCredits = creditsForTokens(tokens, unitPrice(selected, "input").perK);
     costLine = t("costInput", { credits: formatQuote(inCredits, locale) });
     const cap = clampMaxTokens(params.maxTokens, selected.maxOutputTokens);
