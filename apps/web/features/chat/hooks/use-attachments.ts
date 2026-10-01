@@ -5,9 +5,11 @@ import * as React from "react";
 import {
   attachErrorKey, classifyFile, rejectKey, type AttachErrorKey,
 } from "../lib/attach-types";
-import { fetchAttachmentsAvailable, uploadAttachment } from "../lib/attachments-client";
+import type { AvailabilityState } from "../lib/availability";
+import { uploadAttachment } from "../lib/attachments-client";
 import { attachReducer, isUploading, readyAttachments, remainingSlots, type AttachItem } from "../lib/attachments-state";
 import type { ChatAttachment } from "../types";
+import { useAvailability } from "./use-availability";
 
 /**
  * apps/web/features/chat/hooks/use-attachments.ts
@@ -17,8 +19,9 @@ import type { ChatAttachment } from "../types";
  * in lib/attachments-client.ts (all tested); this file is glue and needs a real browser to verify.
  *
  * The attach button is offered only when (1) this browser has the flag, (2) the host says storage is
- * configured (GET /api/attachments/status), and (3) the caller wired a conversation id source. Until
- * (2) is answered the button is simply absent, never shown-then-removed.
+ * configured (GET /api/attachments/status, retried and remembered: lib/availability.ts), and (3) the
+ * caller wired a conversation id source. While (2) is unanswered, or is "no", the composer shows a
+ * disabled button with a reason (P6.3e), never an empty gap.
  *
  * `ensureConversationId` is how first-chat attach works: an attachment belongs to a conversation row,
  * and a brand-new chat has none yet, so the caller creates it on the first attach (chat-view.tsx).
@@ -32,8 +35,12 @@ export interface UseAttachmentsOptions {
 export interface AttachControls {
   /** The browser flag is on (and the caller is wired). The composer keeps its old placeholder when false. */
   flagOn: boolean;
-  /** Flag on AND storage is configured on the host: show the attach button. */
+  /** Flag on AND storage is configured on the host: the attach button is live. */
   available: boolean;
+  /** Why it is not live (checking / unavailable + reason). */
+  availability: AvailabilityState;
+  /** Ask the host again (the person tapped the disabled button). */
+  recheck: () => void;
   items: AttachItem[];
   /** Some file is still uploading or being read: sending must wait. */
   uploading: boolean;
@@ -52,7 +59,6 @@ export interface AttachControls {
 export function useAttachments(opts: UseAttachmentsOptions): AttachControls {
   const [items, dispatch] = React.useReducer(attachReducer, [] as AttachItem[]);
   const [flag, setFlag] = React.useState(false);
-  const [available, setAvailable] = React.useState<boolean | null>(null);
   const [notice, setNotice] = React.useState<{ key: AttachErrorKey; n: number } | null>(null);
 
   const itemsRef = React.useRef(items);
@@ -73,14 +79,7 @@ export function useAttachments(opts: UseAttachmentsOptions): AttachControls {
     setFlag(opts.enabled);
   }, [opts.enabled]);
 
-  React.useEffect(() => {
-    if (!flag) return;
-    const ctrl = new AbortController();
-    void fetchAttachmentsAvailable(fetch, ctrl.signal).then((ok) => {
-      if (!ctrl.signal.aborted) setAvailable(ok);
-    });
-    return () => ctrl.abort();
-  }, [flag]);
+  const { state: availability, recheck, markNotConfigured } = useAvailability("/api/attachments/status", flag);
 
   React.useEffect(() => {
     aliveRef.current = true;
@@ -145,14 +144,14 @@ export function useAttachments(opts: UseAttachmentsOptions): AttachControls {
                 sizeBytes: r.value.sizeBytes, truncated: r.value.truncated,
               });
             } else {
-              if (r.code === "STORAGE_DISABLED") setAvailable(false);
+              if (r.code === "STORAGE_DISABLED") markNotConfigured();
               dispatch({ type: "FAIL", localId: b.localId, errorKey: attachErrorKey(r.code) });
             }
           }),
         );
       })();
     },
-    [notify],
+    [notify, markNotConfigured],
   );
 
   const remove = React.useCallback((localId: string) => {
@@ -171,7 +170,9 @@ export function useAttachments(opts: UseAttachmentsOptions): AttachControls {
 
   return {
     flagOn: flag,
-    available: flag && available === true,
+    available: flag && availability.phase === "ready",
+    availability,
+    recheck,
     items,
     uploading: isUploading(items),
     slots: remainingSlots(items),

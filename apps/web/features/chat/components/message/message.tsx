@@ -260,31 +260,32 @@ function MessageImpl({
               ))}
             </ul>
           )}
-          // `break-words [overflow-wrap:anywhere]`: still needed here even
-          // though SafeMarkdown carries its own — this is the OUTER bubble
-          // (border/background/padding), which must not stretch past
-          // `max-w-[86%]` regardless of what's inside it. `whitespace-pre-
-          // wrap` dropped: markdown's own paragraph/list/br handling now
-          // owns line-break semantics inside this bubble, same as the
-          // assistant side.
-          //
-          // `w-full`: this was the actual remaining overflow bug — this
-          // div (not its parent column) is the one that visually IS the
-          // bubble (border/background/padding), and it had no width of
-          // its own, only `min-w-0`. `min-w-0` only stops CONTENT from
-          // forcing this wider than it would otherwise be; it does
-          // nothing to stop the bubble from shrink-wrapping SMALLER than
-          // its `max-w-[86%]` parent column when the content is short,
-          // which is fine for plain text but breaks the moment the
-          // content is a CodeBlock/table — those size themselves as
-          // `w-full` OF THIS DIV, and "100% of a box whose own width is
-          // still being decided by that same box's shrink-to-fit content"
-          // is exactly the circular sizing that let a wide code block or
-          // table stretch this bubble past the parent's 86% cap instead
-          // of clamping and scrolling internally. Giving this div its
-          // own `w-full` resolves it against the ALREADY-FIXED 86%
-          // column instead, so CodeBlock's/`table`'s internal
-          // `overflow-x-auto` has a real, stable width to scroll within.
+          {/* `break-words [overflow-wrap:anywhere]`: still needed here even
+             though SafeMarkdown carries its own — this is the OUTER bubble
+             (border/background/padding), which must not stretch past
+             `max-w-[86%]` regardless of what's inside it. `whitespace-pre-
+             wrap` dropped: markdown's own paragraph/list/br handling now
+             owns line-break semantics inside this bubble, same as the
+             assistant side.
+
+             `w-full`: this was the actual remaining overflow bug — this
+             div (not its parent column) is the one that visually IS the
+             bubble (border/background/padding), and it had no width of
+             its own, only `min-w-0`. `min-w-0` only stops CONTENT from
+             forcing this wider than it would otherwise be; it does
+             nothing to stop the bubble from shrink-wrapping SMALLER than
+             its `max-w-[86%]` parent column when the content is short,
+             which is fine for plain text but breaks the moment the
+             content is a CodeBlock/table — those size themselves as
+             `w-full` OF THIS DIV, and "100% of a box whose own width is
+             still being decided by that same box's shrink-to-fit content"
+             is exactly the circular sizing that let a wide code block or
+             table stretch this bubble past the parent's 86% cap instead
+             of clamping and scrolling internally. Giving this div its
+             own `w-full` resolves it against the ALREADY-FIXED 86%
+             column instead, so CodeBlock's/`table`'s internal
+             `overflow-x-auto` has a real, stable width to scroll within.
+          */}
           <div className="w-full min-w-0 max-w-full rounded-[18px] rounded-ee-[6px] border border-primary bg-accent-strong px-4 py-[13px] break-words [overflow-wrap:anywhere] text-foreground">
             <SafeMarkdown content={message.content} className="pt-0" />
           </div>

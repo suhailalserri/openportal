@@ -505,3 +505,24 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
   6. Repeat for Attachments and Voice on a phone (the Session 49/50 checks 4-8 and 4-7 apply). Turn a switch off again and confirm it disappears for users.
   7. Failure check: stop the api or block `user.features` in DevTools: chat still works, features hidden.
   8. P6.3 stays unticked until these pass and the design checks are done.
+
+
+---
+
+## Session 52 - P6.3e: stray-text fix, feature readiness, cleanup (web only)
+- **Changed:** `apps/web/features/chat/components/message/message.tsx` (the leaked comment), `components/composer/composer-bar.tsx` (disabled "+" and mic with a reason), `hooks/{use-attachments,use-voice-input}.ts` (use the shared availability hook), `features/admin/features/index.tsx` (readiness line), `messages/{en,ar}.json` (12 keys, one hint reworded), comment-only edits in `thinking-block.tsx`, `lib/stream-reader.ts`, `lib/chat-stream-reducer.ts`, `lib/stream-mode.ts` (now only `STREAM_V2_MEDIA_TYPE`) and its test. **New:** `lib/availability.ts` (+ test), `hooks/use-availability.ts`, `lib/jsx-comment-leak.test.ts`. Docs: `MASTER_PLAN.md`, this file, `SESSION_LOG.md`.
+- **DELETE:** `apps/web/features/chat/lib/attach-flag.ts`, `attach-flag.test.ts`, `voice-flag.ts`, `voice-flag.test.ts`.
+- **External contract / behaviour:** none new. No api change, no migration, no dependency, lockfile or env change. Frozen zone untouched. With a switch OFF nothing changes. With a switch ON but the backend not ready, users now see a DISABLED "+" or mic (tap: a short reason) instead of nothing.
+- **Deploy order:** web only.
+- **How to verify:**
+  1. CI all green. New tests: `availability.test`, `jsx-comment-leak.test`, `stream-mode.test`; the deleted tests must not be missing from any CI list. i18n parity (en and ar both have 1,239 keys). The Type-check and Lint step is where the hooks, composer and admin page are checked for the first time against real React and next-intl types.
+  2. Chat, English then Arabic (RTL): send a message. Nothing but your text above the bubble (no code comment). Same in dark.
+  3. `/api/attachments/status` is `{"available":true}` and Attachments is on: the "+" is present in a new chat, after the first send, and after a reload. If it is greyed, tap it: the hint says why.
+  4. `/admin/features`: Attachments shows "Server ready." Voice shows "Not ready: no speech model is published" until you do `docs/runbooks/VOICE.md` section 1 (the `transcription` marker SQL); after it and "Check again", it shows ready, and the mic in chat goes live (then the Session 49 voice checks apply).
+  5. Voice on, speech model missing: the mic is greyed, a tap shows "Voice input isn't available right now." Block `/api/attachments/status` in DevTools: the "+" greys with "Couldn't check file attachments. Tap + to try again."; unblock and tap: it goes live.
+  6. P6.3 stays unticked until the phone and design checks pass.
+
+---
+
+## Session 52 (note) - plan changes
+- P6.3e: tool chips moved to P7.4. New phases: **P6.3f** long-chat performance (measure first) and **P6.6** request options (reasoning effort, search switch hidden until P7.2; no system prompt). P6.4 gained an "investigate the interrupted stream" item. See MASTER_PLAN.

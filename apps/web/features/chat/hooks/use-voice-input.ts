@@ -2,7 +2,9 @@
 
 import * as React from "react";
 
-import { fetchVoiceAvailable, transcribeRecording } from "../lib/voice-client";
+import { transcribeRecording } from "../lib/voice-client";
+import type { AvailabilityState } from "../lib/availability";
+import { useAvailability } from "./use-availability";
 import {
   initialVoiceState, isMicUnavailableCode, pickRecorderMime, voiceErrorKey, voiceReducer,
   VOICE_MAX_BYTES, VOICE_MAX_MS, VOICE_MIN_MS, type VoiceErrorKey, type VoicePhase,
@@ -19,9 +21,10 @@ import {
  * goes to `onTranscript` (the composer appends it, EDITABLE, never auto-sent). Every failure goes to
  * `onError` as a message key; nothing is retried, because transcribing is billed.
  *
- * The mic is offered only when (1) this browser has the flag (lib/voice-flag.ts), (2) the host says
- * speech input is configured (GET /api/voice/status), and (3) the caller wired a transcript target.
- * Until (2) is answered the mic is simply absent, never shown-then-removed.
+ * The mic is live only when (1) the admin switch is on (the caller passes `enabled`), (2) the host says
+ * speech input is configured (GET /api/voice/status, retried and remembered: lib/availability.ts), and
+ * (3) the caller wired a transcript target. While (2) is unanswered, or when it is "no", the composer
+ * shows a disabled mic with a reason (P6.3e), never an empty gap.
  */
 export interface UseVoiceInputOptions {
   /** False when the caller has nowhere to put a transcript: the hook stays inert. */
@@ -34,8 +37,12 @@ export interface UseVoiceInputOptions {
 export interface VoiceInput {
   /** The browser flag is on (and the caller is wired). The composer keeps its old placeholder when false. */
   flagOn: boolean;
-  /** Flag on AND the host has a speech model: show the mic. */
+  /** Flag on AND the host has a speech model: the mic is live. */
   available: boolean;
+  /** Why it is not live (checking / unavailable + reason). */
+  availability: AvailabilityState;
+  /** Ask the host again (the person tapped the disabled mic). */
+  recheck: () => void;
   phase: VoicePhase;
   elapsedMs: number;
   start: () => void;
@@ -50,7 +57,6 @@ function stopTracks(stream: MediaStream | null): void {
 export function useVoiceInput(opts: UseVoiceInputOptions): VoiceInput {
   const [state, dispatch] = React.useReducer(voiceReducer, initialVoiceState);
   const [flag, setFlag] = React.useState(false);
-  const [available, setAvailable] = React.useState<boolean | null>(null);
 
   // Latest values for the long-lived callbacks (MediaRecorder handlers outlive a render).
   const stateRef = React.useRef(state);
@@ -72,14 +78,7 @@ export function useVoiceInput(opts: UseVoiceInputOptions): VoiceInput {
     setFlag(opts.enabled);
   }, [opts.enabled]);
 
-  React.useEffect(() => {
-    if (!flag) return;
-    const ctrl = new AbortController();
-    void fetchVoiceAvailable(fetch, ctrl.signal).then((ok) => {
-      if (!ctrl.signal.aborted) setAvailable(ok);
-    });
-    return () => ctrl.abort();
-  }, [flag]);
+  const { state: availability, recheck, markNotConfigured } = useAvailability("/api/voice/status", flag);
 
   React.useEffect(() => {
     aliveRef.current = true;
@@ -136,10 +135,10 @@ export function useVoiceInput(opts: UseVoiceInputOptions): VoiceInput {
     if (result.ok) {
       onTranscript(result.value.text);
     } else {
-      if (isMicUnavailableCode(result.code)) setAvailable(false);
+      if (isMicUnavailableCode(result.code)) markNotConfigured();
       onError(voiceErrorKey(result.code));
     }
-  }, []);
+  }, [markNotConfigured]);
 
   const stop = React.useCallback(() => {
     const rec = recRef.current;
@@ -215,7 +214,9 @@ export function useVoiceInput(opts: UseVoiceInputOptions): VoiceInput {
 
   return {
     flagOn: flag,
-    available: flag && available === true,
+    available: flag && availability.phase === "ready",
+    availability,
+    recheck,
     phase: state.phase,
     elapsedMs: state.elapsedMs,
     start: () => void start(),

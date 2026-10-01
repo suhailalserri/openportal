@@ -29,7 +29,7 @@ import type { ChatMessage, ChatError, ThinkingTrace } from "../types";
  * mutating action below is a no-op unless the reducer is still in the
  * exact in-flight state that action expects.
  *
- * P6.3a (structured stream, behind a per-browser flag). Two additions, both
+ * P6.3a (structured stream, behind the admin's Thinking switch). Two additions, both
  * inert unless the v2 stream is on: a THINKING action (reasoning text goes to
  * `message.thinking`, never into `content`, so it is never saved, billed as
  * answer text or sent back to the model as history) and a STATUS action

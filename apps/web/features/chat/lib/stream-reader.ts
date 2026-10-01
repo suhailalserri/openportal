@@ -139,8 +139,8 @@ export interface RunChatStreamOptions {
   /** Test seam. Must resolve false if `signal` aborts while waiting. */
   sleep?: (ms: number, signal: AbortSignal) => Promise<boolean>;
   /** P6.3a. Ask for the structured v2 stream (sends `Accept`). Off by default: every
-   *  request without it is byte-identical to before. The caller reads the flag
-   *  (lib/stream-mode.ts) so this file stays free of storage. */
+   *  request without it is byte-identical to before. The caller passes the admin's
+   *  Thinking switch (hooks/use-feature-flags.ts), so this file stays free of storage. */
   streamV2?: boolean | undefined;
 }
 

@@ -118,6 +118,11 @@
     "attachTrimmed": "Long file: only the first part is used",
     "attachTrimmedShort": "trimmed",
     "attachWaiting": "Wait for the files to finish uploading.",
+    "attachUnavailable": "File attachments aren't available right now.",
+    "attachUnreachable": "Couldn't check file attachments. Tap + to try again.",
+    "voiceUnavailable": "Voice input isn't available right now.",
+    "voiceUnreachable": "Couldn't check voice input. Tap the mic to try again.",
+    "featureSignedOut": "Your session has expired. Please sign in again.",
     "attachPlaceholder": "Ask something about your files…",
     "attachRejectEmpty": "That file is empty.",
     "attachRejectTooLarge": "That file is larger than 20 MB.",
@@ -1041,7 +1046,7 @@
       },
       "voice": {
         "label": "Voice input",
-        "hint": "The mic button records and turns speech into text in the message box. Each transcription is billed to the user. It only appears if storage and a speech model are set up."
+        "hint": "The mic button records and turns speech into text in the message box. Each transcription is billed to the user. It only works if storage and a speech model are set up: the line below shows whether they are."
       },
       "thinking": {
         "label": "Thinking",
@@ -1052,7 +1057,16 @@
       "saved": "Saved. The change is live for all users.",
       "saveError": "Failed to save",
       "loadError": "Could not load the feature switches.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "readiness": {
+        "checking": "Checking the server…",
+        "ready": "Server ready.",
+        "notConfiguredAttachments": "Not ready: file storage is not configured on the server.",
+        "notConfiguredVoice": "Not ready: no speech model is published (see docs/runbooks/VOICE.md, section 1).",
+        "unreachable": "Could not reach the server ({code}). Check INTERNAL_API_URL on Vercel and that the api is deployed.",
+        "signedOut": "Your session expired. Sign in again.",
+        "recheck": "Check again"
+      }
     },
     "welcomeBonusPage": {
       "title": "Welcome bonus",

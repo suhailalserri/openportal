@@ -7,10 +7,50 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useAvailability } from "@/features/chat/hooks/use-availability";
 import type { FeatureKey } from "./draft";
 import { useFeaturesAdmin } from "./use-features-admin";
 
 const KEYS: FeatureKey[] = ["attachments", "voice", "thinking"];
+
+const READINESS_PATH: Partial<Record<FeatureKey, string>> = {
+  attachments: "/api/attachments/status",
+  voice: "/api/voice/status",
+};
+
+/**
+ * P6.3e. Whether the BACKEND behind a switch is ready, checked live from this browser through the same
+ * status route the chat uses. A switch can be on while this says "not ready": users then see a disabled
+ * button, so read this line before saving a switch.
+ */
+function ReadinessLine({ feature, path }: { feature: "attachments" | "voice"; path: string }) {
+  const t = useTranslations("admin.featuresPage.readiness");
+  const { state, recheck } = useAvailability(path, true, { strict: true });
+
+  let text: string;
+  let tone = "text-muted-foreground";
+  if (state.phase === "checking") text = t("checking");
+  else if (state.phase === "ready") {
+    text = t("ready");
+    tone = "text-success";
+  } else {
+    tone = "text-destructive";
+    if (state.reason === "notConfigured") text = t(feature === "voice" ? "notConfiguredVoice" : "notConfiguredAttachments");
+    else if (state.reason === "signedOut") text = t("signedOut");
+    else text = t("unreachable", { code: state.code });
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <p role="status" className={`text-[12.5px] leading-relaxed ${tone}`}>{text}</p>
+      {state.phase !== "checking" ? (
+        <button type="button" onClick={recheck} className="text-[12.5px] font-medium underline-offset-2 hover:underline">
+          {t("recheck")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 function FeatureRow({ id, feature, checked, onChange }: {
   id: string;
@@ -19,11 +59,13 @@ function FeatureRow({ id, feature, checked, onChange }: {
   onChange: (next: boolean) => void;
 }) {
   const t = useTranslations("admin.featuresPage");
+  const path = READINESS_PATH[feature];
   return (
     <div className="flex items-start justify-between gap-4 rounded-[14px] border p-4">
       <div className="grid gap-1">
         <Label htmlFor={id}>{t(`${feature}.label`)}</Label>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">{t(`${feature}.hint`)}</p>
+        {path && (feature === "attachments" || feature === "voice") ? <ReadinessLine feature={feature} path={path} /> : null}
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onChange} />
     </div>

@@ -20,6 +20,7 @@ import { clampMaxTokens } from "../../lib/param-slider";
 import type { ConversationParams } from "../../types";
 import { ComposerPanel, useDismiss } from "./composer-panel";
 import { MicRecording } from "./mic-recording";
+import { availabilityHintKey } from "../../lib/availability";
 import { AttachmentSheet } from "./attachment-sheet";
 import { AttachmentStrip } from "./attachment-strip";
 import type { AttachControls } from "../../hooks/use-attachments";
@@ -36,9 +37,11 @@ import { ParametersPanel } from "./parameters-panel";
  *   [ + ]  [ ⚙ ]  [ Model ▾ ]  · · ·  [ 🎙 ]  [ ➤ ]
  *   attach params model chip           mic     send
  *
- * Attach and mic are PLACEHOLDERS (not wired; no upload path or speech
- * hook exists yet). They stay focusable (`aria-disabled`, not `disabled`)
- * and a tap shows a short "coming soon" line under the card.
+ * Attach and mic have three looks (all stay focusable: `aria-disabled`, not
+ * `disabled`, so a tap can explain itself): the "coming soon" placeholder
+ * while the admin switch is off; live when the switch is on AND the host
+ * says the feature is ready; and, in between (P6.3e), a disabled button
+ * whose tap says why (and asks the host again), never an empty gap.
  *
  * The model list and the parameters open as INLINE panels above the card
  * (composer-panel.tsx): one at a time (lib/composer-panels.ts), dismissed
@@ -281,6 +284,10 @@ export function ComposerBar({
     params.topP !== null ||
     params.maxTokens !== null;
 
+  // P6.3e: read once so the tap handler below does not depend on closure narrowing of `attach`.
+  const attachAvailability = attach?.availability;
+  const attachRecheck = attach?.recheck;
+
   const toolbarStart = (
     <>
       {!attach || !attach.flagOn ? (
@@ -303,7 +310,22 @@ export function ComposerBar({
         >
           <Plus aria-hidden />
         </ComposerIconButton>
-      ) : null}
+      ) : (
+        // P6.3e: switched on but not (yet) ready. Never an empty gap: a disabled button; a tap says why
+        // and asks the host again.
+        <ComposerIconButton
+          aria-label={t("attach")}
+          aria-disabled="true"
+          aria-busy={attachAvailability?.phase === "checking"}
+          onClick={() => {
+            if (attachAvailability?.phase !== "unavailable") return;
+            showHint(t(availabilityHintKey("attach", attachAvailability.reason)));
+            attachRecheck?.();
+          }}
+        >
+          <Plus aria-hidden />
+        </ComposerIconButton>
+      )}
 
       {parametersEnabled ? (
         <ComposerIconButton
@@ -353,7 +375,7 @@ export function ComposerBar({
   );
 
   // Flag off (the default): exactly the old placeholder. Flag on: the real mic once the host says speech
-  // input is configured, and nothing before that (never shown-then-removed).
+  // input is configured; until then (or if it says no) a disabled mic with a reason (P6.3e).
   const toolbarEnd = !voice.flagOn ? (
     placeholderMic
   ) : voice.available ? (
@@ -373,7 +395,21 @@ export function ComposerBar({
     >
       <Mic aria-hidden />
     </ComposerIconButton>
-  ) : null;
+  ) : (
+    // P6.3e: switched on but not (yet) ready: a disabled mic that says why when tapped, never an empty gap.
+    <ComposerIconButton
+      aria-label={t("record")}
+      aria-disabled="true"
+      aria-busy={voice.availability.phase === "checking"}
+      onClick={() => {
+        if (voice.availability.phase !== "unavailable") return;
+        showHint(t(availabilityHintKey("voice", voice.availability.reason)));
+        voice.recheck();
+      }}
+    >
+      <Mic aria-hidden />
+    </ComposerIconButton>
+  );
 
   return (
     <div ref={rootRef} className={className}>

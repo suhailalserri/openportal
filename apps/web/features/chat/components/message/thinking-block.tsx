@@ -20,7 +20,7 @@ export interface ThinkingBlockProps {
  * apps/web/features/chat/components/message/thinking-block.tsx
  *
  * P6.3a. The collapsible "Thinking" block above an assistant answer (v2 stream
- * only, behind the per-browser flag in lib/stream-mode.ts).
+ * only, behind the admin's Thinking switch: hooks/use-feature-flags.ts).
  *
  * DESIGN ("the gate ajar"). The app's identity is the Gateway: a warm base and
  * one amber "gate" light. The model's reasoning is what happens behind that
