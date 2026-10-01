@@ -3,6 +3,7 @@ import {
   Gift,
   BarChart3,
   ClipboardList,
+  FlaskConical,
   CreditCard,
   LayoutDashboard,
   MessageSquare,
@@ -44,6 +45,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   audit: ClipboardList,
   adminPrompt: MessagesSquare,
   adminWelcomeBonus: Gift,
+  adminFeatures: FlaskConical,
 };
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string | undefined }) {

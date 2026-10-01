@@ -25,7 +25,8 @@
     "adminLogs": "Logs",
     "adminAudit": "Audit log",
     "adminPrompt": "System prompt",
-    "adminWelcomeBonus": "Welcome bonus"
+    "adminWelcomeBonus": "Welcome bonus",
+    "adminFeatures": "Features"
   },
   "chat": {
     "newChat": "New Chat",
@@ -1029,6 +1030,29 @@
         "scoreTooltip": "{category} score",
         "scoresHint": "0-100 benchmark score per category (e.g. copied from livebench.ai). Leave blank if unknown."
       }
+    },
+    "featuresPage": {
+      "title": "Features",
+      "description": "Switch chat features on for all users once you have tested them.",
+      "everyoneWarning": "A switch you save here applies to every user, not only to admins. Everything starts off. It can take about a minute to show up for people who already have the app open.",
+      "attachments": {
+        "label": "Attachments",
+        "hint": "The + button opens the file sheet (photos, camera, documents). Files are read and sent to the model with the message."
+      },
+      "voice": {
+        "label": "Voice input",
+        "hint": "The mic button records and turns speech into text in the message box. Each transcription is billed to the user. It only appears if storage and a speech model are set up."
+      },
+      "thinking": {
+        "label": "Thinking",
+        "hint": "Shows the model's reasoning in a collapsible block and a status line while it starts. Reasoning is not saved yet, so it is gone after a reload."
+      },
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved. The change is live for all users.",
+      "saveError": "Failed to save",
+      "loadError": "Could not load the feature switches.",
+      "retry": "Try again"
     },
     "welcomeBonusPage": {
       "title": "Welcome bonus",

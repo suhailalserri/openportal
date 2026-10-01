@@ -7,6 +7,7 @@ import { MICRO_CREDIT } from "@ai-platform/config";
 import {
   checkWelcomeBonusForEmail, getWelcomeBonusAdminView, updateWelcomeBonusConfig,
 } from "../services/welcome-bonus.service";
+import { getFeatureFlags, updateFeatureFlags } from "../services/feature-flags.service";
 
 /**
  * apps/api/src/routers/platform-config.router.ts
@@ -103,5 +104,30 @@ export const platformConfigRouter = router({
         ip:         ctx.ip,
       });
       return { success: true };
+    }),
+
+  // ── Feature switches (P6.3d) ──────────────────────────────────────────
+  // Attachments, voice input and the structured stream ("thinking"). All OFF until an admin turns
+  // one on; on means on for EVERY user. The user-facing read is `user.features`.
+  getFeatures: adminProcedure.query(() => getFeatureFlags()),
+
+  updateFeatures: adminProcedure
+    .input(z.object({
+      attachments: z.boolean(),
+      voice:       z.boolean(),
+      thinking:    z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { before, after } = await updateFeatureFlags(input, ctx.user.id);
+      await db.insert(auditLogs).values({
+        adminId:    ctx.user.id,
+        action:     "features.update",
+        targetType: "platform_config",
+        targetId:   PLATFORM_CONFIG_ID,
+        before,
+        after,
+        ip:         ctx.ip,
+      });
+      return after;
     }),
 });

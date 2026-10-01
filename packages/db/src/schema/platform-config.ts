@@ -30,6 +30,11 @@ export const platformConfig = pgTable("platform_config", {
   // moment are "new users" for the bonus, so switching the feature on
   // never hands credit to the whole existing user base.
   welcomeBonusLaunchedAt:   timestamp("welcome_bonus_launched_at"),
+  // P6.3d feature switches (admin-controlled from /admin/features). Each ships OFF; when an admin
+  // turns one on it applies to EVERY user. Read by `user.features`, written by `platformConfig.updateFeatures`.
+  featureAttachments:       boolean("feature_attachments").default(false).notNull(),
+  featureVoice:             boolean("feature_voice").default(false).notNull(),
+  featureThinking:          boolean("feature_thinking").default(false).notNull(),
   updatedAt:        timestamp("updated_at").defaultNow().notNull(),
   updatedByAdminId: uuid("updated_by_admin_id").references(() => users.id),
 });

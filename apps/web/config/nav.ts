@@ -35,7 +35,8 @@ export type NavIconName =
   | "logs"
   | "audit"
   | "adminPrompt"
-  | "adminWelcomeBonus";
+  | "adminWelcomeBonus"
+  | "adminFeatures";
 
 export interface NavItem {
   id: string;
@@ -129,6 +130,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: "adminWelcomeBonus",
         enabled: true,
       },
+      // Feature switches for attachments, voice and thinking (P6.3d); on means on for every user.
+      { id: "adminFeatures", href: "/admin/features", labelKey: "adminFeatures", icon: "adminFeatures", enabled: true },
     ],
   },
 ];

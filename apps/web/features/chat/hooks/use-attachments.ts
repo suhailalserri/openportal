@@ -5,7 +5,6 @@ import * as React from "react";
 import {
   attachErrorKey, classifyFile, rejectKey, type AttachErrorKey,
 } from "../lib/attach-types";
-import { readAttachEnabled } from "../lib/attach-flag";
 import { fetchAttachmentsAvailable, uploadAttachment } from "../lib/attachments-client";
 import { attachReducer, isUploading, readyAttachments, remainingSlots, type AttachItem } from "../lib/attachments-state";
 import type { ChatAttachment } from "../types";
@@ -69,9 +68,9 @@ export function useAttachments(opts: UseAttachmentsOptions): AttachControls {
     setNotice({ key, n: noticeCount.current });
   }, []);
 
-  // After mount only: SSR has no localStorage and hydration must match.
+  // P6.3d: `enabled` is the admin's switch (useFeatureFlags), off until the server has answered.
   React.useEffect(() => {
-    setFlag(opts.enabled && readAttachEnabled());
+    setFlag(opts.enabled);
   }, [opts.enabled]);
 
   React.useEffect(() => {

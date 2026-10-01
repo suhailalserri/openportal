@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { fetchVoiceAvailable, transcribeRecording } from "../lib/voice-client";
-import { readVoiceEnabled } from "../lib/voice-flag";
 import {
   initialVoiceState, isMicUnavailableCode, pickRecorderMime, voiceErrorKey, voiceReducer,
   VOICE_MAX_BYTES, VOICE_MAX_MS, VOICE_MIN_MS, type VoiceErrorKey, type VoicePhase,
@@ -68,9 +67,9 @@ export function useVoiceInput(opts: UseVoiceInputOptions): VoiceInput {
   const cancelledRef = React.useRef(false);
   const aliveRef = React.useRef(true);
 
-  // Read the flag after mount (never during render: SSR has no localStorage, hydration must match).
+  // P6.3d: `enabled` already carries the admin's switch (chat-view passes the transcript handler only when it is on).
   React.useEffect(() => {
-    setFlag(opts.enabled && readVoiceEnabled());
+    setFlag(opts.enabled);
   }, [opts.enabled]);
 
   React.useEffect(() => {

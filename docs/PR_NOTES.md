@@ -488,3 +488,20 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 - **Changed:** `apps/api/src/extraction/office-text.ts` (type alias for `TextDecoder`, no runtime change); `apps/web/features/chat/hooks/use-chat-stream.ts` (`SendExtra` exported, `send` accepts the optional second argument in the public type).
 - **External contract / behaviour:** none. Types only. Frozen zone untouched; no migration, dependency or env change.
 - **How to verify:** (1) CI: api `Type-check & Lint` (now also runs Lint), `Web Build (next build)`, then the rest of Session 50's list. (2) The `valkey-glide` / `require-in-the-middle` lines in the web build are warnings, not failures. (3) If a new type error shows up, send the first block.
+
+---
+
+## Session 51 - P6.3d Admin feature switches (attachments, voice, thinking)
+- **New:** `packages/db/src/migrations/0023_feature_flags.sql`; `apps/api/src/services/feature-flags.service.ts` (+ test); `apps/web/features/chat/{lib/feature-flags.ts (+ test),hooks/use-feature-flags.ts}`; `apps/web/features/admin/features/{index.tsx,use-features-admin.ts,draft.ts,draft.test.ts}`; `apps/web/app/[locale]/(admin)/admin/features/page.tsx`. **Changed:** `packages/db/src/schema/platform-config.ts` (3 boolean columns), `apps/api/src/routers/{platform-config,user}.router.ts`, `apps/web/features/chat/hooks/{use-chat-stream,use-attachments,use-voice-input}.ts`, `components/chat-view.tsx`, `components/composer/composer-bar.tsx` (comment only), `config/nav.ts`, `components/layout/nav-icon.tsx`, `messages/{en,ar}.json`, `docs/MASTER_PLAN.md`, this file, SESSION_LOG.
+- **External contract (additive):** tRPC `user.features` (query), `platformConfig.getFeatures` / `updateFeatures`; one audit action `features.update`. Frozen zone untouched.
+- **BEHAVIOUR CHANGE:** the `aip.flag.*` localStorage keys are no longer read. Features are controlled ONLY from `/admin/features`. Everything starts OFF, so nothing changes for anyone until an admin saves a switch.
+- **Deploy order:** (1) run migration 0023 in the database, (2) api (Render), (3) web (Vercel). Web before api or before the migration only makes `user.features` fail, which keeps everything OFF (safe).
+- **How to verify:**
+  1. CI all green (api Type-check & Lint, API tests incl. `feature-flags.service.test`, web unit tests incl. `feature-flags` and `draft`, Build, i18n parity, E2E).
+  2. Run the migration; `select feature_attachments, feature_voice, feature_thinking from platform_config;` shows `f, f, f`.
+  3. As a normal user (all off): the "+" and mic are the old placeholders; no `/api/attachments/*` or `/api/voice/*` call in the Network tab; a chat reply is plain streaming.
+  4. As admin: the sidebar shows Features (Arabic: الميزات); `/admin/features` shows three switches OFF and the warning. A non-admin opening `/admin/features` is refused like every other admin page.
+  5. Turn ONE switch on (start with Thinking), Save: toast "Saved". In a normal user's browser, reload (or wait about a minute): the feature is live for that user. Check Audit log: `features.update` with before/after.
+  6. Repeat for Attachments and Voice on a phone (the Session 49/50 checks 4-8 and 4-7 apply). Turn a switch off again and confirm it disappears for users.
+  7. Failure check: stop the api or block `user.features` in DevTools: chat still works, features hidden.
+  8. P6.3 stays unticked until these pass and the design checks are done.

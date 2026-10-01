@@ -8,7 +8,6 @@ import {
   type ChatStreamState,
 } from "../lib/chat-stream-reducer";
 import { runChatStream } from "../lib/stream-reader";
-import { readStreamV2Enabled } from "../lib/stream-mode";
 import { toWireMessages } from "../lib/wire-messages";
 import type { ChatAttachment, ChatMessage, ConversationParams } from "../types";
 
@@ -40,6 +39,10 @@ export interface UseChatStreamOptions {
    *  contract; passing a not-yet-loaded empty array here and expecting
    *  a later prop change to backfill it will NOT work. */
   initialMessages?: ChatMessage[] | undefined;
+  /** P6.3d. The admin's "thinking" switch (useFeatureFlags): ask the server for the structured stream
+   *  (thinking blocks, status line). Read at send time through a ref, so a change applies to the very
+   *  next message. Off (undefined) = the plain stream, exactly as before. */
+  streamV2?: boolean | undefined;
 }
 
 /** Optional extras for one `send` (P6.3c): the files uploaded for this turn. */
@@ -91,7 +94,10 @@ export function useChatStream({
   model,
   params,
   initialMessages,
+  streamV2,
 }: UseChatStreamOptions): UseChatStreamResult {
+  const streamV2Ref = React.useRef(streamV2 === true);
+  streamV2Ref.current = streamV2 === true;
   // Lazy-init (the 3-argument form): `initialChatStreamState` is passed
   // as the reducer's default and `init` (third arg) only runs ONCE, on
   // this component instance's first render, regardless of how many times
@@ -301,7 +307,7 @@ export function useChatStream({
         controller.signal,
         makeCallbacks(assistantMessageId),
         // Read at send time, so flipping the flag applies to the very next message.
-        { streamV2: readStreamV2Enabled() },
+        { streamV2: streamV2Ref.current },
       );
     },
     [buildRequestBody, makeCallbacks],
@@ -346,7 +352,7 @@ export function useChatStream({
         controller.signal,
         makeCallbacks(assistantMessageId),
         // Read at send time, so flipping the flag applies to the very next message.
-        { streamV2: readStreamV2Enabled() },
+        { streamV2: streamV2Ref.current },
       );
     },
     [buildRequestBody, makeCallbacks],

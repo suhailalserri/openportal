@@ -11,6 +11,7 @@ import {
   claimWelcomeBonus, getWelcomeBonusStatus, WelcomeBonusError,
   type WelcomeBonusErrorCode,
 } from "../services/welcome-bonus.service";
+import { getFeatureFlags } from "../services/feature-flags.service";
 
 async function assertNotRateLimited(userId: string, action: string) {
   // P3.1: Redis-backed (shared across replicas); falls back per-process if Redis is down.
@@ -101,6 +102,10 @@ export const userRouter = router({
   // Welcome bonus (decisions.md ADR-010). `eligible` is the only flag the
   // UI needs to decide whether to show the floating card / billing button.
   getWelcomeBonus: protectedProcedure.query(({ ctx }) => getWelcomeBonusStatus(ctx.user.id)),
+
+  // P6.3d: which P6.3 features the admin has turned on (attachments, voice, thinking). Any signed-in
+  // user may read it; only an admin can change it (platformConfig.updateFeatures).
+  features: protectedProcedure.query(() => getFeatureFlags()),
 
   // Once-only is enforced in the service by an atomic conditional UPDATE
   // (see welcome-bonus.service.ts), NOT here — the rate limit below is only

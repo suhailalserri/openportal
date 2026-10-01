@@ -168,7 +168,7 @@ export function ComposerBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachNotice]);
 
-  // P6.3b voice input (behind the per-browser flag; see hooks/use-voice-input.ts).
+  // P6.3b voice input (shown when an admin turns Voice on; chat-view passes onVoiceText only then).
   const voice = useVoiceInput({
     enabled: onVoiceText !== undefined,
     language: locale,

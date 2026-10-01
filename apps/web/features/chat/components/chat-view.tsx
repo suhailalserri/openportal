@@ -11,6 +11,7 @@ import { buildLoginRedirect, sanitizeNext } from "@/lib/safe-redirect";
 import { MessageList } from "./message/message-list";
 import { appendTranscript } from "../lib/voice-recorder";
 import { useAttachments } from "../hooks/use-attachments";
+import { useFeatureFlags } from "../hooks/use-feature-flags";
 import { createConversationRow } from "../lib/attachments-client";
 import { ComposerBar } from "./composer/composer-bar";
 import { OfflineBanner } from "./offline-banner";
@@ -148,11 +149,14 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
   // with real data instead of always leaving it undefined.
   const { models, selectedId, select } = useChatModels({ conversationModelId });
   const { params, setParams } = useChatParams({ conversationId });
+  // P6.3d: attachments, voice and the structured stream are switched on by an admin, for everyone.
+  const features = useFeatureFlags();
   const stream = useChatStream({
     conversationId,
     model: selectedId ?? "",
     params,
     initialMessages,
+    streamV2: features.thinking,
   });
 
   const isBusy = stream.status === "sending" || stream.status === "streaming";
@@ -218,7 +222,7 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
     });
     return creatingRef.current;
   }, [conversationId]);
-  const attach = useAttachments({ enabled: true, ensureConversationId });
+  const attach = useAttachments({ enabled: features.attachments, ensureConversationId });
 
   const handleSend = () => {
     const trimmed = draft.trim();
@@ -335,8 +339,8 @@ function ChatSession({ conversationId, initialMessages, conversationModelId }: C
           value={draft}
           onChange={setDraft}
           // P6.3b: a voice transcript is appended to the draft, editable, never sent by itself.
-          onVoiceText={(text) => setDraft((d) => appendTranscript(d, text))}
-          // P6.3c: files for the next message (behind the per-browser flag; see hooks/use-attachments.ts).
+          onVoiceText={features.voice ? (text) => setDraft((d) => appendTranscript(d, text)) : undefined}
+          // P6.3c: files for the next message (shown when an admin turns Attachments on; see hooks/use-feature-flags.ts).
           attach={attach}
           onSend={handleSend}
           isStreaming={isBusy}
