@@ -37,7 +37,12 @@ export interface UseChatStreamOptions {
    *  only once `useConversationMessages` resolves, remounted via `key`
    *  on every conversation switch) exists specifically to satisfy this
    *  contract; passing a not-yet-loaded empty array here and expecting
-   *  a later prop change to backfill it will NOT work. */
+   *  a later prop change to backfill it will NOT work.
+   *  P6.3e (session 53) amendment: a LATER change IS now adopted, but only
+   *  while this session is still idle (nothing sent) and only when the new
+   *  list is non-empty (reducer action HISTORY_LOADED). Cached history can be
+   *  empty or stale; the server's list then replaces it. A session that has
+   *  started a turn never takes it. */
   initialMessages?: ChatMessage[] | undefined;
   /** P6.3d. The admin's "thinking" switch (useFeatureFlags): ask the server for the structured stream
    *  (thinking blocks, status line). Read at send time through a ref, so a change applies to the very
@@ -108,6 +113,14 @@ export function useChatStream({
     initialChatStreamState,
     (base) => (initialMessages && initialMessages.length > 0 ? { ...base, messages: initialMessages } : base),
   );
+  // P6.3e (session 53). `initialMessages` above is read once, but the server's history can arrive AFTER
+  // this session mounted from a stale or empty cache. The reducer adopts it only while the session is
+  // still idle (see HISTORY_LOADED), so a live conversation is never overwritten.
+  React.useEffect(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      dispatch({ type: "HISTORY_LOADED", messages: initialMessages });
+    }
+  }, [initialMessages]);
   const controllerRef = React.useRef<AbortController | null>(null);
   const lastSentRef = React.useRef<string | null>(null);
   const stateRef = React.useRef(state);

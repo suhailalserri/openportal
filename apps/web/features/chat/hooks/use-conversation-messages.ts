@@ -4,7 +4,12 @@ import * as React from "react";
 
 import { useSession } from "@/lib/auth-client";
 import { fetchConversationMessages, fetchConversationModelId } from "../lib/conversation-api";
-import { readCachedMessages, writeCachedMessages } from "../lib/conversation-cache";
+import {
+  isUsableCachedMessages,
+  readCachedMessages,
+  shouldCacheMessages,
+  writeCachedMessages,
+} from "../lib/conversation-cache";
 import { getRealIdbStore } from "../lib/idb-store";
 import type { ChatMessage } from "../types";
 
@@ -95,7 +100,7 @@ export function useConversationMessages(
       const store = getRealIdbStore();
       const cached = await readCachedMessages(userId, conversationId, store);
       if (cancelled) return;
-      if (cached) {
+      if (isUsableCachedMessages(cached)) {
         setMessages(cached);
         setHasAnyData(true);
         setIsLoading(false);
@@ -114,6 +119,8 @@ export function useConversationMessages(
       setMessages(result.value);
       setHasAnyData(true);
       setIsLoading(false);
+      // P6.3e: never write an empty "not created yet" answer over the cache.
+      if (!shouldCacheMessages(result.value)) return;
       const store = getRealIdbStore();
       await writeCachedMessages(userId, conversationId, result.value, store);
     })();

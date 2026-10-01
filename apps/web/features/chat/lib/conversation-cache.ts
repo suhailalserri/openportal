@@ -154,6 +154,18 @@ async function touchIndex(userId: string, conversationId: string, store: KVStore
   return evicted;
 }
 
+/** P6.3e (session 53). An empty list is never a cache hit: it only ever means "nothing known yet" (a
+ *  brand-new chat's first fetch answers "no messages", 404-as-empty), and treating it as a hit opened the
+ *  chat empty while the real history was still loading. */
+export function isUsableCachedMessages(cached: readonly ChatMessage[] | undefined): cached is ChatMessage[] {
+  return Array.isArray(cached) && cached.length > 0;
+}
+
+/** P6.3e (session 53). Only a non-empty server answer is worth caching (see isUsableCachedMessages). */
+export function shouldCacheMessages(fetched: readonly ChatMessage[]): boolean {
+  return fetched.length > 0;
+}
+
 export async function readCachedMessages(
   userId: string,
   conversationId: string,

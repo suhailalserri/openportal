@@ -353,3 +353,69 @@ describe("chatStreamReducer — edit after a reasoning turn (P6.3a)", () => {
     expect(JSON.stringify(edited)).not.toContain("old thoughts");
   });
 });
+
+describe("chatStreamReducer — HISTORY_LOADED (session 53: messages vanished on return)", () => {
+  const server = (): ChatMessage[] => [
+    userMessage("hello"),
+    { id: "a-1", role: "assistant", content: "hi there", createdAt: "2026-01-01T00:00:01.000Z", isPartial: false },
+  ];
+
+  it("fills an idle, empty session (the stale-empty-cache case)", () => {
+    const next = chatStreamReducer(initialChatStreamState, { type: "HISTORY_LOADED", messages: server() });
+    expect(next.messages.map((m) => m.id)).toEqual(["user-1", "a-1"]);
+    expect(next.status).toBe("idle");
+  });
+
+  it("replaces a stale seeded list with the server's longer one while idle", () => {
+    const seeded: ChatStreamState = { ...initialChatStreamState, messages: [userMessage("hello")] };
+    const next = chatStreamReducer(seeded, { type: "HISTORY_LOADED", messages: server() });
+    expect(next.messages).toHaveLength(2);
+  });
+
+  it("returns the SAME state object when nothing changed (no re-render)", () => {
+    const seeded: ChatStreamState = { ...initialChatStreamState, messages: server() };
+    expect(chatStreamReducer(seeded, { type: "HISTORY_LOADED", messages: server() })).toBe(seeded);
+  });
+
+  it("never replaces anything with an empty list", () => {
+    const seeded: ChatStreamState = { ...initialChatStreamState, messages: server() };
+    expect(chatStreamReducer(seeded, { type: "HISTORY_LOADED", messages: [] })).toBe(seeded);
+  });
+
+  it("is ignored while a turn is in flight (sending and streaming)", () => {
+    let s = chatStreamReducer(initialChatStreamState, {
+      type: "SEND",
+      userMessage: userMessage("live question"),
+      assistantMessageId: "a1",
+    });
+    expect(chatStreamReducer(s, { type: "HISTORY_LOADED", messages: server() })).toBe(s);
+    s = chatStreamReducer(s, { type: "CHUNK", id: "a1", delta: "partial", at: 1 });
+    expect(s.status).toBe("streaming");
+    expect(chatStreamReducer(s, { type: "HISTORY_LOADED", messages: server() })).toBe(s);
+  });
+
+  it("is ignored after a finished turn: the live conversation is the truth", () => {
+    let s = chatStreamReducer(initialChatStreamState, {
+      type: "SEND",
+      userMessage: userMessage("first message"),
+      assistantMessageId: "a1",
+    });
+    s = chatStreamReducer(s, { type: "CHUNK", id: "a1", delta: "answer", at: 1 });
+    s = chatStreamReducer(s, { type: "DONE", id: "a1", at: 2 });
+    expect(chatStreamReducer(s, { type: "HISTORY_LOADED", messages: server() })).toBe(s);
+  });
+
+  it("is ignored while an error is showing", () => {
+    let s = chatStreamReducer(initialChatStreamState, {
+      type: "SEND",
+      userMessage: userMessage("q"),
+      assistantMessageId: "a1",
+    });
+    s = chatStreamReducer(s, {
+      type: "ERROR",
+      id: "a1",
+      error: { code: "UPSTREAM_ERROR", message: "x" } as never,
+    });
+    expect(chatStreamReducer(s, { type: "HISTORY_LOADED", messages: server() })).toBe(s);
+  });
+});

@@ -69,7 +69,9 @@ export type ChatStreamAction =
   | { type: "STOP"; id: string; at?: number }
   | { type: "PARTIAL"; id: string; at?: number }
   | { type: "ERROR"; id: string; error: ChatError }
-  | { type: "RESET_ERROR" };
+  | { type: "RESET_ERROR" }
+  /** P6.3e (session 53). Fresh history from the server for a session that has not sent anything yet. */
+  | { type: "HISTORY_LOADED"; messages: ChatMessage[] };
 
 export const initialChatStreamState: ChatStreamState = {
   status: "idle",
@@ -99,6 +101,21 @@ function closeThinking(m: ChatMessage, at: number | undefined): ChatMessage {
 /** A draft worth keeping when a turn is cut short: it has answer text OR reasoning. */
 function hasAnything(m: ChatMessage): boolean {
   return m.content.length > 0 || (m.thinking?.text.length ?? 0) > 0;
+}
+
+/** Same list for display purposes: same ids, same text, same reasoning length, same partial flag. */
+function sameMessages(a: readonly ChatMessage[], b: readonly ChatMessage[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((m, i) => {
+    const o = b[i];
+    return (
+      o !== undefined &&
+      m.id === o.id &&
+      m.content === o.content &&
+      m.isPartial === o.isPartial &&
+      (m.thinking?.text.length ?? 0) === (o.thinking?.text.length ?? 0)
+    );
+  });
 }
 
 export function chatStreamReducer(
@@ -273,6 +290,19 @@ export function chatStreamReducer(
     case "RESET_ERROR": {
       if (state.status !== "error") return state;
       return { ...state, status: "idle", error: null };
+    }
+
+    // P6.3e (session 53). The session was seeded from the on-device cache (or from nothing) and the
+    // server's real history has just arrived. Adopt it ONLY while this session has not sent anything
+    // ("idle" and no error): once a turn has started, `state.messages` is the live truth and a
+    // fetch that began before that turn (a brand-new chat's fetch returns "no messages yet") must never
+    // overwrite it. An empty answer never replaces anything. An identical list returns the same state
+    // object, so a no-change reload causes no re-render.
+    case "HISTORY_LOADED": {
+      if (state.status !== "idle" || state.error !== null) return state;
+      if (action.messages.length === 0) return state;
+      if (sameMessages(state.messages, action.messages)) return state;
+      return { ...state, messages: action.messages };
     }
 
     default:

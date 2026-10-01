@@ -526,3 +526,18 @@ Plan: `docs/MASTER_PLAN.md` §7 P2.1. Decisions L5 (Sentry), L12 (fail open), L1
 
 ## Session 52 (note) - plan changes
 - P6.3e: tool chips moved to P7.4. New phases: **P6.3f** long-chat performance (measure first) and **P6.6** request options (reasoning effort, search switch hidden until P7.2; no system prompt). P6.4 gained an "investigate the interrupted stream" item. See MASTER_PLAN.
+
+
+---
+
+## Session 53 - P6.3e: messages vanished after leaving a chat and coming back (web only)
+- **Changed:** `apps/web/features/chat/lib/chat-stream-reducer.ts` (new `HISTORY_LOADED` action + `sameMessages`), `hooks/use-chat-stream.ts` (dispatches it when `initialMessages` changes; doc comment amended), `lib/conversation-cache.ts` (`isUsableCachedMessages`, `shouldCacheMessages`), `hooks/use-conversation-messages.ts` (uses them). **Tests:** `lib/chat-stream-reducer.test.ts` (+7), new `lib/conversation-cache-rules.test.ts` (6). Docs: `MASTER_PLAN.md`, this file, `SESSION_LOG.md`.
+- **DELETE:** none.
+- **External contract / behaviour:** none new. No api change, migration, dependency, lockfile or env change. Frozen zone untouched. A chat opened from an empty or stale cache now shows the server's history once it arrives (a skeleton shows meanwhile instead of an empty chat).
+- **Deploy order:** web only.
+- **How to verify:**
+  1. CI all green: web Unit Tests (`chat-stream-reducer`, `conversation-cache-rules`), Type-check & Lint (the two hooks are only syntax-checked here), Build.
+  2. Phone: new chat, send a message, wait for the reply, open Billing (or any page), come back via the sidebar or Back. The conversation shows WITHOUT a refresh.
+  3. Same again but leave while the reply is still streaming: expected to be partial or missing (P6.4), tell me what you see.
+  4. Two tabs: send a message in tab B, then switch tab A to another page and back: the new message appears.
+  5. Send a message while an old chat is still loading: your live reply is never replaced.
