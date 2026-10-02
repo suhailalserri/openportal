@@ -126,7 +126,7 @@ jobs:
         if: ${{ inputs.task == 'constraints' || inputs.task == 'all' || inputs.task == 'reset-and-migrate-all' }}
         working-directory: packages/db
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls 0018_revoke_sessions_on_lockout 0019_auth_rate_limit 0020_provider_prices_backfill; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls 0018_revoke_sessions_on_lockout 0019_auth_rate_limit 0020_provider_prices_backfill 0024_message_content_blocks; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "src/migrations/$f.sql"
           done

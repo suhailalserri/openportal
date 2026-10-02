@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   fetchConversationMessages,
   fetchConversationModelId,
+  thinkingFromBlocks,
 } from "./conversation-api";
 
 function res(status: number, body?: unknown): Response {
@@ -146,5 +147,70 @@ describe("fetchConversationModelId", () => {
     expect(await fetchConversationModelId("c1", boom)).toEqual({ ok: false, status: 0, unauthorized: false });
     const bad = (async () => res(200)) as unknown as typeof fetch;
     expect((await fetchConversationModelId("c1", bad)).ok).toBe(false);
+  });
+});
+
+
+// P6.4: saved reasoning comes back after a reload.
+describe("thinkingFromBlocks", () => {
+  it("returns undefined for null, absent, non-array and block-free input", () => {
+    for (const v of [null, undefined, "x", 5, {}, [], [{ type: "text", text: "hi" }]]) {
+      expect(thinkingFromBlocks(v)).toBeUndefined();
+    }
+  });
+
+  it("maps one thinking block; the duration becomes a relative start/end pair", () => {
+    expect(thinkingFromBlocks([{ type: "thinking", thinking: "Let me think.", durationMs: 4200 }, { type: "text", text: "42" }]))
+      .toEqual({ text: "Let me think.", startedAt: 0, endedAt: 4200 });
+  });
+
+  it("without a stored duration endedAt stays undefined (label without a time)", () => {
+    expect(thinkingFromBlocks([{ type: "thinking", thinking: "hmm" }])).toEqual({ text: "hmm", startedAt: 0, endedAt: undefined });
+  });
+
+  it("joins several thinking blocks with a blank line and adds their durations", () => {
+    expect(thinkingFromBlocks([
+      { type: "thinking", thinking: "first", durationMs: 1000 },
+      { type: "tool_use", id: "c", name: "f", input: {} },
+      { type: "thinking", thinking: "second", durationMs: 500 },
+    ])).toEqual({ text: "first\n\nsecond", startedAt: 0, endedAt: 1500 });
+  });
+
+  it("ignores malformed blocks and bad durations instead of throwing", () => {
+    expect(thinkingFromBlocks([
+      null, 7, "x", { type: "thinking" }, { type: "thinking", thinking: 3 }, { type: "thinking", thinking: "   " },
+      { type: "mystery", thinking: "no" },
+      { type: "thinking", thinking: "ok", durationMs: -5 },
+    ])).toEqual({ text: "ok", startedAt: 0, endedAt: undefined });
+    expect(thinkingFromBlocks([{ type: "thinking", thinking: "ok", durationMs: Number.NaN }])?.endedAt).toBeUndefined();
+  });
+});
+
+describe("fetchConversationMessages — contentBlocks (P6.4)", () => {
+  const base = {
+    id: "m1", role: "assistant" as const, content: "42", createdAt: "2026-01-01T00:00:00.000Z",
+    isPartial: false, feedback: null, modelId: null, inputTokens: null, outputTokens: null, creditCost: null,
+  };
+  const load = async (messages: unknown[]) => {
+    const r = await fetchConversationMessages("c", (async () => res(200, { messages })) as unknown as typeof fetch);
+    if (!r.ok) throw new Error("expected ok");
+    return r.value;
+  };
+
+  it("a saved reply gets its thinking back; content stays the flat text", async () => {
+    const [m] = await load([{ ...base, contentBlocks: [{ type: "thinking", thinking: "why", durationMs: 2000 }, { type: "text", text: "42" }] }]);
+    expect(m!.content).toBe("42");
+    expect(m!.thinking).toEqual({ text: "why", startedAt: 0, endedAt: 2000 });
+  });
+
+  it("a reasoning-only reply keeps empty content and its thinking", async () => {
+    const [m] = await load([{ ...base, content: "", contentBlocks: [{ type: "thinking", thinking: "only thoughts" }] }]);
+    expect(m!.content).toBe("");
+    expect(m!.thinking?.text).toBe("only thoughts");
+  });
+
+  it("null, absent or garbage contentBlocks give no thinking key at all (old rows unchanged)", async () => {
+    const out = await load([{ ...base, contentBlocks: null }, { ...base, id: "m2" }, { ...base, id: "m3", contentBlocks: "oops" }]);
+    for (const m of out) expect("thinking" in m).toBe(false);
   });
 });

@@ -15,7 +15,7 @@
  *    prompts assembled in gateway.service.ts, which nothing on the client
  *    reads, sets, or overrides.
  */
-import type { ChatMessage, ConversationSummary } from "../types";
+import type { ChatMessage, ConversationSummary, ThinkingTrace } from "../types";
 
 export type ApiResult<T> =
   | { ok: true; value: T }
@@ -165,10 +165,44 @@ interface ConversationRow {
     inputTokens: number | null;
     outputTokens: number | null;
     creditCost: number | null;
+    /** P6.4: ordered blocks of a v2 reply; null/absent for older rows and v1 replies. */
+    contentBlocks?: unknown;
   }>;
 }
 
+/**
+ * P6.4. Rebuilds the Thinking trace of a saved reply from `contentBlocks`.
+ *
+ * Tolerant on purpose (the column is `jsonb`, written by another service): anything that is not an
+ * array, and any block that is not a well-formed `thinking` block, is ignored, so a bad or future
+ * row can never break the history load. A reply with several thinking blocks (reasoning around a
+ * tool call) shows them as one trace, joined by a blank line, with their durations added up.
+ *
+ * `startedAt`/`endedAt` are RELATIVE here (0 and the total duration): ThinkingBlock only ever uses
+ * their difference for "Thought for Ns", and a saved reply has no live clock. Without a stored
+ * duration `endedAt` stays undefined, which renders the label without a time.
+ */
+export function thinkingFromBlocks(blocks: unknown): ThinkingTrace | undefined {
+  if (!Array.isArray(blocks)) return undefined;
+  const texts: string[] = [];
+  let durationMs = 0;
+  let hasDuration = false;
+  for (const b of blocks) {
+    if (typeof b !== "object" || b === null) continue;
+    const block = b as { type?: unknown; thinking?: unknown; durationMs?: unknown };
+    if (block.type !== "thinking" || typeof block.thinking !== "string" || block.thinking.trim() === "") continue;
+    texts.push(block.thinking);
+    if (typeof block.durationMs === "number" && Number.isFinite(block.durationMs) && block.durationMs >= 0) {
+      durationMs += block.durationMs;
+      hasDuration = true;
+    }
+  }
+  if (texts.length === 0) return undefined;
+  return { text: texts.join("\n\n"), startedAt: 0, endedAt: hasDuration ? durationMs : undefined };
+}
+
 function mapRow(row: ConversationRow["messages"][number]): ChatMessage {
+  const thinking = thinkingFromBlocks(row.contentBlocks);
   return {
     id: row.id,
     role: row.role,
@@ -180,6 +214,7 @@ function mapRow(row: ConversationRow["messages"][number]): ChatMessage {
     ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
     ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
     ...(row.creditCost != null ? { creditCost: row.creditCost } : {}),
+    ...(thinking !== undefined ? { thinking } : {}),
   };
 }
 

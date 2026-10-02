@@ -1182,3 +1182,160 @@ describe("streamChat — P6.2 provider normalization", () => {
     });
   });
 });
+
+
+// ── P6.4: the structured blocks are saved with the assistant message ────────────────────────────────
+describe("streamChat — P6.4 persisted content blocks", () => {
+  const sse = (obj: unknown) => `data: ${JSON.stringify(obj)}\n\n`;
+  const delta = (d: Record<string, unknown>, extra: Record<string, unknown> = {}) => sse({ choices: [{ delta: d, ...extra }] });
+  const usage = sse({ usage: { prompt_tokens: 20, completion_tokens: 50 } });
+  const stub = (chunks: string[]) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body: makeSseStream(chunks), json: async () => ({}) }));
+  type Saved = { role?: string; content?: string; contentBlocks?: unknown; isPartial?: boolean };
+  const savedAssistant = () =>
+    insertValuesCalls.map((c) => c.values as Saved).filter((v) => v?.role === "assistant");
+  const parse = (writes: string[]) =>
+    writes.join("").split("\n\n").filter(Boolean).map((f) => JSON.parse(f.split("\ndata: ")[1]!) as { type: string } & Record<string, any>);
+
+  it("v2 reasoning + answer: thinking block (with a duration) then text block; content is the text only", async () => {
+    stub([delta({ reasoning_content: "Let me " }), delta({ reasoning_content: "think." }),
+      delta({ content: "The answer" }), delta({ content: " is 42" }, { finish_reason: "stop" }), usage, `data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const [saved] = savedAssistant();
+    expect(savedAssistant()).toHaveLength(1);
+    expect(saved!.content).toBe("The answer is 42");
+    const blocks = saved!.contentBlocks as Array<Record<string, unknown>>;
+    expect(blocks.map((b) => b.type)).toEqual(["thinking", "text"]);
+    expect(blocks[0]).toMatchObject({ type: "thinking", thinking: "Let me think." });
+    expect(typeof blocks[0]!.durationMs).toBe("number");
+    expect(blocks[1]).toEqual({ type: "text", text: "The answer is 42" });
+    expect(blocks.filter((b) => b.type === "text").map((b) => b.text).join("")).toBe(saved!.content);
+  });
+
+  it("v2 answer without reasoning: one text block", async () => {
+    stub([delta({ content: "Hello" }), usage, `data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(savedAssistant()[0]).toMatchObject({ content: "Hello", contentBlocks: [{ type: "text", text: "Hello" }] });
+  });
+
+  it("v1 saves exactly what it saved before and contentBlocks null", async () => {
+    stub([delta({ reasoning_content: "hidden" }), delta({ content: "Hello" }), usage, `data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+    expect(savedAssistant()).toHaveLength(1);
+    expect(savedAssistant()[0]).toMatchObject({ content: "Hello", contentBlocks: null, isPartial: false });
+  });
+
+  it("v2 tool turn: tool_use block with parsed arguments between text blocks", async () => {
+    stub([delta({ content: "Checking. " }),
+      delta({ tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "get_weather", arguments: "" } }] }),
+      delta({ tool_calls: [{ index: 0, function: { arguments: '{"city":"Da' } }] }),
+      delta({ tool_calls: [{ index: 0, function: { arguments: 'mascus"}' } }] }, { finish_reason: "tool_calls" }),
+      usage, `data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const saved = savedAssistant()[0]!;
+    expect(saved.content).toBe("Checking. ");
+    expect(saved.contentBlocks).toEqual([
+      { type: "text", text: "Checking. " },
+      { type: "tool_use", id: "call_1", name: "get_weather", input: { city: "Damascus" } },
+    ]);
+  });
+
+  it("v2 reasoning-only reply: content empty, one thinking block (before P6.4 the reasoning was lost)", async () => {
+    stub([delta({ reasoning_content: "a long chain of thought that never became an answer" }), `data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    const saved = savedAssistant()[0]!;
+    expect(saved.content).toBe("");
+    expect((saved.contentBlocks as Array<{ type: string }>).map((b) => b.type)).toEqual(["thinking"]);
+  });
+
+  it("v2 interrupted mid-answer: partial blocks saved with isPartial, billed once, saved once", async () => {
+    const enc = new TextEncoder();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulls++ === 0) c.enqueue(enc.encode(delta({ reasoning_content: "hmm" }) + delta({ content: "partial" })));
+        else c.error(new Error("drop"));
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    expect(savedAssistant()).toHaveLength(1);
+    const saved = savedAssistant()[0]!;
+    expect(saved).toMatchObject({ content: "partial", isPartial: true });
+    expect((saved.contentBlocks as Array<{ type: string }>).map((b) => b.type)).toEqual(["thinking", "text"]);
+  });
+
+  it("recording does not change the wire: the v2 frames are the same as the P6.2 expectations", async () => {
+    stub([delta({ reasoning_content: "r" }), delta({ content: "a" }), usage, `data: [DONE]\n\n`]);
+    const { reply, writes } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(parse(writes).map((e) => e.type)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_stop",
+      "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"]);
+  });
+
+  it("nothing is saved (and no blocks computed to save) when nothing was billed", async () => {
+    stub([`data: [DONE]\n\n`]);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, streamVersion: "v2", reply });
+    expect(savedAssistant()).toHaveLength(0);
+  });
+});
+
+
+// ── P6.4: an interrupted stream says why it ended (diagnostic log only) ─────────────────────────────
+describe("streamChat — P6.4 interruption diagnostics", () => {
+  it("an upstream error mid-stream logs cause upstream_error, with no message text in the log", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const enc = new TextEncoder();
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) { if (pulls++ === 0) c.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "secret partial" } }] })}\n\n`)); else c.error(new Error("socket hang up")); },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body, json: async () => ({}) }));
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, reply });
+    const call = warn.mock.calls.find((c) => c[0] === "[chat] stream interrupted");
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ cause: "upstream_error", receivedChars: 14, errorName: "Error", errorMessage: "socket hang up" });
+    expect(JSON.stringify(call)).not.toContain("secret partial");
+    expect(deductCreditsAtomicMock).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it("a client abort logs client_disconnect_or_shutdown; a clean stream logs nothing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn((_u: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal;
+      const enc = new TextEncoder();
+      let first = true;
+      const body = new ReadableStream<Uint8Array>({
+        pull(c) {
+          if (first) { first = false; c.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "hi" } }] })}\n\n`)); return; }
+          return new Promise<void>((resolve) => signal.addEventListener("abort", () => { c.error(new DOMException("aborted", "AbortError")); resolve(); }, { once: true }));
+        },
+      });
+      return Promise.resolve({ ok: true, status: 200, body, json: async () => ({}) });
+    }));
+    const ac = new AbortController();
+    const { reply, writes } = makeReply();
+    const done = callStreamChat({ ...baseOpts, abortSignal: ac.signal, reply });
+    await vi.waitFor(() => expect(writes).toEqual(["hi"]));
+    ac.abort(new DOMException("gone", "AbortError"));
+    await done;
+    expect(warn.mock.calls.find((c) => c[0] === "[chat] stream interrupted")![1]).toMatchObject({ cause: "client_disconnect_or_shutdown" });
+    warn.mockClear();
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, body: makeSseStream([
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\n`, `data: ${JSON.stringify({ usage: { prompt_tokens: 1, completion_tokens: 1 } })}\n\n`, `data: [DONE]\n\n`]), json: async () => ({}) }));
+    await callStreamChat({ ...baseOpts, reply: makeReply().reply });
+    expect(warn.mock.calls.filter((c) => c[0] === "[chat] stream interrupted")).toHaveLength(0);
+    warn.mockRestore();
+  });
+});

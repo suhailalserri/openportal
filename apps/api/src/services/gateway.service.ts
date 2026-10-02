@@ -19,6 +19,7 @@ import type { ResolveArgs, ResolvedAttachments } from "./chat-attachments.servic
 import type { StreamVersion } from "@ai-platform/types";
 import { StreamV2Writer } from "./stream-v2";
 import { StreamNormalizer, STATUS_AFTER_MS } from "./stream-normalize";
+import { BlockRecorder } from "./message-blocks";
 
 /** What is actually sent to the provider: content is a string, or parts when an image is attached (P5.2b). */
 type ProviderMessage = { role: string; content: ProviderContent };
@@ -570,7 +571,11 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     : null;
   v2?.start();
   // P6.2: v2 maps reasoning and tool-call chunks too; v1 never does, so its path below is untouched.
-  const normalizer = v2 ? new StreamNormalizer(v2, requestId) : null;
+  // P6.4: the recorder sits between the normalizer and the writer: it forwards every call to the
+  // writer unchanged (the wire stream is the same with or without it) and keeps the ordered blocks
+  // that are saved with the message. v1 has no blocks, so it records nothing.
+  const recorder = v2 ? new BlockRecorder(v2) : null;
+  const normalizer = recorder ? new StreamNormalizer(recorder, requestId) : null;
   // P6.2: if the upstream stays silent, say so once (status "waiting"). Cleared on the first output and
   // in the finally below, so it can never fire after content or after the stream ended.
   let statusTimer: ReturnType<typeof setTimeout> | null = v2
@@ -624,8 +629,20 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
         }
       }
     }
-  } catch {
-    // Stream interrupted — isPartial stays true
+  } catch (err: unknown) {
+    // Stream interrupted — isPartial stays true.
+    // P6.4 (diagnostic only, no behaviour change): record WHY, so the next "Response interrupted"
+    // can be explained from the logs instead of guessed. No message content, no user data.
+    const cause = timeoutSignal.aborted ? "timeout_120s"
+      : opts.abortSignal?.aborted ? "client_disconnect_or_shutdown"
+      : "upstream_error";
+    console.warn("[chat] stream interrupted", {
+      requestId, modelId, cause,
+      elapsedMs:     Date.now() - upstreamStartedAt,
+      receivedChars: streamedContent.length,
+      errorName:     err instanceof Error ? err.name : typeof err,
+      errorMessage:  err instanceof Error ? err.message.slice(0, 200) : undefined,
+    });
   } finally {
     cancelStatus();
     streamingConnectionsActive.dec();
@@ -635,6 +652,9 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
   // tail can report usage. For v1 nothing is written here, so its bytes are unchanged.
   let shouldBill = false;
   let cost       = 0;
+  // P6.4: closed right after the read loop (not after billing), so a thinking block's duration is
+  // the time the model spent reasoning, not that plus the database round trip.
+  const contentBlocks = recorder?.result() ?? null;
   try {
     // Some gateway/provider combinations omit `usage` entirely even on a
     // clean finish (stream_options.include_usage isn't universally honored
@@ -726,6 +746,8 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
       conversationId:   opts.conversationId,
       role:             "assistant",
       content:          streamedContent,
+      // P6.4: null for v1 and for rows with nothing structured; readers treat null as one text block.
+      contentBlocks,
       inputTokens,
       outputTokens,
       creditCost:       cost,
