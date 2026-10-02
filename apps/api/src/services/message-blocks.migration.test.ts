@@ -21,6 +21,12 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => { await stopTestDb(); });
 
+/** jsonb_typeof must be 'array' and the length what was written: a string would pass a round-trip read. */
+async function expectStoredAsArray(messageId: string, length: number) {
+  const r = await db.execute(orm.sql`SELECT jsonb_typeof(content_blocks) AS t, jsonb_array_length(content_blocks) AS n FROM messages WHERE id = ${messageId}`);
+  expect((r as unknown as Array<{ t: string; n: number }>)[0]).toEqual({ t: "array", n: length });
+}
+
 async function conversation() {
   const { userId } = await createTestUser(db, schema);
   const id = randomUUID();
@@ -51,6 +57,17 @@ describe("migration 0024 / messages.content_blocks", () => {
     const [back] = await db.select().from(schema.messages).where(orm.eq(schema.messages.id, row!.id));
     expect(back!.contentBlocks).toEqual(blocks);
     expect(back!.content).toBe("Hello world");
+    await expectStoredAsArray(row!.id, 4);
+  });
+
+  it("is stored as a real JSON array, not a JSON string (queryable with JSON operators)", async () => {
+    const conversationId = await conversation();
+    const [row] = await db.insert(schema.messages)
+      .values({ conversationId, role: "assistant", content: "x", contentBlocks: [{ type: "text", text: "x" }] })
+      .returning();
+    await expectStoredAsArray(row!.id, 1);
+    const first = await db.execute(orm.sql`SELECT content_blocks -> 0 ->> 'type' AS t FROM messages WHERE id = ${row!.id}`);
+    expect((first as unknown as Array<{ t: string }>)[0]!.t).toBe("text");
   });
 
   it("existing-style rows (no contentBlocks) read back as null", async () => {

@@ -1,9 +1,10 @@
 import {
   pgTable, uuid, varchar, text, bigint,
-  integer, boolean, timestamp, jsonb,
+  integer, boolean, timestamp,
 } from "drizzle-orm/pg-core";
 import { conversations } from "./conversations";
 import { messageRoleEnum, feedbackEnum } from "./enums";
+import { jsonbArray } from "./jsonb-array";
 
 export const messages = pgTable("messages", {
   id:               uuid("id").primaryKey().defaultRandom(),
@@ -19,7 +20,8 @@ export const messages = pgTable("messages", {
   // Shape: packages/types/src/message-blocks.ts (typed `unknown[]` here because this package does
   // not depend on @ai-platform/types; the api validates on write by construction, readers must
   // ignore unknown blocks). Migration: 0024_message_content_blocks.sql (adds a CHECK push does not create).
-  contentBlocks:    jsonb("content_blocks").$type<unknown[]>(),
+  // `jsonbArray`, not `jsonb()`: see jsonb-array.ts (the stock column double-encodes with postgres-js).
+  contentBlocks:    jsonbArray("content_blocks"),
   inputTokens:      integer("input_tokens"),
   outputTokens:     integer("output_tokens"),
   creditCost:       bigint("credit_cost", { mode: "number" }),

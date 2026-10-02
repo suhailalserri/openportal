@@ -636,10 +636,12 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
     const cause = timeoutSignal.aborted ? "timeout_120s"
       : opts.abortSignal?.aborted ? "client_disconnect_or_shutdown"
       : "upstream_error";
+    // A number only: the log scanner (security/log-hygiene.test.ts) forbids naming the text itself.
+    const receivedChars = streamedContent.length;
     console.warn("[chat] stream interrupted", {
       requestId, modelId, cause,
-      elapsedMs:     Date.now() - upstreamStartedAt,
-      receivedChars: streamedContent.length,
+      elapsedMs: Date.now() - upstreamStartedAt,
+      receivedChars,
       errorName:     err instanceof Error ? err.name : typeof err,
       errorMessage:  err instanceof Error ? err.message.slice(0, 200) : undefined,
     });
