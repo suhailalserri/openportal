@@ -1,7 +1,8 @@
 import {
-  pgTable, uuid, varchar, timestamp, inet, jsonb,
+  pgTable, uuid, varchar, timestamp, inet,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { jsonbValue } from "./jsonb-value";
 
 /** Immutable log of every admin action. Never delete rows from this table. */
 export const auditLogs = pgTable("audit_logs", {
@@ -10,8 +11,8 @@ export const auditLogs = pgTable("audit_logs", {
   action:     varchar("action",      { length: 100 }).notNull(),
   targetType: varchar("target_type", { length: 50 }),
   targetId:   uuid("target_id"),
-  before:     jsonb("before"),
-  after:      jsonb("after"),
+  before:     jsonbValue<unknown>("before"),
+  after:      jsonbValue<unknown>("after"),
   ip:         inet("ip"),
   createdAt:  timestamp("created_at").defaultNow().notNull(),
 });

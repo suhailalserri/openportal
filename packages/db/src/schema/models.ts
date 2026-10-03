@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable, varchar, boolean, integer,
-  bigint, timestamp, uuid, numeric, text, jsonb,
+  bigint, timestamp, uuid, numeric, text,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { modelStatusEnum } from "./enums";
+import { jsonbValue } from "./jsonb-value";
 
 /**
  * Runtime model configuration — stored in DB so admins can toggle
@@ -82,7 +83,9 @@ export const models = pgTable("models", {
   // the picker's ranking falls back to the mean of whatever scores ARE
   // set rather than treating a missing score as 0 (see
   // resolveCategoryScore in apps/web/features/chat/lib/model-ranking.ts).
-  categoryScores:   jsonb("category_scores").$type<Record<string, number>>().default({}).notNull(),
+  // `jsonbValue`, not `jsonb()`: see jsonb-value.ts. The SQL default is the same one the database
+  // already has, so push/generate see no change and an omitted value stores a real object.
+  categoryScores:   jsonbValue<Record<string, number>>("category_scores").default(sql`'{}'::jsonb`).notNull(),
   // Admin-authored behavior rules for this specific model — appended after
   // the platform-wide base prompt (see platform_config table) when a chat
   // request is assembled server-side in gateway.service.ts. Never sent by

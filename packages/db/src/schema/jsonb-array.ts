@@ -1,5 +1,5 @@
 import { customType } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { jsonbParam } from "./jsonb-value";
 
 /**
  * A `jsonb` column that stores a real JSON ARRAY.
@@ -17,15 +17,15 @@ import { sql } from "drizzle-orm";
  * Reading accepts an already-parsed array (what postgres-js returns for jsonb) or a JSON string, and
  * returns anything that is not an array as null instead of throwing, so one bad row cannot break a page.
  *
- * Other `jsonb()` columns in this package (audit_logs.before/after, fraud_events.details,
- * models.category_scores) were NOT changed here; see docs/production/SESSION_LOG.md Session 55 (CI fix).
+ * The other JSON columns (audit_logs.before/after, fraud_events.details, models.category_scores) use
+ * the general `jsonbValue` in jsonb-value.ts; migration 0025 repaired their old rows.
  */
 export const jsonbArray = customType<{ data: unknown[]; driverData: unknown }>({
   dataType() {
     return "jsonb";
   },
   toDriver(value) {
-    return sql`${JSON.stringify(value)}::text::jsonb`;
+    return jsonbParam(value);
   },
   fromDriver(value) {
     let v: unknown = value;

@@ -1,8 +1,9 @@
 import {
   pgTable, uuid, text, boolean,
-  timestamp, inet, jsonb,
+  timestamp, inet,
 } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { jsonbValue } from "./jsonb-value";
 import { fraudTypeEnum, fraudSeverityEnum } from "./enums";
 
 export const fraudEvents = pgTable("fraud_events", {
@@ -10,7 +11,7 @@ export const fraudEvents = pgTable("fraud_events", {
   userId:      uuid("user_id").references(() => users.id),
   type:        fraudTypeEnum("type").notNull(),
   severity:    fraudSeverityEnum("severity").notNull(),
-  details:     jsonb("details"),
+  details:     jsonbValue<unknown>("details"),
   ip:          inet("ip"),
   userAgent:   text("user_agent"),
   resolved:    boolean("resolved").default(false).notNull(),
