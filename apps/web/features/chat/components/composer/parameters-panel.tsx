@@ -6,7 +6,9 @@ import { RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { ConversationParams } from "../../types";
+import { REASONING_EFFORTS, type ConversationParams, type ReasoningEffort } from "../../types";
+import { WEB_SEARCH_CONTROL_ENABLED } from "../../lib/request-options";
+import { Switch } from "@/components/ui/switch";
 import { PARAM_LIMITS } from "../../lib/chat-params-storage";
 import { clampMaxTokens } from "../../lib/param-slider";
 import { ParamSlider, ParamStepper } from "./param-controls";
@@ -35,6 +37,8 @@ export interface ParametersPanelProps {
   onParamsChange: (next: ConversationParams) => void;
   /** Selected model's `maxOutputTokens`. */
   maxOutputTokens: number | undefined;
+  /** P6.6. True only when the selected model carries the admin `reasoning` flag; otherwise the reasoning control is absent. */
+  supportsReasoning?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -46,6 +50,7 @@ export function ParametersPanel({
   params,
   onParamsChange,
   maxOutputTokens,
+  supportsReasoning = false,
   disabled,
   className,
 }: ParametersPanelProps) {
@@ -58,11 +63,18 @@ export function ParametersPanel({
   const anySet =
     params.temperature !== null ||
     params.topP !== null ||
-    params.maxTokens !== null;
+    params.maxTokens !== null ||
+    (supportsReasoning && params.reasoningEffort !== null) ||
+    (WEB_SEARCH_CONTROL_ENABLED && params.webSearch);
 
   const handleReset = () => {
-    onParamsChange({ temperature: null, topP: null, maxTokens: null });
+    onParamsChange({ ...params, temperature: null, topP: null, maxTokens: null, reasoningEffort: null, webSearch: false });
   };
+
+  const effortOptions: ReadonlyArray<{ value: ReasoningEffort | null; label: string }> = [
+    { value: null, label: t("default") },
+    ...REASONING_EFFORTS.map((e) => ({ value: e, label: t(`effort.${e}`) })),
+  ];
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -103,6 +115,40 @@ export function ParametersPanel({
         onChange={(v) => onParamsChange({ ...params, maxTokens: v })}
         disabled={off}
       />
+
+      {supportsReasoning ? (
+        <div className="flex flex-col gap-2" role="group" aria-label={t("reasoning")} data-testid="reasoning-effort">
+          <span className="text-sm font-medium">{t("reasoning")}</span>
+          <p className="text-xs text-muted-foreground">{t("reasoningHint")}</p>
+          <div className="flex gap-1.5">
+            {effortOptions.map((o) => (
+              <Button
+                key={o.value ?? "default"}
+                type="button"
+                size="sm"
+                variant={params.reasoningEffort === o.value ? "default" : "outline"}
+                aria-pressed={params.reasoningEffort === o.value}
+                disabled={off}
+                onClick={() => onParamsChange({ ...params, reasoningEffort: o.value })}
+                className="flex-1"
+              >
+                {o.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {WEB_SEARCH_CONTROL_ENABLED ? (
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium">{t("webSearch")}</span>
+          <Switch
+            checked={params.webSearch}
+            disabled={off}
+            onCheckedChange={(v) => onParamsChange({ ...params, webSearch: v })}
+          />
+        </label>
+      ) : null}
 
       <div className="flex justify-end">
         <Button type="button" variant="ghost" size="sm" onClick={handleReset} disabled={off || !anySet}>

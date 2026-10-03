@@ -2,6 +2,7 @@ import { config } from "../config";
 import { CREDIT_VALUE_USD, estimateTokenCount } from "@ai-platform/config";
 import { deductCreditsAtomic, getBalance } from "./balance.service";
 import { TRANSCRIPTION_CATEGORY } from "./transcription.policy";
+import { modelSupportsReasoning } from "./model-capabilities";
 import { db, messages, conversations, models } from "@ai-platform/db";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
@@ -200,6 +201,10 @@ export interface StreamChatOptions {
   temperature?: number | undefined;
   top_p?:       number | undefined;
   max_tokens?:  number | undefined;
+  /** P6.6 — forwarded as `reasoning_effort` only when the model carries the admin `reasoning` flag; ignored otherwise. */
+  reasoningEffort?: "low" | "medium" | "high" | undefined;
+  /** P6.6 — accepted, not acted on until P7.2 provides a `web_search` tool. */
+  webSearch?: boolean | undefined;
   /** F4 — idempotency. See chat-idempotency.service.ts. */
   clientMessageId?: string | undefined;
   regenerate?:      boolean | undefined;
@@ -484,6 +489,10 @@ export async function streamChat(opts: StreamChatOptions): Promise<void> {
         ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
         ...(opts.top_p       !== undefined ? { top_p: opts.top_p }             : {}),
         ...(maxTokens        !== undefined ? { max_tokens: maxTokens }         : {}),
+        // P6.6: the effort level is an admin-gated claim (`reasoning` flag, P6.5 helper). Unflagged
+        // model or no choice = the field is simply absent, so provider behaviour is unchanged.
+        ...(opts.reasoningEffort !== undefined && modelSupportsReasoning(model.categories)
+          ? { reasoning_effort: opts.reasoningEffort } : {}),
       }),
       signal: combinedSignal,
     });

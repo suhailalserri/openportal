@@ -6,6 +6,32 @@ const validBody = {
   messages: [{ role: "user", content: "hello" }],
 };
 
+describe("chatRequestSchema — P6.6 request options", () => {
+  it.each(["low", "medium", "high"])("accepts reasoningEffort %s", (v) => {
+    expect(chatRequestSchema.safeParse({ ...validBody, reasoningEffort: v }).success).toBe(true);
+  });
+
+  it.each(["", "LOW", "max", "minimal", null, 3])("rejects reasoningEffort %j", (v) => {
+    expect(chatRequestSchema.safeParse({ ...validBody, reasoningEffort: v }).success).toBe(false);
+  });
+
+  it("keeps both options optional (pre-P6.6 callers still pass)", () => {
+    const r = chatRequestSchema.safeParse(validBody);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.reasoningEffort).toBeUndefined();
+      expect(r.data.webSearch).toBeUndefined();
+    }
+  });
+
+  it("accepts a boolean webSearch and rejects anything else", () => {
+    expect(chatRequestSchema.safeParse({ ...validBody, webSearch: true }).success).toBe(true);
+    expect(chatRequestSchema.safeParse({ ...validBody, webSearch: false }).success).toBe(true);
+    expect(chatRequestSchema.safeParse({ ...validBody, webSearch: "yes" }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ ...validBody, webSearch: null }).success).toBe(false);
+  });
+});
+
 describe("chatRequestSchema", () => {
   it("accepts the minimal pre-B1 shape unchanged", () => {
     const result = chatRequestSchema.safeParse(validBody);

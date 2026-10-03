@@ -9,6 +9,7 @@ import {
 } from "../lib/chat-stream-reducer";
 import { runChatStream } from "../lib/stream-reader";
 import { toWireMessages } from "../lib/wire-messages";
+import { requestOptionFields } from "../lib/request-options";
 import type { ChatAttachment, ChatMessage, ConversationParams } from "../types";
 
 export interface UseChatStreamOptions {
@@ -285,6 +286,7 @@ export function useChatStream({
         ...(temperature != null ? { temperature } : {}),
         ...(topP != null ? { top_p: topP } : {}),
         ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
+        ...requestOptionFields(params),
       };
     },
     [model, conversationId, params],

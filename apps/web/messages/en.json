@@ -189,7 +189,11 @@
       "info": "About {label}",
       "resetOne": "Reset {label} to default",
       "decrease": "Decrease",
-      "increase": "Increase"
+      "increase": "Increase",
+      "reasoning": "Reasoning",
+      "reasoningHint": "How hard the model thinks before it answers. Higher can be slower and cost more.",
+      "effort": { "low": "Low", "medium": "Medium", "high": "High" },
+      "webSearch": "Search the web"
     },
     "responseReady": "Response complete"
   },

@@ -1,5 +1,10 @@
 import { registerClientCacheClearer } from "@/lib/client-cache";
-import { DEFAULT_CONVERSATION_PARAMS, type ConversationParams } from "../types";
+import {
+  DEFAULT_CONVERSATION_PARAMS,
+  REASONING_EFFORTS,
+  type ConversationParams,
+  type ReasoningEffort,
+} from "../types";
 
 /**
  * apps/web/features/chat/lib/chat-params-storage.ts
@@ -96,12 +101,18 @@ export const PARAM_LIMITS = {
   maxTokens: { min: 1, max: 1_000_000 },
 } as const;
 
+function effort(v: unknown): ReasoningEffort | null {
+  return REASONING_EFFORTS.find((e) => e === v) ?? null;
+}
+
 export function sanitizeParams(raw: unknown): ConversationParams {
   const o = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   return {
     temperature: num(o.temperature, PARAM_LIMITS.temperature.min, PARAM_LIMITS.temperature.max),
     topP: num(o.topP, PARAM_LIMITS.topP.min, PARAM_LIMITS.topP.max),
     maxTokens: num(o.maxTokens, PARAM_LIMITS.maxTokens.min, PARAM_LIMITS.maxTokens.max, true),
+    reasoningEffort: effort(o.reasoningEffort),
+    webSearch: o.webSearch === true,
   };
 }
 
@@ -128,7 +139,13 @@ export function writeParams(
     if (!storage) return;
     const clean = sanitizeParams(params);
     // All-default → remove the key instead of storing a row of nulls.
-    if (clean.temperature === null && clean.topP === null && clean.maxTokens === null) {
+    if (
+      clean.temperature === null &&
+      clean.topP === null &&
+      clean.maxTokens === null &&
+      clean.reasoningEffort === null &&
+      !clean.webSearch
+    ) {
       storage.removeItem(paramsKey(conversationId));
       return;
     }

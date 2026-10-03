@@ -126,16 +126,26 @@ export interface ChatError {
  * system prompt); the server now assembles its own platform/model prompt
  * internally (gateway.service.ts), which nothing on the client sees or sets.
  */
+/** P6.6. How hard a reasoning model thinks. null = the model's own default (nothing is sent). */
+export type ReasoningEffort = "low" | "medium" | "high";
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ["low", "medium", "high"];
+
 export interface ConversationParams {
   temperature: number | null;
   topP: number | null;
   maxTokens: number | null;
+  /** P6.6. Shown only for a model with the admin `reasoning` flag. null = model default. */
+  reasoningEffort: ReasoningEffort | null;
+  /** P6.6. The search switch. Hidden until P7.2 (see lib/request-options.ts), so it stays false. */
+  webSearch: boolean;
 }
 
 export const DEFAULT_CONVERSATION_PARAMS: ConversationParams = {
   temperature: null,
   topP: null,
   maxTokens: null,
+  reasoningEffort: null,
+  webSearch: false,
 };
 
 /**

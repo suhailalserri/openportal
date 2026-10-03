@@ -109,6 +109,19 @@ const { deductCreditsAtomicMock, getBalanceMock, claimUserMessageMock, dbInsertM
         supportsVision: false,
         categories: [],
       },
+      // P6.6: same pricing/window, admin `reasoning` flag on.
+      "reasoning-model": {
+        id: "reasoning-model",
+        status: "published",
+        isAvailable: true,
+        contextWindow: 65536,
+        maxOutputTokens: 8192,
+        wholesaleCostInputPerM: "0.14",
+        wholesaleCostOutputPerM: "0.28",
+        markupMultiplier: "2.0",
+        supportsVision: false,
+        categories: ["reasoning"],
+      },
       // P5.2b: same pricing/window, vision on.
       "vision-model": {
         id: "vision-model",
@@ -382,6 +395,43 @@ describe("streamChat — B1 additions", () => {
     expect(sentBody.temperature).toBe(0.4);
     expect(sentBody.top_p).toBe(0.8);
     expect(sentBody.max_tokens).toBe(8192); // clamped, not 50_000
+  });
+
+  it("P6.6: sends reasoning_effort only for a model flagged `reasoning`", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, model: "reasoning-model", reasoningEffort: "high", reply });
+    const [, init] = fetchSpy.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string).reasoning_effort).toBe("high");
+  });
+
+  it("P6.6: ignores reasoningEffort (no error, no field) for a model without the flag", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const { reply, sends } = makeReply();
+    await callStreamChat({ ...baseOpts, reasoningEffort: "low", reply });
+    const [, init] = fetchSpy.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).not.toHaveProperty("reasoning_effort");
+    expect(sends).toEqual([]);
+  });
+
+  it("P6.6: model default (no effort) sends nothing, even for a flagged model; webSearch never reaches the gateway", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: makeSseStream([`data: [DONE]\n\n`]), json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const { reply } = makeReply();
+    await callStreamChat({ ...baseOpts, model: "reasoning-model", webSearch: true, reply });
+    const [, init] = fetchSpy.mock.calls[0]!;
+    const sent = JSON.parse((init as RequestInit).body as string);
+    expect(sent).not.toHaveProperty("reasoning_effort");
+    expect(sent).not.toHaveProperty("webSearch");
+    expect(sent).not.toHaveProperty("web_search");
   });
 
   it("P1.2: uses the route-supplied requestId as the gateway X-Request-ID and the billing request id", async () => {

@@ -42,6 +42,10 @@ export interface ChatStreamRequestBody {
   temperature?: number | undefined;
   top_p?: number | undefined;
   max_tokens?: number | undefined;
+  /** P6.6. Omitted for "model default"; the api ignores it for a model without the `reasoning` flag. */
+  reasoningEffort?: "low" | "medium" | "high" | undefined;
+  /** P6.6. Never sent while the search control is hidden (lib/request-options.ts). */
+  webSearch?: boolean | undefined;
 }
 
 export interface StreamCallbacks {

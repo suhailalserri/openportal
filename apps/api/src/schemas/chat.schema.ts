@@ -64,6 +64,20 @@ const chatRequestObject = z.object({
    */
   max_tokens: z.number().int().positive().max(1_000_000).optional(),
 
+  // ── Request options (P6.6) ──────────────────────────────────────────
+  /**
+   * How hard the model should think. Absent = model default (nothing is sent upstream). `null` is
+   * NOT accepted on the wire, same rule as temperature: the client omits the field instead.
+   * Forwarded as `reasoning_effort` only for a model an admin flagged `reasoning`; for any other
+   * model it is ignored, never an error (gateway.service.ts).
+   */
+  reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
+  /**
+   * The person switched web search on. Accepted and validated, but NOT acted on yet: there is no
+   * `web_search` tool until P7.2, so the gateway ignores it. The web keeps the switch hidden.
+   */
+  webSearch: z.boolean().optional(),
+
   // ── Idempotency (F4) ────────────────────────────────────────────────
   /**
    * Client-generated UUID for this turn. When present, the user-row insert

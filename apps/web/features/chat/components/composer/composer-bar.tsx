@@ -27,6 +27,7 @@ import type { AttachControls } from "../../hooks/use-attachments";
 import { useVoiceInput } from "../../hooks/use-voice-input";
 import { ModelChip, ModelList } from "./model-picker";
 import { ParametersPanel } from "./parameters-panel";
+import { modelOffersReasoning, paramsAfterModelChange } from "../../lib/request-options";
 
 /**
  * apps/web/features/chat/components/composer/composer-bar.tsx
@@ -140,6 +141,19 @@ export function ComposerBar({
 
   const selected = models.find((m) => m.id === selectedModelId);
   const busy = disabled ?? false;
+
+  // P6.6: a reasoning level chosen for one model does not carry over to another; the change returns
+  // it to "model default". The first resolved model is not a change, so a restored value survives.
+  const prevModelRef = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    const prev = prevModelRef.current;
+    prevModelRef.current = selectedModelId;
+    if (prev === undefined || prev === selectedModelId) return;
+    const next = paramsAfterModelChange(params);
+    if (next !== params) onParamsChange(next);
+    // Only on a model change; `params` is read at that moment, not a trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModelId]);
 
   // A panel can't stay open once its trigger is unavailable.
   React.useEffect(() => {
@@ -277,6 +291,7 @@ export function ComposerBar({
           params={params}
           onParamsChange={onParamsChange}
           maxOutputTokens={selected?.maxOutputTokens}
+          supportsReasoning={modelOffersReasoning(selected?.categories)}
           disabled={busy}
         />
       </ComposerPanel>

@@ -367,6 +367,8 @@ async function handleChat(
         temperature:     body.temperature,
         top_p:           body.top_p,
         max_tokens:      body.max_tokens,
+        reasoningEffort: body.reasoningEffort,
+        webSearch:       body.webSearch,
         clientMessageId: body.clientMessageId,
         regenerate:      body.regenerate,
         attachmentIds:   body.attachmentIds,

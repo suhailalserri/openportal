@@ -189,7 +189,11 @@
       "info": "عن {label}",
       "resetOne": "إعادة {label} إلى الافتراضي",
       "decrease": "إنقاص",
-      "increase": "زيادة"
+      "increase": "زيادة",
+      "reasoning": "التفكير",
+      "reasoningHint": "مقدار تفكير النموذج قبل أن يجيب. المستوى الأعلى قد يكون أبطأ وأغلى.",
+      "effort": { "low": "منخفض", "medium": "متوسط", "high": "مرتفع" },
+      "webSearch": "البحث في الويب"
     },
     "responseReady": "اكتمل الرد"
   },
