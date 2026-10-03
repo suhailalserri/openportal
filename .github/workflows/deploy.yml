@@ -510,9 +510,15 @@ jobs:
       # columns + the welcome_bonus tx_type value — omitting it is exactly
       # what caused "column \"welcome_bonus_claimed_at\" of relation
       # \"users\" does not exist" in the seed step.
-      - name: Apply raw SQL migrations (0001-0019)
+      # 0021-0023 were missing here from P5.1 to P6.3 (nothing enforced the list). 0023 adds
+      # platform_config.feature_attachments/voice/thinking; every chat request reads platform_config
+      # through drizzle (history-compaction.service.ts buildSystemPrompt), which selects ALL schema
+      # columns, so on this database the chat-stream e2e failed with "column does not exist" and no
+      # reply appeared. apps/api/src/services/migration-lists.test.ts now fails CI if a migration file
+      # is missing from this list or from db-ops.yml.
+      - name: Apply raw SQL migrations (0001-0025)
         run: |
-          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls 0018_revoke_sessions_on_lockout 0019_auth_rate_limit 0020_provider_prices_backfill 0024_message_content_blocks 0025_repair_double_encoded_jsonb; do
+          for f in 0001_constraints 0002_model_sync 0003_payment_methods 0004_two_factor 0005_referrals 0006_model_latency 0009_usage_index 0010_audit_logs_index 0011_passkey 0012_model_provider_icon 0013_model_badge_categories 0014_server_owned_system_prompt 0015_model_category_scores 0016_welcome_bonus 0017_platform_config_rls 0018_revoke_sessions_on_lockout 0019_auth_rate_limit 0020_provider_prices_backfill 0021_storage_objects 0022_attachments 0023_feature_flags 0024_message_content_blocks 0025_repair_double_encoded_jsonb; do
             echo "== $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "packages/db/src/migrations/$f.sql"
           done
